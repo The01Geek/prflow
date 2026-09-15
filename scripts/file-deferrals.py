@@ -18,8 +18,9 @@ segment exists).
 
 Usage:
     file-deferrals.py --source-issue N --pr M --manifest PATH [--dry-run]
+    file-deferrals.py --source-issue N --pr M --units PATH [--dry-run]
 
-Exit codes:
+Manifest-mode exit codes:
     0  At least one group of findings was filed successfully (or --dry-run),
        OR there were NO fileable groups at all and the only surviving entries
        are settled-by-disclosure foreclosures, which file NO follow-up issue by
@@ -31,6 +32,11 @@ Exit codes:
        failure (issue #660 review) — foreclosures need no `gh` call, so they
        can never evidence that filing worked. Also 1 on invalid input.
     2  Bad arguments / unusable manifest.
+
+Units-mode exit codes:
+    0  Every validated unit was filed successfully (or --dry-run).
+    1  Some validated units were filed and some failed.
+    2  Input was invalid, no units were present, or every create attempt failed.
 """
 
 import argparse
@@ -38,6 +44,7 @@ import datetime
 import hashlib
 import json
 import os
+import shlex
 import subprocess
 import sys
 from collections import OrderedDict
@@ -281,7 +288,13 @@ def _create_issue(title: str, body: str, dry_run: bool) -> tuple[int, str]:
         ) from e
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or r.stdout.strip())
-    url = r.stdout.strip().splitlines()[-1].strip()
+    # Empty stdout on a zero exit must raise the same RuntimeError both callers
+    # already catch; a bare `.splitlines()[-1]` would raise IndexError, which the
+    # manifest loop's `except RuntimeError` lets escape as a traceback.
+    lines = r.stdout.strip().splitlines()
+    if not lines:
+        raise RuntimeError(f"gh reported success but printed no issue URL: {r.stdout!r}")
+    url = lines[-1].strip()
     if "/issues/" not in url:
         raise RuntimeError(f"unexpected gh output: {r.stdout!r}")
     number = int(url.rsplit("/", 1)[-1])
@@ -294,6 +307,92 @@ def _write_manifest_atomic(path: Path, data: dict) -> None:
     tmp.replace(path)
 
 
+def _record_value(value: object) -> str:
+    """Encode one value for the helper's shell-token record lines."""
+    text = str(value).translate(str.maketrans({
+        "\n": r"\n", "\r": r"\r", "\v": r"\v", "\f": r"\f",
+        "\x1c": r"\x1c", "\x1d": r"\x1d", "\x1e": r"\x1e",
+        "\x85": r"\x85", "\u2028": r"\u2028", "\u2029": r"\u2029",
+    }))
+    return shlex.quote(text)
+
+
+def _print_filing(result: str, *, cause: str | None = None) -> None:
+    fields = ["filing", f"result={result}"]
+    if cause:
+        fields.append(f"cause={_record_value(cause)}")
+    print(" ".join(fields))
+
+
+def _load_units(path: Path) -> tuple[list[tuple[str, str, str]], str | None]:
+    """Validate and decode every unit before the first GitHub write."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return ([], f"units-unreadable:{exc}")
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return ([], f"units-invalid-json:{exc}")
+    if not isinstance(document, list):
+        return ([], "units-not-array")
+
+    units: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for index, unit in enumerate(document):
+        if not isinstance(unit, dict):
+            return ([], f"unit-{index}-not-object")
+        values: dict[str, str] = {}
+        for field in ("key", "title", "body_file"):
+            value = unit.get(field)
+            if not isinstance(value, str) or not value.strip():
+                return ([], f"unit-{index}-{field}-invalid")
+            values[field] = value.strip() if field != "body_file" else value
+        key = values["key"]
+        if key in seen:
+            # A bare `continue` would drop the later copy with no record, hiding
+            # a real duplicate-key manifest from the run's own output.
+            print(f"unit key={_record_value(key)} skipped=duplicate")
+            continue
+        try:
+            body = Path(values["body_file"]).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return ([], f"unit-{index}-body-unreadable:{exc}")
+        seen.add(key)
+        units.append((key, values["title"], body))
+    if not units:
+        return ([], "units-empty")
+    return (units, None)
+
+
+def _run_units(path: Path, *, dry_run: bool) -> int:
+    units, cause = _load_units(path)
+    if cause:
+        _print_filing("none", cause=cause)
+        return 2
+
+    succeeded = 0
+    failed = 0
+    for key, title, body in units:
+        try:
+            number, url = _create_issue(title, body, dry_run)
+        except Exception as exc:
+            failed += 1
+            print(f"unit key={_record_value(key)} cause={_record_value(exc)}")
+            continue
+        succeeded += 1
+        print(f"unit key={_record_value(key)} number={number} url={_record_value(url)}")
+
+    if failed == 0:
+        _print_filing("all")
+        return 0
+    if succeeded:
+        _print_filing("partial")
+        return 1
+    _print_filing("none", cause="all-units-failed")
+    return 2
+
+
 def main(argv=None):
     _force_utf8_streams()
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -301,11 +400,17 @@ def main(argv=None):
                    help="Issue number that triggered the /implement run.")
     p.add_argument("--pr", type=int, required=True,
                    help="PR number created by /implement Phase 3.1.")
-    p.add_argument("--manifest", required=True,
-                   help="Path to deferrals.json from review-and-fix.")
+    source = p.add_mutually_exclusive_group(required=True)
+    source.add_argument("--manifest",
+                        help="Path to deferrals.json from review-and-fix.")
+    source.add_argument("--units",
+                        help="JSON array of independently fileable units.")
     p.add_argument("--dry-run", action="store_true",
                    help="Print actions; do not file issues or modify manifest.")
     args = p.parse_args(argv)
+
+    if args.units is not None:
+        return _run_units(Path(args.units), dry_run=args.dry_run)
 
     manifest_path = Path(args.manifest)
     if not manifest_path.is_file():
@@ -316,6 +421,15 @@ def main(argv=None):
     except json.JSONDecodeError as e:
         _fail(f"manifest is not valid JSON: {e}", code=2)
 
+    # A valid-JSON-but-non-object manifest would make manifest.get(...) below raise an
+    # uncaught AttributeError (traceback, exit 1) instead of the documented exit-2 fail;
+    # the --units sibling hardens the same shape via _load_units.
+    if not isinstance(manifest, dict):
+        _fail(
+            f"manifest is not a JSON object (got {type(manifest).__name__}) — "
+            "cannot read schema_version or deferrals", code=2,
+        )
+
     if manifest.get("schema_version") != SCHEMA_VERSION:
         _fail(
             f"manifest schema_version={manifest.get('schema_version')!r} "
@@ -325,6 +439,20 @@ def main(argv=None):
     deferrals = manifest.get("deferrals") or []
     if not deferrals:
         _fail("manifest contains no deferrals — nothing to file", code=2)
+
+    # A non-array `deferrals`, or a non-object entry, would raise an uncaught AttributeError
+    # in the `.get`/iteration below instead of the documented exit-2 fail.
+    if not isinstance(deferrals, list):
+        _fail(
+            f"manifest 'deferrals' is not a JSON array (got {type(deferrals).__name__})",
+            code=2,
+        )
+    for _index, _entry in enumerate(deferrals):
+        if not isinstance(_entry, dict):
+            _fail(
+                f"manifest deferrals[{_index}] is not a JSON object "
+                f"(got {type(_entry).__name__})", code=2,
+            )
 
     if any(d.get("follow_up") for d in deferrals):
         _fail(

@@ -306,6 +306,29 @@ def normalize(text: str) -> str:
     return ' '.join(stripped.split())
 
 
+_TERMINAL_PUNCT = '.:;,!?'
+
+
+def _find_fragment(haystack: str, fragment: str, cursor: int, last: bool) -> int:
+    """Index of `fragment` in `haystack` from `cursor`, or -1.
+
+    The quotation's final fragment matches regardless of its terminal
+    punctuation (a quoted `authorization.` holds against `authorization:`), but
+    the stripped core must end at a word boundary, or a quoted `authorization.`
+    would hold against a file's longer `authorizations:`.
+    """
+    core = fragment.rstrip(_TERMINAL_PUNCT) if last else fragment
+    if not core or core == fragment:
+        return haystack.find(fragment, cursor)
+    found = haystack.find(core, cursor)
+    while found != -1:
+        end = found + len(core)
+        if end == len(haystack) or not haystack[end].isalnum():
+            return found
+        found = haystack.find(core, found + 1)
+    return -1
+
+
 def _split_locator(span: str) -> tuple:
     """Split a cited span into `(path_part, suffix)`.
 
@@ -708,8 +731,9 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
         resolved = False
         for haystack in readable.values():
             cursor, ok = 0, True
-            for fragment in fragments:
-                found = haystack.find(fragment, cursor)
+            for index, fragment in enumerate(fragments):
+                found = _find_fragment(haystack, fragment, cursor,
+                                       index == len(fragments) - 1)
                 if found == -1:
                     ok = False
                     break

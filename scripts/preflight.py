@@ -46,6 +46,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -567,6 +568,350 @@ def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
         encoding="utf-8",
         errors="replace",
     )
+
+
+def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
+    """Run the narrow GitHub reads needed by branch-setup."""
+    return subprocess.run(
+        [GH, *args], check=False, capture_output=True, encoding="utf-8", errors="replace"
+    )
+
+
+def _gh_pr_rows(args: list[str]) -> list[dict] | None:
+    result = _run_gh(["pr", "list", *args])
+    if result.returncode != 0:
+        return None
+    try:
+        rows = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        return None
+    return rows
+
+
+def _select_branch_setup_pr(
+    head_rows: list[dict], body_rows: list[dict], issue: int, workpad_branch: str | None
+) -> tuple[dict | None, str | None]:
+    """Apply the Phase 1.4 open-PR selection rule deterministically."""
+    candidates: list[tuple[dict, str]] = []
+    seen: set[object] = set()
+    for row in head_rows:
+        number = row.get("number")
+        if number in seen:
+            continue
+        seen.add(number)
+        candidates.append((row, "head"))
+    for row in body_rows:
+        number = row.get("number")
+        closes = row.get("closingIssuesReferences")
+        if number in seen or not isinstance(closes, list):
+            continue
+        if not any(isinstance(item, dict) and item.get("number") == issue for item in closes):
+            continue
+        seen.add(number)
+        candidates.append((row, "body"))
+    if not candidates:
+        return (None, None)
+    if workpad_branch:
+        matches = [item for item in candidates if item[0].get("headRefName") == workpad_branch]
+        if matches:
+            candidates = matches
+    candidates.sort(key=lambda item: str(item[0].get("createdAt") or ""), reverse=True)
+    return candidates[0]
+
+
+def _branch_setup_record(**fields: object) -> None:
+    def record_value(value: object) -> str:
+        text = str(value).translate(str.maketrans({
+            "\n": r"\n", "\r": r"\r", "\v": r"\v", "\f": r"\f",
+            "\x1c": r"\x1c", "\x1d": r"\x1d", "\x1e": r"\x1e",
+            "\x85": r"\x85", "\u2028": r"\u2028", "\u2029": r"\u2029",
+        }))
+        return shlex.quote(text)
+
+    ordered = ["outcome", "stop_kind", "arm", "base", "branch", "freshness", "verdict_b"]
+    parts = ["branch-setup"]
+    for key in ordered:
+        parts.append(f"{key}={record_value(fields.pop(key, 'n/a'))}")
+    for key, value in fields.items():
+        if value is not None:
+            parts.append(f"{key}={record_value(value)}")
+    print(" ".join(parts), flush=True)
+
+
+def _checkout_branch(branch: str) -> tuple[bool, str]:
+    fetched = _run_git(["fetch", "origin", branch])
+    if fetched.returncode != 0:
+        return (False, (fetched.stderr or fetched.stdout).strip())
+    checked = _run_git(["checkout", branch])
+    current = _run_git(["branch", "--show-current"])
+    landed = current.returncode == 0 and current.stdout.strip() == branch
+    return (landed, (checked.stderr or checked.stdout).strip())
+
+
+def _branch_freshness(base: str) -> str:
+    base_ref = f"refs/remotes/origin/{base}"
+    fetched = _run_git(["fetch", "origin", f"+refs/heads/{base}:{base_ref}"])
+    if fetched.returncode != 0:
+        return "unverified"
+    shallow = _is_shallow()
+    if shallow is None:
+        return "unverified"
+    if shallow:
+        deepened = _run_git(["fetch", "--unshallow", "origin"])
+        if deepened.returncode != 0 or _is_shallow() is not False:
+            return "unverified"
+    count = _run_git(["rev-list", "--count", f"HEAD..{base_ref}"])
+    value = count.stdout.strip()
+    if count.returncode != 0 or not value.isdigit():
+        return "unverified"
+    return "fresh" if value == "0" else f"behind-{value}"
+
+
+def _worktree_path(branch: str, diagnostic: str) -> str | None:
+    match = re.search(r"(?:worktree at|checked out at) ['\"]?([^'\"\n]+)", diagnostic)
+    if match:
+        return match.group(1).strip()
+    listing = _run_git(["worktree", "list", "--porcelain"])
+    current_path = None
+    for line in listing.stdout.splitlines():
+        if line.startswith("worktree "):
+            current_path = line.removeprefix("worktree ")
+        elif line == f"branch refs/heads/{branch}" and current_path:
+            return current_path
+    return None
+
+
+def _branch_setup_checkout_stop(
+    *, branch: str, diagnostic: str, arm: str, base: str,
+    selected_pr: object | None = None,
+) -> int:
+    conflict = "already used by worktree" in diagnostic or "already checked out at" in diagnostic
+    _branch_setup_record(
+        outcome="stop",
+        stop_kind="branch-live-in-other-worktree" if conflict else "resume-precheck-checkout-did-not-land",
+        arm="harness-worktree-switch" if conflict else arm,
+        base=base,
+        branch=branch or "n/a",
+        freshness="n/a",
+        verdict_b="not-run",
+        selected_pr=selected_pr,
+        worktree_path=_worktree_path(branch, diagnostic) if conflict else None,
+        reason=diagnostic or "checkout-did-not-land",
+    )
+    return BLOCKED_EXIT
+
+
+def _branch_setup_verdict(
+    *, issue: int, base: str, branch: str, workpad_body: str, handoff: str,
+    selected: dict | None, selected_by: str | None,
+) -> tuple[str, str | None, str]:
+    has_recorded_verdict = bool(re.search(
+        rf"branch-state:\s+VALIDATED_RESUME(?:\s+proceed-verdict)?\s+for branch {re.escape(branch)}(?:\s|$)",
+        workpad_body,
+    ))
+    state: dict[str, object] = {
+        "base": base,
+        "current_branch": branch,
+        "workpad_body": workpad_body,
+        "has_proceed_verdict": bool(selected and selected.get("headRefName") == branch)
+        or has_recorded_verdict,
+        "provenance_established": handoff in ("created-current-run", "adopted-existing"),
+    }
+    if selected is not None:
+        closes = selected.get("closingIssuesReferences") or []
+        state.update({
+            "open_pr_branch": selected.get("headRefName", ""),
+            "open_pr_closes_issue": any(
+                isinstance(item, dict) and item.get("number") == issue for item in closes
+            ),
+            "open_pr_cross_repository": bool(selected.get("isCrossRepository")),
+            "open_pr_selected_by": selected_by,
+        })
+    verdict, reason, derived = _classify_branch_state(state)
+    if verdict in ("FRESH", "VALIDATED_RESUME"):
+        return (verdict, None, reason)
+    payload = None
+    if verdict in ("AMBIGUOUS", "DECISION_BLOCKED"):
+        try:
+            payload = _write_payload(verdict, reason, state, derived)
+        except OSError as exc:
+            payload = None
+            reason = f"{reason}; payload-write-failed:{exc}"
+    return (verdict, payload, reason)
+
+
+def branch_setup(args: argparse.Namespace) -> int:
+    """Own Phase 1.4's deterministic reads and branch operations; never merge."""
+    try:
+        workpad_body = Path(args.workpad_file).read_text(encoding="utf-8")
+        Path(args.title_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        _branch_setup_record(
+            outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
+            base=args.base, branch="n/a", freshness="n/a", verdict_b="UNAVAILABLE",
+            reason=f"input-unreadable:{exc}",
+        )
+        return BLOCKED_EXIT
+    workpad_branch, duplicate = parse_recorded_branch(workpad_body)
+    if duplicate:
+        _branch_setup_record(
+            outcome="stop", stop_kind="resume-precheck-probe-failed",
+            arm="landed-resume", base=args.base, branch="n/a",
+            freshness="n/a", verdict_b="UNAVAILABLE",
+            reason="duplicate-workpad-branch-records",
+        )
+        return BLOCKED_EXIT
+    fields = "number,headRefName,createdAt,closingIssuesReferences,isCrossRepository"
+    head_rows: list[dict] = []
+    head_resolved = True
+    if workpad_branch:
+        queried = _gh_pr_rows(["--head", workpad_branch, "--state", "open", "--json", fields])
+        head_resolved = queried is not None
+        head_rows = queried or []
+    body_rows: list[dict] = []
+    body_resolved = True
+    if not head_rows and head_resolved:
+        queried = _gh_pr_rows([
+            "--search", f"{args.issue} in:body", "--state", "open", "--json", fields,
+        ])
+        body_resolved = queried is not None
+        body_rows = queried or []
+    if not head_resolved or not body_resolved:
+        failed_query = "head" if not head_resolved else "body"
+        _branch_setup_record(
+            outcome="stop", stop_kind="resume-precheck-probe-failed",
+            arm="landed-resume", base=args.base,
+            branch=workpad_branch or "n/a", freshness="n/a",
+            verdict_b="UNAVAILABLE", query_state="unresolved",
+            reason=f"open-pr-{failed_query}-query-failed",
+        )
+        return BLOCKED_EXIT
+    selected, selected_by = _select_branch_setup_pr(
+        head_rows, body_rows, args.issue, workpad_branch
+    )
+
+    branch = ""
+    arm = "landed-resume"
+    if selected is not None:
+        arm = "PR-adopted"
+        branch = str(selected.get("headRefName") or "")
+        landed, diagnostic = _checkout_branch(branch)
+        if not landed:
+            return _branch_setup_checkout_stop(
+                branch=branch,
+                diagnostic=diagnostic,
+                arm=arm,
+                base=args.base,
+                selected_pr=selected.get("number", "n/a"),
+            )
+    else:
+        recorded_shape = bool(workpad_branch and re.fullmatch(
+            rf"issue-{args.issue}(?:-[a-z0-9-]+)?", workpad_branch
+        ))
+        if recorded_shape:
+            remote = _run_git(["ls-remote", "--exit-code", "origin", f"refs/heads/{workpad_branch}"])
+            if remote.returncode not in (0, 2):
+                _branch_setup_record(
+                    outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
+                    base=args.base, branch=workpad_branch, freshness="n/a", verdict_b="UNAVAILABLE",
+                    reason="recorded-branch-remote-probe-failed",
+                )
+                return BLOCKED_EXIT
+            if remote.returncode == 0:
+                prior_prs = _gh_pr_rows(["--head", workpad_branch, "--state", "all", "--json", "number"])
+                if prior_prs is None:
+                    _branch_setup_record(
+                        outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
+                        base=args.base, branch=workpad_branch, freshness="n/a", verdict_b="UNAVAILABLE",
+                        reason="recorded-branch-pr-probe-failed",
+                    )
+                    return BLOCKED_EXIT
+                if not prior_prs:
+                    branch = workpad_branch
+                    landed, diagnostic = _checkout_branch(branch)
+                    if not landed:
+                        return _branch_setup_checkout_stop(
+                            branch=branch,
+                            diagnostic=diagnostic,
+                            arm="landed-resume",
+                            base=args.base,
+                        )
+
+        if not branch:
+            current = _run_git(["branch", "--show-current"])
+            current_branch = current.stdout.strip() if current.returncode == 0 else ""
+            common = _run_git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+            git_dir = _run_git(["rev-parse", "--path-format=absolute", "--git-dir"])
+            linked = (
+                common.returncode == 0 and git_dir.returncode == 0
+                and common.stdout.strip() and git_dir.stdout.strip()
+                and common.stdout.strip() != git_dir.stdout.strip()
+            )
+            recognized = current_branch.startswith(("claude/issue-", "issue-"))
+            if current_branch and current_branch != args.base and (linked or recognized):
+                branch = current_branch
+
+        if not branch:
+            arm = "fresh-create"
+            fetched = _run_git([
+                "fetch", "origin", f"+refs/heads/{args.base}:refs/remotes/origin/{args.base}",
+            ])
+            branch = args.branch or ""
+            if fetched.returncode == 0 and not branch:
+                helper = str(Path(__file__).resolve().with_name("branch-for-issue.py"))
+                derived = subprocess.run(
+                    [sys.executable, helper, str(args.issue), "--title-file", args.title_file],
+                    check=False, capture_output=True, encoding="utf-8", errors="replace",
+                )
+                if derived.returncode == 0:
+                    branch = derived.stdout.strip()
+            valid = bool(branch) and _run_git(["check-ref-format", "--branch", branch]).returncode == 0
+            created = _run_git(["checkout", "-b", branch, f"origin/{args.base}"]) if fetched.returncode == 0 and valid else None
+            landed = created is not None and created.returncode == 0
+            if not landed:
+                diagnostic = "base-fetch-failed" if fetched.returncode != 0 else "invalid-or-uncreated-branch"
+                if created is not None:
+                    diagnostic = (created.stderr or created.stdout).strip() or diagnostic
+                _branch_setup_record(
+                    outcome="stop", stop_kind="feature-branch-create-failed", arm=arm,
+                    base=args.base, branch=branch or "n/a", freshness="n/a", verdict_b="not-run",
+                    reason=diagnostic,
+                )
+                return BLOCKED_EXIT
+            _branch_setup_record(
+                outcome="proceed", stop_kind="n/a", arm=arm, base=args.base,
+                branch=branch, freshness="n/a", verdict_b="not-run", selected_pr="n/a",
+            )
+            return PROCEED_EXIT
+
+    freshness = _branch_freshness(args.base)
+    verdict, payload, reason = _branch_setup_verdict(
+        issue=args.issue, base=args.base, branch=branch, workpad_body=workpad_body,
+        handoff=args.handoff,
+        selected=selected, selected_by=selected_by,
+    )
+    if verdict not in ("FRESH", "VALIDATED_RESUME"):
+        kinds = {
+            "AMBIGUOUS": "verdict-b-ambiguous",
+            "DECISION_BLOCKED": "verdict-b-decision-blocked",
+            "UNAVAILABLE": "verdict-b-unavailable",
+        }
+        _branch_setup_record(
+            outcome="stop", stop_kind=kinds.get(verdict, "verdict-b-unavailable"), arm=arm,
+            base=args.base, branch=branch, freshness=freshness, verdict_b=verdict,
+            selected_pr=selected.get("number") if selected else "n/a",
+            payload_file=payload, reason=reason or "verdict-b-stop",
+        )
+        return BLOCKED_EXIT if verdict != "UNAVAILABLE" else UNAVAILABLE_EXIT
+    _branch_setup_record(
+        outcome="proceed", stop_kind="n/a", arm=arm, base=args.base,
+        branch=branch, freshness=freshness, verdict_b=verdict,
+        selected_pr=selected.get("number") if selected else "n/a",
+        query_state="resolved" if head_resolved and body_resolved else "unresolved",
+    )
+    return PROCEED_EXIT
 
 
 def _ref_resolves(ref: str) -> bool:
@@ -1180,9 +1525,12 @@ def ignore_precondition(args: argparse.Namespace) -> int:
     return BLOCKED_EXIT
 
 
-# ── scratch-issue (issue #240) ──────────────────────────────────────────────
-# Owns the implement run's per-issue scratch folder .prflow/tmp/implement/<issue>/:
-# prepare creates-and-sweeps it, remove deletes it on a successful terminal status.
+# ── scratch-issue (issue #240; fixed-file actions issue #505) ────────────────
+# Owns the implement run's per-issue scratch surface under .prflow/tmp/: prepare
+# creates-and-sweeps the folder .prflow/tmp/implement/<issue>/; remove deletes that
+# folder on a successful terminal status; remove-cache and remove-intake-body delete a
+# single fixed scratch file (the issue-body cache and the flat intake-owned body)
+# nonrecursively, so a terminal cleanup needs no runtime-computed rm target.
 _ISSUE_OPERAND_RE = re.compile(r"[0-9]+")
 # A strict sanity bound (not a NAME_MAX tracker): refuse an implausibly long digit
 # run up front rather than let it fail deep inside a create/remove.
@@ -1243,6 +1591,14 @@ def _scratch_issue_folder(top: str, issue: str) -> str:
     return os.path.join(_scratch_dir(top), "implement", issue)
 
 
+def _scratch_cache_file(top: str, issue: str) -> str:
+    return os.path.join(_scratch_dir(top), "issue-body", f"issue-{issue}.md")
+
+
+def _scratch_intake_body_file(top: str, issue: str) -> str:
+    return os.path.join(_scratch_dir(top), f"intake-issue-body-{issue}.md")
+
+
 def _scratch_symlink_offender(top: str, folder: str) -> "str | None":
     """The first symlinked intermediate directory between .prflow/tmp and folder's
     parent, or None. A symlinked component (e.g. .prflow/tmp/implement) would let
@@ -1260,6 +1616,59 @@ def _scratch_symlink_offender(top: str, folder: str) -> "str | None":
         if os.path.islink(prefix):
             return prefix
     return None
+
+
+def _scratch_remove_file(top: str, target: str) -> int:
+    """Nonrecursive best-effort removal of a single fixed scratch FILE below .prflow/tmp
+    (issue #505). Prints REMOVED <target>/PROCEED_EXIT on success and on an absent target
+    (idempotent), or REMOVE_FAILED/UNAVAILABLE_EXIT with a stderr diagnostic.
+
+    Four hazards converge on REMOVE_FAILED and are handled without recursing or following a
+    referent: a symlinked intermediate component below .prflow/tmp (reusing the same guard
+    prepare/remove use), a symlinked leaf (os.remove on a symlink would unlink the link entry
+    itself — the referent is never followed — but the acceptance criteria require a symlinked
+    leaf refused, not silently unlinked, so islink is refused before os.remove), a directory
+    at the target (os.remove raises), and a failed unlink (e.g. a write-denied parent).
+    """
+    offender = _scratch_symlink_offender(top, target)
+    if offender is not None:
+        print(
+            f"preflight.py: scratch-issue refuses a symlinked parent component "
+            f"{offender}; not acting outside the .prflow/tmp scope",
+            file=sys.stderr,
+        )
+        print("REMOVE_FAILED", flush=True)
+        return UNAVAILABLE_EXIT
+    if not os.path.lexists(target):
+        print(f"REMOVED {target}", flush=True)
+        return PROCEED_EXIT
+    if os.path.islink(target):
+        print(
+            f"preflight.py: scratch-issue refuses a symlinked target {target}; "
+            f"not following the referent",
+            file=sys.stderr,
+        )
+        print("REMOVE_FAILED", flush=True)
+        return UNAVAILABLE_EXIT
+    if os.path.isdir(target):
+        print(
+            f"preflight.py: scratch-issue refuses a directory at the file target "
+            f"{target}; not recursing",
+            file=sys.stderr,
+        )
+        print("REMOVE_FAILED", flush=True)
+        return UNAVAILABLE_EXIT
+    try:
+        os.remove(target)
+    except OSError as exc:
+        print(
+            f"preflight.py: scratch-issue could not remove {target} ({exc})",
+            file=sys.stderr,
+        )
+        print("REMOVE_FAILED", flush=True)
+        return UNAVAILABLE_EXIT
+    print(f"REMOVED {target}", flush=True)
+    return PROCEED_EXIT
 
 
 def _sweep_flat_leftovers(scratch_dir: str, issue: str) -> None:
@@ -1317,6 +1726,14 @@ def scratch_issue(args: argparse.Namespace) -> int:
     issue, top = _scratch_issue_resolve(args)
     if issue is None:
         return top  # the exit code, with the token already printed
+    # Route the two fixed-file actions BEFORE the folder computation and the recursive
+    # `remove` fallthrough (issue #505): each derives its own fixed target from the
+    # validated issue and root and removes one file nonrecursively, so a run must not fall
+    # through to the whole-folder rmtree below.
+    if args.action == "remove-cache":
+        return _scratch_remove_file(top, _scratch_cache_file(top, issue))
+    if args.action == "remove-intake-body":
+        return _scratch_remove_file(top, _scratch_intake_body_file(top, issue))
     folder = _scratch_issue_folder(top, issue)
     offender = _scratch_symlink_offender(top, folder)
     if offender is not None:
@@ -1397,7 +1814,7 @@ class _Parser(argparse.ArgumentParser):
         self.exit(UNAVAILABLE_EXIT, f"{self.prog}: error: {message}\n")
 
 
-def main() -> int:
+def main(argv=None) -> int:
     _force_utf8_streams()
     parser = _Parser(description=__doc__)
     # Make the exit-3 (UNAVAILABLE) contract explicit rather than relying on
@@ -1419,6 +1836,14 @@ def main() -> int:
     branch_state_parser = subparsers.add_parser("branch-state")
     branch_state_parser.add_argument("--state-file")
     branch_state_parser.set_defaults(func=branch_state)
+    branch_setup_parser = subparsers.add_parser("branch-setup")
+    branch_setup_parser.add_argument("--issue", type=int, required=True)
+    branch_setup_parser.add_argument("--base", required=True)
+    branch_setup_parser.add_argument("--workpad-file", required=True)
+    branch_setup_parser.add_argument("--handoff", required=True)
+    branch_setup_parser.add_argument("--title-file", required=True)
+    branch_setup_parser.add_argument("--branch")
+    branch_setup_parser.set_defaults(func=branch_setup)
     ignore_parser = subparsers.add_parser("ignore-precondition")
     ignore_parser.add_argument("--path")
     ignore_parser.add_argument(
@@ -1434,7 +1859,11 @@ def main() -> int:
     # instead of the subcommand's REFUSED stdout token (rationale: _validate_scratch_issue).
     scratch_parser = subparsers.add_parser("scratch-issue")
     scratch_parser.add_argument("--issue")
-    scratch_parser.add_argument("--action", choices=("prepare", "remove"), required=True)
+    scratch_parser.add_argument(
+        "--action",
+        choices=("prepare", "remove-cache", "remove-intake-body", "remove"),
+        required=True,
+    )
     scratch_parser.set_defaults(func=scratch_issue)
 
     # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
@@ -1449,7 +1878,7 @@ def main() -> int:
         _p.add_argument("--run-attempt", help="receipt run attempt (default: $GITHUB_RUN_ATTEMPT or '1')")
         _p.set_defaults(func=_func)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         return args.func(args)
     except Exception as exc:

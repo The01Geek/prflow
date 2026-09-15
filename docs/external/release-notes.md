@@ -11,6 +11,103 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## September 15, 2026
+
+Reconcile fulfilled documentation obligations in the final workpad. A documentation
+obligation a run first recorded as friction under **Action required** can now be moved
+to the Notes section with its checked completion evidence — `scripts/workpad.py update
+--resolve-doc-reflection TARGET EVIDENCE` — so the final workpad no longer shows the
+same deliverable as both done and unresolved. The moved bullet keeps its original
+failure glyph and kind, so it still contributes to retrospective friction; an absent or
+ambiguous target refuses the resolution without changing another reflection, and
+replaying the same resolution is idempotent. (#508)
+- **Lint-tool provisioning now retries transient download failures.** `provision-lint-tools.sh` downloaded each pinned tool with a single-shot `curl`, so an intermittent HTTP 500 or blip from the release CDN failed the whole provisioning run on the first error. The download now uses curl's bounded retry, riding out the transient before failing closed; the pinned-digest check still refuses any bytes a retry brings back. (#550)
+- **Issue premise checks no longer reject a quoted sentence over its final punctuation.** When an issue's `Verified:` bullet quotes a sentence that still exists in the cited file but now ends with different punctuation (for example a colon instead of a period), implement treats the premise as still holding instead of discarding it and recording a false issue-accuracy note. A changed word or a removed sentence is still reported as no longer present. (#523)
+
+## September 14, 2026
+
+- **The `/prflow:implement` terminal fences now run in a worktree-isolated Claude Code
+  session.** The Phase 4.3 finalize call and the outcome-reaction call carried the bare word
+  `complete` (`--status Complete`, `--outcome complete`), which such a session refuses as a
+  shell builtin — silently dropping the 🎉 reaction on the triggering comment. Both fences
+  now pass the value `=`-joined (`--status=Complete`, `--outcome=complete`), and
+  `react-to-trigger.sh` accepts the `=`-joined spelling for every value flag (and, under
+  `--report-failure`, exits non-zero on an unparseable argument so the fence's fallback note
+  fires). A repository whose vendored plugin tree predates this change keeps losing the
+  local-tier reaction until it re-runs the installer to re-vendor the updated fences. (#431)
+- **The weekly retrospective now names its state branch and pull request after PRFlow.** The
+  state branch is `prflow/learnings-<date>` and the state pull request's title and commit
+  subjects read `chore(prflow): …` instead of the superseded DevFlow spelling. Both readers of
+  the branch prefix — the state-PR guard and the pull-request classifier — accept the old
+  `devflow/learnings-*` spelling as well until the superseded prefix is retired, so a repository
+  whose plugin auto-updates while last week's `devflow/learnings-*` state pull request is still
+  open is still reminded to merge it and does not re-process that week. Because a plugin can
+  auto-update ahead of the pinned engine the scheduled workflow vendors, bump `prflow_version`
+  (re-run `install.sh`) in the same upgrade as the plugin; a plugin updated well ahead of the
+  pin can re-process one week once. (#496)
+- **Isolate implementation finalization in a dedicated worker.** The main agent receives compact evidence before publishing the pull request, while documentation and final verification procedures stay in the worker. (#501)
+- **Review verdicts and finding counts now read the reviewed commit from the review's own
+  verdict marker, not the GitHub reviews-API `commit_id`.** GitHub moves a live review's
+  `commit_id` to the current head when a branch is updated, so a pull request updated after
+  review could have its review misread — the verdict deriver reported an unhelpful
+  "keys disagree" state, and the experiment records showed a blank finding count. Both
+  readers now select and join on the marker's `head=`, which records the tree that was
+  actually reviewed, so an updated branch reports the real verdict and count.
+  (#433)
+- **Resumed runs keep unfinished review work.** When `/prflow:implement` resumes an
+  interrupted run, intake now reconciles a historical completion claim against later
+  corrective evidence and any interrupted review worker before describing review as done,
+  carrying an outstanding review-evidence obligation forward through its existing handoff
+  fields. A resumed run no longer reduces remaining work to PR-ready when review still
+  owes work for the current candidate. (#521)
+The documentation gate now recognizes a plain `- Documentation Needed —` bullet under `## Implementation Notes`, alongside the existing bold and `### Documentation Needed` heading forms. An issue that names its documentation deliverables without bold formatting is enforced during `/prflow:implement` instead of being silently treated as naming no documentation. The next same-level plain peer still closes the block, existing section, peer and fence boundaries and the documentation-path allowlist continue to govern extraction, and an out-of-allowlist path remains refused. (#506)
+- **A `/prflow:review-and-fix` run no longer loses the fix loop's per-iteration
+  continuation record to the review engine's own telemetry.** When efficiency telemetry
+  was enabled, an engine invocation driven by the fix loop still ran the standalone
+  review Phase 4.5 recipe and overwrote the loop-owned `iter-<N>.json` with a
+  `source: "review"` object that dropped the loop's continuation fields, so an
+  interrupted run could resume from a clobbered record. The engine's Phase 4.5 write is
+  now bound to the caller's requested phase range: a review-and-fix entry requests Phases
+  0 through 4.3 and passes `phase_range_max = 4.3` on its primary, shadow, and
+  inline-fallback engine entries, so the engine skips Phase 4.5 and the loop stays the
+  sole writer of its iteration record. Standalone `/prflow:review` passes no such bound
+  and still produces its configured telemetry and trace when the flag is enabled. (#517)
+- **A rate-limit or provider failure now resumes instead of terminalizing.** Earlier releases
+  classified a failed `claude` step and, for a provider rate limit whose reset was still in the
+  future, marked the workpad 💥 Failed rather than resuming — the run then waited for a human to
+  re-trigger it. The stall backstop and the Spot recovery job now resume such a failure through
+  the normal capped-resume path like any other interim stall, so `max_resume_attempts` alone bounds
+  the retries. The `defer_to_runner_retry` opt-in continues to govern whether a failure is deferred
+  to your runner's own retry instead of resumed. This reverses the September 12 provider
+  rate-limit terminalize behavior.
+
+## September 13, 2026
+
+- Run implementation setup intake in a dedicated agent while preserving requirements, resume decisions, dependency checks and branch ordering. The orchestrator receives a compact evidence-backed handoff instead of the intake transcript. (#463)
+- **The implement run's advisory changed-file lint now covers GitHub Actions workflow files and shipped `lib/test` shell scripts.** Editing a workflow file now runs `actionlint` over it in-session, and editing a `lib/test` shell script now runs ShellCheck over it, so a lint problem CI would reject surfaces during the run instead of after a separate fix-up commit. The lint toolchain gains a pinned, digest-verified `actionlint` that is provisioned automatically alongside ShellCheck and Ruff. (#375)
+- **Implement runs stop relaunching a long test command just to read a different slice of its output.** When an implement run verifies acceptance criteria, it now runs each test command whose result it reads from a summary line once, keeps that run's full output, and reads every later slice it needs — an assertion line, a failure detail, the summary line — from the kept output instead of running the whole command again. A run against a large test file now spends a single launch where it previously spent several, so verification finishes sooner and costs less. ([#347](https://github.com/<owner>/<repo>/issues/347))
+Move deterministic implement branch setup, draft pull-request opening, and deferred follow-up filing behind tested helper modes, reducing prompt overhead while preserving model-owned merge-conflict resolution. (#437)
+
+## September 12, 2026
+
+- **A provider rate-limit failure now terminalizes even with `defer_to_runner_retry` off.** The
+  implement stall backstop's provider-failure classification is armed on every failed job, not
+  only when `defer_to_runner_retry` is enabled. A run that fails on a provider rate limit whose
+  reset is still in the future is now terminalized (💥 Failed, naming the reset time) instead of
+  being auto-resumed back into the exhausted limit — so a repository running the default
+  (`defer_to_runner_retry: false`) gains the protection it previously only had with the flag on.
+  The flag continues to govern only whether an unclassified interim failure is deferred to a
+  runner retry or resumed by the backstop. ([#401](https://github.com/The01Geek/prflow/issues/401))
+- **The review engine now reads `prflow_review.agent_overrides` on native-Windows Python hosts.** On a Windows runner, `resolve-review-overrides.py` could not run `config-get.sh` (a `.sh` shebang is not directly executable on Windows), so every configured per-agent model/effort override was silently dropped and the review fell back to defaults. It now invokes `config-get.sh` under bash — the `DEVFLOW_BASH` interpreter when set, otherwise `bash` — with a forward-slash path, so overrides resolve on Windows exactly as they do on Linux and macOS. ([#365](https://github.com/radman-llc/prflow-dev/issues/365))
+- **The `/prflow:implement` cleanup self-review now runs through a PRFlow-owned `code-reviewer` dispatch instead of the built-in `/simplify`.** Phase 3.2 reviews the branch diff for reuse, simplification, efficiency and altitude cleanups through one first-party review agent whose contract PRFlow ships and versions, applies the findings itself, and records a cleanup agent whose return is unusable as a visible workpad reflection rather than silently reading it as a clean pass. (#358)
+- **Point the cloud implement job at its own runner.** The cloud `/prflow:implement` job now resolves a `DEVFLOW_IMPLEMENT_RUNNER` repository variable when you set it, falling back to `DEVFLOW_RUNNER` and then `ubuntu-latest`, so you can give implement runs a distinct runner without touching the runner the review and retrospective tiers use. Repositories that set neither variable, or only `DEVFLOW_RUNNER`, run exactly as before. You get this through the normal plugin update. (#402)
+- **The pre-implementation audit now checks unmarked sweeping claims about your code.** When an issue asserts a falsifiable universal or completeness claim about existing code — "no X does Y", "every X is Z", or "a named surface carries none of a thing" — without a verification marker, `/prflow:implement`'s Phase 1.6 audit now reads the source the claim names and either confirms it, corrects the run's understanding when the source refutes it, or records it unverified when no concrete source is named — and when a refuted claim is prescribed word-for-word by an acceptance criterion, it stops the run over that conflict rather than shipping the false wording — so such a claim is adjudicated at planning time, or recorded unverified when it cannot be, rather than taken at face value. (#392)
+- **The merge-gating review now rejects a pull request when a finding shows a decided acceptance criterion is unmet.** The shared review engine gains a threshold-independent, non-demotable unmet-decided-criterion carve-out: a Phase-3 review finding that establishes the shipped code does not satisfy a decided (resolved, non-post-merge) acceptance criterion of the linked issue drives REJECT at every threshold and regardless of the severity grade the agent assigned — reaching the same outcome a FAILed `issue_acceptance` checklist item already produces, and closing the agent-path leak that let such findings through as APPROVE-with-notes. A self-disclosed limitation in the shipped artifact that contradicts a decided criterion is recorded as that criterion being unmet, never credited as honest disclosure that clears the finding. When a linked issue's decided-criterion count exceeds the rank-1 `issue_acceptance` sub-cap, the criteria dropped from the checklist are surfaced as a coverage shortfall the verdict rejects on, so a criterion the rank-1 sub-cap drops is never silently lost from the merge gate while the sub-cap keeps its size discipline for the other checklist categories. A general quality or test-coverage finding that establishes no unmet decided criterion is unaffected and stays weighed against the configured threshold. (#389)
+- **Issue drafting now rejects acceptance criteria a single implement run cannot satisfy.** When you draft an issue with `/prflow:spec`, drafting checks each acceptance criterion whose subject is an existing file, path, or subsystem against the current tree and refuses one whose target is already gone, while keeping a criterion about a target the change itself will create. ([#388](https://github.com/The01Geek/prflow/issues/388))
+Add an opt-in cloud-CI verification mode for PRFlow's own cloud `/prflow:implement` runs (issue #403).
+
+A new `prflow_implement.ci_verification.enabled` config key (default `false`) lets a cloud implement run offload a full-suite verification boundary to the repository's existing CI workflow instead of running the suite on its implementation host. `scripts/ci-verification-request.py` owns the request/wait/collect-evidence lifecycle — persisting a candidate-bound request before dispatch, polling the run inside one bounded foreground call, and building a versioned `cloud_ci_evidence` record from the run's shard tallies and job conclusions — and `scripts/check-completion-evidence.py` validates that record (exact shard population, zero failed/skipped/exit tallies, required-check coverage, and a clean current candidate) before `scripts/workpad.py` accepts it as completion evidence in its own marker family. `ci.yml` gains optional `workflow_dispatch` `request_id`/`expected_head_sha` inputs and a worker-checkout validation step. The mode is fail-closed and default-OFF: an incomplete deployment refuses CI mode with an actionable explanation, and every consumer, local, and standalone review/fix path keeps its existing verification semantics unchanged.
+
 ## September 11, 2026
 
 - **When a configured label is turned off, the run's log now names the config key instead of blaming a caller mistake.** With a label channel disabled by a present-but-empty `docs.labels`/`deferred.labels`, `apply-labels.sh` in config mode now warns that the named config key resolved to no labels and that no substitute label is owed, rather than reporting a caller-passed empty list. A maintainer reading a run's log or a filed issue sees that their off-switch was honored, not a phantom helper defect. The positional call form keeps its existing wording. (#339)
@@ -28,6 +125,13 @@ unvalidated instead of proceeding silently.
   retention. A cancelled attempt's artifact holds the CLI's session files, which carry more
   than the action's message stream — treat it as sensitive. (#342)
 - **Workpad comments now stay their real size on Windows hosts.** `workpad.py` normalizes a comment body to LF: a run of one or more carriage returns before a newline is collapsed to that newline when it reads a body from GitHub or from a body file, and it writes bodies as bytes, so a native-Windows Python's text-mode newline translation can no longer add a carriage return on each write. A workpad already inflated by earlier Windows runs shrinks back to its clean form on its next update, with no separate compaction step. The 65,536-byte comment-size guard is unchanged, now measured on the canonical body — so a body that was over the limit only because of accumulated carriage returns is written rather than refused. Consumers on other hosts get workpads that stop carrying mixed line endings after a web-UI edit. `workpad.py patch` no longer echoes the returned body to stdout on success (matching `update`), and `workpad.py prior-status` now writes one stderr line on its exit-1 arm so a silent exit is never mistaken for a hang. (#349)
+- **Old telemetry history is migrated onto the current telemetry branch automatically after a rename upgrade.** A new bundled helper (`scripts/migrate-telemetry-branch.sh`) moves the cost-and-effectiveness records from a pre-rename `devflow-telemetry` branch onto the branch PRFlow now writes to, restaging each record from its old `.devflow/logs/` path to the current `.prflow/logs/` path and handing the staging root to the writer's own persist function. It runs from `/prflow:init` and `install.sh --apply`, and as a backstop before the first append on the writer's next authorized persist, so a consumer whose plugin auto-updated ahead of init is healed on their next writable run. The retrospective's stranded-record warning now points the maintainer at `/prflow:init` instead of a manual branch-rename push.
+Use the configured base branch throughout an implement run, and resume on the workpad's recorded branch.
+
+The branch-setup agent now looks up the configured `base_branch` on every arm (not only when it reuses or creates a branch), prints it, uses it in every base-consuming command and in the `preflight.py branch-state` state file, and returns it as a `base:` line in its record; the orchestrator takes the base from that record wherever a later Phase 1–4 instruction needs it. A resume that adopts no open pull request now checks out and continues the feature branch its workpad recorded — when the recorded name matches the issue's branch shape, the branch exists on the remote, and it never had a pull request — instead of forking a date-suffixed duplicate. `workpad.py`'s `skipped-intentional` review-coverage size check now measures against the configured base (`origin/main` when unset) rather than the repository's default branch, so it records a real verdict on cloud checkouts and for consumers whose base differs from the default branch.
+- **Cloud implement recovery no longer defers a provider/API failure to a runner retry that will never happen.** With `prflow_implement.stall_backstop.defer_to_runner_retry` enabled, PRFlow previously deferred *every* failed `claude` step to the runner's retry — even a provider 429 that RunsOn's `retry=when-interrupted` never re-runs — leaving the issue stuck on an interim workpad with no PR. The stall backstop and the Spot recovery job now positively classify the failure from the execution diagnostics (`terminal_reason=api_error` with a numeric `api_error_status`) and, on that classification, converge the run through PRFlow's own bounded path — a capped `/prflow:implement` resume, or a terminal 💥 Failed disposition naming the reset time for a rate-limit rejection whose reset is still in the future — instead of deferring. An unclassifiable or unavailable failure (including an unobservable Spot reclaim) still defers, so the two recovery mechanisms never drive one issue at once. (#362)
+- **The weekly retrospective no longer loses its credentials partway through a long run.** `devflow-retrospective.yml` was the only agent-running workflow without the long-run credential refresher, but a weekly run routinely outlives the GitHub App installation token's 60-minute lifetime and does all of its writing at the very end — so the state-PR push and every issue-filing call failed with `401 Bad credentials` while the run still reported success, discarding the whole week's analysis. The `retrospective` job now starts the detached refresher and the fresh-`gh` wrapper after checkout and retires them in an `always()` step, exactly as the implement and command jobs do. Gated on the same `vars.DEVFLOW_APP_ID != ''` condition as the existing token mint, so a repository with no App configured is unaffected. (#374)
+- **Cloud runs no longer silently deny the plugin's own helper scripts when your installed workflow predates the plugin.** The `Resolve allowed-tools` step in both cloud workflows now unions every plugin-helper grant the vendored `capability-profiles.json` names into the allowlist your run executes under, so a workflow whose baked list lags a newer plugin (a hand-edited or un-refreshed `.github/workflows/` copy) stops dropping helper-produced work without a trace. When a plugin helper is still refused, the run records the denial and reports the missing artifact instead of fabricating a result. ([#352](https://github.com/The01Geek/prflow/issues/352))
 
 ## September 10, 2026
 

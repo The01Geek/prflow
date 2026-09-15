@@ -8,13 +8,13 @@ Follow a PRFlow request through seven stages, from issue preparation to human me
 ```mermaid
 flowchart TD
     accTitle: Seven stages in the PRFlow lifecycle
-    accDescr: An issue starts a PRFlow run. PRFlow prepares a branch and workpad, clears its setup gates, implements the change, runs the repository's checks and opens a draft pull request. It then simplifies the change, reviews it, applies fixes and updates documentation. A person reviews and merges the finished pull request.
+    accDescr: An issue starts a PRFlow run. PRFlow prepares a branch and workpad, clears its setup gates, implements the change, runs the repository's checks and opens a draft pull request. It then runs a cleanup pass over the change, reviews it, applies fixes and updates documentation. A person reviews and merges the finished pull request.
     issue["1. Issue<br/>Define the change"] --> run["2. Run<br/>Load guidance, start or resume"]
 
     subgraph prflow["PRFlow prepares the change"]
         run --> branch["3. Branch and setup gates<br/>Record progress, check dependencies and claims"]
         branch --> draft["4. Implement and verify<br/>Run the checks, then open the draft pull request"]
-        draft --> review["5. Simplify, review and fix<br/>Route findings, apply authorized fixes"]
+        draft --> review["5. Cleanup, review and fix<br/>Route findings, apply authorized fixes"]
         review --> docs["6. Documentation<br/>Explain the finished change"]
     end
 
@@ -60,8 +60,8 @@ flowchart TD
     The pull request stays a draft while the remaining review and documentation work happens.
   </Step>
 
-  <Step title="Simplify, Review and Fix">
-    First PRFlow runs a **simplification pass** over the code the change added or modified. Its charter is quality only: reuse, simplification, efficiency and altitude. It does not hunt for bugs and it never owns correctness. Every finding it produces is checked against the issue's acceptance criteria before it is applied, so a cleanup cannot quietly undo something the issue required.
+  <Step title="Cleanup, Review and Fix">
+    First PRFlow runs a **cleanup pass** over the code the change added or modified. Its charter is quality only: reuse, simplification, efficiency and altitude. It does not hunt for bugs and it never owns correctness. Every finding it produces is checked against the issue's acceptance criteria before it is applied, so a cleanup cannot quietly undo something the issue required.
 
     Then the review-and-fix loop runs. The review engine builds a verification checklist, checks it against evidence and dispatches specialized reviewers. Findings can trigger corrections and another review iteration. See [The Review System](/docs/concepts/review-system).
 

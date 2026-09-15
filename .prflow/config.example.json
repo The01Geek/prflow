@@ -21,6 +21,9 @@
     "implement_pr_state": "ready_for_review",
     "allowed_tools": [],
     "update_branch_checkpoints": true,
+    "ci_verification": {
+      "enabled": false
+    },
     "merge_drivers": {},
     "stall_backstop": {
       "enabled": true,

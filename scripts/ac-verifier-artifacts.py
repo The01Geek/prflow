@@ -17,18 +17,25 @@ Two subcommands:
     Capture the five-field `checkout-fingerprint.py` baseline, allocate a FRESH per-attempt
     directory beneath the checkout's `.prflow/tmp/` (so every first-party write the dispatch
     makes lands in ignored space), mint distinct evidence/claim report destinations plus the
-    single flight's state/logs directories inside it, and print those paths as one JSON object
-    the orchestrator passes by value into the two dispatch prompts and the later `check` call.
-    Fresh allocation is what stops a previous attempt's report from being reused.
+    `criteria_path` the orchestrator writes the tagged criteria list to before dispatch, and
+    print those paths as one JSON object the orchestrator passes by value into the two dispatch
+    prompts and the later `check` call. Fresh allocation is what stops a previous attempt's
+    report from being reused. (Phase 3.4 mints no verification flight — the evidence verifier
+    runs its command directly — so `prepare` prints no flight state/logs directory.)
 
-  check --attempt-dir <dir> --evidence-file <path> --claim-file <path>
+  check --attempt-dir <dir> --evidence-file <path> --criteria-file <path> [--claim-file <path>]
     Re-run the fingerprint and compare it field-by-field against the baseline `prepare` saved.
-    An UNCHANGED fingerprint permits report processing: invoke the existing reconciler on the
-    two assigned files and pass its JSON result through unchanged. A changed fingerprint, a
-    missing baseline, and a failed measurement are each independently blocking — the gate does
-    not proceed, and the failure names the changed fingerprint field(s) and, for the tracked
-    and untracked fields, the offending `git status --porcelain` paths. The helper only reads
-    and reports: it performs no rollback, deletion, or staging.
+    An UNCHANGED fingerprint permits report processing: read the tagged criteria list, invoke
+    the reconciler on the assigned files with that list, and pass its JSON result through
+    unchanged. `--claim-file` is optional: omit it only when the criteria file names no
+    `command` criterion (every criterion then reconciles from the evidence report alone);
+    omitting it while any criterion is `command`, and a supplied `--claim-file` that is missing
+    or unreadable, each exit 3 with no reconciliation printed — as does a criteria file that is
+    missing, unreadable, or not a bare JSON list. A changed fingerprint, a missing baseline,
+    and a failed measurement are each independently blocking — the gate does not proceed, and
+    the failure names the changed fingerprint field(s) and, for the tracked and untracked
+    fields, the offending `git status --porcelain` paths. The helper only reads and reports: it
+    performs no rollback, deletion, or staging.
 
 The guard reuses `checkout-fingerprint.py`'s producer, so it covers exactly what that
 fingerprint covers — checkout identity, HEAD, staged content, tracked working content, and
@@ -45,7 +52,9 @@ Exit codes:
     2 — a `check` guard failure: drift, a missing/unreadable baseline, a failed measurement,
         or a symlink-rejected path — all independently blocking. stdout carries a guard JSON
         object naming the cause; stderr carries a breadcrumb.
-    3 — a `check` report file was unreadable/malformed (passed through from the reconciler)
+    3 — a `check` input was unestablished, no reconciliation printed: a report or the criteria
+        file unreadable/malformed/not-a-bare-list, `--claim-file` omitted while a `command`
+        criterion is present, or a supplied `--claim-file` missing/unreadable
 """
 
 from __future__ import annotations
@@ -197,17 +206,16 @@ def _cmd_prepare(args) -> int:
         os.makedirs(attempt_root, exist_ok=True)
         attempt_dir = tempfile.mkdtemp(prefix=f"{args.issue}-", dir=attempt_root)
         os.chmod(attempt_dir, 0o700)
-        flight_state = os.path.join(attempt_dir, "flight", "state")
-        flight_logs = os.path.join(attempt_dir, "flight", "logs")
-        os.makedirs(flight_state, exist_ok=True)
-        os.makedirs(flight_logs, exist_ok=True)
         evidence_path = os.path.join(attempt_dir, "evidence-report.json")
         claim_path = os.path.join(attempt_dir, "claim-report.json")
         baseline_path = os.path.join(attempt_dir, "baseline-fingerprint.json")
+        # The orchestrator writes the tagged criteria list here (with the Write tool) before
+        # dispatch, and `check` reads it from here (issue #439).
+        criteria_path = os.path.join(attempt_dir, "criteria.json")
         # Reject a symlink anywhere along each destination before handing it out, so a verifier
         # can never be pointed at a link that redirects its write outside the ignored dir.
         boundary = os.path.join(top, ".prflow", "tmp")
-        for dest in (evidence_path, claim_path, baseline_path):
+        for dest in (evidence_path, claim_path, baseline_path, criteria_path):
             _reject_symlink_path(dest, boundary)
         _atomic_write_json(baseline_path, baseline)
     except (_GuardError, OSError) as exc:
@@ -219,8 +227,7 @@ def _cmd_prepare(args) -> int:
         "evidence_report_path": evidence_path,
         "claim_report_path": claim_path,
         "baseline_fingerprint_path": baseline_path,
-        "flight_state_dir": flight_state,
-        "flight_logs_dir": flight_logs,
+        "criteria_path": criteria_path,
     }, sort_keys=True) + "\n")
     return 0
 
@@ -258,8 +265,12 @@ def _cmd_check(args) -> int:
         # Reject a symlink anywhere from the trusted `.prflow/tmp` root down to each report
         # leaf — the same boundary prepare uses, never the untrusted --attempt-dir value — so a
         # tampered handoff cannot make the reconciler read through a symlink outside ignored space.
+        # `--claim-file` is optional (issue #439), so it is guarded only when supplied.
         boundary = os.path.join(top, ".prflow", "tmp")
-        for dest in (args.evidence_file, args.claim_file):
+        guarded = [args.evidence_file, args.criteria_file]
+        if args.claim_file is not None:
+            guarded.append(args.claim_file)
+        for dest in guarded:
             _reject_symlink_path(dest, boundary)
     except _GuardError as exc:
         print(f"ac-verifier-artifacts: check: {exc}", file=sys.stderr)
@@ -305,14 +316,35 @@ def _cmd_check(args) -> int:
         return 2
 
     recon = _load_sibling("_ava_reconcile", "reconcile-ac-verifiers.py")
+    # The criteria file is agent-authored input (issue #439): a missing/unreadable file or a
+    # non-bare-list top-level value (the wrapped `{"criteria": [...]}` envelope included) is an
+    # unestablished measurement — exit 3 with no reconciliation printed.
+    try:
+        class_by_num = recon.parse_criteria(recon._load_criteria(args.criteria_file))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"ac-verifier-artifacts: check: could not read the criteria file: {exc}",
+              file=sys.stderr)
+        return 3
+    has_command = any(cls == "command" for cls in class_by_num.values())
+    # An omitted --claim-file reconciles every criterion from the evidence report alone, but
+    # only when no criterion is `command` (a command criterion needs the claim verifier's
+    # independent vote); omitting it while any criterion is command is exit 3.
+    if args.claim_file is None:
+        if has_command:
+            print("ac-verifier-artifacts: check: --claim-file omitted but the criteria file "
+                  "names a 'command' criterion, which requires the claim verifier's report",
+                  file=sys.stderr)
+            return 3
+        claim_records = []
     try:
         evidence_records = recon._load_report(args.evidence_file)
-        claim_records = recon._load_report(args.claim_file)
+        if args.claim_file is not None:
+            claim_records = recon._load_report(args.claim_file)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ac-verifier-artifacts: check: could not read a verifier report: {exc}",
               file=sys.stderr)
         return 3
-    print(json.dumps(recon.reconcile(evidence_records, claim_records), indent=2))
+    print(json.dumps(recon.reconcile(evidence_records, claim_records, class_by_num), indent=2))
     return 0
 
 
@@ -340,8 +372,12 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="the attempt directory prepare allocated")
     p_check.add_argument("--evidence-file", required=True,
                          help="the evidence verifier's assigned report path")
-    p_check.add_argument("--claim-file", required=True,
-                         help="the claim verifier's assigned report path")
+    p_check.add_argument("--claim-file", default=None,
+                         help="the claim verifier's assigned report path; omit only when the "
+                              "criteria file names no 'command' criterion (issue #439)")
+    p_check.add_argument("--criteria-file", required=True,
+                         help="the orchestrator-authored tagged-criteria list (a bare JSON "
+                              "list); the class per criterion decides its expected sides")
     p_check.set_defaults(func=_cmd_check)
     return parser
 

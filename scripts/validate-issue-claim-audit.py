@@ -50,7 +50,7 @@ def _force_utf8_streams():
 # Coupled to agents/issue-claim-auditor.md's Named-passes block and its pass<N>_disposition
 # record fields — change one, change the others, or the gate checks a pass the charter never
 # asks for (blocking every audit) or misses one. (The former Pass 4 runs at §1.3.5.)
-CHARTERED_PASSES = (0, 1, 2, 3, 5, 6)
+CHARTERED_PASSES = (0, 1, 2, 3, 5, 6, 7)
 
 # `ran`/`skipped`, then end-of-value or a boundary char, then the reason. Do not widen the
 # lookahead to admit `-`, nor narrow it to whitespace-and-paren — both directions matter (mirrors

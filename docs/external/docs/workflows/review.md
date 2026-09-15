@@ -73,13 +73,15 @@ The engine emits one of five verdicts.
 
 ## What Causes a REJECT
 
-Three things drive a REJECT.
+Any one of these drives a REJECT.
 
 1. **A failed verification-checklist item.** A claim the change depends on was checked and found untrue.
 2. **An inconclusive verification-checklist item.** The claim could not be established either way, so it needs a manual check. Unknown is not treated as fine.
 3. **A finding at or above the configured severity threshold.** The default threshold is `critical`, so by default only Critical findings block. Set `prflow_review.verdict_severity_threshold` to `important` or `suggestion` to make the line stricter. Findings below the line stay visible as notes.
 
-### The Rule That Surprises People
+### The Rules That Surprise People
+
+Further rejection rules do not read the severity threshold at all.
 
 <Warning>
   If the change's own diff added or modified a documentation line, a code comment or a test that is **untrue**, that alone causes a REJECT — at every threshold setting, and whatever severity the finding was graded. Severity settings cannot lower it, deferring it does not clear it, and one agent raising it is enough. Only correcting the untrue claim, or the code it describes, clears the REJECT.
@@ -94,6 +96,12 @@ The narrow exception is wording that cannot affect behavior in either direction 
 
   Because the cost lands on a future reader rather than on today's run, a severity grade would let it be tuned away. So the rule sits outside severity entirely.
 </Accordion>
+
+<Warning>
+  If a finding shows the change does not meet a **decided acceptance criterion** of the linked issue, that alone causes a REJECT — at every threshold setting, and whatever severity the finding was graded. Deferring it does not clear it, and a limitation the change discloses about itself that contradicts a criterion counts as that criterion being unmet, not as honest disclosure. Only meeting the criterion, or recording that it was genuinely out of scope, clears it.
+</Warning>
+
+A general quality or test-coverage finding that establishes no unmet criterion is unaffected and stays weighed by the severity threshold. Separately, when a linked issue carries more acceptance criteria than the verification checklist can cover, the criteria the checklist dropped are reported as a coverage shortfall that rejects rather than being dropped from the gate. A run whose checklist generation failed caps that run's verdict at `APPROVE WITH CAVEAT`, because no checklist was generated.
 
 ## What Review Never Touches
 

@@ -80,7 +80,9 @@
 #   defer            interim + CLAUDE_OUTCOME `failure` (issue #305) → the runner
 #                    retries the failed job itself: NO auto-resume, no resume
 #                    attempt consumed, workpad left interim; the workflow posts one
-#                    informational comment and exits green
+#                    informational comment and exits green. Kept behind the
+#                    defer_to_runner_retry gate — with the flag off a failure resumes
+#                    via the cap table instead.
 #   fail-exhausted   interim + ATTEMPTS >= MAX     → comment + fail the job
 #                    (includes MAX=0: 0 >= 0)
 #   fail-unreadable  status unreadable/unknown    → diagnostic comment + fail
@@ -169,9 +171,12 @@ case "$cls" in
     echo fail-blocked
     ;;
   interim)
-    # Issue #305: only the exact `failure` defers — it is the one conclusion a
-    # runner retry re-runs; deferring on `cancelled` would strand the run the
-    # #261 reclaim path exists to resume. Precedes the cap: no attempt consumed.
+    # A stall: the workpad shows an in-progress phase but the job ended. When the
+    # defer opt-in armed CLAUDE_OUTCOME=`failure` (issue #305) the runner retries
+    # the failed job itself, so PRFlow defers; otherwise resume until the cap, then
+    # fail loud. Do not special-case a provider rate-limit failure here: it takes
+    # the same capped path, and the cap is what bounds a resume into a still-
+    # exhausted limit.
     if [ "$claude_outcome" = "failure" ]; then
       echo defer
     elif [ "$attempts" -ge "$max" ]; then

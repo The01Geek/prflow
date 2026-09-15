@@ -108,7 +108,11 @@ The same loop can run unattended on GitHub Actions. PRFlow ships `devflow-retros
 
 The gate is read from the default branch, so enabling it takes effect once the change is merged to your default branch, not from a pull request.
 
-**It waits for the previous state pull request to merge.** Before running, an enabled run checks for an open `devflow/learnings-*` state pull request. When one is still open, it skips the retrospective and instead ensures exactly one open reminder issue asking a maintainer to merge that state pull request and re-dispatch the workflow. This keeps the scheduled loop from stacking un-merged learning records. With no open state pull request, the run proceeds normally.
+**It waits for the previous state pull request to merge.** Before running, an enabled run checks for an open `prflow/learnings-*` state pull request. When one is still open, it skips the retrospective and instead ensures exactly one open reminder issue asking a maintainer to merge that state pull request and re-dispatch the workflow. This keeps the scheduled loop from stacking un-merged learning records. With no open state pull request, the run proceeds normally.
+
+<Note>
+  Bump `prflow_version` in the same upgrade as the plugin. The plugin can auto-update ahead of the pinned engine that the scheduled workflow vendors, so the workflow's state-guard is still read from the older vendored engine. That older guard recognises only the older `devflow/learnings-*` branch prefix, so an already-open `prflow/learnings-*` state pull request would go unnoticed and that week would be re-processed once. Bumping `prflow_version` (re-running `install.sh`) alongside the plugin keeps the vendored guard current and closes that window.
+</Note>
 
 ## Where Humans Decide
 

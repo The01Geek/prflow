@@ -4,8 +4,9 @@
 # materialize-retrospectives.sh <new-entries-file> <jsonl-path>
 #
 # Merges new JSONL entries into the retrospectives file idempotently.
-# For each new entry: if an existing entry has the same .pr AND .kind,
-# REPLACE it in place; otherwise APPEND at the end.
+# For each new entry: if an existing entry has the same .repo, .pr AND .kind,
+# REPLACE it in place; otherwise APPEND at the end. The key is repo-qualified so
+# a Radman-LLC#N record does not clobber a same-numbered The01Geek#N record.
 # Writes to a temp file and only replaces $2 after validation passes.
 #
 # Output: "materialized: appended <N>, replaced <M>"
@@ -94,20 +95,24 @@ while IFS= read -r line; do
 
     pr="$("$DEVFLOW_JQ" -r '.pr' <<<"$line")"
     kind="$("$DEVFLOW_JQ" -r '.kind' <<<"$line")"
+    # Repo-qualified match key (absent .repo is null on both sides, so it still
+    # matches): a bare pr+kind key lets a Radman-LLC#N record delete the
+    # same-numbered The01Geek#N record from another repo.
+    repo="$("$DEVFLOW_JQ" -c '.repo' <<<"$line")"
 
-    # Check if an entry with same pr and kind already exists
+    # Check if an entry with same repo, pr and kind already exists
     # Do NOT suppress jq errors here: a malformed dataset should fail loudly
     # rather than producing a spurious empty $existing and appending a duplicate.
-    existing="$("$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" \
-        'select(.pr==$pr and .kind==$kind)' "$TMP")"
+    existing="$("$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" \
+        'select(.repo==$repo and .pr==$pr and .kind==$kind)' "$TMP")"
 
     if [ -n "$existing" ]; then
         # Replace in place — run per-line through jq substituting the match
         NEW_TMP="$(mktemp)"
         # shellcheck disable=SC2064
         trap "rm -f '$NEW_TMP' '$TMP' '$REDACTED'" EXIT
-        "$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repl "$line" \
-            'if .pr==$pr and .kind==$kind then $repl else . end' "$TMP" > "$NEW_TMP"
+        "$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" --argjson repl "$line" \
+            'if .repo==$repo and .pr==$pr and .kind==$kind then $repl else . end' "$TMP" > "$NEW_TMP"
         mv "$NEW_TMP" "$TMP"
         # Restore trap to only clean $TMP/$REDACTED now that $NEW_TMP is gone (renamed to $TMP)
         trap 'rm -f "$TMP" "$REDACTED"' EXIT

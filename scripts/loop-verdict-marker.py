@@ -44,20 +44,26 @@ every other phrase (any `shadow agreement not verified …` variant, an empty
 phrase, an unrecognized one) normalizes to `not-verified`. This direction is
 deliberate and fail-safe: the marker never over-claims full coverage.
 
-Two subcommands, both stdlib-only and needing no config / gh / network. The optional
-`compose --run-root` mode (issue #193) is the one exception: it grades the run root through
-review-evidence-gate.grade_run_root_offline, which shells out to `git apply --numstat` — so
-`compose` reaches git only on that additive path, and `read` and a legacy `compose` do not:
+Four subcommands, all stdlib-only and needing no config / gh / network. Only two reach git:
+`compose --run-root` (issue #193) and `check-evidence` (issue #426) each grade the run root
+through review-evidence-gate (grade_run_root_offline / grade_active_entry_offline), which shells
+out to `git apply --numstat` on that read-only path. `write-active-entry-binding` (issue #516)
+only writes its own binding file, and it — like `read` and a legacy `compose` — reaches no git
+at all:
 
   compose --result "<human result>" --coverage "<shadow-status phrase>" [--run-root DIR]
+          [--entry <step1|shadow> --iteration N --head <40-hex>]
       Emits the marker line to stdout (exit 0). An unmappable result prints a
       stderr breadcrumb and exits 3 with NO marker — a caller that gets no line
       composes its headline prose without a marker rather than stamping a lie.
       When --run-root is supplied (issue #193), the run root is graded offline
-      through review-evidence-gate.grade_run_root_offline FIRST, and a non-pass
-      grade refuses identically (stderr breadcrumb, exit 3, no marker) so an
-      approval headline is never stamped over missing execution evidence. A legacy
-      caller that passes no --run-root keeps the existing contract unchanged.
+      through review-evidence-gate FIRST, and a non-pass grade refuses identically
+      (stderr breadcrumb, exit 3, no marker) so an approval headline is never
+      stamped over missing execution evidence. Supplying --entry/--iteration/--head
+      together (issue #516) grades the named entry's OWN producer evidence rather
+      than the run-wide any-iteration grade; supplying none keeps the legacy
+      run-wide contract unchanged. A legacy caller that passes no --run-root at all
+      composes with no grading.
 
   read [FILE|-]
       Reads the chat output from FILE (or stdin) and inspects LINE 1 ONLY. Prints
@@ -76,14 +82,48 @@ review-evidence-gate.grade_run_root_offline, which shells out to `git apply --nu
       existing exact-wording fallback, and if that cannot resolve the verdict
       either, to the caller's existing not-clean handling. It is never read as a
       clean approve.
+
+  check-evidence --run-root DIR [--entry <step1|shadow> --iteration N --head <40-hex>]
+      Grades DIR through the SAME offline authority `compose --run-root` uses and
+      prints one structured line, emitting NO verdict marker (issue #426). The fix
+      loop calls this after a well-formed engine return, before consuming its
+      verdict, so a run root missing its native checklist/verification evidence is
+      caught early rather than only at terminal compose. Supplying
+      --entry/--iteration/--head together (issue #516) grades that entry's own
+      producer evidence — an earlier iteration's evidence never satisfies it —
+      while supplying none keeps the legacy run-wide grade; a partial set exits 2.
+      Output:
+
+        PASS <run-root> <grade>           0  the run root passes the evidence grade
+        FAIL <run-root> <grade>           3  a graded evidence failure
+        UNESTABLISHED <run-root> <detail> 3  ungradeable: an unavailable/faulty grader,
+                                             an unestablished grade, or an unknown outcome
+
+      FAIL and UNESTABLISHED are distinguished by the token, not the exit code;
+      both are non-pass and exit 3. A grader import/read/parse/internal failure is
+      UNESTABLISHED, never PASS (fail-closed). Malformed arguments keep argparse's
+      exit-2 behavior.
+
+  write-active-entry-binding --run-root DIR --entry <step1|shadow> --iteration N
+                             --head <40-hex>
+      Producer emission (issue #516): snapshots this entry's checklist/verification/
+      verifier-file evidence into ENTRY-SCOPED copies and writes the binding tying
+      the entry to them (by path, digest, reviewed head, and reuse set). The
+      snapshot is what lets a primary and a shadow entry sharing one run root's
+      iteration-scoped filenames be graded separately. Prints `WROTE <path>` (exit
+      0); a bad entry/iteration/head refuses (stderr breadcrumb, exit 3, no binding).
 """
 
 from __future__ import annotations
 
 import argparse
+import glob
+import hashlib
 import importlib.util
+import json
 import os
 import re
+import shutil
 import sys
 
 
@@ -180,21 +220,192 @@ def _load_review_evidence_gate():
         return None, f"{type(e).__name__}: {e}"
 
 
-def _run_root_grade_passes(run_root: str) -> tuple[bool, str]:
-    """Grade `run_root` offline through review-evidence-gate.grade_run_root_offline (issue
-    #193 AC5). Returns (True, token) only on an explicit `pass ` result; (False, reason) on
-    any non-pass grade or an unavailable grader — the fail-closed direction, so a marker is
-    never composed on unverified evidence."""
+# Active-entry operands (issue #516): the entry kinds a fix loop grades, and the reviewed-head
+# shape. The producer writes one binding per (entry, iteration); the grader requires the
+# caller's operands to match it, so a primary binding never answers a shadow ask.
+_ACTIVE_ENTRIES = frozenset({"step1", "shadow"})
+_HEAD_RE = re.compile(r"\A[0-9a-fA-F]{40}\Z")
+
+
+def _classify_grade_result(get_token) -> tuple[str, str]:
+    """Load the grader and classify a `(token, detail)` grade three ways (issue #426): an
+    unavailable grader, a grader fault, or an unrecognized grade token is `unestablished` —
+    never `pass` and never `fail` — so an ungradeable run is told apart from a graded failure
+    and a grader fault can never become a pass. `get_token(gate)` names which offline grade
+    to run (run-wide or active-entry), so both share this one invocation/classification path."""
     gate, err = _load_review_evidence_gate()
     if gate is None:
-        return False, f"grader-unavailable ({err})"
+        return "unestablished", f"grader-unavailable ({err})"
     try:
-        token, _detail = gate.grade_run_root_offline(run_root)
-    except Exception as e:  # a grader fault refuses, never over-claims a pass
-        return False, f"grader-error ({type(e).__name__}: {e})"
+        token, _detail = get_token(gate)
+    except Exception as e:  # a grader fault is unestablished, never over-claims a pass
+        return "unestablished", f"grader-error ({type(e).__name__}: {e})"
     if token.startswith("pass "):
-        return True, token
-    return False, token
+        return "pass", token
+    if token.startswith("fail "):
+        return "fail", token
+    if token.startswith("unestablished "):
+        return "unestablished", token
+    return "unestablished", f"unexpected-grade ({token})"
+
+
+def _classify_run_root_grade(run_root: str) -> tuple[str, str]:
+    """Grade `run_root` offline through the legacy run-wide review-evidence boundary `compose
+    --run-root` uses (review-evidence-gate.grade_run_root_offline) — issue #426, unchanged by
+    #516."""
+    return _classify_grade_result(lambda gate: gate.grade_run_root_offline(run_root))
+
+
+def _classify_active_entry_grade(run_root: str, entry: str, iteration: int,
+                                 head: str) -> tuple[str, str]:
+    """Grade `run_root` offline against the named entry's OWN producer evidence through
+    review-evidence-gate.grade_active_entry_offline (issue #516). Same three-way classification
+    as the run-wide grade, so an earlier iteration's evidence never becomes this entry's pass."""
+    return _classify_grade_result(
+        lambda gate: gate.grade_active_entry_offline(run_root, entry, iteration, head))
+
+
+def _active_entry_operands(args: argparse.Namespace):
+    """Resolve the shared active-entry operands (issue #516). Returns (entry, iteration, head)
+    when all three are supplied, the sentinel ('__partial__', None, None) when only some are
+    (a caller wiring bug — refuse rather than silently grade legacy), or (None, None, None) for
+    the legacy run-wide path when none are supplied."""
+    provided = (getattr(args, "entry", None), getattr(args, "iteration", None),
+                getattr(args, "head", None))
+    if all(v is None for v in provided):
+        return None, None, None
+    if any(v is None for v in provided):
+        return "__partial__", None, None
+    return args.entry, args.iteration, args.head
+
+
+def _sha256_of(path: str) -> str | None:
+    """The sha256 hex of a file's bytes, or None when it cannot be read. Reads bytes so a
+    non-UTF-8 artifact digests without raising."""
+    try:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def _reuse_from_checklist(path: str, iteration: int) -> list[dict]:
+    """Read this iteration's checklist and record a reuse entry for each item carrying a truthy
+    `reused_from_iter_prev` flag (phase-2-verification.md §2.0.5 narrow-reuse). `from_iteration`
+    is the item's own `reused_from_iter` when a positive int, else the immediately prior
+    iteration. An unreadable or malformed checklist yields an empty reuse set — the grader then
+    requires this entry's own producer evidence for every item (the fail-closed direction)."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            items = json.loads(fh.read())
+    except (OSError, ValueError, UnicodeError):
+        return []
+    if not isinstance(items, list):
+        return []
+    reuse = []
+    for item in items:
+        if not isinstance(item, dict) or not item.get("reused_from_iter_prev"):
+            continue
+        item_id = item.get("id")
+        if not isinstance(item_id, str) or not item_id:
+            continue
+        frm = item.get("reused_from_iter")
+        if not (isinstance(frm, int) and not isinstance(frm, bool) and frm >= 1):
+            frm = iteration - 1
+        reuse.append({"item_id": item_id, "from_iteration": frm})
+    return reuse
+
+
+def _snapshot_file(src: str, dst: str) -> None:
+    """Copy `src` to `dst` when `src` exists; do nothing when it does not (an absent source
+    leaves no snapshot, and the grader then reports the named artifact missing — fail, never a
+    spurious pass). Best-effort on a copy error, for the same reason."""
+    try:
+        shutil.copyfile(src, dst)
+    except OSError:
+        pass
+
+
+def _snapshot_verdicts(src_dir: str, dst_dir: str) -> None:
+    """Copy every `<item-id>-*.json` nonce verifier file from `src_dir` into `dst_dir`. An
+    absent source directory leaves the snapshot empty, so the grader reports each agent item's
+    verifier file missing rather than passing on unrelated evidence."""
+    try:
+        os.makedirs(dst_dir, exist_ok=True)
+    except OSError:
+        return
+    for src in glob.glob(os.path.join(src_dir, "*.json")):
+        _snapshot_file(src, os.path.join(dst_dir, os.path.basename(src)))
+
+
+def _cmd_write_active_entry_binding(args: argparse.Namespace) -> int:
+    """Producer emission (issue #516): snapshot this entry's checklist, verification and
+    verifier-file evidence into ENTRY-SCOPED copies and write a binding naming them (by path
+    and digest), the reviewed head, and the reuse set. The snapshot is what makes a primary
+    and a shadow entry sharing one run root's iteration-scoped filenames separately gradeable:
+    the other entry's later overwrite of the shared `checklist-iter-<N>.json` /
+    `verdicts/iter-<N>/` cannot disturb this entry's captured copy, so a terminal re-grade of
+    this entry still reads its own evidence (AC4/AC6). Refuses on a bad entry/iteration/head —
+    no binding written — the same stderr+exit-3 shape as compose's refusals, so a caller that
+    gets no confirmation never assumes a binding it does not have."""
+    if args.entry not in _ACTIVE_ENTRIES:
+        sys.stderr.write(
+            f"loop-verdict-marker: --entry must be one of {sorted(_ACTIVE_ENTRIES)} "
+            f"(got {args.entry!r}) — no active-entry binding written\n")
+        return 3
+    if args.iteration < 1:
+        sys.stderr.write(
+            "loop-verdict-marker: --iteration must be a positive integer — "
+            "no active-entry binding written\n")
+        return 3
+    if not _HEAD_RE.match(args.head or ""):
+        sys.stderr.write(
+            "loop-verdict-marker: --head must be a 40-character hex commit sha — "
+            "no active-entry binding written\n")
+        return 3
+    n, entry, root = args.iteration, args.entry, args.run_root
+    src_checklist = os.path.join(root, f"checklist-iter-{n}.json")
+    src_verification = os.path.join(root, f"verification-iter-{n}.json")
+    dst_checklist_name = f"checklist-{entry}-iter-{n}.json"
+    dst_verification_name = f"verification-{entry}-iter-{n}.json"
+    dst_verdicts_subdir = os.path.join(f"verdicts-{entry}", f"iter-{n}")
+    _snapshot_file(src_checklist, os.path.join(root, dst_checklist_name))
+    _snapshot_file(src_verification, os.path.join(root, dst_verification_name))
+    _snapshot_verdicts(os.path.join(root, "verdicts", f"iter-{n}"),
+                       os.path.join(root, dst_verdicts_subdir))
+    binding = {
+        "schema_version": 1,
+        "entry": entry,
+        "iteration": n,
+        "reviewed_head": args.head.lower(),
+        "checklist_artifact": dst_checklist_name,
+        "checklist_sha256": _sha256_of(os.path.join(root, dst_checklist_name)),
+        "verification_artifact": dst_verification_name,
+        "verification_sha256": _sha256_of(os.path.join(root, dst_verification_name)),
+        "verdicts_subdir": dst_verdicts_subdir,
+        "reuse": _reuse_from_checklist(src_checklist, n),
+    }
+    out_path = os.path.join(root, f"active-entry-{entry}-iter-{n}.json")
+    try:
+        with open(out_path, "w", encoding="utf-8") as fh:
+            json.dump(binding, fh)
+    except OSError as e:
+        sys.stderr.write(
+            f"loop-verdict-marker: could not write active-entry binding to {out_path}: {e}\n")
+        return 3
+    sys.stdout.write(f"WROTE {out_path}\n")
+    return 0
+
+
+def _run_root_grade_passes(run_root: str) -> tuple[bool, str]:
+    """Grade `run_root` offline (issue #193 AC5). Returns (True, token) only on an explicit
+    `pass ` result; (False, reason) on any non-pass grade or an unavailable grader — the
+    fail-closed direction, so a marker is never composed on unverified evidence. Expressed
+    over `_classify_run_root_grade` so `compose` and `check-evidence` share one
+    grader-invocation path; `compose` only ever consumed the boolean, so its behavior is
+    unchanged."""
+    outcome, detail = _classify_run_root_grade(run_root)
+    return outcome == "pass", detail
 
 
 def _cmd_compose(args: argparse.Namespace) -> int:
@@ -203,7 +414,20 @@ def _cmd_compose(args: argparse.Namespace) -> int:
     # shape as the unmappable-result refusal below. Legacy callers pass no --run-root and are
     # unchanged.
     if getattr(args, "run_root", None):
-        ok, detail = _run_root_grade_passes(args.run_root)
+        entry, iteration, head = _active_entry_operands(args)
+        if entry == "__partial__":
+            sys.stderr.write(
+                "loop-verdict-marker: --entry, --iteration and --head must be supplied "
+                "together for an active-entry grade — no marker emitted\n")
+            return 3
+        if entry is not None:
+            # Active-entry grade (issue #516): this entry's own producer evidence, not the
+            # run-wide grade, gates whether the terminal marker may be stamped.
+            outcome, detail = _classify_active_entry_grade(
+                args.run_root, entry, iteration, head)
+            ok = outcome == "pass"
+        else:
+            ok, detail = _run_root_grade_passes(args.run_root)
         if not ok:
             sys.stderr.write(
                 f"loop-verdict-marker: run root '{args.run_root}' did not pass the "
@@ -283,6 +507,44 @@ def _cmd_read(args: argparse.Namespace) -> int:
     return 3
 
 
+CHECK_EVIDENCE_TOKENS = {"pass": "PASS", "fail": "FAIL", "unestablished": "UNESTABLISHED"}
+
+
+def _cmd_check_evidence(args: argparse.Namespace) -> int:
+    entry, iteration, head = _active_entry_operands(args)
+    if entry == "__partial__":
+        sys.stderr.write(
+            "loop-verdict-marker: --entry, --iteration and --head must be supplied together "
+            "for an active-entry grade\n")
+        return 2
+    if entry is not None:
+        outcome, detail = _classify_active_entry_grade(args.run_root, entry, iteration, head)
+    else:
+        outcome, detail = _classify_run_root_grade(args.run_root)
+    # `detail` can carry a grader exception message with embedded CR/LF; flatten it so the
+    # docstring's "one structured line" holds and the reader's splitlines()[0] sees the whole
+    # record, not a truncated first physical line.
+    detail = detail.replace("\r", " ").replace("\n", " ")
+    sys.stdout.write(f"{CHECK_EVIDENCE_TOKENS[outcome]} {args.run_root} {detail}\n")
+    return 0 if outcome == "pass" else 3
+
+
+def _add_active_entry_args(sub_parser: argparse.ArgumentParser) -> None:
+    """Add the optional active-entry operands (issue #516) to a compose/check-evidence parser.
+    All three together select the entry-bound grade; none selects the legacy run-wide grade;
+    a partial set is refused by the command handler (a caller wiring bug)."""
+    sub_parser.add_argument(
+        "--entry", default=None,
+        help="optional (issue #516): the fix-loop entry (step1|shadow) to grade against its "
+        "own producer evidence. Supply --entry, --iteration and --head together.")
+    sub_parser.add_argument(
+        "--iteration", default=None, type=int,
+        help="optional (issue #516): the engine iteration of the active entry.")
+    sub_parser.add_argument(
+        "--head", default=None,
+        help="optional (issue #516): the reviewed head (40-char hex) of the active entry.")
+
+
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(
@@ -304,11 +566,40 @@ def main(argv: list[str] | None = None) -> int:
         help="optional (issue #193): the loop's held review run root. When given, refuse to "
         "compose a marker unless the run root passes the offline review-evidence grade.",
     )
+    _add_active_entry_args(p_compose)
     p_compose.set_defaults(func=_cmd_compose)
 
     p_read = sub.add_parser("read", help="parse line 1 of a chat output for the marker")
     p_read.add_argument("file", nargs="?", default="-", help="input file, or - for stdin")
     p_read.set_defaults(func=_cmd_read)
+
+    p_check = sub.add_parser(
+        "check-evidence",
+        help="grade a held review run root offline and print a non-publishing structured "
+        "outcome (issue #426), emitting no verdict marker",
+    )
+    p_check.add_argument(
+        "--run-root",
+        required=True,
+        help="the loop's held review run root to grade through the same offline evidence "
+        "authority compose --run-root uses",
+    )
+    _add_active_entry_args(p_check)
+    p_check.set_defaults(func=_cmd_check_evidence)
+
+    p_bind = sub.add_parser(
+        "write-active-entry-binding",
+        help="producer emission (issue #516): write the active-entry binding tying an entry's "
+        "verdict to its own checklist/verification/verifier-file evidence",
+    )
+    p_bind.add_argument("--run-root", required=True, help="the entry's held review run root")
+    p_bind.add_argument("--entry", required=True,
+                        help="the fix-loop entry kind: step1 (primary) or shadow")
+    p_bind.add_argument("--iteration", required=True, type=int,
+                        help="the engine iteration this entry produced")
+    p_bind.add_argument("--head", required=True,
+                        help="the reviewed head (40-char hex) this entry's diff was produced at")
+    p_bind.set_defaults(func=_cmd_write_active_entry_binding)
 
     args = parser.parse_args(argv)
     return args.func(args)

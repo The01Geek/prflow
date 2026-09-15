@@ -96,7 +96,6 @@ Verification evidence is recorded on the workpad, alongside the run's other prog
 ```markdown
 ## Progress
 - [ ] **Review**
-  - [x] `/simplify`
   - [x] `review-and-fix`
   - [ ] acceptance-criteria gate
 ```

@@ -77,9 +77,9 @@ Any one of these produces a `REJECT`:
 - A verification-checklist item that was **inconclusive**. An unknown result is treated as blocking, not as a pass.
 - A finding at or above the configured severity threshold. The default is `critical`, so only critical findings reject. Set `prflow_review.verdict_severity_threshold` to `important` or `suggestion` to make more findings reject. See [Review Settings](/docs/configuration/review).
 
-### The Rule That Surprises People
+### The Rules That Surprise People
 
-There is one more rejection rule, and it does not read the severity threshold at all.
+Further rejection rules do not read the severity threshold at all.
 
 <Warning>
   If the change's **own diff** added or modified a documentation line, a code comment or a test that is untrue, that alone produces a `REJECT`. It rejects at every threshold setting, including the default. It cannot be lowered by severity configuration and it cannot be waived by deferring the finding. Only fixing the untrue line clears it.
@@ -90,6 +90,12 @@ There is one more rejection rule, and it does not read the severity threshold at
 <Accordion title="Why this rule is absolute">
   A wrong comment or a wrong documentation line survives the pull request and misleads every reader afterwards, including the next automated run. A severity threshold exists so a team can decide how much polish blocks a merge. It is not meant to let a change ship a statement about itself that is false. Rating that as a suggestion, and then letting the default threshold ignore it, is exactly how such lines used to reach the default branch.
 </Accordion>
+
+<Warning>
+  If a finding shows the change does not meet a decided acceptance criterion of the linked issue, that alone produces a `REJECT`, at every threshold setting and whatever severity the finding was graded. It cannot be waived by deferring the finding, and a limitation the change discloses about itself that contradicts a criterion counts as that criterion being unmet, not as honest disclosure that clears it. Only meeting the criterion — or recording that it was genuinely out of scope — clears it.
+</Warning>
+
+This closes a gap where a known-unmet criterion could ship as an "approve with notes" pull request for a person to finish by hand. A general test-coverage or quality finding that does not establish an unmet criterion is unaffected and stays weighed by the severity threshold. Separately, when a linked issue carries so many acceptance criteria that the verification checklist cannot cover them all, the criteria the checklist dropped are reported as a coverage shortfall that rejects rather than being silently dropped from the gate. A run whose checklist generation failed caps that run's verdict at `APPROVE WITH CAVEAT`, because no checklist was generated.
 
 ## Review and Fix
 

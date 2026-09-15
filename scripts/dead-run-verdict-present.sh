@@ -96,8 +96,9 @@ fi
 # Run the deriver. It emits two lines (verdict=…, verdict_determined=…) on stdout and
 # always exits 0. Only a POSITIVELY-determined verdict suppresses the banner.
 # The deriver's stderr is DELIBERATELY NOT suppressed: it emits a SPECIFIC breadcrumb
-# for each fail-closed condition (reviews API query failed, empty HEAD_SHA, the two
-# verdict keys disagree, no verdict for HEAD, …), and those are the diagnostic surface
+# for each fail-closed condition (reviews API query failed, empty HEAD_SHA, no verdict for
+# HEAD, …) and for the non-terminating no-marked-review-names-HEAD diagnostic, and those
+# are the diagnostic surface
 # that lets an operator tell a genuine infrastructure failure apart from an expected
 # verdict-less run on the common `absent` path. Only stdout is captured here (and by the
 # workflow gate's own `$(…)`), so letting stderr flow reaches the step log without

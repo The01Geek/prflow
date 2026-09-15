@@ -257,8 +257,10 @@ def _read_manifest_version(manifest_path: str) -> str:
 def _read_text(path: str, what: str) -> str:
     """Read ``path`` as UTF-8 text, wrapping any OS fault into the name-the-file exit-2 path.
 
-    Mirror of ``_write_text`` so read and write share one wrap site — a new reader cannot
-    diverge with a subtly different or missing diagnostic.
+    Mirror of ``_write_text`` for the error wrap only — a new reader cannot diverge with a
+    subtly different or missing diagnostic — and deliberately NOT for its newline handling:
+    the read keeps universal newlines so a changeset authored on a Windows host still matches
+    the frontmatter fence, which the write side's `newline=""` has no bearing on.
     """
     try:
         with open(path, encoding="utf-8") as fh:
@@ -268,9 +270,14 @@ def _read_text(path: str, what: str) -> str:
 
 
 def _write_text(path: str, text: str) -> None:
-    """Write ``text`` to ``path``, wrapping any OS fault into the name-the-file exit-2 path."""
+    """Write ``text`` to ``path``, wrapping any OS fault into the name-the-file exit-2 path.
+
+    `newline=""` because every target is a tracked artifact (issue #430): leaving translation
+    on emits carriage-return pairs on a Windows host, which the artifact pass then reports as
+    a change `git diff` cannot see.
+    """
     try:
-        with open(path, "w", encoding="utf-8") as fh:
+        with open(path, "w", encoding="utf-8", newline="") as fh:
             fh.write(text)
     except OSError as exc:
         raise ChangesetError(f"{path}: cannot write: {exc}") from exc

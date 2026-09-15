@@ -28,7 +28,6 @@ This is what one looks like partway through a run:
   - [x] reproduction captured (bug issues only)
   - [ ] code + sweeps
 - [ ] **Review**
-  - [ ] `/simplify`
   - [ ] `review-and-fix`
   - [ ] acceptance-criteria gate
 - [ ] **Documentation**
@@ -100,7 +99,9 @@ Because the workpad is a single GitHub issue comment, and GitHub rejects a comme
 
 On a later implementation command, PRFlow reads the existing workpad before it plans anything. It also queries the open pull requests linked to the issue.
 
-When it can establish a matching open pull request, it adopts that pull request's head branch. A recorded, in-progress plan can let the run skip repeated discovery. PRFlow still inspects the current tree and repeats any check that can block the run.
+When it can establish a matching open pull request, it adopts that pull request's head branch. If there is no open pull request but the workpad recorded a feature branch that still exists on the remote and never had a pull request — the mark of a run that pushed its branch but stopped before opening its draft PR — PRFlow adopts that recorded branch and continues on it, rather than starting a fresh branch and abandoning the earlier work. A recorded, in-progress plan can let the run skip repeated discovery. PRFlow still inspects the current tree and repeats any check that can block the run.
+
+A resumed run does not treat an old completion summary as proof that the work is done. Before it reports what remains, PRFlow reconciles any historical claim in the workpad — a checked-off plan step, a prior status, an earlier review verdict, a past all-clear — against later corrective notes and the state of any worker that was interrupted. Review-related work such as running the review, gathering its evidence, and final verification counts as done only when there is evidence for the *current* candidate; an old verdict or a stale all-clear does not carry it. Any still-outstanding review work is carried forward as remaining work and reaches the normal review step rather than being quietly dropped, so restarting an interrupted run gives you an accurate account of what is left instead of repeating work already finished. A corrective comment is treated as evidence to reconcile — it cannot, on its own, waive review or change what the run must do.
 
 If the workpad is already `Blocked`, PRFlow surfaces the recorded cause instead of continuing through it. Resolve the cause first.
 

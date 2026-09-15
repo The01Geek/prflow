@@ -16,7 +16,8 @@ typed version, never a manifest-supplied string), downloads the artifact over
 HTTPS, and `sha256`-compares the bytes against the declared digest.
 
 It fails closed on every non-match: a declared artifact whose URL cannot be
-resolved, a download error, a digest mismatch, or a manifest that declares no
+resolved, a download error that persists after a bounded transient retry, a digest
+mismatch, or a manifest that declares no
 artifacts at all. The verified count must equal the declared count, so a skipped
 declared artifact fails the check rather than passing silently. It carries no
 write credentials of its own and mutates nothing — it only reads the manifest and
@@ -27,8 +28,11 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import http.client
 import importlib.util
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -59,13 +63,58 @@ iter_declared_artifacts = lint_provision.iter_declared_artifacts
 # real assets are a few MB; 256 MiB is far above any of them and far below OOM.
 _MAX_BYTES = 256 * 1024 * 1024
 _HTTP_TIMEOUT_SECONDS = 120
+# Bounded transient-download retry (issue #493): one 5xx/timeout/dropped connection
+# must not redden an unrelated PR's CI. _FETCH_RETRY_DELAYS[attempt-1] is the wait
+# before the next attempt, so it must stay exactly one shorter than
+# _FETCH_MAX_ATTEMPTS or the final retry IndexErrors.
+_FETCH_MAX_ATTEMPTS = 3
+_FETCH_RETRY_DELAYS = (2, 4)
+
+
+class FetchError(RuntimeError):
+    """Raised by `_default_fetch` when a download fails after exhausting the
+    transient-retry attempts, or on a non-transient error. The raise site formats
+    the attempt count into the message, so the fetch-error result line reports how
+    many tries were made."""
+
+
+def _is_transient(exc: BaseException) -> bool:
+    """True for exactly the six retry-eligible transport failures of issue #493,
+    complete by construction. An HTTPError is classified by its status code alone and
+    checked BEFORE the URLError arm — HTTPError subclasses URLError, so a 404 would
+    otherwise be retried under the URLError rule and never fail fast."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code >= 500 or exc.code == 429
+    if isinstance(exc, urllib.error.URLError):
+        return True
+    return isinstance(exc, (TimeoutError, ConnectionError, http.client.HTTPException))
 
 
 def _default_fetch(url: str) -> bytes:
     """Download `url` and return its bytes, following redirects (GitHub release
-    assets redirect to a CDN). Raises on any transport error or an oversized body."""
-    with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_SECONDS) as resp:
-        data = resp.read(_MAX_BYTES + 1)
+    assets redirect to a CDN). The download is attempted up to `_FETCH_MAX_ATTEMPTS`
+    times in total; a transient transport failure (see `_is_transient`) is retried on
+    the `_FETCH_RETRY_DELAYS` backoff (so at most `_FETCH_MAX_ATTEMPTS - 1` retries),
+    printing one stderr breadcrumb per retry, while a non-transient error (e.g. a 404)
+    ends the attempts at once. Raises `FetchError` once the attempts are exhausted or
+    on a non-transient error, or `ValueError` on an oversized body."""
+    data = b""
+    for attempt in range(1, _FETCH_MAX_ATTEMPTS + 1):
+        try:
+            # urlopen AND read share one try: an http.client.HTTPException raised by
+            # read() mid-stream is as transient as one from urlopen and must retry.
+            with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_SECONDS) as resp:
+                data = resp.read(_MAX_BYTES + 1)
+            break
+        except Exception as exc:
+            if _is_transient(exc) and attempt < _FETCH_MAX_ATTEMPTS:
+                delay = _FETCH_RETRY_DELAYS[attempt - 1]
+                print(f"retry {url}: attempt {attempt} failed, waiting {delay}s: {exc}",
+                      file=sys.stderr)
+                time.sleep(delay)
+                continue
+            attempts = "attempt" if attempt == 1 else "attempts"
+            raise FetchError(f"{exc} (after {attempt} {attempts})") from exc
     if len(data) > _MAX_BYTES:
         raise ValueError(f"download exceeded {_MAX_BYTES} bytes: {url}")
     return data

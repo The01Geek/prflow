@@ -327,7 +327,12 @@ ${ALLOWED_TOOLS}
 > exact tier, command head, target form, and statement that was measured.
 > - **Hard rule: after two denials of a shape, switch to a permitted alternative above
 >   — never iterate variants of the denied shape.** Iterating denied variants is what
->   exhausts the run and ends it with no verdict.
+>   exhausts the run and ends it with no verdict. When the refused command is a bundled
+>   plugin helper, record the refusal on this run's durable record (the workpad, else the
+>   PR description) naming the helper, the tier, and that tier's remedy — on this cloud tier,
+>   \`install.sh --apply\` or the matching \`allowed_tools\` config token — then report the
+>   artifact it would have produced as absent; never reproduce that artifact by hand, through
+>   another tool, an interpreter, or a self-attested check.
 >
 > **${N_HEADLESS}. This is a headless run: ending your turn ends the process.** There is no
 > re-invocation here — do NOT end your turn while any dispatched agent has not

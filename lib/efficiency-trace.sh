@@ -34,6 +34,37 @@
 #                       without them it DISCOVERS every run under
 #                       .prflow/tmp/review/<slug>/<run-id>/ and persists each.
 #
+# Targeted-form outcome line (issue #344): the TARGETED --persist form (invoked
+# WITH --workpad-dir) prints exactly one line to STANDARD OUTPUT, after any stderr
+# warnings, on every exit path after argument parsing succeeds:
+#     persist-outcome: <class> <reason>
+# <class> is one of exactly three: `lost` (a record derivation/staging,
+# durable-copy, or telemetry-branch write failed; the telemetry-branch helper did
+# not source and the staged artifacts were discarded; or no iteration files
+# existed and the fix-commit search RAN and found nothing to synthesize),
+# `unestablished` (no iteration files and the fix-commit search was UNABLE to run,
+# synthesis returned an unmapped code, or synthesis reported success yet left no
+# iteration file), or `ok` (everything else). Any failed write makes the class
+# `lost`, whatever else the call achieved. <reason> is one word naming the arm,
+# from this vocabulary:
+#     persisted        a record was derived and written (real iteration files)
+#     already-persisted a record for this run was already on the telemetry branch
+#     synthesized      a record was synthesized from this run's fix commits
+#     staged-only      artifacts staged under the read-only CI posture (push unset)
+#     no-inputs        no iteration files and the search found nothing to synthesize
+#     write-failed     a record/durable-copy/telemetry-branch write failed — including a
+#                      durable-copy failure even when the effectiveness record is already
+#                      safely on the branch (any failed write latches `lost`)
+#     search-failed    the fix-commit search was unable to run, returned an unmapped code, or
+#                      reported success yet left no iteration file
+#     skipped          the call was declined — telemetry is disabled (the
+#                      efficiency-record feature gate or the telemetry.enabled master
+#                      switch), or persist_one declined a placeholder-identity /
+#                      non-synthesis-target run dir (chiefly discovery mode; a targeted
+#                      call passes allow_synth=1 and its argv is placeholder-guarded).
+# The DISCOVERY form (no --workpad-dir), the --mode/--self-check modes, and the argv
+# unsubstituted-<placeholder> guard each print no `persist-outcome:` line.
+#
 # Gating: when prflow_review_and_fix.efficiency_telemetry_enabled is false,
 # --mode and --self-check emit NOTHING and exit 0, and --persist derives no
 # record AND synthesizes no workpad (a synthesized workpad exists only to feed
@@ -1118,6 +1149,10 @@ do_self_check() {
 # Persist one run dir's artifacts (best-effort). Returns 0 always.
 persist_one() {
   local dir="$1" slug="$2" run_id="$3" root="$4" allow_synth="${5:-1}"
+  # Outcome baseline (issue #344): default to the declined verdict so a future skip arm added
+  # without an explicit class fails safe to `ok skipped`, never do_persist's `unestablished`
+  # default. The end-of-function fold overwrites class/reason on every staging path.
+  _PERSIST_ONE_CLASS=ok; _PERSIST_ONE_REASON=skipped; _PERSIST_ONE_STAGED=0
   # Basename-derived identities need the same unsubstituted-placeholder refusal
   # as the argv guard above: a literal `<slug>/<run-id>` DIRECTORY (left by a
   # non-substituting agent running a workpad-dir mkdir fence verbatim) reaches
@@ -1126,9 +1161,13 @@ persist_one() {
   case "${dir}${slug}${run_id}" in
     *'<'*|*'>'*)
       echo "::warning::efficiency-trace.sh --persist: run dir '${dir}' carries an unsubstituted '<placeholder>' identity (a verbatim '<slug>/<run-id>' directory left by a non-substituting run?); refusing to persist or synthesize under it — remove or rename the directory to recover" >&2
-      return 0 ;;
+      return 0 ;;  # ok skipped (baseline)
   esac
   local durable record out jq_rc cp_err ref rel_iter staged_iter stamp_tmp stamp_err existing_class
+  # po_reason defaults to `skipped`; the record-staged branch alone sets `persisted`/`synthesized`,
+  # so an all-malformed-iters run (empty derived record, nothing staged) does not over-claim
+  # `ok persisted` (issue #344 review).
+  local po_lost=0 po_synth=0 po_reason=skipped
   local iters=("$dir"/iter-*.json)
   if [ ! -e "${iters[0]}" ]; then
     # No per-iteration workpad. Layer-3+ synthesis floor (issue #381): reconstruct
@@ -1156,15 +1195,15 @@ persist_one() {
       # telemetry artifacts to a repo that switched telemetry off. One gate
       # covers both the targeted and discovery paths.
       echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json and efficiency telemetry is disabled; skipping synthesis (a disabled record has no consumer for a synthesized workpad)" >&2
-      return 0
+      return 0  # ok skipped (baseline)
     fi
     if [ "$allow_synth" = "2" ]; then
       echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json, but workpad-less run dirs span multiple slugs in this discovery pass — the branch's fix commits cannot be attributed to a slug offline, so synthesis is skipped for all of them; to synthesize this run explicitly, rerun with --persist --workpad-dir <dir> --slug ${slug}" >&2
-      return 0
+      return 0  # ok skipped (baseline)
     fi
     if [ "$allow_synth" != "1" ]; then
       echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json and is not the synthesis target for slug '${slug}' (a later run-id holds it); skipping synthesis so fix commits are not double-counted" >&2
-      return 0
+      return 0  # ok skipped (baseline)
     fi
     # Three-way outcome (unknown is never collapsed onto "found none" — the
     # repo's describe-denial-count.sh gotcha): rc 2 = selection ran, nothing
@@ -1174,20 +1213,24 @@ persist_one() {
     local synth_rc=0
     synthesize_iter_workpads "$dir" "$root" || synth_rc=$?
     case "$synth_rc" in
-      0) : ;;
+      0) po_synth=1 ;;
       3)
         echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and the fix-commit search could not run (an uncreatable target dir, an unresolvable base ref, a base ref left unestablished by a failed origin refresh, a telemetry-branch fetch left unestablished by a failed/unattempted fetch, or a failed git log enumeration — the warning above names which) — whether matching fix commits exist was never established; telemetry not synthesized" >&2
+        _PERSIST_ONE_CLASS=unestablished; _PERSIST_ONE_REASON=search-failed; _PERSIST_ONE_STAGED=0
         return 0 ;;
       4)
         echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json; matching fix commits were selected but every synthesized record write failed (see the per-commit warnings above, which carry the actual jq error text — disk/permissions, a malformed jq program, or on the cloud tier the sandbox's redirect-write denial into .prflow/tmp) — telemetry not synthesized" >&2
+        _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=write-failed; _PERSIST_ONE_STAGED=0
         return 0 ;;
       2)
         echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and no unrecorded review-fix commit of any recovered family (numbered 'fix: address review findings (iteration N)', or unnumbered 'fix: address review findings' / 'fix: address shadow review findings') was found — per-iteration effectiveness telemetry was not captured this run; nothing to synthesize" >&2
+        _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=no-inputs; _PERSIST_ONE_STAGED=0
         return 0 ;;
       *)
         # Unknown is not zero: an rc outside the 0/2/3/4 contract (a signal, a
         # future drift) must not be reported as "no commits were found".
         echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and synthesis exited with unexpected rc=${synth_rc} — whether matching fix commits exist was never established; telemetry not synthesized" >&2
+        _PERSIST_ONE_CLASS=unestablished; _PERSIST_ONE_REASON=search-failed; _PERSIST_ONE_STAGED=0
         return 0 ;;
     esac
     iters=("$dir"/iter-*.json)
@@ -1197,6 +1240,7 @@ persist_one() {
       # desynchronizes that contract, dropping the record with zero signal is
       # exactly the silent hole this file exists to close.
       echo "::warning::efficiency-trace.sh --persist: synthesis reported success but no iter-*.json exists in ${dir}; record not derived for ${slug}/${run_id}" >&2
+      _PERSIST_ONE_CLASS=unestablished; _PERSIST_ONE_REASON=search-failed; _PERSIST_ONE_STAGED=0
       return 0
     fi
   fi
@@ -1231,7 +1275,9 @@ persist_one() {
   durable="${_TELEMETRY_STAGE}/.prflow/logs/review/${slug}/${run_id}"
   if ! cp_err="$( { mkdir -p "$durable" && cp -p "$dir"/*.json "$durable"/; } 2>&1 )"; then
     echo "::warning::efficiency-trace.sh --persist: durable workpad copy failed (${dir} -> ${durable}): ${cp_err:-unknown}; best-effort, continuing" >&2
+    po_lost=1   # a durable-copy write failed → class lost (issue #344)
   else
+    _PERSIST_ONE_STAGED=1   # durable workpad copy staged (issue #344)
     # Emitted-provenance backfill (issue #534): stamp `synthesized: false` onto the
     # DURABLE copy of any agent-written iter record that carries no `synthesized`
     # key, so the persisted artifact a later reader consults affirmatively records
@@ -1333,6 +1379,7 @@ persist_one() {
       out="$(emit_jq record "$slug")" || jq_rc=$?
       if [ "$jq_rc" -ne 0 ]; then
         echo "::warning::efficiency-trace.sh --persist: record derivation (jq) failed (rc=${jq_rc}) for ${slug}/${run_id}; record not written" >&2
+        po_lost=1   # a record-derivation write failed → class lost (issue #344)
       elif [ -n "$out" ]; then
         if mkdir -p "$(dirname "$record")" 2>/dev/null; then
           # Check the redirection itself: a write failure after mkdir (ENOSPC,
@@ -1341,12 +1388,35 @@ persist_one() {
           if ! printf '%s\n' "$out" > "$record"; then
             echo "::warning::efficiency-trace.sh --persist: staging record ${record} failed (disk/permission); not persisted for ${slug}/${run_id}" >&2
             rm -f "$record" 2>/dev/null
+            po_lost=1   # a record-staging write failed → class lost (issue #344)
+          else
+            # Record staged. `synthesized`/`persisted` distinguishes a record
+            # derived from this run's fix commits from one derived from real
+            # iteration workpads (issue #344).
+            _PERSIST_ONE_STAGED=1
+            if [ "$po_synth" = 1 ]; then po_reason=synthesized; else po_reason=persisted; fi
           fi
         else
           echo "::warning::efficiency-trace.sh --persist: could not create $(dirname "$record"); record not written for ${slug}/${run_id}" >&2
+          po_lost=1   # a record-directory write failed → class lost (issue #344)
         fi
       fi
+    else
+      # A record for this run is already on the telemetry branch: nothing is
+      # re-derived this pass, the ordinary idempotent outcome (issue #344).
+      po_reason=already-persisted
     fi
+  else
+    # Real iteration files but the efficiency-record feature is disabled: only the
+    # (ungated) durable workpad copy was staged, no effectiveness record (issue #344).
+    po_reason=skipped
+  fi
+  # Compose the targeted-form outcome the caller (do_persist) folds the
+  # telemetry-branch write rc into. po_lost latches over any ok reason (issue #344).
+  if [ "$po_lost" = 1 ]; then
+    _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=write-failed
+  else
+    _PERSIST_ONE_CLASS=ok; _PERSIST_ONE_REASON="$po_reason"
   fi
   return 0
 }
@@ -2007,6 +2077,10 @@ apply_pr_less_issue_floor() {
 
 do_persist() {
   local root dir slug run_id _TELEMETRY_STAGE
+  # Targeted-form outcome accounting (issue #344): persist_one writes these via
+  # dynamic scope; the targeted branch below folds the telemetry-branch write rc in
+  # and prints the single `persist-outcome:` stdout line.
+  local _PERSIST_ONE_CLASS="" _PERSIST_ONE_REASON="" _PERSIST_ONE_STAGED=0
   # Telemetry master switch (issue #2035); the decision and the {0,1,2} exit
   # contract are scripts/telemetry-master-off.py's. Inline python3 -c, NEVER an
   # exec of it: a new exec edge here breaks the issue-#458 Stop-hook drift guard.
@@ -2035,6 +2109,8 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
 ' >/dev/null 2>&1 || _tel_rc=$?
     if [ "$_tel_rc" -eq 0 ]; then
       echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
+      # Targeted form: the master switch declined the whole call → ok skipped (issue #344).
+      [ -n "$WORKPAD_DIR" ] && printf 'persist-outcome: ok skipped\n'
       return 0
     elif [ "$_tel_rc" -eq 2 ]; then
       echo "devflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
@@ -2142,6 +2218,38 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     # unestablished one — mark ok so list_blobs does not emit a misleading "synthesis may
     # re-attribute" warning on a local-only repo's first --persist (#469 review).
     _DEVFLOW_TELEMETRY_FETCH_STATUS=ok
+  fi
+
+  # Pre-rename telemetry-branch migration backstop (issue #336): before this run's first
+  # append, migrate a consumer's superseded-branch records onto the current branch. Gated on
+  # push authorization + a remote source branch — drop the probe and an un-migrated repo re-probes each persist.
+  if _devflow_telemetry_should_push && git -C "$root" remote get-url origin >/dev/null 2>&1; then
+    local _mtb_src=""
+    _mtb_src="$(PRFLOW_RENAME_MAP="$HERE/rename-map.json" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["PRFLOW_RENAME_MAP"], encoding="utf-8") as fh:
+        m = json.load(fh)
+    for e in m.get("identifiers", []):
+        if e.get("id") == "telemetry-branch":
+            v = e.get("superseded", "")
+            if isinstance(v, str):
+                sys.stdout.write(v)
+            break
+except Exception:
+    pass
+' 2>/dev/null || true)"
+    if [ -n "$_mtb_src" ]; then
+      local _mtb_lsr=0
+      GIT_TERMINAL_PROMPT=0 git -C "$root" ls-remote --exit-code origin "refs/heads/${_mtb_src}" >/dev/null 2>&1 || _mtb_lsr=$?
+      if [ "$_mtb_lsr" -eq 0 ]; then
+        "$HERE/../scripts/migrate-telemetry-branch.sh" "$root" || true
+      elif [ "$_mtb_lsr" -ne 2 ]; then
+        # rc 2 is a clean "absent" (the common no-op); any other non-zero is an unestablished
+        # probe (offline/auth) — breadcrumb it rather than skipping the backstop silently.
+        echo "::warning::efficiency-trace.sh --persist: could not probe origin for the superseded telemetry branch '${_mtb_src}' (git ls-remote rc=${_mtb_lsr}, offline or auth); skipped the pre-rename migration backstop this run" >&2
+      fi
+    fi
   fi
 
   # ── Base-ref freshness before the synthesis floor selects commits (issue #532) ──
@@ -2294,7 +2402,15 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     # record), and builtins remove that dependency outright. (The script's init
     # line still uses `dirname` to locate itself; a host that broken never gets
     # this far.)
-    dir="${WORKPAD_DIR%/}"
+    # Resolve a RELATIVE --workpad-dir against the repo root, never the process CWD (issue #344),
+    # so the phase-3.3 fence needs no root-anchoring shell. Builtins only (identity-deciding —
+    # guard-class 2): a PATH tool here would abort the persist under set -e.
+    local abs_workpad_dir="$WORKPAD_DIR"
+    case "$WORKPAD_DIR" in
+      /*) : ;;
+      *)  abs_workpad_dir="${root%/}/${WORKPAD_DIR}" ;;
+    esac
+    dir="${abs_workpad_dir%/}"
     while [ "${dir%/}" != "$dir" ]; do dir="${dir%/}"; done   # collapse any extra trailing slashes
     run_id="${dir##*/}"
     if [ -n "$SLUG" ]; then
@@ -2302,7 +2418,7 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     else
       slug="${dir%/*}"; slug="${slug##*/}"
     fi
-    persist_one "$WORKPAD_DIR" "$slug" "$run_id" "$root" 1
+    persist_one "$dir" "$slug" "$run_id" "$root" 1
   else
     # Discovery: every .prflow/tmp/review/<slug>/<run-id>/ directory. The trailing
     # slash restricts the glob to directories; an unmatched glob stays literal and
@@ -2460,6 +2576,24 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
       # uploaded workflow artifact has been removed, so there is no cloud recovery path (see docs).
       echo "::warning::efficiency-trace.sh --persist: the telemetry-branch write DEGRADED — RETAINING the staged records at '${_TELEMETRY_STAGE}' so they are recoverable (delete once recovered; a bounded newest-${_keep} prune runs each --persist). On an ephemeral CI runner the filesystem does not survive teardown, so recovery there is not on-disk, and the trusted telemetry-push relay that formerly pushed the uploaded workflow artifact has been removed." >&2 ;;
   esac
+  # Targeted-form outcome line (issue #344; the discovery form prints nothing). Fold the
+  # telemetry-branch write rc into persist_one's staging outcome — any failed write (rc 1/other,
+  # or the helper unsourced so staging was discarded) makes the class `lost`, rc 2 is staged-only.
+  if [ -n "$WORKPAD_DIR" ]; then
+    local _oc="${_PERSIST_ONE_CLASS:-unestablished}" _or="${_PERSIST_ONE_REASON:-search-failed}"
+    if [ "$_oc" = ok ] && [ "${_PERSIST_ONE_STAGED:-0}" = 1 ]; then
+      if [ -z "${_DEVFLOW_TELEMETRY_BRANCH_SOURCED:-}" ]; then
+        _oc=lost; _or=write-failed
+      else
+        case "$persist_rc" in
+          0) : ;;
+          2) _oc=ok; _or=staged-only ;;
+          *) _oc=lost; _or=write-failed ;;
+        esac
+      fi
+    fi
+    printf 'persist-outcome: %s %s\n' "$_oc" "$_or"
+  fi
   return 0
 }
 

@@ -51,7 +51,7 @@ lint_manifest = _load_lint_manifest()
 
 # ── Closed platform vocabulary (mirrors the manifest's own). A tuple outside
 #    this set is `unsupported-lint-platform`, never an error. ──────────────────
-KNOWN_TOOLS = ("shellcheck", "ruff")
+KNOWN_TOOLS = ("shellcheck", "ruff", "actionlint")
 KNOWN_OS = ("linux", "macos", "windows")
 KNOWN_ARCH = ("x86_64", "arm64")
 
@@ -70,6 +70,8 @@ _RUFF_TARGET = {
     ("macos", "arm64"): "aarch64-apple-darwin",
     ("windows", "x86_64"): "x86_64-pc-windows-msvc",
 }
+_ACTIONLINT_OS = {"linux": "linux", "macos": "darwin", "windows": "windows"}
+_ACTIONLINT_ARCH = {"x86_64": "amd64", "arm64": "arm64"}
 
 
 def artifact_url(tool: str, version: str, os_name: str, arch: str, archive_type: str) -> str | None:
@@ -93,6 +95,14 @@ def artifact_url(tool: str, version: str, os_name: str, arch: str, archive_type:
             return None
         return (f"https://github.com/astral-sh/ruff/releases/download/"
                 f"{version}/ruff-{target}.{archive_type}")
+    if tool == "actionlint":
+        ao = _ACTIONLINT_OS.get(os_name)
+        aa = _ACTIONLINT_ARCH.get(arch)
+        if ao is None or aa is None:
+            return None
+        # The tag is `v{version}` but the filename embeds the bare `{version}`; do not prefix it.
+        return (f"https://github.com/rhysd/actionlint/releases/download/"
+                f"v{version}/actionlint_{version}_{ao}_{aa}.{archive_type}")
     return None
 
 
