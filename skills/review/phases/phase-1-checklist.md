@@ -5,6 +5,34 @@ Output: `Phase 1/4: Generating verification checklist...`
 
 Skip this entire phase (and Phase 2) when Phase 0.5 set `checklist_skipped = "intentional"` (small_diff AND config_only). Proceed directly to Phase 3. The verdict rule in 4.2 distinguishes this intentional skip from a checklist-gen failure.
 
+### 1.0 Carry prior items forward (fix-loop callers only)
+
+Skip this step unless `/prflow:review-and-fix` supplied both the iter-(N-1) checklist (`prior_checklist`) and that iteration's reviewed head (`prior_diff_head`). A standalone run, iteration 1, the Step 2.6 shadow, and an iteration whose predecessor was promoted or skipped Phase 1+2 each receive neither: they carry nothing forward and reuse no verdict.
+
+Establish the changed-file set first — what moved between the prior iteration's reviewed head and this one:
+
+```bash
+git diff --name-only --no-renames <prior_diff_head> HEAD
+```
+
+Substitute `<prior_diff_head>` as a literal commit id, never a `$VAR` (denied on the cloud matcher). Fail closed when that set cannot be established — `prior_diff_head` does not resolve (`git rev-parse --verify <prior_diff_head>^{commit}` fails, as in a shallow cloud checkout), or the `git diff` exits non-zero (read that exit status; empty output alone does not establish it): carry nothing and log the breadcrumb `carry-forward: none (<cause>)` naming which of the two applied. An exit-0 empty output is a genuinely empty changed set, not a failure. An absent `prior_diff_head` never reaches here — this step is skipped and the loop logs that cause itself.
+
+**Carry a prior item** iff all three hold: its `category` is not `issue_acceptance`; its `source_file` is in this run's Phase 0.3 changed-file list; and its `source_file` is not in the changed-file set above. A carried item keeps its prior `id` and `claim_signature`. Reuse is keyed on `source_file` alone, so a carried PASS can rest on an unchanged file whose cross-file dependency moved; Phase 3 over the whole diff is the check on that.
+
+The carried items — never the full prior array — are the `prior_checklist` §1.2 hands the generator, so its signature drop reaches only carried claims and a claim about a changed file is emitted fresh.
+
+Merge them back after §1.1.5: append every carried item to the capped new-item array, and give each new item an `id` distinct from every carried `id`. Carried items are exempt from the 100-item cap, the `issue_acceptance` sub-cap and the coverage-shortfall record, which apply to the generator's new items alone.
+
+Then tag every item, before §1.6 writes the artifact:
+
+| Item | Fields it carries |
+|---|---|
+| Carried, prior `verdict` is `PASS` | `reused_from_iter_prev: true`; `reused_from_iter` — the prior item's own `reused_from_iter` when it had one, else N-1; plus the prior `verdict`, `evidence`, `file_checked` and, when present, `raw_verdict` and `normalized` |
+| Carried, any other prior verdict | `reused_from_iter_prev: false`, no `reused_from_iter` — Phase 2 verifies it fresh |
+| Generator's new item | `reused_from_iter_prev: false`, no `reused_from_iter` |
+
+Output: `Carried {C} of {P} prior items forward ({R} reusing a prior PASS); generating the rest fresh.`
+
 ### 1.1 Determine batching
 
 Count the changed files. If 10 or fewer, launch one checklist-generator agent. If more than 10, split into batches of 10 (in Phase 0.3 document order), one agent per batch.
@@ -36,7 +64,7 @@ In-batch sanity dedup still applies before Phase 1.5 hands the array off:
 
 ### 1.1.5 Cap and prioritize
 
-If the merged-and-deduped checklist exceeds **100** items, sort by priority and keep the top 100:
+The population this step caps is the generator's new items; §1.0's carried items are exempt and are appended after it. If that population exceeds **100** items, sort by priority and keep the top 100:
 1. `issue_acceptance` items — items whose claim cites an issue acceptance criterion.
 2. `absolute_claim` items (a diff-added universal the reviewer must *falsify* by constructing the offending input; see `agents/checklist-generator.md`).
 3. `dependency_interaction` items (cross-boundary contracts).
@@ -109,19 +137,19 @@ The block below is this PR's specification — not background, and not the narra
 </acceptance_criteria>
 ```
 
-If the caller is `/prflow:review-and-fix` on iteration N≥2 (the fix-loop wrapper supplies `prior_checklist` from `iter-<N-1>.json`), append this to the prompt:
+If the caller is `/prflow:review-and-fix` on iteration N≥2 and §1.0 carried at least one item, append this to the prompt — the block carries §1.0's carried items, not the full iter-(N-1) array:
 
 ```
-This is iteration N (N≥2) of an auto-fix loop. The previous iteration's verification checklist is supplied below. Operate in variance-recovery mode per your agent contract (Step 2b):
+This is iteration N (N≥2) of an auto-fix loop. The items carried forward from the previous iteration are supplied below. Operate in variance-recovery mode per your agent contract (Step 2b):
 
-- Generate claims NOT already present in the prior checklist (dedup against `claim_signature`).
+- Generate claims NOT already present in the prior checklist (dedup against `claim_signature`), except an `issue_acceptance` item for a criterion in the `<acceptance_criteria>` block, which you always emit fresh.
 - Prioritize claim categories that are underrepresented in the prior iteration.
 - The goal is variance recovery — surfacing what a second-look pass would catch — NOT re-litigation of items already considered.
 
 Return an empty JSON array `[]` if a second pass surfaces nothing new.
 
 <prior_checklist iteration="N-1">
-{paste the iter-(N-1) checklist JSON — id, category, claim, source_file, claim_signature, verdict}
+{paste the §1.0 carried items as JSON — id, category, claim, source_file, claim_signature, verdict}
 </prior_checklist>
 ```
 
@@ -172,7 +200,7 @@ Output: `Deduped to {N_after} of {N_before} items.`
 
 ## Phase 1.6: Write the durable checklist artifact
 
-Once the final checklist array is ready to hand to Phase 2 — post-cap, post-dedup, the exact array Phase 2 will verify — Write it with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json`, where `<slug>/<run-id>` is this run's run-scoped directory from Phase 0.2 and `<N>` is the engine iteration (`1` on a standalone `/prflow:review` run; the fix-loop-supplied iteration otherwise). Phase 2 reads this file, so a checklist-owing run that skips this write leaves Phase 2 with no checklist to verify. An empty array `[]` is a valid artifact — a generator that legitimately returns nothing still writes the file. Substitute the `<slug>/<run-id>/checklist-iter-<N>.json` path literally, never as a `$VAR` expansion (a `$VAR` in a write command is denied on the cloud matcher). This write happens on the single-batch, multi-batch, and all-lite paths alike. The `checklist_skipped = "failure"` double-failure arm (§1.3) writes NO artifact and keeps its existing `checklist-skip reason=failure` phase-log record instead.
+Once the final checklist array is ready to hand to Phase 2 — post-cap, post-dedup, post-§1.0 merge and tagging, the exact array Phase 2 will verify — Write it with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json`, where `<slug>/<run-id>` is this run's run-scoped directory from Phase 0.2 and `<N>` is the engine iteration (`1` on a standalone `/prflow:review` run; the fix-loop-supplied iteration otherwise). Phase 2 reads this file, so a checklist-owing run that skips this write leaves Phase 2 with no checklist to verify. **The file root is the array itself, never an object wrapping it** — a `{"checklist": [...]}` wrapper copies the coverage-shortfall shape below and grades `review-artifact-malformed`, since the evidence gate reads the root and never unwraps. An empty array `[]` is a valid artifact — a generator that legitimately returns nothing still writes the file. Substitute the `<slug>/<run-id>/checklist-iter-<N>.json` path literally, never as a `$VAR` expansion (a `$VAR` in a write command is denied on the cloud matcher). This write happens on the single-batch, multi-batch, and all-lite paths alike. The `checklist_skipped = "failure"` double-failure arm (§1.3) writes NO artifact and keeps its existing `checklist-skip reason=failure` phase-log record instead.
 
 Alongside the checklist artifact, Write the coverage-shortfall artifact to `.prflow/tmp/review/<slug>/<run-id>/coverage-shortfall-iter-<N>.json` — the JSON object `{"dropped_count": D, "criteria": [texts]}` where `D` is the §1.1.5 sub-cap `issue_acceptance` drop count and `criteria` are those D criteria's recovered texts (`{"dropped_count": 0, "criteria": []}` when the sub-cap dropped none). A checklist-owing run writes it unconditionally, wherever it writes a `checklist-iter` artifact (the single-batch, multi-batch, and all-lite paths); the `checklist_skipped = "failure"` arm writes neither. Carrying `dropped_count` separately from `criteria` is what lets Phase 4.2 fail closed when fewer than `D` criteria were recovered, the object is malformed, or the artifact is absent on such a run. Substitute the `<slug>/<run-id>/coverage-shortfall-iter-<N>.json` path literally, never as a `$VAR` expansion.
 

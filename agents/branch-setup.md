@@ -66,6 +66,16 @@ The dispatch prompt supplies literal values for:
 
 6. Return the exact helper record plus one `evaluated:` line derived from `arm`: `fresh-create` evaluated resume-precheck and Signals; `landed-resume` evaluated resume-precheck, Signals, and Verdict-B; `PR-adopted` evaluated resume-precheck and Verdict-B; `harness-worktree-switch` evaluated resume-precheck only.
 
+## Command-shape discipline (cloud runs)
+
+On cloud runs a permission layer silently refuses any command outside its allowlist (`This command requires approval`; nothing runs). Keep to permitted shapes:
+
+- The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
+- Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
+- Prefer your Read, Grep, and Glob tools for inspecting files.
+
+After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
+
 ## Merge ownership
 
 This agent and `preflight.py branch-setup` never run `git merge`, `git merge --abort`, `git rebase`, or `git reset`. The orchestrator alone routes `update-branch-checkpoint.sh` outcomes through the existing model-owned conflict-resolution or needs-human-reconciliation paths.

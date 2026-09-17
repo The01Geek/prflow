@@ -8,10 +8,13 @@
 # Manifest validation, platform resolution, and the compatibility-marker
 # readiness gate live in the Python helpers (scripts/lint_provision.py,
 # scripts/install_state.py); this script orchestrates: gate on readiness,
-# resolve each tool's artifact, download → verify the pinned ARCHIVE digest →
-# extract → install run-local (NO sudo) → verify the executable reports the
-# pinned version. A binary already at the destination, or on PATH, is reused
-# only after re-passing that version check. Every INTEGRITY failure fails
+# empty the lint-tool directory, then for each tool resolve its artifact and
+# either reuse a version-matching tool already on PATH or download → verify the
+# pinned ARCHIVE digest → extract → install run-local (NO sudo) → verify the
+# executable reports the pinned version. Because the directory is emptied first, a
+# file left there by a prior run, the Actions cache, or an in-job writer is never
+# run or reused: only a digest-checked extract or a version-matching PATH tool
+# reaches later steps. Every INTEGRITY failure fails
 # CLOSED naming the tool, before the model runs — missing installer primitive,
 # checksum mismatch, archive that will not extract, wrong version, network
 # failure, unwritable target, unknown tool. An unsupported platform tuple
@@ -73,6 +76,7 @@ _version_token_match() {
 _digest() {
   "$PY" - "$1" <<'PY'
 import hashlib, sys
+sys.stdout.reconfigure(newline="\n")
 with open(sys.argv[1], "rb") as fh:
     print("sha256:" + hashlib.sha256(fh.read()).hexdigest())
 PY
@@ -105,7 +109,7 @@ fi
 # has ONE source: a hardcoded list that omitted a manifest tool left that tool
 # silently never provisioned while the readiness gate still reported READY.
 if [ -z "${TOOLS:-}" ]; then
-  TOOLS="$("$PY" -c 'import json,sys; print(" ".join(json.load(open(sys.argv[1]))["tools"]))' "$LINT_MANIFEST")" \
+  TOOLS="$("$PY" -c 'import json,sys; sys.stdout.reconfigure(newline="\n"); print(" ".join(json.load(open(sys.argv[1]))["tools"]))' "$LINT_MANIFEST")" \
     || _die - "could not derive the tool set from the manifest"
   [ -n "$TOOLS" ] || _die - "manifest declares no tools to provision"
 fi
@@ -114,10 +118,15 @@ fi
 # explicit INSTALLER_VERSION env overrides it (tests); otherwise derive it here.
 INSTALLER_VERSION="${INSTALLER_VERSION:-}"
 if [ -z "$INSTALLER_VERSION" ]; then
-  INSTALLER_VERSION="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["installer_version"])' "$INSTALL_STATE")" \
+  INSTALLER_VERSION="$("$PY" -c 'import json,sys; sys.stdout.reconfigure(newline="\n"); print(json.load(open(sys.argv[1]))["installer_version"])' "$INSTALL_STATE")" \
     || _die - "could not read installer_version from the validated marker"
 fi
 
+# Start every run from an empty lint-tool directory: a file left by a prior run, the
+# Actions cache, or an in-job writer must never be run or appended to PATH. rm the
+# path ITSELF (never a trailing slash), so a symlinked DEST_BIN is unlinked rather
+# than emptied through the link.
+rm -rf "$DEST_BIN" 2>/dev/null || _die - "unwritable target: cannot reset $DEST_BIN"
 mkdir -p "$DEST_BIN" 2>/dev/null || _die - "unwritable target: cannot create $DEST_BIN"
 
 PROVISIONED=""
@@ -137,43 +146,9 @@ _provision_one() {
   plan_err="$(<"$plan_err_file")" || plan_err=""
   rm -f "$plan_err_file"
   if [ "$rc" -eq 3 ]; then
-    local unsupported_version sys_unsupported members member stale_bin
-    unsupported_version="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tools"][sys.argv[2]]["version"])' \
+    local unsupported_version sys_unsupported
+    unsupported_version="$("$PY" -c 'import json,sys; sys.stdout.reconfigure(newline="\n"); print(json.load(open(sys.argv[1]))["tools"][sys.argv[2]]["version"])' \
       "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
-    # Purge a stale cache-restored binary for this tool from DEST_BIN before it is appended to
-    # GITHUB_PATH (issue #2050): delete ONLY a binary that FAILS the manifest version check (a
-    # matching one is legitimate reuse and stays), else it shadows PATH; warn-and-continue kept.
-    if [ -z "$unsupported_version" ]; then
-      # No manifest version to check against: skip the purge (blind deletion could remove a
-      # legitimate matching binary) but breadcrumb it, symmetric with the unreadable-members arm.
-      printf 'provision-lint-tools: %s: WARNING could not read the manifest version; stale-binary purge skipped\n' "$tool" >&2
-    fi
-    if [ -n "$unsupported_version" ]; then
-      members="$("$PY" -c 'import json,sys
-d=json.load(open(sys.argv[1]))
-print("\n".join(sorted({a["member"] for a in d["tools"][sys.argv[2]]["artifacts"]})))' \
-        "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
-      # A readable version but unreadable artifacts (partial manifest) would silently skip the
-      # purge — the very fail-open being defended against — so breadcrumb it rather than no-op.
-      [ -n "$members" ] || printf 'provision-lint-tools: %s: WARNING could not read artifact members; stale-binary purge skipped\n' "$tool" >&2
-      while IFS= read -r member; do
-        [ -n "$member" ] || continue
-        stale_bin="$DEST_BIN/$member"
-        [ -e "$stale_bin" ] || continue
-        if _version_token_match "$("$stale_bin" --version 2>&1 || true)" "$unsupported_version"; then
-          continue
-        fi
-        if rm -f "$stale_bin"; then
-          printf 'provision-lint-tools: %s: deleted stale off-version binary %s from the lint-tool dir (unsupported-platform degrade; would otherwise shadow PATH)\n' \
-            "$tool" "$stale_bin" >&2
-        else
-          printf 'provision-lint-tools: %s: WARNING could not delete stale off-version binary %s (it may still shadow PATH)\n' \
-            "$tool" "$stale_bin" >&2
-        fi
-      done <<EOF
-$members
-EOF
-    fi
     sys_unsupported="$(command -v "$tool" 2>/dev/null || true)"
     if [ -n "$sys_unsupported" ] && [ -n "$unsupported_version" ] \
        && _version_token_match "$("$sys_unsupported" --version 2>&1 || true)" "$unsupported_version"; then
@@ -200,8 +175,9 @@ EOF
   IFS=$'\t' read -r digest archive_type member strategy version url <<<"$plan"
   [ -n "$url" ] || _die "$tool" "manifest resolution returned no download URL"
 
-  # cache_key appears in log lines ONLY — the cross-run cache gate is action.yml's
-  # hashFiles key; do not wire this value into cache restore/save logic.
+  # cache_key is an install-provenance token in log lines ONLY; there is no
+  # cross-run cache (the lint-tool directory is emptied every run). Never wire
+  # this value into any restore/save logic.
   local cache_key
   cache_key="$("$PY" "$SCRIPTS_DIR/lint_provision.py" cache-key \
     --manifest "$LINT_MANIFEST" --tool "$tool" --os "$TARGET_OS" --arch "$TARGET_ARCH" \
@@ -210,20 +186,9 @@ EOF
 
   local dest="$DEST_BIN/$member"
 
-  # Never reuse a cached executable without re-running the version check: the cache
-  # slot is keyed on the tuple, but a restored binary is otherwise unverified bytes.
-  if [ -x "$dest" ]; then
-    local cached_ver
-    cached_ver="$("$dest" --version 2>&1 || true)"
-    if _version_token_match "$cached_ver" "$version"; then
-      printf 'provision-lint-tools: %s: reused verified install (%s, key %s)\n' "$tool" "$version" "$cache_key"
-      PROVISIONED="$PROVISIONED $tool"
-      return 0
-    fi
-  fi
-
-  # PATH, not $dest — this must never substitute for the cache-restore check above.
-  # LINTPROV_SKIP_PATH_REUSE=1 keeps the download path exercised in tests.
+  # Reuse a version-matching tool already on PATH (from the runner image, a trust
+  # class this change keeps). LINTPROV_SKIP_PATH_REUSE=1 keeps the download path
+  # exercised in tests.
   if [ "${LINTPROV_SKIP_PATH_REUSE:-}" != "1" ]; then
     local sys
     sys="$(command -v "$tool" 2>/dev/null || true)"

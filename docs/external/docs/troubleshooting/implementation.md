@@ -198,6 +198,24 @@ Either run the issue with a human credential, or configure the optional GitHub A
 
 </Accordion>
 
+<Accordion title="CI verification wait printed FAILED">
+
+**Symptom:** with CI verification enabled, the workpad or run log shows a first line of the form `FAILED <request-id> run=<run-id> url=<url> conclusion=failure`, then `failed-job:` and `recap:` lines, or `recap-status: unestablished — <reason>`.
+
+The helper already named the failed jobs and the suite identifiers. Do not treat a `recap-status:` line as a test identifier. Repair each `recap:` identifier and each `failed-job:` name, re-run the covering checks on the current tree, then request CI again.
+
+When the helper could not fetch jobs or logs, open the run URL from the `FAILED` line:
+
+```bash
+gh run view <run-id> --log-failed
+```
+
+Expected result: the failed jobs and a `Failure recap:` block whose `  - ` bullets match the identifiers a current helper would print as `recap:` lines.
+
+The first `FAILED` line and exit status 7 are unchanged. `PASSED`, `CANCELLED`, `SUPERSEDED` and `PENDING` are also unchanged.
+
+</Accordion>
+
 <Accordion title="A verification command was denied">
 
 **Symptom:** the run stops and names a command it needed but was not allowed to run.

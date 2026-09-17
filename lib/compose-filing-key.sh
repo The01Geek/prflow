@@ -116,7 +116,7 @@ if [ "${#_RAW}" -le "$_CEILING" ]; then
 else
     # Arm 2: truncate to leave room for `-<digest>` and append a deterministic
     # digest of the FULL pre-truncation string. python3/hashlib only (see header).
-    _DIGEST="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:int(sys.argv[2])])' "$_RAW" "$_DIGEST_WIDTH")" \
+    _DIGEST="$(python3 -c 'import hashlib,sys; sys.stdout.reconfigure(newline="\n"); print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:int(sys.argv[2])])' "$_RAW" "$_DIGEST_WIDTH")" \
       || { echo "compose-filing-key: could not derive the digest suffix via python3 (hashlib)" >&2; exit 1; }
     _PREFIX_BUDGET=$(( _CEILING - 1 - _DIGEST_WIDTH ))
     _PREFIX="${_RAW:0:$_PREFIX_BUDGET}"

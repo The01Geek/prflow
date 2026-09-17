@@ -128,10 +128,10 @@ import sys
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    """Force stdin/stdout/stderr to UTF-8. Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
     has no usable `reconfigure` (issue #1762)."""
-    for _stream in (sys.stdout, sys.stderr):
+    for _stream in (sys.stdin, sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError, OSError):
@@ -291,7 +291,7 @@ def _sha256_of(path: str) -> str | None:
 
 def _reuse_from_checklist(path: str, iteration: int) -> list[dict]:
     """Read this iteration's checklist and record a reuse entry for each item carrying a truthy
-    `reused_from_iter_prev` flag (phase-2-verification.md §2.0.5 narrow-reuse). `from_iteration`
+    `reused_from_iter_prev` flag (phase-1-checklist.md §1.0 carry-forward). `from_iteration`
     is the item's own `reused_from_iter` when a positive int, else the immediately prior
     iteration. An unreadable or malformed checklist yields an empty reuse set — the grader then
     requires this entry's own producer evidence for every item (the fail-closed direction)."""
@@ -326,14 +326,27 @@ def _snapshot_file(src: str, dst: str) -> None:
         pass
 
 
-def _snapshot_verdicts(src_dir: str, dst_dir: str) -> None:
+def _snapshot_verdicts(src_dir: str, dst_dir: str, replace: bool = False) -> None:
     """Copy every `<item-id>-*.json` nonce verifier file from `src_dir` into `dst_dir`. An
     absent source directory leaves the snapshot empty, so the grader reports each agent item's
-    verifier file missing rather than passing on unrelated evidence."""
+    verifier file missing rather than passing on unrelated evidence. With `replace`, the
+    destination's own `*.json` files are removed first, so a re-bind during recovery captures
+    what `src_dir` holds NOW and never retains a wider first-attempt claim set (issue #621).
+    A removal that fails leaves a residue the grader may read as this entry's evidence, so it
+    prints a named stderr breadcrumb — the diagnosable residue shape, not a silent retention —
+    and the snapshot still proceeds."""
     try:
         os.makedirs(dst_dir, exist_ok=True)
     except OSError:
         return
+    if replace:
+        for stale in glob.glob(os.path.join(dst_dir, "*.json")):
+            try:
+                os.remove(stale)
+            except OSError as e:
+                sys.stderr.write(
+                    f"loop-verdict-marker: could not remove the prior snapshot file "
+                    f"{stale}: {e} — it stays in the snapshot\n")
     for src in glob.glob(os.path.join(src_dir, "*.json")):
         _snapshot_file(src, os.path.join(dst_dir, os.path.basename(src)))
 
@@ -371,8 +384,11 @@ def _cmd_write_active_entry_binding(args: argparse.Namespace) -> int:
     dst_verdicts_subdir = os.path.join(f"verdicts-{entry}", f"iter-{n}")
     _snapshot_file(src_checklist, os.path.join(root, dst_checklist_name))
     _snapshot_file(src_verification, os.path.join(root, dst_verification_name))
+    # The shadow re-binds on recovery, and its snapshot must then hold exactly what
+    # `verdicts/iter-<n>/` holds now — a retained first-attempt file would be graded as
+    # evidence for a claim the recovered checklist no longer carries (issue #621).
     _snapshot_verdicts(os.path.join(root, "verdicts", f"iter-{n}"),
-                       os.path.join(root, dst_verdicts_subdir))
+                       os.path.join(root, dst_verdicts_subdir), replace=(entry == "shadow"))
     binding = {
         "schema_version": 1,
         "entry": entry,

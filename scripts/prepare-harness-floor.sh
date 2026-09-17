@@ -42,6 +42,10 @@ set -uo pipefail
 # shellcheck source=../lib/resolve-gh.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
+# Export so the child resolve-issue-pr.py (and the workpad.py it runs) inherit the resolved
+# binary; without export they would fall back to bare `gh` and mis-resolve on a runner whose
+# gh is gh.exe.
+export DEVFLOW_GH
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 READER="$HERE/extract-execution-cost.py"
@@ -256,6 +260,21 @@ _resolve_pr_for_issue() {
   printf '%s\n' "$num"
 }
 
+# The workpad `**PR:**` line fallback, run ONLY on the rc-4 arm above — a clean lookup that
+# named no closing PR (issue #626). A PR targeting a non-default branch gets no closing link
+# from its keywords, and neither does an adopted PR with no closing keyword, so the run's own
+# PR binding on the workpad is the only record of it. resolve-issue-pr.py owns the read: it
+# re-runs the closing-references query, then the workpad line, and accepts a number only when
+# a REST read shows that PR open. Its exits map 0 = resolved, 2 = clean miss, 3 = a workpad or
+# PR read that could not be established.
+_no_pr_reason_for_fallback_rc() {
+  case "$1" in
+    2) printf '%s\n' "no-closing-pr-found" ;;
+    3) printf '%s\n' "gh-lookup-failed" ;;
+    *) printf '%s\n' "unestablished" ;;
+  esac
+}
+
 # The exit code above → the fixed-vocabulary token the PR-less record carries.
 _no_pr_reason_for_rc() {
   local token
@@ -294,6 +313,22 @@ case "$CLASS" in
   implement)
     PR="$(_resolve_pr_for_issue "$CANDIDATE")"
     PR_RC=$?
+    if [ "$PR_RC" -eq 4 ]; then
+      # Clean lookup, no closing PR: try the run's own PR binding on the workpad.
+      # Do NOT suppress the child's stderr (the cost reader above sets the precedent): the
+      # reason token below is reconstructed from its exit code alone and collapses four clean
+      # misses into `no-closing-pr-found` and both read failures into `gh-lookup-failed`, so
+      # the child's own breadcrumb naming WHICH miss fired is the only record of it. Only
+      # stdout is captured into PR.
+      PR="$(python3 "$HERE/resolve-issue-pr.py" --issue "$CANDIDATE")"
+      FB_RC=$?
+      if [ "$FB_RC" -eq 0 ] && [ -n "$PR" ]; then
+        _emit "$PR" "$CLASS" "$CANDIDATE" ""
+      fi
+      NO_PR_REASON="$(_no_pr_reason_for_fallback_rc "$FB_RC")"
+      echo "::warning::prepare-harness-floor: could not resolve the PR opened for issue '$CANDIDATE' — no PR closes it and the workpad PR-line fallback named none either (reason: $NO_PR_REASON); DEVFLOW_EXECUTION_PR left empty, DEVFLOW_ISSUE_NUMBER carries the issue so the PR-less record can still be keyed" >&2
+      _emit "" "$CLASS" "$CANDIDATE" "$NO_PR_REASON"
+    fi
     if [ "$PR_RC" -eq 0 ]; then
       _emit "$PR" "$CLASS" "$CANDIDATE" ""
     else

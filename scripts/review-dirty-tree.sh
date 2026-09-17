@@ -24,8 +24,11 @@
 # `snapshot`) and passed back to `compare-and-restore` as a literal argument — never
 # read from agent-writable scratch (issue #2082 AC4).
 #
-# CONTRACT — subcommands:
-#   snapshot
+# CONTRACT — subcommands (each takes OPTIONAL trailing literal path operands BEFORE AFTER DISABLED,
+# issue #513 — precedence arg > GIT_SNAP_* env seam > default for BEFORE/AFTER; DISABLED has no env
+# rung, so its precedence is arg > default; a caller uses them to point a nested
+# window's scratch at per-dispatch files without a leading VAR= assignment the cloud matcher denies):
+#   snapshot [BEFORE AFTER DISABLED]
 #     Capture the authenticated `-z` before-snapshot to $GIT_SNAP_BEFORE. On success
 #     print the snapshot's git object ID on stdout and exit 0; the orchestrator records
 #     it as {GIT_SNAP_BEFORE_OID}. On failure emit a `::warning::` breadcrumb on stderr,
@@ -34,9 +37,11 @@
 #     (.prflow/tmp/review-dirty-tree-disabled) WHEN the scratch dir is writable — the sole
 #     exception is a failure to create .prflow/tmp itself, where no sentinel is possible;
 #     compare-and-restore then still fails closed via its missing-before-snapshot arm.
-#   compare-and-restore OID
+#   compare-and-restore OID [BEFORE AFTER DISABLED]
 #     Compare the after-snapshot against the before-snapshot authenticated to OID and
-#     restore only the snapshot-delta paths. Short-circuits on the disabled sentinel.
+#     restore only the snapshot-delta paths (a path under .prflow/tmp is never restored, and a
+#     ??->staged transition is in-scope dirt, not already-dirty). Short-circuits on the disabled
+#     sentinel, emitting a DISABLED/SKIPPED breadcrumb.
 #     Emits the same `::warning::` breadcrumbs the inline fence did. Exit 0.
 #
 # Portability: bash 3.2 / BSD userland, no GNU-only flags (indexed-array linear scan,
@@ -87,7 +92,10 @@ cmd_compare_and_restore() {
     return 0
   fi
   if [ -f "$DISABLED_SENTINEL" ]; then
-    : # before-snapshot failed in snapshot (already surfaced there); backstop disabled this dispatch
+    # before-snapshot failed in snapshot (already surfaced there); backstop disabled this dispatch.
+    # Emit an explicit breadcrumb (issue #513): a parent that gates on skip/disabled output cannot
+    # tell this DISABLED short-circuit from a silent successful compare without one.
+    echo "::warning::devflow review: the dirty-tree backstop was DISABLED for this dispatch (before-snapshot could not be taken); dirty-tree comparison SKIPPED — nothing auto-restored" >&2
   elif [ ! -f "$SNAP_BEFORE" ] ||
        [ -L "$SNAP_BEFORE" ]; then
     echo "::warning::devflow review: the before-dispatch snapshot is missing or no longer a regular non-symlink file; dirty-tree verification SKIPPED this dispatch — possible scratch tampering, nothing auto-restored" >&2
@@ -129,6 +137,7 @@ cmd_compare_and_restore() {
         before_extract_rc=0
         before_orig=0
         before_paths=()
+        before_untracked=()   # paths whose BEFORE status was ?? — a ??->staged transition (issue #513) is in-scope dirt, not already-dirty
         rec=
         while IFS= read -r -d '' rec; do
           if [ "$before_orig" = 1 ]; then
@@ -137,6 +146,7 @@ cmd_compare_and_restore() {
             continue
           fi
           case "${rec:0:1}" in [RC]) before_orig=1 ;; esac   # index column (X) only: the two-record shape is emitted iff X is R/C
+          case "${rec:0:2}" in '??') before_untracked+=("${rec:3}") ;; esac
           before_paths+=("${rec:3}")
         done < "$SNAP_BEFORE" || before_extract_rc=$?
         [ -z "$rec" ] || before_extract_rc=65
@@ -145,7 +155,9 @@ cmd_compare_and_restore() {
         else
           # AFTER: a rename/copy is surfaced-not-restored; a normal entry is classified by a
           # whole-record exact-string scan of `before_paths` (`[ "$bp" = "${rec:3}" ]`), so a
-          # spaced/newline/glob path matches only itself. Present in BEFORE → never restore; absent → restore set.
+          # spaced/newline/glob path matches only itself. Absent from BEFORE → restore set; present in
+          # BEFORE → not restored, EXCEPT a ??->staged(A) transition, which the in_scope check below
+          # treats as in-scope dirt (reverting that check to a member-only test reintroduces the Case-UA bug).
           after_extract_rc=0
           after_orig=0
           rec=
@@ -154,14 +166,25 @@ cmd_compare_and_restore() {
             case "${rec:0:1}" in   # index column (X) only: a rename/copy (X = R/C) emits the two-record shape
               [RC]) printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-renamed-paths" || { after_extract_rc=$?; break; }; after_orig=1; continue ;;
             esac
+            # Never restore scratch under .prflow/tmp (issue #513): a parent's own in-window OID/snapshot
+            # files live there, so restoring them would delete the outer window's own bookkeeping.
+            case "${rec:3}" in .prflow/tmp|.prflow/tmp/*) continue ;; esac
             member=0
             for bp in ${before_paths[@]+"${before_paths[@]}"}; do   # `${a[@]+…}` so an empty set is not an unbound-variable error under `set -u`
               if [ "$bp" = "${rec:3}" ]; then member=1; break; fi
             done
-            if [ "$member" -eq 1 ]; then
-              : # present in BEFORE (already dirty) → never restore
-            else
-              printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-changed-paths" || { after_extract_rc=$?; break; } # absent from BEFORE → newly dirtied → restore set
+            # In-scope: absent from BEFORE (newly dirtied), or a ??->A transition (before_untracked, above) —
+            # without the AFTER-index-A check a whole-string membership match would mask ??->A as already-dirty.
+            in_scope=0
+            if [ "$member" -eq 0 ]; then
+              in_scope=1
+            elif [ "${rec:0:1}" = "A" ]; then
+              for up in ${before_untracked[@]+"${before_untracked[@]}"}; do
+                if [ "$up" = "${rec:3}" ]; then in_scope=1; break; fi
+              done
+            fi
+            if [ "$in_scope" -eq 1 ]; then
+              printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-changed-paths" || { after_extract_rc=$?; break; } # newly dirtied or ??->A → restore set
             fi
           done < "$SNAP_AFTER" || after_extract_rc=$?
           [ -z "$rec" ] || after_extract_rc=65
@@ -174,10 +197,10 @@ cmd_compare_and_restore() {
                 # The only divergence is a rename/copy: surfaced, never auto-restored (index surgery needed).
                 echo "::warning::devflow review: a Phase 3.1 review-agent dispatch renamed/copied tracked path(s) [ ${RENAMED_NAMES}]; not auto-restored (a staged rename needs index surgery) — left for the Step 2.6 shadow and the human" >&2
               else
-                # Divergence with an EMPTY restore set and no rename — the cause cannot be determined
-                # here (`cmp` cannot distinguish an already-dirty path's status-byte change from a
-                # dirty->clean / removed-path transition). Nothing auto-restored.
-                echo "::warning::devflow review: a Phase 3.1 review-agent dispatch diverged the working tree but the by-path restore set is empty (an already-dirty path's status byte changed, or a dirty->clean transition — the cause cannot be determined here); nothing auto-restored — left for the Step 2.6 shadow and the human" >&2
+                # Divergence with an EMPTY restore set and no rename — the by-path set can be empty
+                # from an already-dirty path's status-byte change, a dirty->clean transition, or a
+                # divergence confined to skipped .prflow/tmp scratch; the cause cannot be determined here.
+                echo "::warning::devflow review: a Phase 3.1 review-agent dispatch diverged the working tree but the by-path restore set is empty (an already-dirty path's status byte changed, a dirty->clean transition, or the only differing paths were skipped .prflow/tmp scratch — the cause cannot be determined here); nothing auto-restored — left for the Step 2.6 shadow and the human" >&2
               fi
             else
               # Restore the snapshot-delta paths per-path from HEAD — NOT `git checkout -- "$p"`, which
@@ -213,13 +236,19 @@ cmd_compare_and_restore() {
 
 main() {
   if [ "$#" -lt 1 ]; then
-    echo "usage: review-dirty-tree.sh snapshot | compare-and-restore OID" >&2
+    echo "usage: review-dirty-tree.sh snapshot [BEFORE AFTER DISABLED] | compare-and-restore OID [BEFORE AFTER DISABLED]" >&2
     return 2
   fi
   case "$1" in
     snapshot)
-      if [ "$#" -ne 1 ]; then
-        echo "usage: review-dirty-tree.sh snapshot" >&2
+      # Optional literal path operands (issue #513) point scratch at per-dispatch files without a
+      # leading VAR= assignment, which the cloud matcher denies. Precedence: see the CONTRACT docstring.
+      if [ "$#" -eq 1 ]; then
+        :
+      elif [ "$#" -eq 4 ] && [ -n "$2" ] && [ -n "$3" ] && [ -n "$4" ]; then
+        SNAP_BEFORE="$2"; SNAP_AFTER="$3"; DISABLED_SENTINEL="$4"
+      else
+        echo "usage: review-dirty-tree.sh snapshot [BEFORE AFTER DISABLED]" >&2
         return 2
       fi
       cmd_snapshot
@@ -227,8 +256,13 @@ main() {
     compare-and-restore)
       # The restore-authorising object ID is a required literal argument held by the
       # orchestrator — never recovered from agent-writable scratch (issue #2082 AC4).
-      if [ "$#" -ne 2 ] || [ -z "$2" ]; then
-        echo "usage: review-dirty-tree.sh compare-and-restore OID" >&2
+      # Optional trailing before/after/disabled operands mirror snapshot (issue #513).
+      if [ "$#" -eq 2 ] && [ -n "$2" ]; then
+        :
+      elif [ "$#" -eq 5 ] && [ -n "$2" ] && [ -n "$3" ] && [ -n "$4" ] && [ -n "$5" ]; then
+        SNAP_BEFORE="$3"; SNAP_AFTER="$4"; DISABLED_SENTINEL="$5"
+      else
+        echo "usage: review-dirty-tree.sh compare-and-restore OID [BEFORE AFTER DISABLED]" >&2
         return 2
       fi
       cmd_compare_and_restore "$2"

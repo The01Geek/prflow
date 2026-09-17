@@ -13,21 +13,25 @@ The installer is review-first on an update: it previews by default, and it never
   The examples below pin a specific release tag. Replace it with the tag you are moving to, from the [releases page](https://github.com/The01Geek/prflow/releases).
 </Note>
 
+<Warning>
+  **Download the installer again at the new tag — do not re-run a saved copy.** Each release ships its own `install.sh` logic, so re-running an older installer against a newer release applies stale install steps to the new files. Before it writes anything, the installer compares its own bytes against the fetched release's `install.sh` (line-ending differences ignored) and, in apply mode, **stops before touching your repository** and prints the command that downloads the matching installer. A dry run prints the same warning and still shows the plan. Set `DEVFLOW_ALLOW_INSTALLER_DRIFT=1` to install with the mismatched copy anyway. A `curl … | bash` run, or a release that ships no `install.sh`, cannot compare and prints one line noting the self-check was skipped, then continues. If a stale installer copy (`install.sh`, `devflow-install.sh`, or `prflow-install.sh`) sits committed at your repository root, `/prflow:init` and the installer's scaffolding step also warn about it and name the download command.
+</Warning>
+
 <Steps>
   <Step title="Preview the Update">
     Download the newer installer and pass the same new tag as the payload.
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.44.0/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.45.10/install.sh -o devflow-install.sh
     # read devflow-install.sh, then:
-    DEVFLOW_REF=v2.44.0 bash devflow-install.sh
+    DEVFLOW_REF=v2.45.10 bash devflow-install.sh
     ```
 
     On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
   </Step>
   <Step title="Apply It">
     ```bash
-    DEVFLOW_REF=v2.44.0 bash devflow-install.sh --apply
+    DEVFLOW_REF=v2.45.10 bash devflow-install.sh --apply
     ```
 
     This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.
@@ -89,11 +93,11 @@ In a thin install, `prflow_version` in `.prflow/config.json` decides which plugi
 A current example makes the risk concrete. The skills that read `.prflow/skill-extensions/` ship inside the plugin, while the permission entries their delivery needs ship in the workflow files. Raising only `prflow_version` leaves that delivery unpermitted, and a refused delivery is not reported as a failure. The run looks normal and quietly applies less of your configuration.
 
 <Note>
-  In a vendored install, `prflow_version` is ignored. The committed `.prflow/vendor/prflow/` tree supplies the runtime, so update that tree instead.
+  In a vendored install, `prflow_version` is ignored. The committed `.prflow/vendor/prflow/` tree supplies the runtime, so update that tree instead. An apply run that finds a git-tracked `.prflow/vendor/prflow/` treats the repository as vendor mode automatically: it replaces the committed tree with the fetched release's plugin files, keeps `/vendor/` out of `.prflow/.gitignore`, and logs how to switch to a thin install — so CI stops running the old plugin after an upgrade.
 </Note>
 
 ## After the Update
 
-Run `/prflow:init` locally in the repository. It backfills newly added settings into `.prflow/config.json` without replacing the values you set. Then try one low-stakes command, such as `/prflow:review` on a throwaway pull request, before you rely on the automation again.
+Run `/prflow:init` locally in the repository. It backfills newly added settings into `.prflow/config.json` without replacing the values you set, and refreshes prompt-extension `.md.example` files whose content is out of date (never creating one beside a live `<skill>.md`). Then try one low-stakes command, such as `/prflow:review` on a throwaway pull request, before you rely on the automation again.
 
 If something stops working after an update, see [Cloud-Run Problems](/docs/troubleshooting/cloud-runs) and [Cloud Recovery](/docs/runs/cloud/recovery).

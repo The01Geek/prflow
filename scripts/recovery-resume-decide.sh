@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# recovery-resume-decide.sh OUTCOME JOB_STATUS CLASS — pure router for the
+# recovery-resume-decide.sh OUTCOME JOB_STATUS CLASS [NEVER_STARTED] — pure router for the
 # Spot-reclaim recovery job (issue #261, AC47/AC48/AC49/AC54). Maps the
 # recovery-classify.sh outcome, the claude job status, and the workpad status class
 # to one action token, so the routing is suite-drivable rather than stranded as
@@ -9,7 +9,10 @@
 #
 # Prints exactly one token to stdout and exits 0 always (a pure predicate — the
 # caller routes on the token):
-#   noop                  human-cancel (never resumes, no state change, AC54); a
+#   noop                  NEVER_STARTED is exactly "true" (issue #471: the job was
+#                         cancelled while queued behind the per-issue concurrency
+#                         group, so the live sibling run owns the workpad); a
+#                         human-cancel (never resumes, no state change, AC54); a
 #                         reclaim on a non-interim workpad (AC47); a cancelled +
 #                         unclassifiable on a non-interim workpad (AC48); or an
 #                         unexpected/degraded combination — the safe default
@@ -23,6 +26,11 @@ set -uo pipefail
 outcome="${1-}"
 job_status="${2-}"
 cls="${3-}"
+never_started="${4-}"
+if [ "$never_started" = "true" ]; then
+  echo noop
+  exit 0
+fi
 
 case "$outcome" in
   human-cancel)

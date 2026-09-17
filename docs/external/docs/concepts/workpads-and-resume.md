@@ -85,7 +85,7 @@ Three of those glyphs — 🚀, 🎉 and 👎 — also appear as a reaction on t
 
 ## One Comment Per Run, Best Effort
 
-PRFlow aims to keep a single progress comment per issue and it identifies that comment by a marker rather than by who wrote it. That is a best-effort convention, not a concurrency guarantee. Two runs started against the same issue at the same time can both write, and nothing in the design prevents a duplicate progress comment from appearing.
+PRFlow aims to keep a single progress comment per issue and it identifies that comment by a marker rather than by who wrote it. In the cloud tier, the agent job runs for only one run per issue at a time, so two cloud runs never write the workpad or the branch at the same time. The early acknowledgement that creates the workpad runs before that queue, so two near-simultaneous cloud requests can still create a duplicate progress comment. Local runs are not queued at all.
 
 <Warning>
   Do not treat the presence of exactly one workpad as proof that only one run touched the issue. If you see two, read both and check the `Run` links before deciding which one reflects the current branch.

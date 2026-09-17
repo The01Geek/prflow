@@ -57,8 +57,9 @@ from typing import NoReturn
 # Running this file as a script already puts scripts/ on sys.path, but a consumer
 # that loads it through importlib.util.spec_from_file_location (how
 # lib/test/test_python_scripts.py loads this module) does not — so the
-# lint_changed sibling import below would fail without this.
+# sibling imports would fail without this.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_fresh_env import fresh_gh_env
 
 
 def _force_utf8_streams():
@@ -415,6 +416,7 @@ def _gh_issue_view(number: object, field: str) -> str:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        env=fresh_gh_env(),
     )
     return result.stdout
 
@@ -573,7 +575,8 @@ def _run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
 def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run the narrow GitHub reads needed by branch-setup."""
     return subprocess.run(
-        [GH, *args], check=False, capture_output=True, encoding="utf-8", errors="replace"
+        [GH, *args], check=False, capture_output=True, encoding="utf-8", errors="replace",
+        env=fresh_gh_env(),
     )
 
 
@@ -703,6 +706,9 @@ def _branch_setup_checkout_stop(
     return BLOCKED_EXIT
 
 
+HANDOFF_ORIGINS = ("created-current-run", "adopted-existing", "unknown")
+
+
 def _branch_setup_verdict(
     *, issue: int, base: str, branch: str, workpad_body: str, handoff: str,
     selected: dict | None, selected_by: str | None,
@@ -717,7 +723,7 @@ def _branch_setup_verdict(
         "workpad_body": workpad_body,
         "has_proceed_verdict": bool(selected and selected.get("headRefName") == branch)
         or has_recorded_verdict,
-        "provenance_established": handoff in ("created-current-run", "adopted-existing"),
+        "provenance_established": handoff != "unknown",
     }
     if selected is not None:
         closes = selected.get("closingIssuesReferences") or []
@@ -744,6 +750,15 @@ def _branch_setup_verdict(
 
 def branch_setup(args: argparse.Namespace) -> int:
     """Own Phase 1.4's deterministic reads and branch operations; never merge."""
+    # A handoff outside HANDOFF_ORIGINS (e.g. the intake JSON path) must stop as an input
+    # error here; left to the verdict it reads as unverified provenance (issue #595).
+    if args.handoff not in HANDOFF_ORIGINS:
+        _branch_setup_record(
+            outcome="stop", stop_kind="invalid-handoff-operand", arm="n/a",
+            base=args.base, branch="n/a", freshness="n/a", verdict_b="not-run",
+            reason=f"invalid-handoff:{args.handoff}", expected=",".join(HANDOFF_ORIGINS),
+        )
+        return UNAVAILABLE_EXIT
     try:
         workpad_body = Path(args.workpad_file).read_text(encoding="utf-8")
         Path(args.title_file).read_text(encoding="utf-8")

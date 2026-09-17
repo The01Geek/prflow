@@ -58,6 +58,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # _is_full_hex_sha), so the offline digest/binding re-checks reuse one owned contract.
 import ci_shard_provenance as csp
 import reception_identity as ri
+from gh_fresh_env import fresh_gh_env
 
 # gh is read only on the remote-trace arm; the Python gh-caller pattern (no probe).
 GH = os.environ.get("DEVFLOW_GH") or "gh"
@@ -444,6 +445,7 @@ def _own_repo(args) -> str | None:
             [GH, "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            env=fresh_gh_env(),
         )
     except OSError:
         return None
@@ -482,6 +484,7 @@ def _probe_remote(args, path: str) -> _RemoteProbe:
         proc = subprocess.run(
             [GH, "api", path],
             capture_output=True,
+            env=fresh_gh_env(),
         )
     except OSError:
         return _RemoteProbe.UNREACHABLE
@@ -1024,14 +1027,17 @@ def _validate_cloud_ci_record(record: object, repo_root: str | None) -> tuple[st
     # 4a) missing-evidence — per-shard provenance binding (issue #419): re-verify each retained
     #     envelope's digest over its retained summary and match every producer identity to the
     #     top-level identity, so an altered, mixed, or removed envelope/summary/tally refuses here.
+    # run_attempt is validated per shard below (leftover rule), not as a flat exact-match
+    # field — a Spot retry leaves survivor envelopes at an earlier attempt (issue #543).
     top_identity = (
         ("repo", record["repo"]),
         ("workflow", record["workflow"]),
         ("request_id", record["request_id"]),
         ("candidate_sha", record["head_sha"]),
         ("run_id", record["run_id"]),
-        ("run_attempt", record["run_attempt"]),
     )
+    top_attempt = record["run_attempt"]
+    current_attempt_shards = 0
     for name, entry in shards.items():
         if not isinstance(entry, dict):
             raise Verdict(TOK_MISSING, f"cloud-CI shard {name!r} entry is not a JSON object")
@@ -1069,6 +1075,24 @@ def _validate_cloud_ci_record(record: object, repo_root: str | None) -> tuple[st
                 raise Verdict(TOK_MISSING,
                               f"cloud-CI shard {name!r} provenance {field}={prov[field]!r} does "
                               f"not match the evidence identity {top!r}")
+        # run_attempt: accept the current attempt, or a strictly-earlier leftover (a Spot
+        # retry reran only the interrupted shard); refuse one ahead of the record attempt.
+        # Classified through the same shared predicate the collector uses (issue #543).
+        prov_attempt = prov["run_attempt"]
+        attempt_class = csp.classify_shard_attempt(prov_attempt, top_attempt)
+        if attempt_class == csp.ATTEMPT_CURRENT:
+            current_attempt_shards += 1
+        elif attempt_class != csp.ATTEMPT_LEFTOVER:
+            raise Verdict(TOK_MISSING,
+                          f"cloud-CI shard {name!r} provenance run_attempt={prov_attempt!r} is "
+                          f"neither the evidence attempt {top_attempt!r} nor an earlier leftover")
+
+    # A record whose every shard is a leftover names no current-attempt evidence — refuse it,
+    # mirroring the collector's whole-tree check (issue #543).
+    if current_attempt_shards == 0:
+        raise Verdict(TOK_MISSING,
+                      f"cloud-CI completion record has no shard at the evidence attempt "
+                      f"{top_attempt!r}; a record of only leftover envelopes is not evidence")
 
     # 5) missing-evidence — required-check coverage from the declared source (ci.yml).
     checks = record.get("required_checks")

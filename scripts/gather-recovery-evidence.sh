@@ -32,6 +32,7 @@ set -uo pipefail
 
 REPO="" RUN_ID="" RUN_ATTEMPT="" ISSUE=""
 FIX_JOBS="" FIX_ANNOTATIONS="" FIX_COMMENTS=""
+FACTS_FILE=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --repo) REPO="${2-}"; shift 2 ;;
@@ -41,6 +42,7 @@ while [ "$#" -gt 0 ]; do
     --fixture-jobs-json) FIX_JOBS="${2-}"; shift 2 ;;
     --fixture-annotations-json) FIX_ANNOTATIONS="${2-}"; shift 2 ;;
     --fixture-comments-json) FIX_COMMENTS="${2-}"; shift 2 ;;
+    --facts-file) FACTS_FILE="${2-}"; shift 2 ;;
     *) echo "gather-recovery-evidence: unknown argument '$1'" >&2; shift ;;
   esac
 done
@@ -54,7 +56,28 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/../lib/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 
+# Recovery cause facts (issue #600): a SIDE CHANNEL for spot_recovery's cause line,
+# decoupled from the seven-flag stdout contract. Defaulted up front so emit_all_false
+# and the success path alike write a well-formed facts file; the capacity token
+# defaults to `unknown`, never an empty token.
+CAPACITY_TOKEN="unknown"
+RUNNER_NAME=""
+ANNOTATION_MESSAGE=""
+NEVER_STARTED="unknown"
+
+# Best-effort: write the facts file only when --facts-file was passed. jq is
+# preflight-guaranteed; a jq failure leaves the file unwritten/empty via `|| true`,
+# which the workflow treats as all facts unavailable — no new tool dependency.
+write_facts_file() {
+  [ -n "$FACTS_FILE" ] || return 0
+  "$DEVFLOW_JQ" -n \
+    --arg ct "$CAPACITY_TOKEN" --arg rn "$RUNNER_NAME" --arg am "$ANNOTATION_MESSAGE" --arg ns "$NEVER_STARTED" \
+    '{capacity_token: $ct, runner_name: $rn, annotation_message: $am, never_started: $ns}' \
+    > "$FACTS_FILE" 2>/dev/null || true
+}
+
 emit_all_false() {
+  write_facts_file
   printf 'false\nfalse\nfalse\nfalse\nfalse\nfalse\nfalse\n'
   exit 0
 }
@@ -83,6 +106,27 @@ if [ -z "$CLAUDE_JOB_ID" ]; then
   emit_all_false
 fi
 
+# ── Recovery cause facts from the same jobs object (issue #600) ───────────────
+# The capacity token is the FIRST `spot=<value>` slash-delimited segment of the
+# claude job's labels, copied verbatim (RunsOn packs its runner config into the
+# label as `runs-on=…/spot=false/…`). jq only — split()/startswith()/first — never
+# tr/cut/sed/head/wc. A parse failure or a labels array with no spot= segment
+# yields the pre-seeded `unknown`, never an empty token.
+CAPACITY_TOKEN="$(printf '%s' "$jobs_json" | "$DEVFLOW_JQ" -r '
+  ([.jobs[]? | select(.name == "claude")][0].labels // []) as $labels
+  | ([$labels[]? | split("/")[]? | select(startswith("spot="))] | first) // "unknown"
+' 2>/dev/null)" || CAPACITY_TOKEN="unknown"
+[ -n "$CAPACITY_TOKEN" ] || CAPACITY_TOKEN="unknown"
+RUNNER_NAME="$(printf '%s' "$jobs_json" | "$DEVFLOW_JQ" -r \
+  '[.jobs[]? | select(.name == "claude")][0].runner_name // empty' 2>/dev/null)" || RUNNER_NAME=""
+# Issue #471: a claude job cancelled while queued behind its per-issue concurrency
+# group got no runner and ran no steps; it owns neither the workpad nor the branch.
+NEVER_STARTED="$(printf '%s' "$jobs_json" | "$DEVFLOW_JQ" -r '
+  [.jobs[]? | select(.name == "claude")][0]
+  | if ((.runner_name // "") == "") and ((.steps // []) | length) == 0 then "true" else "false" end
+' 2>/dev/null)" || NEVER_STARTED="unknown"
+case "$NEVER_STARTED" in true|false) ;; *) NEVER_STARTED="unknown" ;; esac
+
 # ── Check-run annotations → HUMAN_CANCEL_ANNOTATION ──────────────────────────
 if [ -n "$FIX_ANNOTATIONS" ]; then
   annotations_json="$(cat "$FIX_ANNOTATIONS" 2>/dev/null)" || { echo "gather-recovery-evidence: fixture annotations file unreadable: $FIX_ANNOTATIONS" >&2; emit_all_false; }
@@ -108,6 +152,12 @@ if [ "$human_cancel" != "true" ] && [ "$human_cancel" != "false" ]; then
   echo "gather-recovery-evidence: could not parse annotations — treating as query failure" >&2
   emit_all_false
 fi
+
+# The first FAILURE-level annotation message (issue #600) — never the human-cancel
+# one, which is matched separately above. Absent when the check-run carries no
+# failure-level annotation; the workflow renders that as `unavailable`.
+ANNOTATION_MESSAGE="$(printf '%s' "$annotations_json" | "$DEVFLOW_JQ" -r \
+  '[.[]? | select((.annotation_level // "") == "failure") | (.message // "")] | first // empty' 2>/dev/null)" || ANNOTATION_MESSAGE=""
 
 # ── Issue comments → reclaim marker presence, author, bindings ───────────────
 if [ -n "$FIX_COMMENTS" ]; then
@@ -156,6 +206,10 @@ if [ -n "$marker_record" ]; then
   [ "$m_job_id" = "$CLAUDE_JOB_ID" ] && job_id_match=true
 fi
 
+# Write the recovery cause facts on the success path too (every earlier exit went
+# through emit_all_false, which already wrote them). The seven-line stdout below is
+# untouched.
+write_facts_file
 printf '%s\n' "$human_cancel" "$marker_present" "$author_ok" "$repo_match" \
   "$run_id_match" "$run_attempt_match" "$job_id_match"
 exit 0

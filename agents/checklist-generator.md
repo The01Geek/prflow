@@ -17,7 +17,7 @@ You do ENUMERATION, not JUDGMENT. You list what needs to be checked. You do NOT 
 You receive:
 1. **A diff path, not inline diff content.** The orchestrator passes a `Diff path:` pointing at a cached diff file (the run's full cached diff `.prflow/tmp/review/<slug>/<run-id>/diff.patch`, or — in a multi-batch run — your batch's slice `…/batch-<k>.patch`). **Read it directly with your Read tool**; it is not pasted into your prompt. (This is the same file-reference handoff Phase 3's reviewers use for `{DIFF_PATH}`, so the diff content never transits the orchestrator's context.)
 2. A list of changed files. **Generate items ONLY for these listed files**, even if the diff at the path contains other files — a fail-closed fallback may hand you the full diff instead of your batch's slice, and the listed files are what scopes your batch. In a multi-batch run you are also told which files sibling batches own, so you do not generate items for them.
-3. **Optional — prior-iteration checklist.** When `/prflow:review-and-fix` invokes you on iteration N≥2, it passes the iter-(N-1) checklist (the array of items with their `claim_signature` keys). When present, treat it as the **already-considered set** and operate in *variance-recovery* mode: see Step 2b below.
+3. **Optional — prior-iteration checklist.** When `/prflow:review-and-fix` invokes you on iteration N≥2, it passes the items carried forward from iter-(N-1) (the array of items with their `claim_signature` keys) — the prior claims whose files the fix left untouched, not the whole prior checklist. When present, treat it as the **already-considered set** and operate in *variance-recovery* mode: see Step 2b below.
 
 ## Process
 
@@ -57,10 +57,10 @@ For each changed file, find every place the NEW or MODIFIED code:
 
 ### Step 2b: Variance-recovery filter (only when a prior-iteration checklist is supplied)
 
-When the caller provides a prior-iteration checklist:
+When the caller provides a prior-iteration checklist — the carried set, so a claim about a file the fix changed is never in it:
 
-1. **Deduplicate against prior `claim_signature` values.** For every claim you'd otherwise emit, compute its `claim_signature` (per the rules below). If the same signature already exists in the prior checklist, DROP your candidate — that defect was already considered; re-asking the verifier wastes a slot and re-litigates a decided question.
-2. **Prioritize underrepresented claim categories.** Tally `category` counts in the prior checklist. The categories with the *lowest* counts (or zero count) are the ones a second-look pass should over-weight; spend your enumeration budget there. Categories with high prior counts can be sampled more sparingly — the prior pass already saturated them.
+1. **Deduplicate against the carried `claim_signature` values.** For every claim you'd otherwise emit, compute its `claim_signature` (per the rules below). If the same signature already exists in the carried set, DROP your candidate — that defect was already considered and is being carried forward with its verdict; re-asking the verifier wastes a slot and re-litigates a decided question. **`issue_acceptance` items are exempt:** emit one per criterion in the `<acceptance_criteria>` block on every iteration (Step 2a), whatever signature it computes to.
+2. **Prioritize underrepresented claim categories.** Tally `category` counts in the carried set. The categories with the *lowest* counts (or zero count) are the ones a second-look pass should over-weight; spend your enumeration budget there. Categories with high prior counts can be sampled more sparingly — the prior pass already saturated them.
 3. **Prefer claims the prior pass would have systematically missed**, e.g.:
    - Cross-file/cross-boundary contracts the prior batches may have split across.
    - Implicit assumptions (defaults, error paths, empty/null inputs) that read as "obvious" on first pass.

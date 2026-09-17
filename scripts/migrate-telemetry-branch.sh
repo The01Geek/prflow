@@ -27,6 +27,14 @@ report() { printf 'migrate-telemetry-branch: %s\n' "$1"; }
 warn()   { printf 'migrate-telemetry-branch: %s\n' "$1" >&2; }
 die()    { printf 'migrate-telemetry-branch: %s\n' "$1" >&2; exit 2; }
 
+# devflow_telemetry_commit_id (sourced from lib/telemetry-branch.sh below) resolves each ref to
+# a commit ID so no `<ref>:<path>` git argument built here has a slash left of the colon — Git
+# Bash (MSYS) rewrites such an argument and the lookup fails on Windows (issue #578). It prints
+# nothing and stays rc 0 when the ref does not resolve, so a bare `VAR="$(…)"` assignment yields
+# an empty value here (this script runs `set -uo pipefail`) and never aborts a `set -e` caller of
+# the sourced lib; every call site below treats an EMPTY value as "did not resolve" rather than
+# building `:<path>` from it.
+
 # Self-directory anchor, dirname-free (dirname is not a preflight-guaranteed tool).
 SELF_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 RENAME_MAP="$SELF_DIR/../lib/rename-map.json"
@@ -49,6 +57,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 SOURCE_BRANCH="$(PRFLOW_RENAME_MAP="$RENAME_MAP" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(os.environ["PRFLOW_RENAME_MAP"], encoding="utf-8") as fh:
         m = json.load(fh)
@@ -113,7 +122,12 @@ if [ "$HAVE_ORIGIN" = yes ]; then
     0)
       SOURCE_ON_REMOTE=yes
       if GIT_TERMINAL_PROMPT=0 git fetch -q --no-tags origin "+refs/heads/${SOURCE_BRANCH}:refs/remotes/origin/${SOURCE_BRANCH}" 2>/dev/null; then
-        SOURCE_REMOTE_REF="refs/remotes/origin/${SOURCE_BRANCH}"
+        # Resolve to a commit ID right after the ref is set (empty → could not resolve, handled below).
+        SOURCE_REMOTE_REF="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/remotes/origin/${SOURCE_BRANCH}")"
+        if [ -z "$SOURCE_REMOTE_REF" ]; then
+          report "could not resolve the fetched source branch '$SOURCE_BRANCH' to a commit — skipping migration this run"
+          exit 0
+        fi
       else
         report "could not fetch the source branch '$SOURCE_BRANCH' from origin (offline or auth) — skipping migration this run"
         exit 0
@@ -128,9 +142,8 @@ if [ "$HAVE_ORIGIN" = yes ]; then
 fi
 
 # The local source ref, if any, is always part of the source tree (local wins on a shared path).
-if git rev-parse --verify --quiet "refs/heads/${SOURCE_BRANCH}" >/dev/null 2>&1; then
-  SOURCE_LOCAL_REF="refs/heads/${SOURCE_BRANCH}"
-fi
+# Resolve to a commit ID (empty when the branch is absent).
+SOURCE_LOCAL_REF="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/heads/${SOURCE_BRANCH}")"
 
 if [ -z "$SOURCE_REMOTE_REF" ] && [ -z "$SOURCE_LOCAL_REF" ]; then
   report "no source branch '$SOURCE_BRANCH' on the remote or locally; nothing to migrate"
@@ -176,14 +189,15 @@ fi
 
 # ── Resolve the target tip currently knowable, for collision detection: the fetched remote
 # target tip when the remote holds it, else the local target ref if one exists.
+# Resolve the target tip to a commit ID (empty when no tip is knowable).
 TARGET_TIP_REF=""
 if [ "$HAVE_ORIGIN" = yes ] && GIT_TERMINAL_PROMPT=0 git ls-remote --exit-code origin "refs/heads/${TARGET_BRANCH}" >/dev/null 2>&1; then
   if GIT_TERMINAL_PROMPT=0 git fetch -q --no-tags origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" 2>/dev/null; then
-    TARGET_TIP_REF="refs/remotes/origin/${TARGET_BRANCH}"
+    TARGET_TIP_REF="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/remotes/origin/${TARGET_BRANCH}")"
   fi
 fi
-if [ -z "$TARGET_TIP_REF" ] && git rev-parse --verify --quiet "refs/heads/${TARGET_BRANCH}" >/dev/null 2>&1; then
-  TARGET_TIP_REF="refs/heads/${TARGET_BRANCH}"
+if [ -z "$TARGET_TIP_REF" ]; then
+  TARGET_TIP_REF="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/heads/${TARGET_BRANCH}")"
 fi
 
 # ── Stage each record at its mapped path, skipping (with one warning per path) any the target
@@ -196,14 +210,19 @@ fi
 _dtm_cleanup() { rm -rf "$STAGING_ROOT" 2>/dev/null || true; }
 trap _dtm_cleanup EXIT
 
-MAPPED_PATHS=()   # every record's mapped path (staged AND kept-collision), for the landed-push check
+MAPPED_PATHS=()   # staged AND kept-collision mapped paths only, for the landed-push check;
+                  # an unreadable record is excluded so it never triggers a false "push did not
+                  # land" report (issue #578).
 STAGED_ANY=no
+UNREADABLE_COUNT=0   # listed records skipped because their content could not be read
 for p in "${RECORD_PATHS[@]}"; do
   mapped=".prflow/${p#.devflow/}"
-  MAPPED_PATHS+=("$mapped")
   # Collision: the target already holds this mapped path → keep the target's file, warn, skip.
+  # A collided record is kept (staged by neither side), so it counts toward the landed-push
+  # check but not toward the unreadable count.
   if [ -n "$TARGET_TIP_REF" ] && git cat-file -e "${TARGET_TIP_REF}:${mapped}" 2>/dev/null; then
     warn "target already holds '$mapped' — keeping the target's file (the source branch's differing copy, if any, is not migrated)"
+    MAPPED_PATHS+=("$mapped")
     continue
   fi
   # Content: local ref wins on a path present in both.
@@ -213,16 +232,27 @@ for p in "${RECORD_PATHS[@]}"; do
   elif [ -n "$SOURCE_REMOTE_REF" ] && git cat-file -e "${SOURCE_REMOTE_REF}:${p}" 2>/dev/null; then
     src_ref="$SOURCE_REMOTE_REF"
   fi
-  [ -n "$src_ref" ] || continue
+  # A record the source branch LISTS but whose content cannot be read (an unresolvable source
+  # lookup, or a failed content read) is warned and counted — not skipped silently, which left
+  # the "no commit needed" line unable to tell "everything already migrated" from "nothing could
+  # be read" (issue #578). It is left out of MAPPED_PATHS so the landed-push check ignores it.
+  if [ -z "$src_ref" ]; then
+    warn "could not read '$p' from the source branch — skipping just this record"
+    UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
+    continue
+  fi
   if ! mkdir -p "${STAGING_ROOT}/${mapped%/*}" 2>/dev/null; then
     warn "could not create the staging directory for '$mapped' — skipping just this record"
+    UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
     continue
   fi
   if git show "${src_ref}:${p}" > "${STAGING_ROOT}/${mapped}" 2>/dev/null; then
     STAGED_ANY=yes
+    MAPPED_PATHS+=("$mapped")
   else
     warn "could not read '$p' from the source branch — skipping just this record"
     rm -f "${STAGING_ROOT}/${mapped}" 2>/dev/null || true
+    UNREADABLE_COUNT=$((UNREADABLE_COUNT + 1))
   fi
 done
 
@@ -237,8 +267,19 @@ if [ "$_PERSIST_RC" -eq 1 ] || [ "$_PERSIST_RC" -eq 2 ]; then
   exit 0
 fi
 
-# _PERSIST_RC is 0 here — but that also covers an idempotent no-op and an empty staging root,
-# so it is NOT evidence of a landed push. Establish the push landed before any delete.
+# One or more listed records could not be read: the migration is incomplete, so keep the source
+# branch for a manual retry and print the unreadable count instead of the "no commit needed" or
+# landed-push lines — neither of which can tell "everything already migrated" from "nothing could
+# be read" (issue #578). Collided records the target already holds were staged by neither side
+# and are not counted. Runs before the origin check so the line prints with or without a remote.
+if [ "$UNREADABLE_COUNT" -gt 0 ]; then
+  report "could not read $UNREADABLE_COUNT listed record(s) from the source branch — the migration is incomplete, so leaving the source branch '$SOURCE_BRANCH' in place; inspect the unreadable paths named in the warnings above, then delete '$SOURCE_BRANCH' by hand once resolved (git branch -D '$SOURCE_BRANCH', and git push origin --delete '$SOURCE_BRANCH' if it is on the remote)"
+  exit 0
+fi
+
+# _PERSIST_RC is 0 and every listed record was readable — but 0 also covers an idempotent no-op
+# and an empty staging root, so it is NOT evidence of a landed push. STAGED_ANY=no here therefore
+# means every record already sat at its mapped path. Establish the push landed before any delete.
 if [ "$STAGED_ANY" = no ]; then
   report "no commit needed — every record already sits at its mapped path on '$TARGET_BRANCH'"
 fi
@@ -259,7 +300,12 @@ if ! GIT_TERMINAL_PROMPT=0 git fetch -q --no-tags origin "+refs/heads/${TARGET_B
   report "could not fetch the remote '$TARGET_BRANCH' tip to confirm the push landed — leaving the source branch '$SOURCE_BRANCH' in place"
   exit 0
 fi
-LANDED_TIP="refs/remotes/origin/${TARGET_BRANCH}"
+# Resolve the fetched landed tip to a commit ID (empty → could not confirm, handled below).
+LANDED_TIP="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/remotes/origin/${TARGET_BRANCH}")"
+if [ -z "$LANDED_TIP" ]; then
+  report "could not resolve the fetched '$TARGET_BRANCH' tip to confirm the push landed — leaving the source branch '$SOURCE_BRANCH' in place"
+  exit 0
+fi
 for mapped in "${MAPPED_PATHS[@]}"; do
   if ! git cat-file -e "${LANDED_TIP}:${mapped}" 2>/dev/null; then
     report "the remote '$TARGET_BRANCH' tip lacks '$mapped' — the push did not land every record; leaving the source branch '$SOURCE_BRANCH' in place"

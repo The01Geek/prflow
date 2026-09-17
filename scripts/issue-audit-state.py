@@ -555,7 +555,8 @@ _PROTOCOL_TOKENS = (
     'id', 'identity', 'instructions_digest',
     'invalid', 'invalidated', 'iterate', 'key', 'kind', 'latest_revision_landed',
     'locator', 'marker', 'markers', 'missing',
-    'must_revise', 'non_bound_root', 'nonce', 'observed', 'ordinal', 'outcome', 'reason',
+    'must_revise', 'non_bound_root', 'nonce', 'observed', 'offer_withheld', 'ordinal',
+    'outcome', 'reason',
     'reinit_forced', 'remaining', 'reopened', 'revision', 'revision_ordinal',
     'revisions_applied',
     'round', 'rounds_run', 'scoped_round', 'sentinel_close', 'sentinel_open', 'state',
@@ -2933,6 +2934,49 @@ def evaluate_triggers(state):
     # second call the printer concatenates (the one-producer discipline).
     return {'t1': t1, 't2': t2, 'coverage': evaluate_coverage_trigger(state),
             'calibration': evaluate_calibration_trigger(state), 'reason': reason}
+
+
+def _offer_withhold_reason(state):
+    """The reason an accepted user audit round is WITHHELD, or None when it is not (issue #548).
+
+    An adjudicated discovery REVISE round's unresolved must-revise findings must reach the
+    draft before another audit is funded, so `record-offer --accepted` (and the Step 4 3a
+    audit-round option it grounds) is withheld while the run's effective unresolved
+    must-revise count holds (>= 1) and no revision record postdates the discovery round that
+    raised those findings (`unresolved-revise-pending`). It fails closed — withholding
+    `unestablished` — when that latest discovery round is adjudicated REVISE but its
+    unresolved count is unestablished (the `unestablished` adjudication, which records no
+    ledger), because unknown is not zero.
+
+    The gate is scoped to a latest discovery round that is ADJUDICATED REVISE: an
+    un-adjudicated round has raised no established findings yet (the round-funding gate, not
+    this withhold, owns that mid-flow state), and a FILE round left nothing unresolved. The
+    withhold is also NARROWER than T1: a revision postdating the raising round releases it
+    even before the ledger entries are marked resolved, so the T2-after-revision offer on
+    self-verified-but-not-re-audited bytes still fires. With no completed discovery round
+    nothing has been raised, so the discovery-funding offer is never withheld — this must
+    return None there or the first-ever audit round could never be funded.
+
+    The single source of the withhold decision AND its reason token, so `_offer_withheld`
+    and `_offer_line` never re-walk the ledger to re-derive one from the other.
+    """
+    raising = _last_discovery_round(state)
+    if raising is None or raising.get('adjudicated_verdict') != 'REVISE':
+        return None
+    eff = _effective_unresolved(state)
+    if eff is None:
+        return 'unestablished'
+    if eff < 1:
+        return None
+    if _revision_postdates(state, raising):
+        return None
+    return 'unresolved-revise-pending'
+
+
+def _offer_withheld(state):
+    """Whether an accepted user audit round must be withheld (issue #548) — the boolean
+    view of `_offer_withhold_reason`."""
+    return _offer_withhold_reason(state) is not None
 
 
 def evaluate_convergence(state):
@@ -7959,6 +8003,15 @@ def cmd_record_offer(args):
     doc = _load_for_mutation('record-offer', args.slug, args.nonce)
     used = doc.get('user_rounds_used', 0)
     if args.accepted:
+        # issue #548: refuse (before the ceiling check, before the increment) while the last
+        # completed discovery round's unresolved must-revise findings are unrevised, so an
+        # accepted round cannot fund a re-audit on the same unrevised bytes. Same
+        # fail-before-save_state shape as the ceiling refuse; the counter stays put.
+        if _offer_withheld(doc):
+            _fail('record-offer',
+                  'the last completed audit round left unresolved must-revise findings that '
+                  'are not yet revised, or their count is unestablished; apply and record the '
+                  'revision before funding another audit round (unresolved-revise-pending)')
         if used >= _USER_ROUND_CAP:
             _fail('record-offer', f'user-chosen rounds are capped at {_USER_ROUND_CAP} '
                                   'per run; the ceiling is already reached')
@@ -8629,6 +8682,7 @@ _BOUNDARY_PRODUCERS = (
     ('convergence', lambda s, n: _convergence_line(s, n)),
     ('coverage', lambda s, n: _coverage_backing_line(s, n)),
     ('calibration', lambda s, n: _calibration_line(s, n)),
+    ('offer', lambda s, n: _offer_line(s, n)),  # issue #548: the audit-round withhold
 )
 _BOUNDARY_COMPONENTS = tuple(name for name, _ in _BOUNDARY_PRODUCERS)
 
@@ -8636,12 +8690,12 @@ _BOUNDARY_COMPONENTS = tuple(name for name, _ in _BOUNDARY_PRODUCERS)
 def cmd_query_boundary(args):
     """The Step 3.6 → Step 4 boundary decision, in ONE read (issue #795).
 
-    Carries the DECIDED FIRST LINE of the trigger, convergence, coverage, and calibration
-    answers — each byte-identical to the first line its individual query prints, one per
+    Carries the DECIDED FIRST LINE of the trigger, convergence, coverage, calibration, and
+    offer answers — each byte-identical to the first line its individual query prints, one per
     line, in `_BOUNDARY_COMPONENTS` order. It composes those lines from the same hoisted
     producers the individual queries call, so the two can never drift.
 
-    The four individual queries survive and answer exactly as before; this is an additional
+    The individual queries survive and answer exactly as before; this is an additional
     read, never a replacement. It carries NO per-dimension coverage rows (see
     `_coverage_backing_line`), so the procedure keeps calling `query-coverage` where the
     rows are needed.
@@ -8848,6 +8902,34 @@ def cmd_query_next_action(args):
 def cmd_query_triggers(args):
     state = _query_state(args.slug)
     print(_triggers_line(state, args.nonce))
+
+
+def cmd_query_offer(args):
+    state = _query_state(args.slug)
+    print(_offer_line(state, args.nonce))
+
+
+def _offer_line(state, nonce):
+    """The `query-offer` decided line (issue #548).
+
+    Reports whether the Step 4 3a audit-round offer is withheld because the last completed
+    discovery REVISE round's unresolved must-revise findings are unrevised (or their count
+    is unestablished). `query-boundary` composes this exact line so 3a reads the withhold in
+    the boundary read it already does. `reason` names why: `unresolved-revise-pending` for
+    held-but-unrevised findings, `unestablished` on an unestablished count (unknown is not
+    zero), `none` when the offer is not withheld, `foreign-nonce` for a foreign caller,
+    `state-unestablished` when the run state could not be read at all — every non-`none`
+    arm reports `offer_withheld=yes`, failing closed like the sibling boundary producers so
+    an unreadable or foreign state is never misread as an open offer.
+    """
+    if state is None:
+        return 'offer_withheld=yes reason=state-unestablished'
+    if state['nonce'] != nonce:
+        return 'offer_withheld=yes reason=foreign-nonce'
+    reason = _offer_withhold_reason(state)
+    if reason is not None:
+        return f'offer_withheld=yes reason={reason}'
+    return 'offer_withheld=no reason=none'
 
 
 def _triggers_line(state, nonce):
@@ -9606,8 +9688,8 @@ def build_parser():
 
     s = sub.add_parser('query-boundary',
                        help='The Step 3.6 to Step 4 boundary decision in one read: the '
-                            'decided line of the trigger, convergence, coverage and '
-                            'calibration answers, one per line.')
+                            'decided line of the trigger, convergence, coverage, '
+                            'calibration and offer answers, one per line.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.set_defaults(func=cmd_query_boundary)
@@ -9616,6 +9698,14 @@ def build_parser():
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.set_defaults(func=cmd_query_triggers)
+
+    s = sub.add_parser('query-offer',
+                       help='Whether the Step 4 audit-round offer is withheld because the '
+                            'last completed REVISE round is unrevised or its count is '
+                            'unestablished (issue #548).')
+    s.add_argument('slug')
+    s.add_argument('--nonce', required=True)
+    s.set_defaults(func=cmd_query_offer)
 
     s = sub.add_parser('query-convergence',
                        help='Whether the run has converged: zero EFFECTIVE unresolved '

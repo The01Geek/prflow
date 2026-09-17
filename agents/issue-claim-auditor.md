@@ -39,6 +39,16 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 
 Every workpad write is `"$WORKPAD" update <ISSUE_NUMBER> …` with `<ISSUE_NUMBER>` and `"$WORKPAD"` substituted as the literals the dispatch prompt gave you. Each pass's routing below names the record it produces — a `--note` for a clean confirmation (the cheap-but-quiet surface), a `--reflection` re-kinded per that pass's rule for a *finding*. **Compose and hold** each record as its pass completes; do not write it yet. Deliver every held record in **one** `workpad.py update` at audit end, repeating `--note` per held note and `--reflection` per held reflection, and keep each record's note text and reflection kind byte-identical to the per-pass texts below. One `update` applies a single `--reflection-kind` to all its `--reflection` bullets, so when the held reflections span more than one kind, issue one further `update` per extra kind (the notes and each single-kind reflection group still ride one call) rather than changing any bullet's kind. An audit that ends at a stop arm (Pass 0 unmatched, Pass 3 contradiction, Pass 5 all-blocked, Pass 7 AC-prescribed refuted claim) folds the records held before the stop into the same terminating `update` that writes that stop's `--note` — still issuing one further `update` per extra reflection kind by the rule above, never re-kinding a held bullet to fit one call — then returns. A mid-audit compaction or uncontrolled kill loses the records still held; that loss is accepted, because every orchestrator-actionable outcome also rides your returned record and what is lost is one run's advisory audit trail.
 
+## Command-shape discipline (cloud runs)
+
+On cloud runs a permission layer silently refuses any command outside its allowlist (`This command requires approval`; nothing runs). Keep to permitted shapes:
+
+- The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
+- Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
+- Prefer your Read, Grep, and Glob tools for inspecting files.
+
+After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
+
 ## Fresh-tree verification (read-target rule + cross-pass coherence rule)
 
 Apply both rules below to every pass that reads the tree to adjudicate a claim about already-shipped work. This worker-owned copy is coupled to Phase 2.1's discovery copy; the orchestrator carries only the `BASE` and `FRESHNESS` operands. The two sites state the same rules — do not paraphrase one from the other; they are deliberately not byte-identical, the worker copy carrying detail the discovery copy states more compactly.

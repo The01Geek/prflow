@@ -11,6 +11,80 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## September 17, 2026
+
+- **`/prflow:implement` no longer runs your test suite twice while finalizing.** The PR-description
+  step now audits the PR body's test claims by reading the tests in the diff instead of launching a
+  run of its own, leaving the final-tree run that follows it as the run's only whole-suite execution.
+  Repositories with slow suites see the largest saving. (#618)
+- **The independent shadow review can no longer be signed off with the fix loop's own evidence.** The shadow pass and the loop's last iteration write to the same checklist, verification and verifier-file paths, so a shadow that did not finish its own verification could previously be graded against what the loop had already produced. The evidence check now refuses a shadow whose checklist or verification file is still the loop's, ignores verifier files the loop wrote, and refuses leftover verifier files that belong to no checked claim — each of which sends the shadow into its existing one-attempt recovery instead of a clean merge verdict. Where the check cannot read what it needs to compare against, the shadow is likewise sent into recovery rather than passed. Re-running the shadow also replaces its recorded verifier files rather than adding to them. (#621)
+- **A switched-off base-update checkpoint and a switched-off Spot watcher now read as disabled.** With `prflow_implement.update_branch_checkpoints` set to false, the final implement workpad row called the skipped checkpoint "clean" even though the branch was never compared with its base; it now says base-update checkpoints are disabled by config, that the branch was not reconciled with its base, and how far behind branch setup measured it. With `prflow_implement.spot_interruption_watcher.enabled` set to false, the run log reported a wrong value type; it now reports the watcher as disabled by config. Every other unaccepted value keeps its existing wrong-type message. (#623)
+- **`/prflow:implement` no longer forbids Phase 3 from writing a documentation page an acceptance criterion requires.** The skill told Phase 2 and Phase 3 to leave a `docs/…` criterion for the Phase 4.1 documentation pass, while the shared review engine that Phase 3.3 runs REJECTs an unmet decided criterion — so the fix loop had to author the page the prose forbade it to touch. Phase 3.3 is now a permitted author, Phase 4.1 is the deadline and backstop that writes any page Phase 3.3 did not and then ticks the criterion, and Phase 2 still does not author it. The review engine is unchanged: a standalone `/prflow:review` still REJECTs an unmet documentation criterion. (#571)
+- **`/prflow:implement` starts with about 21% less orchestrator prose in context.** The root skill was trimmed to its operative rules — every helper fence, gate, and contract is unchanged — so each run begins with more context headroom before Phase 1. (#570)
+- **Reviews no longer spend an extra round recovering verifier evidence they should have produced.** A fanned-out review that checked claims by reading source in its own context left no per-item verifier file, so the loop's evidence gate failed the first grade and burned its one recovery attempt re-running the checks. Phase 2 now confirms every fresh agent-mode checklist item has its verifier file before the results are written, and re-dispatches the real verifier for any that is missing; the recovery attempt stays available for a genuine miss. (#572)
+- **An implement run's status labels, resume run-link refresh, stopped-run notes and cost record now reach its PR even when GitHub creates no closing link.** A PR targeting a non-default branch, or an adopted PR with no closing keyword, is found from the run's own `**PR:**` binding on the workpad. On adoption, a failed `closes-issue` check now warns that merging will not close the issue and that a person must link or close it. (#626)
+- **PRFlow's helpers now read and write text the same way on Windows as on Linux.** On a
+  Windows runner with native Python, helpers decoded text with the locale code page and
+  translated newlines, so labels lost their configured fallback, composed plugin and
+  marketplace lists carried a stray carriage return, PR body notes came back with garbled
+  punctuation, verifier paths mixed `/` and `\`, and the changed-file lint never ran. Every
+  helper now states its own UTF-8 codec, writes LF-only machine output, emits forward-slash
+  paths, and takes its receipt lock through the Windows locking primitive. (#631)
+- **Review fix loops stop re-verifying claims nothing changed, and re-check acceptance criteria at every head.** From the second iteration on, a review-and-fix run now carries forward the checklist claims whose files the previous fix left alone, keeping each claim's identity so a prior PASS is reused instead of dispatching another verifier. Acceptance-criteria items are never carried: they are regenerated and re-checked at every iteration, so a criterion can no longer be approved on a verdict taken before a base merge. When the run cannot establish which files changed — a shallow checkout, for instance — it carries nothing and says so rather than reusing a stale verdict. (#644)
+- **A review no longer stalls on `review-artifact-malformed` because the engine wrapped its checklist in an object.** Phase 1.6 and Phase 2.2 now state that `checklist-iter-<N>.json` and `verification-iter-<N>.json` are JSON arrays at the file root, distinct from the object-rooted coverage-shortfall and engine-return artifacts; the evidence gate still rejects an object at those paths, and recovery re-runs the writers instead of reshaping the file. (#579)
+
+## September 16, 2026
+
+Cloud implement recovery now reports the real cause of a lost runner instead of
+calling every loss a Spot reclaim. When the `claude` job of a cloud implement run
+dies, the `spot_recovery` job's resume comments, terminalize comments, and
+Cancelled workpad notes now carry a cause line naming the job's conclusion, its
+capacity token (the runner label's `spot=<value>` segment, verbatim), its runner
+name, and GitHub's failure annotation — and only claim a Spot reclaim on the path
+that holds a valid reclaim marker. A proven reclaim whose resume is refused at the
+cap or for a missing App token now ends the workpad in a terminal 💥 Failed state
+instead of leaving it indefinitely in progress, and every terminal flip the
+recovery job makes records whether the run's branch is empty.
+- **Deferred review findings are now grouped into follow-up issues by their shared deferral reason, not by source file.** When an `/implement` run files follow-up issues for deferred review findings, `scripts/file-deferrals.py` in manifest mode now groups findings that agree on category, explanation (compared after trimming) and kind into one follow-up issue — however many files they span — and titles it from that shared reason (`<area>: deferred review findings — <kind> (<category>) (carried from #<n>)`, with `<area>` derived from the group's longest shared path prefix). A finding that cannot supply all three reason fields falls back to per-file grouping exactly as before. Fewer near-duplicate tickets for one piece of deferred work. (#602)
+- **A re-triggered issue resumes on its own** — Re-running `/prflow:implement` on an issue an earlier run left blocked picks the work back up and re-runs the step that stopped, so a fixed blocker clears without any extra prompt. Implement runs stay hands-off from start to finish on both the local and cloud tiers; when a decision the issue does not settle comes up, the run records it as a block to settle by editing the issue and re-triggering. You get this through the normal plugin update. (#596)
+- **A failed CI verification round now reports which jobs failed and why.** When
+  `ci-verification-request.py wait` sees a failed run, it now prints the name of each failed
+  job and every identifier from the `Failure recap` in those jobs' logs, after its existing
+  `FAILED` line, so the failure list is in the command's own output without opening the logs
+  by hand; the exit status is unchanged. (#603)
+- **`preflight.py lint-changed` now flags a ruff version skew.** Each ruff invocation receipt,
+  and the command's summary line, now records whether the ruff that ran matches the version
+  the lint manifest pins (`match`, `skew`, or `unestablished`). The comparison is advisory and
+  changes no exit status. (#603)
+- **Cloud `/prflow:implement` runs one agent per issue at a time.** The `claude` job in `devflow-implement.yml` now has a per-issue concurrency group that queues and never cancels. A stall-backstop auto-resume, or a re-trigger that gets past dedupe, waits for the in-progress run for that issue to finish, so two agents can no longer write the same workpad and branch at once. If GitHub cancels a queued job before it starts because a newer one replaced it, the recovery job does nothing, so it cannot flip the live run's workpad to Cancelled. (#471)
+- **Branch setup now rejects an invalid provenance value instead of blocking on provenance.** If
+  `/prflow:implement` passed anything other than `created-current-run`, `adopted-existing` or
+  `unknown` to branch setup, the run used to stop with a misleading "provenance not
+  established" decision, and the stop message sent people to the wrong fix. Branch setup now
+  refuses the value before doing any work, and the stop reason names the value it got and the
+  values it accepts. (#595)
+- **An implement run fixing a failed final CI check no longer shows as Stuck.** When the final verification fails and your repository's implement prompt extension sends that failure back to be fixed, the issue keeps its in-progress status (no `PRFlow:Stuck` label, no 👎) while the run makes the fix. It shows Blocked only if the failure can't be fixed. (#562)
+- **A resumed cloud implement run now reuses a CI run a prior attempt already passed for the
+  same head, instead of re-dispatching.** `ci-verification-request.py request` records live on
+  the runner's local disk, so a resume on a fresh runner held no record for an earlier attempt's
+  green `workflow_dispatch` CI run and had to re-dispatch and wait a full CI cycle. `request`
+  now adopts a completed-successful same-head dispatch run whose run title carries a request-id
+  token, reconstructing the request record under that identity; `collect-evidence` still
+  re-binds the downloaded shard provenance to the adopted run before building any evidence, so
+  adoption grants no new trust. Adoption is best-effort — an ambiguous match, a tokenless run, a
+  non-green run, or a run-list transport failure falls through to a normal dispatch. (#545)
+- **Cloud runs no longer preinstall the `code-review` and `claude-md-management` plugins.** The
+  PRFlow cloud workflows now install only PRFlow itself, plus any plugins your repository enables
+  in `.claude/settings.json`. PRFlow never depended on either plugin. If you use their
+  `/code-review` or `/revise-claude-md` commands in cloud runs, enable
+  `code-review@claude-plugins-official` or `claude-md-management@claude-plugins-official` in your
+  committed `.claude/settings.json`, and the cloud runs will install them again.
+- **Long cloud runs on self-hosted Windows runners no longer fail with GitHub `401 Bad credentials` after about an hour.** With a GitHub App configured, PRFlow's Python helpers on a native-Windows Python kept using the token minted when the job started, even though the credential refresher was renewing it. Once that token expired, the helpers could no longer write the workpad, and the run looked like a stall until the stall backstop gave up. These helpers now use the refreshed token, as the shell helpers already did.
+- **Re-running `/prflow:implement` no longer repeats planning and review that are still valid.** When a run is started again after an earlier attempt failed or finished, it now reuses the earlier plan if the issue text has not changed. It also reuses the earlier review when that review passed with full coverage and the branch, its base and the issue text are all unchanged. Otherwise the run plans and reviews as before. A new commit, a change to the base branch, an edited issue, or a correction asking for a fresh review still triggers a full review. (#616)
+- **The implement cleanup review now sees the issue's acceptance criteria.** The `/prflow:implement` cleanup reviewer received only the diff, so it could recommend deleting tests an acceptance criterion required and call them scope creep. It now receives the current criteria and treats the behavior and tests they require as fixed scope, while still flagging genuinely redundant tests and stale references. Its report format now lives in the reviewer's own definition instead of a tool-denial note in the dispatch. The finalization handoff check also rejects an extension-load record with unknown fields, or one that claims the whole extension was read without the digest the full load ends with. (#622)
+- **Cloud implementation and command runs can run `git grep`, and agents stop retrying refused commands.** Re-run the PRFlow installer to receive the new grant. (#629)
+- **The self-hosted runner docs now state PRFlow's Windows trust boundary.** PRFlow cannot make its job credential files owner-only on Windows. The Windows Runners section now says to run each runner service under its own account and restrict its work directory to that account and administrators, with the `icacls` commands that set and show that access. It also notes that runner services sharing one account share its Claude settings and can read each other's credentials. The documentation page for `/prflow:docs-verify --report-only` now names the report's `Doc verdict and location` field correctly. (#633, #594)
+
 ## September 15, 2026
 
 Reconcile fulfilled documentation obligations in the final workpad. A documentation
@@ -23,6 +97,75 @@ ambiguous target refuses the resolution without changing another reflection, and
 replaying the same resolution is idempotent. (#508)
 - **Lint-tool provisioning now retries transient download failures.** `provision-lint-tools.sh` downloaded each pinned tool with a single-shot `curl`, so an intermittent HTTP 500 or blip from the release CDN failed the whole provisioning run on the first error. The download now uses curl's bounded retry, riding out the transient before failing closed; the pinned-digest check still refuses any bytes a retry brings back. (#550)
 - **Issue premise checks no longer reject a quoted sentence over its final punctuation.** When an issue's `Verified:` bullet quotes a sentence that still exists in the cited file but now ends with different punctuation (for example a colon instead of a period), implement treats the premise as still holding instead of discarding it and recording a false issue-accuracy note. A changed word or a removed sentence is still reported as no longer present. (#523)
+- **`/prflow:spec` no longer re-audits an unrevised draft after a `REVISE` round.** When an
+  audit returns must-revise findings, the drafting command now applies the confirmed findings
+  and re-shows the revised draft before offering another audit round: `record-offer --accepted`
+  refuses (leaving the user-round counter untouched) while the last completed `REVISE` round's
+  findings are unrevised or their count is unestablished, a new `query-offer` surfaces that
+  withhold so the Step 4 approval question omits the audit-round option, and the withhold
+  releases once a revision postdates the round that raised the findings. Operators stop
+  spending audit rounds and tokens on unchanged bytes. (#548)
+Restore same-branch tracked checkout changes left by a review-engine return. The review-and-fix
+loop now snapshots the working tree before every engine Step 1 dispatch and every shadow Step 2.6
+dispatch and, when the branch name still matches on return, restores previously-clean tracked
+paths the return dirtied — so engine and shadow leftovers no longer ship silently into a later fix
+commit. Preexisting dirty work, `.prflow/tmp` scratch, and rename/copy records are left untouched;
+the helper restores only previously-clean tracked paths to HEAD, so residuals it cannot restore —
+untracked files and staged additions not in HEAD — are left in place rather than restored (a path
+that becomes a staged addition during the window is flagged), and the implement Phase 3.3
+residual-porcelain flush no longer names those helper-unrestorable residuals as review-feedback fixes.
+- **The review-and-fix shadow pass now derives its "no prompt additions" attestation from the
+  prompts it actually sent.** Before each dispatch a shadow pass issues, it now persists the exact
+  prompt to the run root and reads those files back to compute the attestation, so a shadow whose
+  launch prompt was steered is reported as not independently verified instead of clean. Previously
+  the attestation was written from memory and the launched prompt was recorded nowhere, so a
+  steering clause could sit beside a clean attestation with nothing able to show the contradiction.
+  (#534)
+Stop the `install.sh` dry-run preview from crashing on a file it cannot open. The preview no
+longer copies or diffs the `tmp/` scratch directory of either state directory (`.prflow/tmp/` and
+the superseded `.devflow/tmp/`), so a scratch file, a dangling symlink, or a path too long to open
+under it can no longer abort the upgrade preview. The preview also excludes the `vendor/` tree of
+both state directories (`.prflow/vendor/` and the superseded `.devflow/vendor/`), matching what the
+sandbox copy omits, so an un-migrated `.devflow/vendor` tree is no longer reported as a page of
+false `DELETE` rows. When the diff step cannot open a file inside the
+paths it compares, it now prints one `UNREADABLE <path> (<reason>)` row for it, keeps going, does
+not count that path as a changed file, and — when at least one path could not be compared — prints
+`devflow-install: N file(s) could not be compared (listed above as UNREADABLE).` after the usual
+`devflow-install: N file(s) would change.` line, then reports `DRY RUN — nothing in this
+repository was written.` and exits 0. A file the diff step cannot open is no longer mislabelled
+`binary`.
+- **Cloud implement runs now provision lint tools from a fresh, digest-checked download every run instead of trusting a cached binary.** The lint-tool directory is emptied at the start of each `/prflow:implement` run and is no longer backed by the Actions cache, so a file planted in that cache (or written into the directory earlier in the job) can no longer be executed or placed on PATH before the model starts. Each tool is either reused from a version-matching copy already on the runner's PATH or downloaded from its pinned archive and verified against the manifest's sha256. (#575)
+- **Upgrades no longer silently apply a stale installer to a newer release.** When you re-run a
+  saved `install.sh` against a different release, the installer now compares itself against that
+  release's `install.sh` (ignoring line-ending differences) and, in apply mode, stops before
+  writing anything — printing the command that downloads the matching installer and the
+  `DEVFLOW_ALLOW_INSTALLER_DRIFT=1` escape hatch to install with the old one anyway. A dry run
+  prints the same warning and still shows the plan. A `curl … | bash` run, or a release that ships
+  no `install.sh`, prints a one-line note that the self-check was skipped and continues. Running
+  the scaffolder — via the installer or `/prflow:init` — also warns when a stale installer copy
+  (`install.sh`, `devflow-install.sh`, or `prflow-install.sh`) sits committed at your repo root.
+  Prompt-extension `.md.example` files are now refreshed when their content is out of date instead
+  of kept forever, and a thin upgrade over a repository that commits the plugin tree
+  (`.prflow/vendor/prflow/`) now refreshes that committed tree so CI stops running the old plugin. (#576)
+Fix the Phase 3.4 acceptance-criteria gate in a repository whose `.prflow/tmp/` is not
+gitignored: `ac-verifier-artifacts.py prepare` now writes the attempt root's own `.gitignore`
+(holding `*`) and captures the checkout-drift baseline only after it exists, so the helper's
+own attempt files no longer read as checkout drift and falsely block the gate. Its untracked
+offender list now comes from `git ls-files -o --exclude-standard`, so a stray file inside an
+untracked directory is named individually rather than collapsed to the directory.
+
+On a clean checkout `check` now prints one compact routing line of JSON and writes the full
+bounded per-criterion dispositions record to `ac-dispositions.md` in the attempt directory,
+instead of printing the whole reconciliation record, so the orchestrator carries far fewer
+tokens through the gate.
+- **Windows Git Bash telemetry-branch migration now migrates every record.** On Windows Git Bash (MSYS), an argument that joined a full ref name to a path (`refs/heads/<branch>:<path>`) was rewritten before git saw it, so the telemetry-branch migration copied zero records while still printing success, and PRFlow's telemetry record lookups treated persisted records as missing. Both the migration helper and the record lookups now resolve each ref to its commit ID before building the lookup argument, so the migration copies every readable record on Windows exactly as it does on Linux and macOS, and the "already persisted" checks find records that exist. The migration also now warns once for each listed record it cannot read and prints how many were unreadable — keeping the source branch for a manual retry — instead of reporting success when nothing could be read. You get this through the normal plugin update. (#578)
+- **`/prflow:docs-verify` now takes `--lead docs|code` instead of `--search-space`.** The
+  report-only mode drops the `--search-space <pathspec>` flag and adds `--lead docs|code`, which
+  chooses whether the agent leads from the documentation or from the code while both search the
+  whole repository. A run with no `--lead` keeps today's behaviour — documentation first, then
+  code — and returns the documentation verdict. Running the command by hand with `--search-space`
+  in the leading flags now reports it as an unrecognized flag and refuses the run. The report-only
+  output is a compact set of fields kept under 1,000 words. (#588)
 
 ## September 14, 2026
 

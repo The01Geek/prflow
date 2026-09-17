@@ -163,6 +163,7 @@ if [ "$mode" = resolve ]; then
   # keeps the one-line contract when the interpreter itself fails before printing.
   if ! python3 - "$root" <<'PY'
 import json, os, re, sys
+sys.stdout.reconfigure(newline="\n")
 root_op = sys.argv[1]
 base = os.path.join(root_op, ".prflow", "tmp", "spec")
 safe = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -213,6 +214,7 @@ if [ "$mode" = adopt ]; then
   fi
   if ! python3 - "$adopt_slug" "$root" <<'PY'
 import datetime, json, os, sys
+sys.stdout.reconfigure(newline="\n")
 slug, root_op = sys.argv[1], sys.argv[2]
 mp = os.path.join(root_op, ".prflow", "tmp", "spec", slug, "run-meta.json")
 if not os.path.isfile(mp):

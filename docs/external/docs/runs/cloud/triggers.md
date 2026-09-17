@@ -94,7 +94,7 @@ An authorized command receives a best-effort 🚀 reaction. An unauthorized or u
     Each issue has one dedicated workpad comment. A later run reuses that comment and records whether it resumed unfinished work or started from a terminal state. PRFlow's own workpad and progress comments carry hidden identifiers, so they can never start a new run themselves.
   </Accordion>
   <Accordion title="Overlapping Implementation Requests Are Deduplicated">
-    The oldest visible active run proceeds. The duplicate posts a notice and starts no second agent job. The check fails open on a query error, so a rare duplicate is still possible.
+    The oldest visible active run proceeds. The duplicate posts a notice and starts no second agent job. The check fails open on a query error, so a rare duplicate can get past it. Such a duplicate, or an automatic stall-recovery resume, then waits in a per-issue queue: the agent job runs for only one run per issue at a time, and the next waiting job starts only after the current one finishes. Nothing in the queue cancels a running agent job.
   </Accordion>
   <Accordion title="Overlapping Review Requests Are Deduplicated per Commit">
     A second `/prflow:review` for the same pull-request head is suppressed while a fresh progress comment shows a review in flight. A request after the head changes proceeds for the new commit. That progress comment is the only in-flight signal, and it does not appear until the agent job begins, so a request in that short window is not deduplicated and a rare duplicate review is possible.

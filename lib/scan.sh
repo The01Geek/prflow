@@ -193,7 +193,7 @@ fi
 # ── Weekly mode ──────────────────────────────────────────────────────────────
 # Portable "7 days ago" (GNU `date -d` is not available on macOS/BSD; python3 is
 # a hard dependency, so use it for date math).
-SINCE="$(python3 -c 'import datetime as d; print((d.datetime.now(d.timezone.utc)-d.timedelta(days=7)).strftime("%Y-%m-%d"))')"
+SINCE="$(python3 -c 'import sys; sys.stdout.reconfigure(newline="\n"); import datetime as d; print((d.datetime.now(d.timezone.utc)-d.timedelta(days=7)).strftime("%Y-%m-%d"))')"
 
 CANDIDATES='[]'
 # Set when ANY candidate-source fetch or jq-reshape below hard-fails. Each such

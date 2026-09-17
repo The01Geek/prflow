@@ -59,9 +59,8 @@ An unrecognized/absent status is treated as `unestablished` (fail closed) rather
 than crashing, because the reports are agent-authored. `dispositions` maps each
 named step of that side's charter (`EVIDENCE_SLOTS` / `CLAIM_SLOTS`) to a value
 of the form `yes|no (one-clause reason)` — the slot name is the KEY, never part
-of the value. The verdict-plus-reason convention is the writing-skills evidence
-marker's; the `<slot>=<verdict>` spelling that marker uses in prose is NOT the
-shape here, and a value carrying it does not parse.
+of the value. A `<slot>=<verdict>` prose spelling is NOT the shape here, and a
+value carrying it does not parse.
 
 A verifier record may carry an optional `reason` (the evidence verifier attaches
 `denied`/`failed`/`unresolved` to a non-satisfied criterion) which is passed
@@ -71,10 +70,15 @@ to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free te
 Output: one JSON object on stdout —
     {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
                     "blocks", "reason", "remedy", "evidence", "evidence_source",
+                    "stated_terms", "observed_value",
                     "evidence_status_reported", "claim_status_reported",
                     "evidence_dispositions", "claim_dispositions",
                     "missing_sides", "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
+The optional `stated_terms`/`observed_value` pair (issue #387) carries the evidence
+verifier's recorded criterion terms and the value it observed in the shipped artifact; a
+criterion that names a quantifier, scope, or literal value/set is `satisfied` only when they
+match, unless the evidence report opts out with `quantified: false`.
 The two disposition maps and `undischarged_slots` (side-qualified `<side>:<slot>`)
 are carried out so the orchestrator records what each verifier did alongside the
 reconciled verdict, rather than letting it die with the dispatch return. The two
@@ -302,6 +306,44 @@ def _evidence_of(record):
         return ""
     ev = record.get("evidence")
     return ev.strip() if isinstance(ev, str) else ""
+
+
+def _pair_terms_of(record):
+    """Return `(stated_terms, observed_value)` from one evidence record (issue #387).
+
+    Same missing-and-wrong-type discipline as `_evidence_of`: a non-dict record, an
+    absent key, or a non-string value reads as `None` (never coerced or defaulted), so a
+    malformed report cannot smuggle a comparable pair. The value is NOT stripped — the
+    equality the pair rule tests is between the verifier's own recorded strings.
+    """
+    if not isinstance(record, dict):
+        return None, None
+    stated = record.get("stated_terms")
+    observed = record.get("observed_value")
+    return (stated if isinstance(stated, str) else None,
+            observed if isinstance(observed, str) else None)
+
+
+def _quantified_false(record):
+    """True only when the record's `quantified` is the JSON boolean `false` (issue #387).
+
+    Identity-checked (`is False`), never by truthiness or `==`, exactly like `_POISON_TOKEN`:
+    a JSON string `"false"`, `0`, `null`, or an absent key must NOT skip the pair rule — only
+    the parsed JSON boolean does. `0 == False` is True in Python, so an `==` test would let a
+    numeric `0` opt out, which the criterion forbids.
+    """
+    return isinstance(record, dict) and record.get("quantified") is False
+
+
+def _pair_status(stated, observed):
+    """The pair rule's status, complete by construction (issue #387 AC1).
+
+    `unestablished` unless BOTH sides are strings; `satisfied` when they compare equal
+    under `==`; `unmet` when both are strings and unequal.
+    """
+    if not isinstance(stated, str) or not isinstance(observed, str):
+        return "unestablished"
+    return "satisfied" if stated == observed else "unmet"
 
 
 # Structured, machine-routable reason the evidence verifier may attach to a
@@ -559,6 +601,32 @@ def reconcile(evidence_records, claim_records, criteria=None):
             status, evidence, evidence_source = reconcile_one(
                 e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec))
 
+        # Stated/observed pair rule (issue #387): for a criterion that names a quantifier,
+        # a scope, or a literal value/set, the evidence verifier records the criterion's own
+        # `stated_terms` and the `observed_value` it saw in the shipped artifact, and `status`
+        # is set from their match — so an evidence pointer plus a fit judgment with no recorded
+        # match is not `satisfied`. It runs AFTER the pointer/slot pairing above and reads only
+        # the evidence record, so it applies identically on the command and non-command paths.
+        # Gated on `expected`: a criterion with no legitimate verifier roster (poisoned or
+        # absent from the criteria file) keeps its fail-closed `unestablished` and is never
+        # turned `satisfied` by a coincidental pair match. Skipped only when the evidence report
+        # opts out with `quantified: false`.
+        # Tightening-only (issue #387): a recorded stated_terms/observed_value match is
+        # NECESSARY for a quantified criterion but never SUFFICIENT. A non-matching pair
+        # downgrades an otherwise-`satisfied` status toward blocking; a matching pair must
+        # never mint `satisfied` from a status the pointer/slot pairing above already
+        # resolved non-satisfied (a claim-verifier disagreement, an unexecuted command, or an
+        # undischarged slot), so one side's coincidental value match cannot override the
+        # two-verifier cross-check. A `satisfied` status here already carries an evidence
+        # pointer (the AC6 no-evidence downgrade ran on the command and non-command branches
+        # above), so the retained pointer stays valid on a downgrade. `_pair_status` is pure, so computing it
+        # unconditionally is free and keeps this a single flat guard.
+        stated_terms, observed_value = _pair_terms_of(e_rec)
+        pair_status = _pair_status(stated_terms, observed_value)
+        if (expected and not _quantified_false(e_rec)
+                and status == "satisfied" and pair_status != "satisfied"):
+            status = pair_status
+
         blocks = status in BLOCKING_STATUSES
         if blocks:
             blocking.append(num)
@@ -581,6 +649,8 @@ def reconcile(evidence_records, claim_records, criteria=None):
                 "remedy": remedy,
                 "evidence": evidence,
                 "evidence_source": evidence_source,
+                "stated_terms": stated_terms,
+                "observed_value": observed_value,
                 "evidence_status_reported": _normalize_status(e_reported),
                 "claim_status_reported": _normalize_status(c_reported),
                 "evidence_dispositions": e_disp,

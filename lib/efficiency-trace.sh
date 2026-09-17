@@ -128,15 +128,27 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 WORKPAD_DIR=""
 SLUG=""
 MODE=""
-ACTION=""   # "" → use --mode (trace|record); "persist"; "self-check"
+ACTION=""   # "" → use --mode (trace|record); "persist"; "self-check"; "correct-iter"
+# --correct-iter operands (issue #520): a same-run correction of a malformed-first
+# durable iter record. RUN_ID/ITER identify the record; CORRECTED_FILE holds the
+# validated replacement; EXPECTED_DIGEST is the malformed durable blob's git object id.
+RUN_ID=""
+ITER=""
+CORRECTED_FILE=""
+EXPECTED_DIGEST=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --workpad-dir) WORKPAD_DIR="$2"; shift 2 ;;
-    --slug)        SLUG="$2";        shift 2 ;;
-    --mode)        MODE="$2";        shift 2 ;;
-    --persist)     ACTION="persist";    shift ;;
-    --self-check)  ACTION="self-check"; shift ;;
+    --workpad-dir)    WORKPAD_DIR="$2";    shift 2 ;;
+    --slug)           SLUG="$2";           shift 2 ;;
+    --mode)           MODE="$2";           shift 2 ;;
+    --persist)        ACTION="persist";      shift ;;
+    --self-check)     ACTION="self-check";   shift ;;
+    --correct-iter)   ACTION="correct-iter"; shift ;;
+    --run-id)         RUN_ID="$2";         shift 2 ;;
+    --iter)           ITER="$2";           shift 2 ;;
+    --corrected-file) CORRECTED_FILE="$2"; shift 2 ;;
+    --expected-digest) EXPECTED_DIGEST="$2"; shift 2 ;;
     *) echo "efficiency-trace.sh: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
@@ -185,6 +197,10 @@ esac
 collect_valid_files() {
   local dir="$1" f
   VALID_FILES=()
+  # Count iter files skipped for being unreadable/non-object, so --persist can report
+  # incomplete effectiveness derivation (issue #520 AC1): an iter file whose bytes are
+  # stored yet omitted here is a partial derivation, not a clean one.
+  VALID_FILES_SKIPPED=0
   if [ -n "$dir" ] && [ -d "$dir" ]; then
     for f in "$dir"/iter-*.json; do
       [ -e "$f" ] || continue                       # no glob match → skip
@@ -195,6 +211,7 @@ collect_valid_files() {
       if "$DEVFLOW_JQ" -e 'type == "object"' "$f" >/dev/null 2>&1; then
         VALID_FILES+=("$f")
       else
+        VALID_FILES_SKIPPED=$(( VALID_FILES_SKIPPED + 1 ))
         echo "::warning::efficiency-trace.sh: skipping unreadable/malformed workpad '$f'" >&2
       fi
     done
@@ -1081,8 +1098,12 @@ do_self_check() {
   # file, or a malformed file is a run that silently fell back to inline execution
   # — the state SKILL.md says must not be indistinguishable from a dispatched one.
   # Population: object iter records that are NOT source:"review" and NOT
-  # synthesized:true; the shadow entry is checked only on a shadow object whose
-  # coverage is not "not_verified". Same guarded-jq/::warning::/exit-0 discipline
+  # synthesized:true; the step1 entry is ADDITIONALLY excluded when the persisted
+  # loop_role is exactly "promoted" (issue #556 — a promoted iter issues no Step 1
+  # dispatch, so no engine-return-step1 file is expected); the shadow entry is
+  # checked only on a shadow object whose coverage is not "not_verified" (the
+  # promoted exclusion gates only step1, so a promoted iter's shadow is still
+  # checked). Same guarded-jq/::warning::/exit-0 discipline
   # as the field validation above; a recorded dispatch_disposition is a recognized
   # fallback (refused/dead/malformed) and draws no warning, count only.
   local dc_checked=0 dc_warnings=0 dc_n dc_meta dc_entry dc_recmode dc_recjson dc_disp dc_file dc_filestate dc_tab
@@ -1098,10 +1119,12 @@ do_self_check() {
     if ! dc_meta="$("$DEVFLOW_JQ" -r '
       if (type != "object") or (.source == "review") or (.synthesized == true) then empty
       else
-        ( [ "step1",
-            (if (.dispatch_mode | type) == "string" then .dispatch_mode else "__nonstr__" end),
-            (.dispatch_mode | tojson),
-            (if (.dispatch_disposition | type) == "string" then .dispatch_disposition else "" end) ] | @tsv ),
+        ( if (.loop_role != "promoted") then
+            ( [ "step1",
+                (if (.dispatch_mode | type) == "string" then .dispatch_mode else "__nonstr__" end),
+                (.dispatch_mode | tojson),
+                (if (.dispatch_disposition | type) == "string" then .dispatch_disposition else "" end) ] | @tsv )
+          else empty end ),
         ( if ((.shadow | type) == "object") and (.shadow.coverage != "not_verified")
           then ( [ "shadow",
                    (if (.shadow.dispatch_mode | type) == "string" then .shadow.dispatch_mode else "__nonstr__" end),
@@ -1167,7 +1190,10 @@ persist_one() {
   # po_reason defaults to `skipped`; the record-staged branch alone sets `persisted`/`synthesized`,
   # so an all-malformed-iters run (empty derived record, nothing staged) does not over-claim
   # `ok persisted` (issue #344 review).
-  local po_lost=0 po_synth=0 po_reason=skipped
+  # po_partial (issue #520 AC1): a record was derived but at least one iter file's bytes
+  # were stored while being omitted from that derivation — an incomplete effectiveness
+  # derivation, folded to `lost partial-iterations` below (write-failed still takes precedence).
+  local po_lost=0 po_synth=0 po_partial=0 po_reason=skipped
   local iters=("$dir"/iter-*.json)
   if [ ! -e "${iters[0]}" ]; then
     # No per-iteration workpad. Layer-3+ synthesis floor (issue #381): reconstruct
@@ -1368,6 +1394,15 @@ persist_one() {
     if ! devflow_telemetry_blob_exists "$root" "$ref" "$rel_record"; then
       record="${_TELEMETRY_STAGE}/${rel_record}"
       collect_valid_files "$dir"
+      if [ "${VALID_FILES_SKIPPED:-0}" -gt 0 ] && [ "${#VALID_FILES[@]}" -gt 0 ]; then
+        # Issue #520 AC1: at least one iter file's bytes were stored (the durable copy
+        # above) yet omitted from this effectiveness derivation — an INCOMPLETE
+        # derivation, observable in discovery mode (this ::warning::) and targeted mode
+        # (the `lost partial-iterations` outcome). Storage success must not read as
+        # complete effectiveness; a same-run --correct-iter can repair the malformed record.
+        po_partial=1
+        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} derived effectiveness from ${#VALID_FILES[@]} iteration(s) but OMITTED ${VALID_FILES_SKIPPED} malformed/non-object iter workpad(s) stored byte-verbatim — effectiveness derivation is INCOMPLETE for this run (repair with --correct-iter)" >&2
+      fi
       # `if !` guards `set -e` on a failing command-substitution assignment, and
       # captures emit_jq's rc so a jq DERIVATION FAILURE (broken filter, jq missing,
       # --argjson rejected) is distinguished from a benign empty derivation (rc 0,
@@ -1415,6 +1450,10 @@ persist_one() {
   # telemetry-branch write rc into. po_lost latches over any ok reason (issue #344).
   if [ "$po_lost" = 1 ]; then
     _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=write-failed
+  elif [ "$po_partial" = 1 ]; then
+    # Incomplete derivation (issue #520 AC1). Under the `lost` class per the issue's
+    # Implementation Notes; write-failed above still wins when both apply.
+    _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=partial-iterations
   else
     _PERSIST_ONE_CLASS=ok; _PERSIST_ONE_REASON="$po_reason"
   fi
@@ -2227,6 +2266,7 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     local _mtb_src=""
     _mtb_src="$(PRFLOW_RENAME_MAP="$HERE/rename-map.json" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(os.environ["PRFLOW_RENAME_MAP"], encoding="utf-8") as fh:
         m = json.load(fh)
@@ -2591,16 +2631,235 @@ except Exception:
           *) _oc=lost; _or=write-failed ;;
         esac
       fi
+    elif [ "$_or" = partial-iterations ] && [ "${_PERSIST_ONE_STAGED:-0}" = 1 ]; then
+      # Issue #520 AC1: partial derivation is a `lost` outcome, so the ok-branch above skips
+      # it — but a telemetry-branch write failure still takes write-failed precedence over it.
+      if [ -z "${_DEVFLOW_TELEMETRY_BRANCH_SOURCED:-}" ]; then
+        _oc=lost; _or=write-failed
+      else
+        case "$persist_rc" in
+          0|2) : ;;                       # pushed or staged-only: the primary signal stays partial-iterations
+          *) _oc=lost; _or=write-failed ;;
+        esac
+      fi
     fi
     printf 'persist-outcome: %s %s\n' "$_oc" "$_or"
   fi
   return 0
 }
 
+# ── Same-run malformed-first correction (issue #520) ──────────────────────────
+# A NARROW extension of the persistence owner: repair a durable iter record whose
+# FIRST persist stored malformed (non-object) bytes, without losing the original.
+# It archives the original bytes under the telemetry store, republishes the
+# corrected iter + a recomputed effectiveness record atomically, preserves
+# established floor (harness/cost/run_profile) metadata, and REFUSES — retaining
+# recoverable evidence and leaving durable history unchanged — on any
+# invalid/unrelated/concurrent correction. Best-effort exit 0, telemetry-gated like --persist (AC6): it changes no
+# code-delivery, review-verdict, or completion decision. Every observable outcome is
+# the single `correct-outcome: <class> <reason>` stdout line.
+do_correct_iter() {
+  local root ref rel_iter rel_record rel_archive slug run_id iter corrected expected
+  slug="$SLUG"; run_id="$RUN_ID"; iter="$ITER"; corrected="$CORRECTED_FILE"; expected="$EXPECTED_DIGEST"
+
+  # Missing identity → refuse (AC4). iter must be a bare integer.
+  case "$iter" in ''|*[!0-9]*) iter="" ;; esac
+  if [ -z "$slug" ] || [ -z "$run_id" ] || [ -z "$iter" ] || [ -z "$corrected" ] || [ -z "$expected" ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: missing identity/operand — need --slug --run-id --iter <N> --corrected-file --expected-digest; refusing without touching history" >&2
+    printf 'correct-outcome: lost missing-identity\n'; return 0
+  fi
+  # Unsubstituted-placeholder guard (twin of the argv/basename guards above): a
+  # literal <slug>/<run-id> would fabricate an identity, so refuse it as bad identity.
+  case "${slug}${run_id}" in
+    *'<'*|*'>'*)
+      echo "::warning::efficiency-trace.sh --correct-iter: --slug/--run-id carries an unsubstituted '<placeholder>' — refusing to correct under a placeholder identity" >&2
+      printf 'correct-outcome: lost missing-identity\n'; return 0 ;;
+  esac
+
+  # Telemetry-gated (AC6): the correction is an efficiency-telemetry operation, so a
+  # disabled feature has nothing to correct — best-effort skip, never a failure.
+  if [ "$ENABLED" != "true" ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: efficiency telemetry is disabled — no correction performed" >&2
+    printf 'correct-outcome: ok skipped\n'; return 0
+  fi
+  # Without a real telemetry-branch.sh the store helpers are no-op stubs, so the
+  # branch cannot be read or written — fail closed to a recoverable outcome.
+  if [ -z "${_DEVFLOW_TELEMETRY_BRANCH_SOURCED:-}" ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: telemetry-branch.sh was not sourced; cannot read or write the telemetry store this run — no correction performed, correction input retained" >&2
+    printf 'correct-outcome: lost write-failed\n'; return 0
+  fi
+
+  root="$(devflow_repo_root)"
+  devflow_telemetry_branch >/dev/null || true   # seed the branch-name cache once
+  ref="$(devflow_telemetry_ref)"
+  rel_iter=".prflow/logs/review/${slug}/${run_id}/iter-${iter}.json"
+  rel_record=".prflow/logs/efficiency/${slug}-${run_id}.json"
+  rel_archive=".prflow/logs/review/${slug}/${run_id}/.corrections/iter-${iter}.${expected}.json"
+
+  # Resolve a relative --corrected-file against the repo root, never the process CWD.
+  local corr_abs="$corrected"
+  case "$corrected" in /*) : ;; *) corr_abs="${root%/}/${corrected}" ;; esac
+
+  # The correction must itself be a readable JSON OBJECT (AC4; the mutable-JSON matrix
+  # — array/scalar/valid-falsy/missing/wrong-type — all land here).
+  if [ ! -f "$corr_abs" ] || ! "$DEVFLOW_JQ" -e 'type == "object"' "$corr_abs" >/dev/null 2>&1; then
+    echo "::warning::efficiency-trace.sh --correct-iter: corrected file '${corrected}' is missing/unreadable or not a JSON object; refusing" >&2
+    printf 'correct-outcome: lost non-object\n'; return 0
+  fi
+  # The correction must be bound to the same iteration identity (AC2/AC4).
+  local corr_iter
+  corr_iter="$("$DEVFLOW_JQ" -r '.iter // empty' "$corr_abs" 2>/dev/null || true)"
+  if [ "$corr_iter" != "$iter" ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: corrected object .iter='${corr_iter:-<absent>}' does not match target iteration ${iter}; refusing (wrong run/iteration)" >&2
+    printf 'correct-outcome: lost identity-mismatch\n'; return 0
+  fi
+
+  # The durable record must exist on the branch (AC4).
+  if ! devflow_telemetry_blob_exists "$root" "$ref" "$rel_iter"; then
+    echo "::warning::efficiency-trace.sh --correct-iter: no durable iter record at ${rel_iter} on '${ref}'; refusing (nothing to correct)" >&2
+    printf 'correct-outcome: lost missing-record\n'; return 0
+  fi
+
+  local cur_sha corrected_sha
+  cur_sha="$(git -C "$root" rev-parse --verify --quiet "${ref}:${rel_iter}" 2>/dev/null || true)"
+  corrected_sha="$(git -C "$root" hash-object "$corr_abs" 2>/dev/null || true)"
+
+  # Idempotency (AC5): the durable bytes already equal this correction AND its archive
+  # for the expected digest is already published → a no-op replay. Checked BEFORE the
+  # digest guard, because a published correction has changed the durable digest away
+  # from `expected` by design.
+  if [ -n "$cur_sha" ] && [ "$cur_sha" = "$corrected_sha" ] && devflow_telemetry_blob_exists "$root" "$ref" "$rel_archive"; then
+    printf 'correct-outcome: ok already-corrected\n'; return 0
+  fi
+
+  # Changed source digest / unrelated record (AC4): the current durable blob must be
+  # exactly the malformed record the caller expected. A mismatch means it changed
+  # underneath (or the caller named an unrelated record) — refuse, retaining evidence.
+  if [ "$cur_sha" != "$expected" ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: expected malformed durable digest '${expected}' but '${ref}:${rel_iter}' carries '${cur_sha:-<none>}' — refusing (changed source digest or unrelated record)" >&2
+    printf 'correct-outcome: lost digest-mismatch\n'; return 0
+  fi
+  # Only a MALFORMED-FIRST (non-object) durable record is correctable this way — an
+  # established, valid record is not this arm's territory (AC4).
+  local cur_class
+  cur_class="$(devflow_telemetry_show_blob "$root" "$ref" "$rel_iter" | "$DEVFLOW_JQ" -r 'if type != "object" then "other" else "established" end' 2>/dev/null)" || cur_class="other"
+  if [ "$cur_class" != other ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: durable iter '${rel_iter}' is an established (valid) record, not a malformed-first one; refusing (unrelated/established record)" >&2
+    printf 'correct-outcome: lost not-malformed\n'; return 0
+  fi
+
+  # ── Build the correction: a staging tree carrying ONLY the three conforming paths
+  # (corrected iter, archive, recomputed record), and a SEPARATE work dir for the
+  # recompute materialization so persist_tree's staged-path walk never sees it.
+  local _stamp stage work
+  _stamp="$(date -u +%Y%m%d%H%M%S 2>/dev/null || printf '00000000000000')-$$-${RANDOM}-${SECONDS}"
+  stage="${root}/.prflow/tmp/telemetry-correct-${_stamp}"
+  work="${root}/.prflow/tmp/telemetry-correct-${_stamp}-work"
+  rm -rf "$stage" "$work" 2>/dev/null || true
+  if ! mkdir -p "${stage}/.prflow/logs/review/${slug}/${run_id}/.corrections" "${stage}/.prflow/logs/efficiency" "${work}" 2>/dev/null; then
+    echo "::warning::efficiency-trace.sh --correct-iter: could not create the correction staging root under .prflow/tmp (read-only fs, permissions, or a sandbox write denial); refusing, correction input retained" >&2
+    rm -rf "$stage" "$work" 2>/dev/null || true
+    printf 'correct-outcome: lost write-failed\n'; return 0
+  fi
+
+  # Archive the ORIGINAL malformed bytes at the digest-named path (AC2) and stage the
+  # corrected replacement.
+  if ! devflow_telemetry_show_blob "$root" "$ref" "$rel_iter" > "${stage}/${rel_archive}" 2>/dev/null \
+    || ! cp -p "$corr_abs" "${stage}/${rel_iter}" 2>/dev/null; then
+    echo "::warning::efficiency-trace.sh --correct-iter: could not stage the archive/replacement bytes; refusing, correction input retained" >&2
+    rm -rf "$stage" "$work" 2>/dev/null || true
+    printf 'correct-outcome: lost write-failed\n'; return 0
+  fi
+
+  # Recompute effectiveness (AC3): materialize the run's durable iters, substitute the
+  # corrected one, and re-derive from the full set — reusing collect_valid_files + emit_jq.
+  # Capture the ls-tree rc (do NOT swallow it in a process substitution): a WHOLESALE
+  # enumeration failure yields zero siblings, which collect_valid_files cannot tell from
+  # a genuinely single-iter run — refuse with write-failed rather than publishing that
+  # understated set as ok corrected (issue #520 recompute-completeness).
+  local run_prefix=".prflow/logs/review/${slug}/${run_id}/" relpath base ls_out ls_rc=0
+  ls_out="$(git -C "$root" ls-tree -r --name-only "$ref" "$run_prefix" 2>/dev/null)" || ls_rc=$?
+  if [ "$ls_rc" -ne 0 ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: could not enumerate the run's durable iters (git ls-tree failed, rc=${ls_rc}) for ${slug}/${run_id} — refusing rather than publishing an understated effectiveness record" >&2
+    rm -rf "$work" 2>/dev/null || true
+    printf 'correct-outcome: lost write-failed\n'
+    return 0
+  fi
+  while IFS= read -r relpath; do
+    [ -n "$relpath" ] || continue
+    case "$relpath" in "${run_prefix}iter-"*.json) ;; *) continue ;; esac
+    base="${relpath##*/}"
+    devflow_telemetry_show_blob "$root" "$ref" "$relpath" > "${work}/${base}" 2>/dev/null || true
+  done <<<"$ls_out"
+  cp -p "$corr_abs" "${work}/iter-${iter}.json" 2>/dev/null || true
+
+  collect_valid_files "$work"
+  # Incomplete-derivation guard (issue #520 AC1), same as --persist: a malformed sibling
+  # iter skipped by collect_valid_files would silently understate the recomputed
+  # effectiveness while the corrected iter still publishes ok — warn so storage success
+  # is not read as complete effectiveness.
+  if [ "${VALID_FILES_SKIPPED:-0}" -gt 0 ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: recompute for ${slug}/${run_id} OMITTED ${VALID_FILES_SKIPPED} malformed/non-object sibling iter workpad(s) from the materialized set — iter ${iter} is corrected, but the recomputed effectiveness is INCOMPLETE for this run (repair the remaining malformed iter(s) with --correct-iter)" >&2
+  fi
+  local jq_rc=0 out
+  out="$(emit_jq record "$slug")" || jq_rc=$?
+  if [ "$jq_rc" -ne 0 ] || [ -z "$out" ]; then
+    echo "::warning::efficiency-trace.sh --correct-iter: recompute derivation (jq) failed (rc=${jq_rc}); refusing, correction input retained" >&2
+    rm -rf "$stage" "$work" 2>/dev/null || true
+    printf 'correct-outcome: lost write-failed\n'; return 0
+  fi
+  # Preserve established floor (harness/cost/run_profile/…) metadata the fresh
+  # derivation does not reproduce (AC3), reusing the persist union's floor-key set.
+  local existing_record merged
+  existing_record="$(devflow_telemetry_show_blob "$root" "$ref" "$rel_record" 2>/dev/null || true)"
+  if [ -n "$existing_record" ]; then
+    printf '%s' "$existing_record" > "${work}/.oldrecord.json"
+    merged="$(printf '%s' "$out" | "$DEVFLOW_JQ" --argjson floor "$_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON" --slurpfile ex "${work}/.oldrecord.json" '
+      . as $new | (($ex[0]) // {}) as $old
+      | reduce ($floor[]) as $k ($new;
+          if ($old | type == "object") and ($old | has($k)) then .[$k] = $old[$k] else . end)
+    ' 2>/dev/null || true)"
+    # A prior record existed but the merge failed → warn (issue #520 AC3): silently
+    # falling back to the un-merged `out` would drop the established harness/cost floor
+    # metadata while still reporting ok corrected — the silent loss AC3 forbids.
+    if [ -n "$merged" ]; then
+      out="$merged"
+    else
+      echo "::warning::efficiency-trace.sh --correct-iter: a prior effectiveness record exists but the floor-metadata merge (jq) failed or produced no output — publishing the recomputed record WITHOUT the established harness/cost/run_profile metadata (it is NOT carried forward this correction)" >&2
+    fi
+  fi
+  if ! printf '%s\n' "$out" > "${stage}/${rel_record}" 2>/dev/null; then
+    echo "::warning::efficiency-trace.sh --correct-iter: could not stage the recomputed effectiveness record; refusing, correction input retained" >&2
+    rm -rf "$stage" "$work" 2>/dev/null || true
+    printf 'correct-outcome: lost write-failed\n'; return 0
+  fi
+
+  # Publish atomically (AC2/AC3/AC4/AC5). STRICT-NO-UNION: a correction must NOT be
+  # union-merged onto a concurrently-advanced tip — persist_tree then refuses (exit 5)
+  # a concurrent incompatible durable update rather than reconciling the correction
+  # against a changed durable state. CAS build_tree replaces the staged paths and
+  # preserves every other record = atomic replace-one-record.
+  local prc=0
+  # Export (not a command-prefix assignment) so the flag reaches persist_tree's
+  # push subshell; unset immediately after so no later call inherits it.
+  export _DEVFLOW_TELEMETRY_STRICT_NO_UNION=1
+  devflow_telemetry_persist_tree "$root" "$stage" || prc=$?
+  unset _DEVFLOW_TELEMETRY_STRICT_NO_UNION
+  rm -rf "$work" 2>/dev/null || true
+  case "$prc" in
+    0) rm -rf "$stage" 2>/dev/null || true; printf 'correct-outcome: ok corrected\n' ;;
+    2) printf 'correct-outcome: ok staged-only\n' ;;                 # CI without push operand: staged for recovery
+    5) printf 'correct-outcome: lost concurrent-update\n' ;;         # strict gate refused; staged evidence retained
+    *) printf 'correct-outcome: lost write-failed\n' ;;             # degraded write; staged evidence retained
+  esac
+  return 0
+}
+
 # ── Dispatch ─────────────────────────────────────────────────────────────────
 case "$ACTION" in
-  self-check) do_self_check; exit 0 ;;
-  persist)    do_persist;    exit 0 ;;
+  self-check)   do_self_check;   exit 0 ;;
+  persist)      do_persist;      exit 0 ;;
+  correct-iter) do_correct_iter; exit 0 ;;
 esac
 
 # Default action: --mode trace|record (unchanged contract).

@@ -252,6 +252,7 @@ RESULT="$(DEVFLOW_BODY="$BODY" DEVFLOW_CAUSE="$CAUSE" DEVFLOW_RUN_URL="$RUN_URL"
   DEVFLOW_EVIDENCE_GATE_FAIL="$EVIDENCE_GATE_FAIL" \
   python3 - "$TMP" <<'PYEOF'
 import os, re, sys
+sys.stdout.reconfigure(newline="\n")
 body = os.environ.get('DEVFLOW_BODY', '')
 cause = os.environ.get('DEVFLOW_CAUSE', '')
 run_url = os.environ.get('DEVFLOW_RUN_URL', '')

@@ -331,6 +331,7 @@ if [ -n "$_ubc_root" ]; then
   # misconfiguration — breadcrumb and skip, never mis-read a scalar/array as a name map.
   _ubc_md_type="$(python3 - "$_ubc_cfg" <<'PY' 2>/dev/null || true
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(sys.argv[1]) as f:
         raw = f.read()

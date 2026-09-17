@@ -280,7 +280,7 @@ def _resolve_current_branch():
     try:
         proc = subprocess.run(
             ["git", "branch", "--show-current"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", timeout=5,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         sys.stderr.write(

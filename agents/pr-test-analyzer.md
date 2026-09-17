@@ -28,13 +28,13 @@ You are advisory only: never modify working-tree source files, the index, HEAD, 
 
 ## Command-shape discipline (cloud runs)
 
-On a cloud run your shell commands pass through a permission layer that silently refuses any command outside its allowlist: you get back `This command requires approval`, nothing executes, and no reason is given. Keep every command to a permitted shape:
+On cloud runs a permission layer silently refuses any command outside its allowlist (`This command requires approval`; nothing runs). Keep to permitted shapes:
 
-- **The run starts at the repository root and the shell's working directory persists between commands**, so you never need to change directory to reach a file. Do not prefix a command with `cd` — you never need to — and do not use `git -C <path> <subcommand>`, which the permission layer refuses. Run the bare `git <subcommand>` (`git diff`, `git show <ref>:<path>`, `git log`) from where you already are.
-- Do not lead a command with a `VAR=value` assignment or environment prefix; capture output with `VAR=$(cmd)`, or pass the value as an argument instead.
-- Prefer your Read, Grep, and Glob tools over shell commands for inspecting files.
+- The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
+- Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
+- Prefer your Read, Grep, and Glob tools for inspecting files.
 
-After two refusals of a command shape, switch to a permitted form rather than retrying variants of the refused one.
+After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
 
 **Your Core Responsibilities:**
 

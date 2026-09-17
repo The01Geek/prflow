@@ -27,10 +27,13 @@ inputs:
     required: true
   lint_mode:
     description: >-
-      Lint-tool provisioning mode. Closed set: "provision" installs the
-      manifest's bounded ShellCheck/Ruff toolchain (run-local, no sudo, digest
-      and version verified) before the Claude action; "none" does no lint-tool
-      work and validates no manifest. Any other value is refused.
+      Lint-tool provisioning mode. Closed set: "provision" provisions the
+      manifest's bounded ShellCheck/Ruff/actionlint toolchain before the Claude
+      action — it starts from an empty tool directory and, per tool, reuses a
+      version-matching tool already on the runner's PATH or else downloads the
+      pinned archive, verifies its sha256 against the manifest, and version-checks
+      it (run-local, no sudo); nothing is cached between runs. "none" does no
+      lint-tool work and validates no manifest. Any other value is refused.
     required: false
     default: 'none'
 
@@ -230,16 +233,6 @@ runs:
             printf '%s\n' "$delim"
           } >> "$GITHUB_OUTPUT"
         fi
-
-    # The hashFiles(manifest, marker) key covers the whole AC5 tuple transitively —
-    # do not add tuple components to it by hand. A restored $DEST_BIN is still
-    # re-verified by the provisioning step: a cache hit is never verification.
-    - name: Cache the provisioned lint toolchain
-      if: inputs.lint_mode == 'provision'
-      uses: actions/cache@v5
-      with:
-        path: ${{ runner.temp }}/prflow-lint-bin
-        key: lintprov-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.prflow/lint-manifest.json', '.prflow/install-state.json') }}
 
     # Must stay ordered BEFORE the Claude action (provisioning after model start
     # defeats #1388), and the os/arch → artifact/URL mapping stays in the trusted

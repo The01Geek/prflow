@@ -25,7 +25,8 @@ Fail-closed caller contract (mirrors ``scripts/refresh-pr-run-link.py``): a
 missing subcommand, empty stdin, or an ``add`` with a missing/empty note
 argument prints nothing and exits non-zero, so the caller's non-empty-output
 guard skips its PATCH rather than blanking the PR body. The body round-trip is
-byte-faithful (``split("\\n")``/``"\\n".join(...)`` add and remove no newline).
+byte-faithful (``split("\\n")``/``"\\n".join(...)`` add and remove no newline, and the
+streams are reconfigured so no host translates one).
 """
 import sys
 
@@ -68,12 +69,14 @@ def add_block(body, note):
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8. Never call at import (it would mutate the streams
-    of a process that imports this module for tests); tolerate a stream with no usable
-    reconfigure."""
-    for _stream in (sys.stdout, sys.stderr):
+    """Force stdin/stdout/stderr to UTF-8 and defeat newline translation on both ends of
+    the round-trip — stdin reads CRLF verbatim (``newline=""``), stdout writes LF as LF —
+    so a native-Windows Python returns the body byte-for-byte as a POSIX one does. Never
+    call at import (it would mutate the streams of a process that imports this module for
+    tests); tolerate a stream with no usable reconfigure."""
+    for _stream, _newline in ((sys.stdin, ""), (sys.stdout, "\n"), (sys.stderr, "\n")):
         try:
-            _stream.reconfigure(encoding="utf-8")
+            _stream.reconfigure(encoding="utf-8", newline=_newline)
         except (AttributeError, ValueError, OSError):
             pass
 

@@ -74,6 +74,7 @@ import re
 import subprocess
 import sys
 import time
+import unicodedata
 import uuid
 from pathlib import Path
 
@@ -91,6 +92,7 @@ except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
 # explicit path insert is what lets an importlib-loaded copy (the test harness) resolve it.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ci_shard_provenance as csp
+from gh_fresh_env import fresh_gh_env
 
 # The REQUEST-record schema version. Unchanged at 1 — issue #419 versions the EVIDENCE
 # record separately (below) so bumping the evidence format never upgrades request records.
@@ -124,6 +126,27 @@ _SUCCESS_CONCLUSION = "success"
 # `wait` exit codes; the contract is stated in the module docstring.
 _EXIT_PASSED = 0
 _EXIT_PENDING = 3
+
+# Failure-recap parse (issue #603). Reimplemented rather than imported: shard-tally.py, whose
+# recap header/bullet rule this matches, lives under lib/test/ (pruned from the vendored
+# plugin), so a shipped scripts/ helper must not import it (issue #603 AC10).
+_RECAP_HEADER = "Failure recap:"
+_RECAP_BULLET = re.compile(r"^  - (.*)$")
+# Recap identifiers come from job-log text an attacker can influence, so bound their count
+# and length and strip control bytes before printing them as data (as page-job-log.py does).
+_RECAP_MAX_IDS = 200
+_RECAP_MAX_CHARS = 500
+_RECAP_ANSI_RE = re.compile(
+    r"\x1b\[[0-9;:?]*[ -/]*[@-~]"          # CSI
+    r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC … BEL or ST
+    r"|\x1b[@-Z\\-_]"                      # other two-byte escapes
+)
+# `gh run view --job <id> --log` prefixes EVERY line with `group\tstep\t<RFC3339 timestamp> `
+# (page-job-log.py keeps that prefix; here it must be stripped, or the exact-match recap
+# header/bullet rule never fires against a real job log and the recap silently extracts
+# nothing — issue #603 AC1). Anchored to the timestamp so a recap identifier that merely
+# contains tabs is not mistaken for a prefix.
+_GH_LOG_PREFIX_RE = re.compile(r"^[^\t]*\t[^\t]*\t\d{4}-\d\d-\d\dT[\d:.]+Z ")
 
 
 # _REFUSAL_TOKENS closes the refusal vocabulary so a raise-site typo cannot ship a
@@ -218,7 +241,9 @@ def _gh(gh_args: list[str]) -> tuple[int, str, str]:
         return int(resp.get("rc", 0)), str(resp.get("stdout", "")), str(resp.get("stderr", ""))
     gh_bin = os.environ.get("DEVFLOW_GH") or "gh"
     try:
-        proc = subprocess.run([gh_bin, *gh_args], capture_output=True, text=True)
+        proc = subprocess.run(
+            [gh_bin, *gh_args], capture_output=True, text=True, encoding="utf-8", env=fresh_gh_env()
+        )
     except OSError as exc:
         return 3, "", f"ci-verification-request: gh invocation failed ({exc!r})"
     return proc.returncode, proc.stdout, proc.stderr
@@ -226,7 +251,7 @@ def _gh(gh_args: list[str]) -> tuple[int, str, str]:
 
 def _git(git_args: list[str]) -> tuple[int, str, str]:
     try:
-        proc = subprocess.run(["git", *git_args], capture_output=True, text=True)
+        proc = subprocess.run(["git", *git_args], capture_output=True, text=True, encoding="utf-8")
     except OSError as exc:
         return 3, "", f"git invocation failed ({exc!r})"
     return proc.returncode, proc.stdout, proc.stderr
@@ -282,7 +307,7 @@ def _checkout_fingerprint() -> dict | None:
     extra tested-tree binding the worker-validation step cross-checks when present."""
     helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkout-fingerprint.py")
     try:
-        proc = subprocess.run([sys.executable, helper], capture_output=True, text=True)
+        proc = subprocess.run([sys.executable, helper], capture_output=True, text=True, encoding="utf-8")
     except OSError:
         return None
     if proc.returncode != 0 or not proc.stdout.strip():
@@ -390,6 +415,70 @@ def _correlate_run(repo: str, request_id: str, head_sha: str) -> tuple[int | Non
     return run.get("databaseId"), run.get("attempt"), (run.get("url") or "")
 
 
+def _adopt_green_dispatch_run(repo: str, head_sha: str) -> dict | None:
+    """A prior attempt's already-green ci.yml dispatch run for this same head, adoptable
+    by a resume on a fresh runner that holds no local request record (issue #545). Returns
+    {request_id, run_id, run_attempt, run_url} for a completed-success workflow_dispatch run
+    at head_sha whose title carries a single request-id token, else None.
+
+    Adoption reconstructs the runner-local handle the resume lost; it grants no new trust —
+    collect-evidence still binds the downloaded shard provenance to this request_id/run_id/
+    candidate before any evidence is built. A token is REQUIRED: an unbound (request_id='')
+    run's provenance step is skipped in ci.yml, so its artifacts carry no envelope and
+    collect-evidence would refuse them. A run whose title names more than one distinct token,
+    or whose databaseId is not an integer, is skipped per run; more than one distinct
+    remaining run id returns None. Either way the caller falls through to a fresh dispatch
+    rather than guess — adoption is a best-effort optimization, not a gate. The match is
+    head-scoped by design: CI is head-determined, and collect-evidence re-binds provenance."""
+    rc, out, _err = _gh([
+        "run", "list", "--workflow", _CI_WORKFLOW, "--repo", repo,
+        "--json", "databaseId,headSha,attempt,url,event,displayTitle,name,status,conclusion",
+        "--limit", "40",
+    ])
+    # Adoption is a best-effort optimization: a run-list transport failure or a non-JSON body
+    # yields None so the caller falls through to a normal dispatch (correctness-preserving),
+    # never aborting the request on the scan. The post-dispatch _correlate_run still surfaces a
+    # persistent transport failure, leaving a reconcilable accepted record (issue #424).
+    def _skip(reason: str) -> None:
+        sys.stderr.write(f"ci-verification-request: adopt-scan skipped: {reason}\n")
+
+    if rc != 0:
+        _skip(f"rc={rc}")
+        return None
+    try:
+        runs = json.loads(out) if out.strip() else []
+    except ValueError:
+        _skip("non-JSON run list")
+        return None
+    if not isinstance(runs, list):
+        _skip("run list is not a JSON array")
+        return None
+    green = [
+        r for r in runs
+        if isinstance(r, dict) and r.get("headSha") == head_sha
+        and r.get("event") == "workflow_dispatch"
+        and str(r.get("status") or "").lower() == "completed"
+        and str(r.get("conclusion") or "").lower() == _SUCCESS_CONCLUSION
+        and len(_run_request_id_tokens(r)) == 1
+        # A non-int databaseId would store a dispatched record with run_id=None: never
+        # reusable, never reconcilable — skip the run rather than poison the record.
+        and _is_real_int(r.get("databaseId"))
+    ]
+    if not green:
+        return None
+    if len({r.get("databaseId") for r in green}) > 1:
+        return None
+    run = green[0]
+    (request_id,) = tuple(_run_request_id_tokens(run))
+    attempt = run.get("attempt")
+    return {
+        "request_id": request_id,
+        "run_id": run.get("databaseId"),
+        "run_attempt": attempt if _is_real_int(attempt) else None,
+        "run_url": run.get("url") or "",
+    }
+
+
 # ── subcommand: request ──────────────────────────────────────────────────────────
 def cmd_request(args) -> int:
     if args.workflow != _CI_WORKFLOW:
@@ -420,6 +509,31 @@ def cmd_request(args) -> int:
             else:
                 print(f"RECONCILE {pending['request_id']} run=none "
                       "state=dispatched-uncorrelated reason=run-not-yet-visible")
+            return 0
+        # No local record: adopt a prior attempt's already-green same-head dispatch run
+        # (issue #545). A resume on a fresh runner holds no request record, so without this
+        # it re-dispatches and re-waits a CI cycle already passed for this head.
+        adopt = _adopt_green_dispatch_run(args.repo, args.head_sha)
+        if adopt is not None:
+            record = {
+                "schema_version": SCHEMA_VERSION,
+                "repo": args.repo,
+                "workflow": args.workflow,
+                "request_id": adopt["request_id"],
+                "source_head_sha": args.head_sha,
+                "base": args.base,
+                "base_sha": args.base_sha,
+                "tested_checkout": _checkout_fingerprint(),
+                "ref": args.ref or args.base,
+                "run_id": adopt["run_id"],
+                "run_attempt": adopt["run_attempt"],
+                "run_url": adopt["run_url"],
+                "state": "dispatched",
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            _store_request(record)
+            print(f"ADOPTED {record['request_id']} run={record['run_id']} "
+                  f"url={record['run_url']}")
             return 0
 
     request_id = uuid.uuid4().hex
@@ -481,6 +595,91 @@ def _looks_like_auth_failure(text: str) -> bool:
     return "http 403" in low
 
 
+def _sanitize_recap(line: str) -> str:
+    """Strip ANSI escapes and control/format characters (Unicode category "C…") from a log
+    line, keeping the tab, so an injected recap identifier prints as inert data. Mirrors
+    page-job-log.py's _sanitize (reimplemented — that script's hyphenated filename is not
+    importable as a module)."""
+    line = _RECAP_ANSI_RE.sub("", line)
+    return "".join(
+        ch for ch in line if ch == "\t" or not unicodedata.category(ch).startswith("C"))
+
+
+def _extract_recap_ids(log_text: str) -> list[str]:
+    """The `  - <identifier>` bullets after a `Failure recap:` header in a job log, using
+    shard-tally.py's exact rule (a 4-space continuation is ignored; any other non-bullet
+    line ends the recap section). The `gh run view --log` line prefix is stripped first, so
+    the exact-match rule fires against a real job log and not only shard-tally.py's
+    prefix-free summary artifact. Sanitized, length-bounded, and capped in count."""
+    ids: list[str] = []
+    in_recap = False
+    for raw in log_text.splitlines():
+        line = _GH_LOG_PREFIX_RE.sub("", _sanitize_recap(raw), count=1)
+        if line.strip() == _RECAP_HEADER:
+            in_recap = True
+            continue
+        if in_recap:
+            m = _RECAP_BULLET.match(line)
+            if m:
+                ids.append(m.group(1)[:_RECAP_MAX_CHARS])
+                if len(ids) >= _RECAP_MAX_IDS:
+                    break
+            elif line.startswith("    "):
+                continue  # a run-module continuation (expected/actual); ignore
+            else:
+                in_recap = False
+    return ids
+
+
+# Job conclusions that name a job that actually ran and failed. A fail-fast sibling is
+# `cancelled`/`neutral` and must not print as `failed-job:` — that line is what the next
+# request is told to apply.
+_JOB_FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "startup_failure"})
+
+
+def _print_failure_recap(record: dict) -> None:
+    """Print the `failed-job:`/`recap:` lines for a failed run, after the FAILED line and
+    before the caller returns 7 (issue #603). Reads the run's jobs, prints one `failed-job:`
+    per job whose conclusion is in `_JOB_FAILED_CONCLUSIONS` (in job order), then one `recap:`
+    per Failure-recap bullet found in those jobs' logs (in job order). A job list that cannot
+    be read, an empty failed set, or a job log fetch that fails, prints
+    `recap-status: unestablished — <reason>` (a later job's fetch failure still keeps the recap
+    ids already collected from earlier jobs). The diagnostic prefix is not `recap:`, so an
+    agent applying every `recap:` identifier cannot treat the status line as a suite id. This
+    function only prints and returns None, so the caller's exit 7 is never affected."""
+    try:
+        view = _run_view(record, "jobs")
+    except _Refuse as exc:
+        print(f"recap-status: unestablished — {exc.token}")
+        return
+    jobs = view.get("jobs")
+    if not isinstance(jobs, list):
+        print("recap-status: unestablished — bad-jobs")
+        return
+    failed = [j for j in jobs
+              if isinstance(j, dict) and isinstance(j.get("conclusion"), str)
+              and j["conclusion"] in _JOB_FAILED_CONCLUSIONS]
+    if not failed:
+        print("recap-status: unestablished — empty-failed-set")
+        return
+    for job in failed:
+        name = job["name"] if isinstance(job.get("name"), str) else "<unnamed>"
+        print(f"failed-job: {_sanitize_recap(name)[:_RECAP_MAX_CHARS]}")
+    recap_ids: list[str] = []
+    for job in failed:
+        rc, out, _err = _gh(["run", "view", "--job", str(job.get("databaseId")),
+                             "--log", "--repo", record["repo"]])
+        if rc != 0:
+            print("recap-status: unestablished — log-fetch-failed")
+            break
+        recap_ids.extend(_extract_recap_ids(out))
+        if len(recap_ids) >= _RECAP_MAX_IDS:
+            recap_ids = recap_ids[:_RECAP_MAX_IDS]
+            break
+    for rid in recap_ids:
+        print(f"recap: {rid}")
+
+
 # ── subcommand: wait ─────────────────────────────────────────────────────────────
 def cmd_wait(args) -> int:
     record = _load_request(args.request_id)
@@ -536,6 +735,15 @@ def cmd_wait(args) -> int:
         # never print PASSED. An unrecognised status is likewise treated as pending.
         if status == "completed":
             record["run_url"] = run_url
+            if conclusion == _SUCCESS_CONCLUSION:
+                # Persist the attempt GitHub reports for the passing run so a later
+                # collect-evidence binds to the retry's attempt, not the stale attempt from
+                # the original correlation — else a Spot retry that bumped the attempt after
+                # correlation is refused `attempt-changed` though the run itself passed
+                # (issue #543). A view with no integer attempt leaves the stored value.
+                view_attempt = view.get("attempt")
+                if _is_real_int(view_attempt):
+                    record["run_attempt"] = view_attempt
             _store_request(record)
             if conclusion == _SUCCESS_CONCLUSION:
                 print(f"PASSED {record['request_id']} run={record['run_id']} url={run_url}")
@@ -549,6 +757,7 @@ def cmd_wait(args) -> int:
                 return 6
             print(f"FAILED {record['request_id']} run={record['run_id']} url={run_url} "
                   f"conclusion={conclusion or 'unknown'}")
+            _print_failure_recap(record)
             return 7
         if time.monotonic() >= deadline:
             return _emit_pending(record)
@@ -763,6 +972,7 @@ def cmd_collect_evidence(args) -> int:
     # verify its digest over the exact summary bytes, and match every producer identity to the
     # bound request and observed attempt — never filling a missing identity from the request.
     evidence_shards: dict = {}
+    current_attempt_shards = 0
     for name in sorted(shards.keys()):
         entry = shards[name]
         prov = entry["provenance"]
@@ -791,17 +1001,32 @@ def cmd_collect_evidence(args) -> int:
                           f"request {want!r}")
                 _emit_observed("REFUSED", "provenance-mismatch", observed, detail)
                 raise _Refuse("provenance-mismatch", detail)
-        # The producer attempt must equal BOTH the bound persisted attempt and the freshly
-        # observed remote attempt: a prior attempt at the same SHA reruns the shard, so its
-        # envelope names an attempt the current run no longer reports.
-        if prov["run_attempt"] != attempt or prov["run_attempt"] != observed_attempt:
-            detail = (f"shard {name!r} provenance run_attempt={prov['run_attempt']} is not the "
-                      f"bound/observed attempt {attempt}/{observed_attempt} (prior or foreign attempt)")
+        # A Spot retry reruns only the interrupted shard, so the survivors keep an envelope
+        # stamped with their earlier attempt. Classify each envelope's attempt against the
+        # run's current attempt through the shared predicate (bound == observed here, checked
+        # above), accepting a current or strictly-earlier leftover and refusing one ahead; the
+        # whole-tree check below still refuses a tree with no current-attempt envelope (#543).
+        prov_attempt = prov["run_attempt"]
+        attempt_class = csp.classify_shard_attempt(prov_attempt, attempt)
+        if attempt_class == csp.ATTEMPT_CURRENT:
+            current_attempt_shards += 1
+        elif attempt_class != csp.ATTEMPT_LEFTOVER:
+            detail = (f"shard {name!r} provenance run_attempt={prov_attempt} is neither the "
+                      f"current attempt {attempt} nor an earlier leftover (a foreign or "
+                      "ahead-of-run attempt)")
             _emit_observed("REFUSED", "provenance-mismatch", observed, detail)
             raise _Refuse("provenance-mismatch", detail)
         evidence_shards[name] = csp.build_shard_entry(
             {k: entry[k] for k in ("passed", "failed", "skipped", "exit_status")},
             entry["summary_text"], prov)
+
+    # A tree of only leftover envelopes proves nothing about the current attempt: require at
+    # least one shard stamped with the bound/observed attempt, else refuse (issue #543).
+    if current_attempt_shards == 0:
+        detail = (f"no shard envelope names the current attempt {observed_attempt}; a tree of "
+                  "only leftover envelopes is not evidence the current run produced them")
+        _emit_observed("REFUSED", "provenance-mismatch", observed, detail)
+        raise _Refuse("provenance-mismatch", detail)
 
     evidence = {
         "kind": "cloud_ci_evidence",

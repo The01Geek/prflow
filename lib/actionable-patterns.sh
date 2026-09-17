@@ -253,7 +253,7 @@ fi
 
 # ── Cooldown boundary (epoch seconds for COOLDOWN days ago) ─────────────────
 # Portable date math via python3 (GNU `date -d` is unavailable on macOS/BSD).
-COOLDOWN_EPOCH="$(python3 -c "import datetime as d; print(int((d.datetime.now(d.timezone.utc)-d.timedelta(days=${COOLDOWN})).timestamp()))")"
+COOLDOWN_EPOCH="$(python3 -c "import sys, datetime as d; sys.stdout.reconfigure(newline='\n'); print(int((d.datetime.now(d.timezone.utc)-d.timedelta(days=${COOLDOWN})).timestamp()))")"
 
 # ── Build output array ───────────────────────────────────────────────────────
 # Default mode: each tag in the pattern view whose status is "open" or

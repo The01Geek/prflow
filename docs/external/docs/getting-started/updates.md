@@ -30,7 +30,7 @@ Update the plugin on your machine and the cloud files in your repository. They a
     /prflow:init
     ```
 
-    This backfills configuration keys the new release added, refreshes `.prflow/config.schema.json` and adds any newly shipped prompt-extension examples. Your existing values and arrays are kept. Review the diff before you commit it.
+    This backfills configuration keys the new release added, refreshes `.prflow/config.schema.json`, and adds any newly shipped prompt-extension `.md.example` files — refreshing an existing example whose content is out of date, while never creating one beside a live `<skill>.md`. Your existing values and arrays are kept. Review the diff before you commit it.
   </Step>
 </Steps>
 
@@ -45,20 +45,28 @@ Update both together by re-running the installer.
 
 ### Preview, Then Apply
 
-Download the installer at the ref you want, read it, then run the copy you read. With the file saved as `devflow-install.sh`:
+Download the installer **again at the ref you are moving to** — do not re-run an installer you saved from an earlier release. Each release ships its own `install.sh` logic, so a saved copy applies an older release's install steps to the newer files. Fetch it at the release tag, read it, then run the copy you read:
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/<newer-ref>/install.sh -o devflow-install.sh
+# read devflow-install.sh, then:
 DEVFLOW_REF=<newer-ref> bash devflow-install.sh
 DEVFLOW_REF=<newer-ref> bash devflow-install.sh --apply
 ```
 
 <Note>
-  **An upgrade is a dry run by default.** The first command writes nothing to your repository. It prints the full plan and a unified diff of every byte the upgrade would change, working against a sandbox copy. Nothing reaches the repository until you re-run with `--apply`.
+  **An upgrade is a dry run by default.** The first command writes nothing to your repository. It prints the full plan and a unified diff of the bytes the upgrade would change, working against a sandbox copy. The diff leaves out the ephemeral `tmp/` scratch folder and the vendored plugin tree under each state directory (`.prflow/` and the older `.devflow/`), and if it meets a file it cannot open — a dangling symlink or a path the platform cannot read — it lists that file as an `UNREADABLE` row and adds a line counting how many could not be compared, instead of stopping. Nothing reaches the repository until you re-run with `--apply`.
 
   A first-time install is different. With no PRFlow files present, the installer applies immediately. Pass `--dry-run` to force a preview there too.
 </Note>
 
 The installer executes the file you downloaded, so read it before you run it, and fetch it at a pinned tag or commit rather than a moving branch.
+
+<Warning>
+  **The installer refuses to run a mismatched copy.** Before it writes anything, it compares its own bytes against the `install.sh` of the release it just fetched (line-ending differences are ignored). If they differ, an apply-mode run (`--apply`, or a first-time install) stops before touching your repository and prints the command that downloads the matching installer. A dry run prints the same warning and still shows the plan. Set `DEVFLOW_ALLOW_INSTALLER_DRIFT=1` to install with the mismatched copy anyway. A `curl … | bash` run, or a release that ships no `install.sh`, cannot compare and prints one line noting the self-check was skipped, then continues.
+</Warning>
+
+If a stale installer copy (`install.sh`, `devflow-install.sh`, or `prflow-install.sh`) sits committed at your repository root, `/prflow:init` and the installer's scaffolding step also warn about it and print the download command for the current release.
 
 ### Your Edits Are Never Overwritten
 
@@ -81,7 +89,7 @@ The installer records the exact bytes it wrote for each file it owns. On the nex
 
 The installer re-stamps `prflow_version` when the existing value is empty or looks like a commit SHA. A tag or branch name you set deliberately is preserved, so move that value yourself when you want a newer one.
 
-A committed-vendor installation, created with `DEVFLOW_VENDOR=1`, stores the plugin tree in the repository and ignores `prflow_version`. Re-run the installer with the same vendor mode to refresh that tree.
+A committed-vendor installation, created with `DEVFLOW_VENDOR=1`, stores the plugin tree in the repository and ignores `prflow_version`. Re-run the installer to refresh that tree: an apply run that finds a git-tracked `.prflow/vendor/prflow/` treats the repository as vendor mode, replaces the committed tree with the fetched release's plugin files, keeps `/vendor/` out of `.prflow/.gitignore`, and logs how to switch to a thin install — so CI stops running the old plugin after an upgrade.
 
 ### After the Upgrade
 

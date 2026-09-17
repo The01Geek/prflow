@@ -72,7 +72,7 @@ esac
 
 # Window start (UTC), via python3 (a preflight-guaranteed tool) — never `date -d`,
 # which is a GNU-only extension this project's portability convention forbids.
-SINCE="$(python3 -c 'import sys,datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=int(sys.argv[1]))).strftime("%Y-%m-%dT%H:%M:%SZ"))' "$DAYS")" \
+SINCE="$(python3 -c 'import sys,datetime; sys.stdout.reconfigure(newline="\n"); print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=int(sys.argv[1]))).strftime("%Y-%m-%dT%H:%M:%SZ"))' "$DAYS")" \
   || { echo "measure-verdict-post-gap-rate: could not compute the window start with python3" >&2; exit 3; }
 SINCE_DAY="${SINCE%%T*}"
 
@@ -156,6 +156,7 @@ fi
 DAYS="$DAYS" SINCE="$SINCE" PR_COUNT="$PR_COUNT" FETCH_FAIL="$FETCH_FAIL" \
   PROCESS_FAIL="$PROCESS_FAIL" python3 - "$ROWS" <<'__AGG_PY__'
 import os, sys
+sys.stdout.reconfigure(newline="\n")
 rows_path = sys.argv[1]
 progress, gap = set(), set()
 per_day = {}

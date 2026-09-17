@@ -47,10 +47,10 @@ Provide a complete understanding of how a specific feature works by tracing its 
 
 ## Output Guidance
 
-Provide a comprehensive analysis that helps developers understand the feature deeply enough to modify or extend it. Include:
+Return distilled findings the implementer can act on — file paths with line ranges, behavioral conclusions, dependencies, and an essential-files list. The return contains **no quoted source code**: cite each finding by path and line range and state the conclusion in your own words, never by pasting the lines. Include:
 
-- Entry points with file:line references
-- Step-by-step execution flow with data transformations
+- Entry points as file paths with line ranges
+- Behavioral conclusions: the execution flow and data transformations you traced, stated as conclusions
 - Key components and their responsibilities
 - Architecture insights: patterns, layers, design decisions
 - Dependencies (external and internal)

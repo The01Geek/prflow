@@ -220,6 +220,7 @@ fi
 # one-line marker so the analyst still knows the file changed.
 DIFF_RAW="$(printf '%s' "$DIFF_RAW" | python3 -c '
 import sys, re
+sys.stdout.reconfigure(newline="\n")
 diff = sys.stdin.read()
 noise = re.compile(
     r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml"
@@ -421,6 +422,8 @@ else
     # its existing flat-string-array shape and contents byte-for-byte.
     REFLECTION_PARSE="$(DEVFLOW_WORKPAD_BODY="$WORKPAD_BODY" python3 - <<'PYEOF'
 import os, re, json
+import sys
+sys.stdout.reconfigure(newline="\n")
 body = os.environ.get('DEVFLOW_WORKPAD_BODY', '')
 # Coupled with scripts/workpad.py _REFLECTION_SUBSECTIONS / _REFLECTION_KINDS.
 NOTES_HEADING = '### ℹ️ Notes'
@@ -498,6 +501,8 @@ fi
 TTM_HOURS="$(DEVFLOW_MERGED_AT="$MERGED_AT" DEVFLOW_CREATED_AT="$CREATED_AT" python3 - <<'PYEOF'
 import os
 from datetime import datetime, timezone
+import sys
+sys.stdout.reconfigure(newline="\n")
 fmt = '%Y-%m-%dT%H:%M:%SZ'
 try:
     merged = datetime.strptime(os.environ['DEVFLOW_MERGED_AT'], fmt).replace(tzinfo=timezone.utc)

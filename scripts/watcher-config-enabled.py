@@ -11,7 +11,9 @@ by ``--key a.b.c`` (issue #305: ``prflow_implement.stall_backstop.defer_to_runne
 an object, an array, the JSON boolean ``false``, an absent key/object, or an
 unreadable/malformed config — prints ``false`` and exits 0 (fail-closed: the
 watcher is opt-in and Linux/EC2-only, so an ambiguous config leaves it off, and a
-malformed config never fails the workflow step that reads this gate).
+malformed config never fails the workflow step that reads this gate). The JSON
+boolean ``false`` is reported as disabled by config, not as a wrong type (issue
+#623); every other non-``true`` shape keeps the wrong-type breadcrumb.
 
 This deliberately does NOT go through config-get.sh: its Python coercion folds a
 JSON boolean ``true`` and a JSON string ``"true"`` to the same output string
@@ -58,7 +60,7 @@ def _repo_root():
     try:
         r = subprocess.run(
             ['git', 'rev-parse', '--show-toplevel'],
-            capture_output=True, text=True, check=True,
+            capture_output=True, text=True, encoding="utf-8", check=True,
         )
     except (subprocess.CalledProcessError, OSError):
         return None
@@ -99,6 +101,12 @@ def _enabled(config_path, key=DEFAULT_KEY):
     # other shape. That exact-identity test is the whole point of this gate.
     if value is True:
         return True, None
+    # The JSON boolean false is a valid switched-off setting, not a mistyped one
+    # (issue #623): it gets its own reason so the log never reads as a config
+    # error. `value is False` is an identity test for the same reason `value is
+    # True` is — it must not capture `0` or `""`, which stay mistyped.
+    if value is False:
+        return False, f'{key} is false (disabled by config)'
     return False, f'{key}: expected JSON boolean true, found {type(value).__name__}'
 
 

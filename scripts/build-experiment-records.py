@@ -74,6 +74,7 @@ from pathlib import Path
 # Insert this script's own dir so the sibling module resolves regardless of cwd.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config_fingerprint import fingerprint_from_config
+from gh_fresh_env import fresh_gh_env
 
 # The gh binary — DEVFLOW_GH (the documented override the shell helpers resolve via
 # lib/resolve-gh.sh) wins when set and non-empty, else `gh`. No probe (the test-stub
@@ -267,6 +268,7 @@ def _run(cmd):
     try:
         r = subprocess.run(
             cmd, check=False, capture_output=True, encoding="utf-8",
+            env=fresh_gh_env(),
         )
         return r.returncode, r.stdout, r.stderr
     except OSError as e:

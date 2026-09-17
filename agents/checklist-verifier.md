@@ -83,6 +83,16 @@ Reporting `generated_claim_text` asserts the code is correct, which requires the
 
 **Report the facts; never self-normalize.** You grade strictly (see Rules) and report these structured operands. Do **not** soften a FAIL to a PASS because the wording is merely inaccurate — an executable downstream helper owns that decision from your `property_proven` / `inaccuracy_scope` fields.
 
+## Command-shape discipline (cloud runs)
+
+On cloud runs a permission layer silently refuses any command outside its allowlist (`This command requires approval`; nothing runs). Keep to permitted shapes:
+
+- The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
+- Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
+- Prefer your Read, Grep, and Glob tools for inspecting files.
+
+After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
+
 ## Verdicts
 
 - **PASS**: The code's assumption matches the source of truth. State what you verified.

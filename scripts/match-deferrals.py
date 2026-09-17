@@ -102,6 +102,16 @@ except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _resolve_state_dir(repo_root, stream=None):
         return str(Path(repo_root) / ".prflow")
 
+# Refreshed-token env for gh calls on native Windows (see gh_fresh_env.py).
+# Guarded like the lib/ imports around it (partial copy / exec'd source): a copy
+# without the sibling inherits the ambient token, as before the helper.
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gh_fresh_env import fresh_gh_env
+except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
+    def fresh_gh_env(env=None, os_name=None):
+        return env
+
 # Shared login-normalization rule (issue #157): trust an allowed_bots entry against
 # the gh-reported `app/<slug>` author under one normalized comparison. Imported
 # through the same guarded lib/ path insert; on an import failure (partial copy /
@@ -246,7 +256,7 @@ def _run(cmd, *, check=True):
     try:
         return subprocess.run(
             cmd, check=check,
-            capture_output=True, encoding="utf-8",
+            capture_output=True, encoding="utf-8", env=fresh_gh_env(),
         )
     except OSError as e:
         if check:
@@ -509,12 +519,12 @@ def _match_finding_to_deferral(finding: dict, deferral: dict) -> bool:
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8, idempotently and defensively, in the CLI
+    """Force stdin/stdout/stderr to UTF-8, idempotently and defensively, in the CLI
     entry path only (not at import — so unit-test imports don't mutate the
     importer's global streams). Harmless where this script emits only ASCII, but
     keeps every first-party helper self-defending against a non-UTF-8 ambient
     codec (Windows' cp1252). The guard tolerates a non-`TextIOWrapper` stream."""
-    for _stream in (sys.stdout, sys.stderr):
+    for _stream in (sys.stdin, sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError, OSError):

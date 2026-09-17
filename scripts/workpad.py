@@ -137,6 +137,15 @@ try:
 except ImportError as _e:      # standalone deployment — see (2) above
     _SECTION_PARSE_IMPORT_ERROR = str(_e)
 
+# Refreshed-token env for gh calls on native Windows (see gh_fresh_env.py).
+# Optional for the same standalone deployments as (2): without the sibling, gh
+# inherits the ambient token, as it did before the helper existed.
+try:
+    from gh_fresh_env import fresh_gh_env
+except ImportError:
+    def fresh_gh_env(env=None, os_name=None):
+        return env
+
 
 def _require_section_parse(cmd: str) -> None:
     """Fail closed, with a specific breadcrumb, on the surfaces that need the
@@ -180,7 +189,7 @@ def _run(cmd, *, stdout=subprocess.PIPE, stdin=None):
     # mode, so `text=True` is dropped (passing both is redundant/conflicting).
     return subprocess.run(
         cmd, check=True, stdin=stdin, stdout=stdout,
-        stderr=subprocess.PIPE, encoding="utf-8",
+        stderr=subprocess.PIPE, encoding="utf-8", env=fresh_gh_env(),
     )
 
 
@@ -562,7 +571,9 @@ def cmd_id(args):
     # matching comment" — i.e. first run / not yet seeded. A real `gh api` or
     # parse failure exits 1 via _fail inside the scan. Callers can thus tell a
     # benign "create it" from a transient API error and avoid posting a duplicate
-    # workpad comment on a failure they mistook for "not found".
+    # workpad comment on a failure they mistook for "not found". Callers also
+    # require an EMPTY stderr for this answer, so no code on the scan path may
+    # write a warning there.
     sys.exit(2)
 
 
@@ -1070,7 +1081,7 @@ def _acs_gate_issue_body_criteria(issue: str) -> "str | None":
     try:
         r = subprocess.run(
             [sys.executable, parse_acs, '--issue', str(issue), '--format', 'md'],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding="utf-8", check=False,
         )
     except OSError:
         return None
@@ -4302,18 +4313,67 @@ def _pr_number_from_link(value):
     return int(m.group(1)) if m else None
 
 
-def _mirror_stopped_note_to_pr(issue, note_text):
+# ── The workpad `**PR:**` line fallback (issue #626) ─────────────────────────
+# A pinned parallel copy of scripts/resolve-issue-pr.py's same-named pieces (this module
+# cannot import it, per `_resolve_open_pr_for_issue`'s note); both read the PR line the
+# same way and both accept its number only after a REST read shows the PR open.
+_PR_LINE_VALUE_RE = re.compile(r'^\*\*PR:\*\*[^\S\n]*(.*)$', re.MULTILINE)
+
+
+def _pr_number_from_workpad_body(body):
+    """Return (number, cause) for the PR the workpad's `**PR:**` line names."""
+    m = _PR_LINE_VALUE_RE.search(body or '')
+    if m is None:
+        return None, 'the workpad carries no **PR:** line'
+    num = _pr_number_from_link(m.group(1))
+    if num is None:
+        return None, 'the workpad **PR:** line names no PR number'
+    return num, ''
+
+
+def _resolve_pr_for_mirror(issue, body):
+    """Return (pr_number, cause): the PR a mirror should write to (issue #626).
+
+    A PR whose `closingIssuesReferences` list the issue wins. When none does — the case
+    a PR targeting a non-default branch always produces, because GitHub ignores closing
+    keywords there, and the case an adopted PR with no closing keyword produces too —
+    fall back to the PR the workpad `**PR:**` line names, accepted only when a REST read
+    shows it open. `cause` is empty on a hit and names the miss otherwise, so the caller
+    prints exactly one breadcrumb. No comment read is added: the body is the one the
+    caller already holds."""
+    pr = _resolve_open_pr_for_issue(issue)
+    if pr:
+        return pr, ''
+    pr, cause = _pr_number_from_workpad_body(body)
+    if pr is None:
+        return None, cause
+    try:
+        r = _run([GH, 'api', f'repos/{{owner}}/{{repo}}/pulls/{pr}', '--jq', '.state'])
+    except (subprocess.CalledProcessError, OSError):
+        return None, f'the workpad-line PR #{pr} could not be read'
+    state = (r.stdout or '').strip().lower()
+    # An unreadable state is a failed read, never a not-open claim this code did not observe.
+    if not state:
+        return None, f'the workpad-line PR #{pr} could not be read'
+    if state != 'open':
+        return None, f'the workpad-line PR #{pr} is not open'
+    return pr, ''
+
+
+def _mirror_stopped_note_to_pr(issue, note_text, body=None):
     """Best-effort: add a stopped-run note block to the issue's open PR body (issue #2060).
 
     A deliberate best-effort absorber: it runs AFTER the workpad PATCH has landed and must
     never change that update's own outcome, so every failure — no PR resolved, a gh read/
-    PATCH error — is swallowed with a specific breadcrumb rather than propagated."""
+    PATCH error — is swallowed with a specific breadcrumb rather than propagated. `body` is
+    the patched workpad body the caller already holds; it feeds the `**PR:**` line fallback
+    (issue #626) and costs no extra read."""
     try:
-        pr = _resolve_open_pr_for_issue(issue)
+        pr, _cause = _resolve_pr_for_mirror(issue, body)
         if not pr:
             sys.stderr.write(
-                f"workpad.py update: no open PR resolved for issue #{issue}; "
-                f"stopped-run note not mirrored to a PR\n")
+                f"workpad.py update: no open PR resolved for issue #{issue} "
+                f"({_cause}); stopped-run note not mirrored to a PR\n")
             return
         read = _run([GH, 'api', f'repos/{{owner}}/{{repo}}/pulls/{pr}', '--jq', '.body'])
         body = read.stdout
@@ -4497,11 +4557,12 @@ def _mirror_status_labels(issue, status, *, pr_link=None, body=None):
     workpad.py must not exec on Windows ([WinError 193]).
 
     Two triggers, one fire. A `--status` write passes `status` directly; a
-    `--pr-link`-only write passes `status=None` and the patched `body`, and the
-    Status word is read from it. `pr_link` names the PR (issue #252); when it
-    carries no number the existing open-PR lookup runs. The link parse and the
-    body read run INSIDE this absorber because the `_cmd_update_inner` call site
-    is unwrapped."""
+    `--pr-link`-only write passes `status=None`, and the Status word is read from
+    the patched `body`. Every trigger passes `body`, which also feeds the
+    `**PR:**` line fallback (issue #626). `pr_link` names the PR (issue #252);
+    when it carries no number the closing-references lookup runs, then that
+    fallback. The link parse and the body read run INSIDE this absorber because
+    the `_cmd_update_inner` call site is unwrapped."""
     try:
         if not _status_labels_enabled():
             return
@@ -4524,12 +4585,13 @@ def _mirror_status_labels(issue, status, *, pr_link=None, body=None):
         # right after PR creation, so `_resolve_open_pr_for_issue` can miss the PR
         # this write just linked.
         pr = _pr_number_from_link(pr_link)
+        cause = ''
         if pr is None:
-            pr = _resolve_open_pr_for_issue(issue)
+            pr, cause = _resolve_pr_for_mirror(issue, body)
         if not pr:
             sys.stderr.write(
-                f"workpad.py update: no open PR resolved for issue #{issue}; "
-                f"status label not mirrored to a PR\n")
+                f"workpad.py update: no open PR resolved for issue #{issue} "
+                f"({cause}); status label not mirrored to a PR\n")
             return
         _reconcile_managed_label(pr, target, label_defined)
     except Exception as exc:  # intentional best-effort absorber (see docstring)
@@ -4770,13 +4832,13 @@ def _cmd_update_inner(args):
     # own outcome; the helper swallows every failure internally.
     _mirror_text = _stopped_note_text_for_mirror(args, _own_notes, _own_reflections)
     if _mirror_text:
-        _mirror_stopped_note_to_pr(args.issue, _mirror_text)
+        _mirror_stopped_note_to_pr(args.issue, _mirror_text, body=body)
     # Mirror Status onto managed labels after the PATCH (issue #2117; --pr-link
-    # trigger #252) so a label failure can't alter this update's outcome. Keep the
-    # --status-only branch's two-positional call — pre-#252 spies depend on it.
-    if args.status and not args.pr_link:
-        _mirror_status_labels(args.issue, args.status)
-    elif args.status or args.pr_link:
+    # trigger #252) so a label failure can't alter this update's outcome. Every
+    # trigger passes the patched body: a --status-only write needs it for the
+    # workpad `**PR:**` line fallback (issue #626), which is the only way the mirror
+    # reaches a PR whose closing references do not list the issue.
+    if args.status or args.pr_link:
         _mirror_status_labels(
             args.issue, args.status, pr_link=args.pr_link, body=body)
     # Issue #814: the patched body is echoed only under `--print-body`, or on the
@@ -5460,7 +5522,7 @@ def _reset_resume_status_inner(args, marker: str) -> str:
         return 'UNAVAILABLE patch-unverified'
     # Mirror the label only after the reset is confirmed; the Status word is reset
     # above even when the status_labels feature is disabled and the mirror no-ops.
-    _mirror_status_labels(args.issue, 'Setup')
+    _mirror_status_labels(args.issue, 'Setup', body=new_body)
     return f'RESET {word}'
 
 
@@ -6409,6 +6471,201 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
     return ''.join(kept)
 
 
+# ── Resume-reuse records (issue #616) ──────────────────────────────────────────
+# A re-triggered implement run reuses completed planning and review only when a
+# durable record still matches the current inputs. Two families ride the keyed-
+# checkpoint marker grammar and, unlike the review-coverage family, survive
+# `--strip-inherited-checkpoints`: each binds itself to the inputs it was produced
+# from, so a later attempt can check it instead of trusting it.
+#   plan-inputs:<issue-digest>
+#   reusable-review:<head>:<merge-base>:<issue-digest>:<verdict>:<checklist>:<roster>
+# The issue digest is computed here from the live issue body, never from a
+# model-copied file. The head and merge-base are resolved with git against the
+# configured base branch. Any unresolvable input is `unestablished`, never a match.
+_PLAN_INPUTS_KEY_PREFIX = 'plan-inputs:'
+_PLAN_INPUTS_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint plan-inputs:([^\s]+?) -->'
+)
+_REUSABLE_REVIEW_KEY_PREFIX = 'reusable-review:'
+_REUSABLE_REVIEW_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint reusable-review:([^\s]+?) -->'
+)
+# Mirrors the clean approve tokens `loop-verdict-marker.py` prints after
+# `CLEAN-FULL`; the suite fails when the two sets diverge.
+_REUSABLE_REVIEW_VERDICTS = (
+    'approve', 'approve-with-notes', 'approve-with-caveat',
+    'approve-with-advisory-notes')
+_REUSABLE_REVIEW_CHECKLISTS = ('complete', 'skipped-intentional')
+_SHA40_RE = re.compile(r'\A[0-9a-f]{40}\Z')
+_SHA256_HEX_RE = re.compile(r'\A[0-9a-f]{64}\Z')
+
+
+def _reuse_issue_digest(issue):
+    """(sha256-hex, None) of the live issue body, or (None, reason).
+
+    Line endings are canonicalized and trailing newlines dropped, so a Windows
+    runner and gh's `-q` trailing newline cannot turn one body into two digests."""
+    try:
+        r = _run([GH, 'issue', 'view', str(issue), '--json', 'body', '-q', '.body'])
+    except (subprocess.CalledProcessError, OSError) as e:
+        return None, f'the issue body could not be read ({e})'
+    text = (r.stdout or '').replace('\r\n', '\n').rstrip('\n')
+    return hashlib.sha256(text.encode('utf-8')).hexdigest(), None
+
+
+def _reuse_candidate(head, repo_root):
+    """({'head', 'merge_base'}, None) for `head` against the configured base, or
+    (None, reason). Both SHAs are full 40-hex values resolved by git."""
+    base_ref, err = _review_coverage_base_ref(repo_root)
+    if err is not None:
+        return None, f'the base branch could not be resolved ({err})'
+
+    def _git(argv):
+        return subprocess.run(
+            ['git', *argv], cwd=repo_root, check=True,
+            capture_output=True, encoding='utf-8').stdout.strip()
+
+    try:
+        full_head = _git(['rev-parse', '--verify', f'{head}^{{commit}}'])
+        merge_base = _git(['merge-base', full_head, base_ref])
+    except (subprocess.CalledProcessError, OSError) as e:
+        return None, f'the reviewed head or its merge-base did not resolve ({e})'
+    if not (_SHA40_RE.match(full_head) and _SHA40_RE.match(merge_base)):
+        return None, 'git printed a head or merge-base that is not a 40-hex SHA'
+    return {'head': full_head, 'merge_base': merge_base}, None
+
+
+def _encode_reuse_roster(members: dict) -> str:
+    return '_'.join(f'{m}.{members[m]}' for m in sorted(members))
+
+
+def _parse_reusable_review_payload(payload: str):
+    """The stored record as a dict, or None when any field is malformed."""
+    fields = (payload or '').split(':')
+    if len(fields) != 6:
+        return None
+    head, merge_base, digest, verdict, checklist, roster = fields
+    if not (_SHA40_RE.match(head) and _SHA40_RE.match(merge_base)
+            and _SHA256_HEX_RE.match(digest)):
+        return None
+    if verdict not in _REUSABLE_REVIEW_VERDICTS:
+        return None
+    if checklist not in _REUSABLE_REVIEW_CHECKLISTS:
+        return None
+    members: dict = {}
+    for pair in roster.split('_') if roster else []:
+        member, sep, status = pair.partition('.')
+        if (not sep or member not in _SHADOW_ROSTER_MEMBERS
+                or status not in _ROSTER_MEMBER_STATUSES or member in members):
+            return None
+        members[member] = status
+    if (any(members.get(m) != 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
+            or 'missing' in members.values()):
+        return None
+    return {'head': head, 'merge_base': merge_base, 'digest': digest,
+            'verdict': verdict, 'checklist': checklist, 'roster': members}
+
+
+def _reuse_record(progress_content: str, kind: str):
+    """('ok', record) | ('absent'|'duplicate'|'malformed', None) for one family.
+
+    Only tail-anchored producer rows count, as for the review-coverage family."""
+    pattern = (_PLAN_INPUTS_MARKER_RE if kind == 'plan'
+               else _REUSABLE_REVIEW_MARKER_RE)
+    payloads = list(_review_coverage_marker_rows(progress_content, pattern))
+    if not payloads:
+        return 'absent', None
+    if len(payloads) > 1:
+        return 'duplicate', None
+    if kind == 'plan':
+        if not _SHA256_HEX_RE.match(payloads[0]):
+            return 'malformed', None
+        return 'ok', {'digest': payloads[0]}
+    record = _parse_reusable_review_payload(payloads[0])
+    return ('ok', record) if record else ('malformed', None)
+
+
+def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root):
+    """Decide reuse for one family against the current inputs.
+
+    Returns (result, detail, record): result is `match`, `absent`, `duplicate`,
+    `malformed`, `incomplete` (detail names the unticked Review rows), `mismatch`
+    (detail names the field) or `unestablished` (detail names the unresolved
+    input)."""
+    state, record = _reuse_record(progress_content, kind)
+    if state != 'ok':
+        return state, '', None
+    if kind == 'review':
+        unticked = _unticked_review_rows(progress_content)
+        if unticked:
+            return 'incomplete', ','.join(unticked), None
+    digest, err = _reuse_issue_digest(issue)
+    if err is not None:
+        return 'unestablished', err, None
+    if kind == 'review':
+        candidate, err = _reuse_candidate('HEAD', repo_root)
+        if err is not None:
+            return 'unestablished', err, None
+        if candidate['head'] != record['head']:
+            return 'mismatch', 'head', record
+        if candidate['merge_base'] != record['merge_base']:
+            return 'mismatch', 'merge-base', record
+    if digest != record['digest']:
+        return 'mismatch', 'issue-body', record
+    return 'match', '', record
+
+
+def _unticked_review_rows(progress_content: str) -> list[str]:
+    """The Review-block rows (all but the later AC gate) with no ticked row.
+
+    Adoption skips the review worker that ticks them, so the completed attempt
+    must already have ticked every one."""
+    ticked = [m.group(4).lower() for line in (progress_content or '').splitlines()
+              if (m := _CHECKBOX_ROW_RE.match(line)) and m.group(2) != '[ ]']
+    return [substr for _text, substr in _REVIEW_BLOCK_ROWS
+            if (_text, substr) != _AC_GATE_ROW
+            and not any(substr.lower() in row for row in ticked)]
+
+
+def _strip_marker_rows(content: str, pattern) -> str:
+    return ''.join(ln for ln in content.splitlines(keepends=True)
+                   if not pattern.search(ln))
+
+
+def cmd_reuse_check(args):
+    """Answer whether a recorded plan or review is reusable now (issue #616).
+
+    Exit 0 on a match, 1 when there is nothing reusable (absent, duplicate,
+    malformed, incomplete, mismatch), 2 when the answer is unestablished
+    (workpad, issue body or git unreadable). Prints one `reuse-check:` line;
+    never prints the body."""
+    marker = _workpad_marker(args.marker)
+    c = _find_workpad_comment(
+        'reuse-check', _repo_full(api_fail_code=2), args.issue, marker,
+        api_fail_code=2,
+    )
+    content = _progress_content_or_none(c.get('body') or '') if c else None
+    if content is None:
+        print(f'reuse-check: kind={args.kind} result=unestablished '
+              'reason=workpad-unreadable')
+        sys.exit(2)
+    result, detail, record = _reuse_evaluate(
+        content, args.kind, args.issue, _repo_root())
+    line = f'reuse-check: kind={args.kind} result={result}'
+    if result == 'mismatch':
+        line += f' field={detail}'
+    elif result == 'incomplete':
+        line += f' unticked={detail.replace(" ", "-")}'
+    elif result == 'unestablished':
+        line += ' reason=input-unresolved'
+        sys.stderr.write(f'workpad.py reuse-check: {detail}\n')
+    elif result == 'match' and args.kind == 'review':
+        line += (f" verdict={record['verdict']} checklist={record['checklist']}"
+                 f" head={record['head']}")
+    print(line)
+    sys.exit(0 if result == 'match' else 2 if result == 'unestablished' else 1)
+
+
 # The checkpoint key namespaces that belong to a validated marker family, each paired
 # with the flag that owns it. `_plan_checkpoints` refuses a generic `--checkpoint` in
 # any of them, so a family's validation cannot be bypassed through the generic head.
@@ -6421,6 +6678,8 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX,
      '`--record-completion-evidence-cloud-ci`'),
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
+    (_PLAN_INPUTS_KEY_PREFIX, '`--record-plan-inputs`'),
+    (_REUSABLE_REVIEW_KEY_PREFIX, '`--record-reusable-review`'),
     (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
 )
 
@@ -7068,6 +7327,9 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'reconcile_extension_rows', False),
         getattr(args, 'record_resume_point', None),
         getattr(args, 'record_verification_evidence', False),
+        getattr(args, 'record_plan_inputs', False),
+        getattr(args, 'record_reusable_review', None),
+        getattr(args, 'adopt_reusable_review', False),
     ])
 
 
@@ -7429,7 +7691,7 @@ def _resolve_head_branch() -> str:
     try:
         proc = subprocess.run(
             ['git', 'branch', '--show-current'],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", timeout=5,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise _UpdateError(
@@ -7628,6 +7890,43 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # rows are written below beside the completion-evidence marker. Read via getattr
     # so a standalone `workpad.py` copy invoked with an older arg shape degrades to
     # "flag absent" rather than raising AttributeError.
+    # Reusable-review adoption (issue #616) re-stamps the coverage record from a
+    # stored record that still matches the current inputs. It rides a copy of the
+    # arguments through the ordinary coverage validation below, so an adopted record
+    # passes exactly the checks a freshly measured one does.
+    adopt_review = bool(getattr(args, 'adopt_reusable_review', False))
+    adopted_review = None
+    if adopt_review:
+        if (getattr(args, 'record_review_coverage', None)
+                or getattr(args, 'record_roster_member', None)
+                or getattr(args, 'record_reusable_review', None)):
+            raise _UpdateError(
+                "--adopt-reusable-review cannot be combined with "
+                "--record-review-coverage, --record-roster-member or "
+                "--record-reusable-review. No PATCH was made."
+            )
+        _ar_content = _progress_content_or_none(body)
+        if _ar_content is None:
+            raise _UpdateError(
+                "--adopt-reusable-review: the workpad does not carry exactly one "
+                "'## Progress' section. No PATCH was made."
+            )
+        _ar_result, _ar_detail, adopted_review = _reuse_evaluate(
+            _ar_content, 'review', args.issue,
+            getattr(args, 'repo_root', None) or _repo_root())
+        if _ar_result != 'match':
+            raise _UpdateError(
+                f"--adopt-reusable-review: the reusable-review record is not "
+                f"reusable (result={_ar_result}"
+                + (f", {_ar_detail}" if _ar_detail else '')
+                + "). No PATCH was made."
+            )
+        args = argparse.Namespace(**vars(args))
+        args.record_review_coverage = [
+            'full', 'attempted', 'complete', adopted_review['checklist']]
+        args.record_review_coverage_head = adopted_review['head']
+        args.record_roster_member = [
+            [m, st] for m, st in sorted(adopted_review['roster'].items())]
     review_coverage = getattr(args, 'record_review_coverage', None)
     review_coverage_payload = None
     review_coverage_auto_notes: list[str] = []
@@ -7775,6 +8074,73 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             raise _UpdateError(
                 f"--record-review-coverage: {_roster_incoherent}. No PATCH was made."
             )
+    # Reusable-review record (issue #616): written only beside a clean full-coverage
+    # record. A caller pairing it with any other record is refused; an input this
+    # call cannot resolve skips the record with a note, so the coverage record still
+    # lands and a later attempt simply finds nothing to reuse.
+    reusable_review_payload = None
+    reuse_skip_notes: list[str] = []
+    _rr_verdict = getattr(args, 'record_reusable_review', None)
+    if _rr_verdict is not None:
+        if _rr_verdict not in _REUSABLE_REVIEW_VERDICTS:
+            raise _UpdateError(
+                f"--record-reusable-review: unknown verdict {_rr_verdict!r}; expected "
+                f"one of {', '.join(_REUSABLE_REVIEW_VERDICTS)}. No PATCH was made."
+            )
+        if not review_coverage_payload:
+            raise _UpdateError(
+                "--record-reusable-review must accompany --record-review-coverage. "
+                "No PATCH was made."
+            )
+        _rr_axes = dict(zip(_REVIEW_COVERAGE_AXES, review_coverage))
+        _rr_downgraded = (_rr_axes['checklist'] == 'unestablished'
+                          and bool(review_coverage_auto_notes))
+        if ((_rr_axes['coverage'], _rr_axes['dispatch'], _rr_axes['roster'])
+                != ('full', 'attempted', 'complete')
+                or (_rr_axes['checklist'] not in _REUSABLE_REVIEW_CHECKLISTS
+                    and not _rr_downgraded)):
+            raise _UpdateError(
+                "--record-reusable-review requires a clean full-coverage record "
+                "(full attempted complete complete|skipped-intentional). "
+                "No PATCH was made."
+            )
+        if _anchor_head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED:
+            raise _UpdateError(
+                "--record-reusable-review requires --record-review-coverage-head. "
+                "No PATCH was made."
+            )
+        if _rr_downgraded:
+            reuse_skip_notes.append(
+                'reusable-review record not written — the checklist axis was '
+                'recorded unestablished')
+        else:
+            _rr_candidate, _rr_err = _reuse_candidate(
+                _anchor_head, getattr(args, 'repo_root', None) or _repo_root())
+            _rr_digest = None
+            if _rr_err is None:
+                _rr_digest, _rr_err = _reuse_issue_digest(args.issue)
+            if _rr_err is not None:
+                sys.stderr.write(
+                    f'workpad.py: reusable-review record not written — {_rr_err}\n')
+                reuse_skip_notes.append(
+                    'reusable-review record not written — its inputs did not resolve')
+            else:
+                reusable_review_payload = ':'.join((
+                    _rr_candidate['head'], _rr_candidate['merge_base'], _rr_digest,
+                    _rr_verdict, _rr_axes['checklist'],
+                    _encode_reuse_roster(roster_members)))
+    # Plan-inputs record (issue #616): an unreadable issue body removes the old
+    # record without writing a new one, so a replaced Plan is never vouched for by
+    # a record written for an earlier Plan.
+    record_plan_inputs = bool(getattr(args, 'record_plan_inputs', False))
+    plan_inputs_digest = None
+    if record_plan_inputs:
+        plan_inputs_digest, _pi_err = _reuse_issue_digest(args.issue)
+        if _pi_err is not None:
+            sys.stderr.write(
+                f'workpad.py: plan-inputs record not written — {_pi_err}\n')
+            reuse_skip_notes.append(
+                'plan-inputs record not written — the issue body did not resolve')
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     # #1984: `environment-denial` must be corroborated by a recorded `missing` roster
@@ -8219,6 +8585,30 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _rp_row = f'mid-phase resume point recorded {_checkpoint_marker(_rp_ck)}'
         progress_notes.append(_rp_row)
         _producer_reserved_rows.add(_rp_row)
+    # Resume-reuse records (issue #616): validated above; the prior row of each
+    # family is stripped just before the append loop.
+    if plan_inputs_digest:
+        _pi_row = (f'plan-inputs recorded (issue body {plan_inputs_digest[:12]}…) '
+                   f'{_checkpoint_marker(_PLAN_INPUTS_KEY_PREFIX + plan_inputs_digest)}')
+        progress_notes.append(_pi_row)
+        _producer_reserved_rows.add(_pi_row)
+    if reusable_review_payload:
+        _rr_origin = ':'.join(filter(None, (
+            os.environ.get('GITHUB_RUN_ID'),
+            os.environ.get('GITHUB_RUN_ATTEMPT')))) or 'local'
+        _rr_row = (
+            f'reusable review recorded ({_rr_verdict}; head '
+            f'{_rr_candidate["head"][:12]}, merge-base '
+            f'{_rr_candidate["merge_base"][:12]}; origin {_rr_origin}) '
+            + _checkpoint_marker(_REUSABLE_REVIEW_KEY_PREFIX + reusable_review_payload))
+        progress_notes.append(_rr_row)
+        _producer_reserved_rows.add(_rr_row)
+    if adopted_review:
+        progress_notes.append(
+            'review reused from the reusable-review record '
+            f"({adopted_review['verdict']}; head {adopted_review['head'][:12]}); "
+            'head, merge-base and issue body match')
+    progress_notes.extend(reuse_skip_notes)
     # Review-coverage record + dispositions (issue #1453): validated above; the prior
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
@@ -8335,6 +8725,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         heading, content = sections[idx]
         if resume_point_payload:
             content = _strip_resume_point_marker_rows(content)
+        if record_plan_inputs:
+            content = _strip_marker_rows(content, _PLAN_INPUTS_MARKER_RE)
+        # A new review-coverage record supersedes an older reusable review, except
+        # the adoption that re-stamps coverage from that very record.
+        if review_coverage_payload and not adopt_review:
+            content = _strip_marker_rows(content, _REUSABLE_REVIEW_MARKER_RE)
         if review_coverage_payload:
             # A fresh record REPLACES the prior one (and its now-stale dispositions),
             # so the reader's "exactly one record" contract holds across a re-recorded
@@ -8688,6 +9084,21 @@ def main():
     s.add_argument('issue', type=int)
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_resume_point)
+
+    s = sub.add_parser(
+        'reuse-check',
+        help='Decide whether a recorded Plan (plan) or review (review) is reusable '
+             'now (issue #616): the plan-inputs or reusable-review row must be the '
+             'only one, well formed, and match the live issue body (and, for review, '
+             'HEAD and its merge-base with the configured base branch, with every '
+             'Review row before the AC gate ticked). Prints one "reuse-check:" line. '
+             'Exits 0 match / 1 nothing reusable (absent, duplicate, malformed, '
+             'incomplete, mismatch) / 2 unestablished. Never prints the body.',
+    )
+    s.add_argument('issue', type=int)
+    s.add_argument('kind', choices=('plan', 'review'))
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_reuse_check)
 
     s = sub.add_parser(
         'reset-resume-status',
@@ -9165,6 +9576,29 @@ def main():
                         + ') is dispatched and no member is missing, while a member its '
                           'applicability gate excluded (gated-off) does not block '
                           'complete; roster=short must name a missing member.')
+    u.add_argument('--record-reusable-review', default=None, metavar='VERDICT',
+                   choices=_REUSABLE_REVIEW_VERDICTS,
+                   help='Beside a clean full-coverage --record-review-coverage record '
+                        '(with --record-review-coverage-head and its roster rows), also '
+                        'record a "reusable-review" row binding the reviewed head, its '
+                        'merge-base with the configured base branch, a digest of the '
+                        'live issue body, VERDICT, the checklist state and the roster '
+                        '(issue #616). It survives --strip-inherited-checkpoints; any '
+                        'later coverage record removes it. An input that does not '
+                        'resolve skips the row with a note. VERDICT: '
+                        + '|'.join(_REUSABLE_REVIEW_VERDICTS) + '.')
+    u.add_argument('--adopt-reusable-review', action='store_true',
+                   help='Re-stamp the review-coverage record, head anchor and roster '
+                        'rows from the reusable-review row when HEAD, its merge-base '
+                        'and the live issue body still match it (issue #616); refused '
+                        'with no PATCH otherwise. Not combinable with the coverage, '
+                        'roster or reusable-review record flags.')
+    u.add_argument('--record-plan-inputs', action='store_true',
+                   help='Record a "plan-inputs" row carrying a digest of the live issue '
+                        'body the Plan was written from, replacing any prior one '
+                        '(issue #616). It survives --strip-inherited-checkpoints. An '
+                        'unreadable issue body removes the old row and writes a note '
+                        'instead.')
     u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
                    help='The reviewed head SHA the review-coverage record is derived '
                         'from (issue #1510), stamped as the record\'s as-of anchor '

@@ -72,6 +72,21 @@ Every line should read `ok`, and the version should be 3.11 or higher. Fix each 
     ```
 
     It refuses to create a shim when no compatible interpreter is present, so a clean exit means the runner is ready.
+
+    PRFlow cannot make its job credential files owner-only on Windows, because Windows ignores POSIX file modes. Those files live in the runner's temporary directory under its work directory. Isolation is your host setup:
+
+    - Run each runner service under its own account. Register it with `--windowslogonaccount`, because the default `NETWORK SERVICE` account is shared by every service that uses it.
+    - Restrict each runner's work directory to that account and administrators. With the service stopped, run:
+
+    ```powershell
+    icacls "C:\actions-runner-1\_work" /grant:r "RUNNERHOST\runner-1:(OI)(CI)M" "BUILTIN\Administrators:(OI)(CI)F"
+    icacls "C:\actions-runner-1\_work" /inheritance:r
+    icacls "C:\actions-runner-1\_work"
+    ```
+
+    The first command grants the runner account Modify, which it needs to run jobs. The second removes every inherited entry. The third displays the result, which should list only those two entries.
+
+    Runner services that share one account also share that account's `.claude/settings.json`, and each can read the others' job credential files.
   </Accordion>
   <Accordion title="Executables in Nonstandard Locations">
     Set `DEVFLOW_GH`, `DEVFLOW_JQ` or `DEVFLOW_BASH` only when the working executable is somewhere the normal search path does not reach. A correct `PATH` is simpler and less likely to drift.
@@ -80,7 +95,7 @@ Every line should read `ok`, and the version should be 3.11 or higher. Fix each 
 
 ## Interruptible (Spot) Capacity
 
-Self-hosted heavy runners on interruptible capacity (for example EC2 Spot) trade cost for the chance that the provider reclaims the instance mid-run. If that happens to a long `/prflow:implement` job, the runner disappears before the job finishes: the run ends without completing, and its workpad is left showing 🚀 Running. By default you resume it by re-posting the command. For a Linux EC2 Spot runner you can also opt in to automatic detection and recovery by setting `prflow_implement.spot_interruption_watcher.enabled` to `true`, so PRFlow notices the reclaim and takes the bounded resume path itself. See [Cloud Recovery](/docs/runs/cloud/recovery) for what survives an interruption, the opt-in Spot watcher, and how to pick the work back up.
+Self-hosted heavy runners on interruptible capacity (for example EC2 Spot) trade cost for the chance that the provider reclaims the instance mid-run. If that happens to a long `/prflow:implement` job, the runner disappears before the job finishes and the run ends without completing. A recovery job then reconciles the lost run automatically: it resumes a failed run with a bounded request, terminalizes it to 💥 Failed when it cannot resume, and names the real cause of the loss in its comment. For a Linux EC2 Spot runner you can additionally opt in to confirmed reclaim detection by setting `prflow_implement.spot_interruption_watcher.enabled` to `true`, so a reclaim is named as such rather than as a generic runner loss. See [Cloud Recovery](/docs/runs/cloud/recovery) for what survives an interruption, the recovery job, the opt-in Spot watcher, and how to pick the work back up.
 
 ## Use Claude Code on Windows
 

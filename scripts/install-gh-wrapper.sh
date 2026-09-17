@@ -104,7 +104,7 @@ fi
 FINGERPRINT_FILE="${DEVFLOW_GH_FINGERPRINT_FILE:-$RUNNER_TEMP/devflow-gh-fingerprint}"
 ( umask 077
   printf '%s' "$APP_TOKEN" \
-    | python3 -c 'import hashlib,sys; sys.stdout.write(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' \
+    | python3 -c 'import hashlib,sys; sys.stdout.reconfigure(newline="\n"); sys.stdout.write(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' \
     > "$FINGERPRINT_FILE"
 ) \
   || fail "output 5/7 FAILED: the python3 hashlib fingerprint computation errored (fingerprint-compute)"
@@ -124,7 +124,7 @@ FINGERPRINT_FILE="${DEVFLOW_GH_FINGERPRINT_FILE:-$RUNNER_TEMP/devflow-gh-fingerp
 # read-only flag), which is why no chmod is introduced on this path: the
 # umask 077 above stays the sole producer of the file's mode, keeping the
 # suite's umask-mutation proof meaningful.
-_fpcap="$(python3 -c 'import os,sys; print(os.name, oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$FINGERPRINT_FILE" 2>/dev/null || true)"
+_fpcap="$(python3 -c 'import os,sys; sys.stdout.reconfigure(newline="\n"); print(os.name, oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$FINGERPRINT_FILE" 2>/dev/null || true)"
 # Split with bash builtins ONLY. Routing a security gate's verdict through a
 # non-preflight PATH tool (the CLAUDE.md guard-class-2 rule) would empty the
 # platform token on a host missing that tool and, because the relaxed arm is an

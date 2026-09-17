@@ -270,21 +270,42 @@ devflow_telemetry_list_blobs() {
   return 0
 }
 
-# rc 0 iff blob path $3 exists on ref $2 (the branch-presence idempotency probe:
-# `git cat-file -e <ref>:<path>`). rc non-zero when absent OR the ref itself is
-# absent — either way "not yet persisted", the correct answer for both the record
-# idempotency check (AC14) and --self-check (AC15).
-devflow_telemetry_blob_exists() {
-  local root="$1" ref="$2" path="$3"
-  git -C "$root" rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || return 1
-  git -C "$root" cat-file -e "${ref}:${path}" >/dev/null 2>&1
+# Resolve ref $2 (in repo $1) to its commit ID. A `<ref>:<path>` blob lookup built from
+# the result has no slash left of the colon, unlike one built from the ref name: Git
+# Bash (MSYS) rewrites a `refs/…:<path>` argument whose left side
+# looks like a Unix path list (slash left of the colon), so git reports "Not a valid
+# object name" and every such lookup answers "absent" on Windows (issue #578); a commit
+# ID left of the colon has no slash and is left alone. Prints the commit ID, or nothing
+# when the ref does not resolve — and always rc 0, so a `VAR="$(…)"` assignment never
+# aborts a `set -e` caller. Callers detect a failed resolution by the EMPTY value and
+# must never build a `<ref>:<path>` argument from it: git reads `:<path>` as an index
+# lookup, which would fail OPEN against the checked-out branch's index.
+devflow_telemetry_commit_id() {
+  git -C "$1" rev-parse --verify --quiet "${2}^{commit}" 2>/dev/null || return 0
 }
 
-# Print the content of blob $3 from ref $2 to stdout (git show <ref>:<path>).
-# rc non-zero (no output) when absent — the caller treats that as "no such blob".
+# rc 0 iff blob path $3 exists on ref $2 (the branch-presence idempotency probe).
+# rc non-zero when absent OR the ref itself is absent — either way "not yet
+# persisted", the correct answer for both the record idempotency check (AC14) and
+# --self-check (AC15). Resolves the ref to a commit ID first (see
+# devflow_telemetry_commit_id) and fails closed when it does not resolve, so an empty
+# commit ID never reads the index.
+devflow_telemetry_blob_exists() {
+  local root="$1" ref="$2" path="$3" commit
+  commit="$(devflow_telemetry_commit_id "$root" "$ref")"
+  [ -n "$commit" ] || return 1
+  git -C "$root" cat-file -e "${commit}:${path}" >/dev/null 2>&1
+}
+
+# Print the content of blob $3 from ref $2 to stdout. rc non-zero (no output) when
+# absent — the caller treats that as "no such blob". Resolves the ref to a commit ID
+# first (see devflow_telemetry_commit_id) and returns non-zero without output when the
+# ref does not resolve, so an empty commit ID never reads the index.
 devflow_telemetry_show_blob() {
-  local root="$1" ref="$2" path="$3"
-  git -C "$root" show "${ref}:${path}" 2>/dev/null
+  local root="$1" ref="$2" path="$3" commit
+  commit="$(devflow_telemetry_commit_id "$root" "$ref")"
+  [ -n "$commit" ] || return 1
+  git -C "$root" show "${commit}:${path}" 2>/dev/null
 }
 
 # ── The write ────────────────────────────────────────────────────────────────
@@ -802,6 +823,37 @@ devflow_telemetry_persist_tree() {
       fi
       case "$push_err" in
         *"fetch first"*|*"non-fast-forward"*|*"[rejected]"*|*"Updates were rejected"*)
+          # STRICT-NO-UNION gate (issue #520): a same-run correction is a NARROW
+          # replace-one-record write, not an append. Union-merging it onto a
+          # concurrently-advanced remote tip would silently reconcile a correction
+          # against a durable state that changed under it — a concurrent incompatible
+          # durable update. Refuse instead: exit 5 so the caller reports
+          # `lost concurrent-update` and RETAINS the staged evidence. Exit 5 (not the
+          # ordinary degraded 1) so a correction can distinguish this from a write
+          # fault; the ordinary --persist path never sets this gate, so its rc contract
+          # (0/1/2) is unchanged.
+          if [ -n "${_DEVFLOW_TELEMETRY_STRICT_NO_UNION:-}" ]; then
+            # Roll the LOCAL ref back to its pre-correction tip before refusing
+            # (issue #520 durability): this function CAS-advanced the local ref to
+            # `$new` at the top of the CAS loop, BEFORE this push loop. Leaving the
+            # corrected commit on the local ref would let a later ordinary --persist
+            # (no strict gate) union-publish it onto the concurrently-advanced remote,
+            # deferring rather than refusing the reconciliation this gate exists to
+            # prevent — so the refusal would not actually "retain that history". Undo
+            # the local advance so the durable local ref matches its pre-correction
+            # state; the staged records remain the sole recovery copy. `old` is the
+            # pre-advance tip (empty when this run created the ref) and `committed`
+            # (== `$new`) is the expected-current for the compare-and-swap back.
+            if [ -n "${old:-}" ]; then
+              git -C "$root" update-ref "$ref" "$old" "$committed" 2>/dev/null \
+                || echo "::warning::telemetry-branch: strict (no-union) correction refused, but could not roll the local ref '${branch}' back to its pre-correction tip (git update-ref failed) — the staged records are retained, but the local ref may still carry the un-pushed correction; a later --persist could republish it" >&2
+            else
+              git -C "$root" update-ref -d "$ref" "$committed" 2>/dev/null \
+                || echo "::warning::telemetry-branch: strict (no-union) correction refused, but could not delete the freshly-created local ref '${branch}' (git update-ref -d failed) — the staged records are retained, but the local ref may still carry the un-pushed correction; a later --persist could republish it" >&2
+            fi
+            echo "::warning::telemetry-branch: '${branch}' advanced concurrently while a strict (no-union) correction was in flight — refusing to union-merge a correction onto the changed tip (concurrent incompatible durable update); the local ref was rolled back to its pre-correction tip and the staged records are retained for recovery$(_devflow_telemetry_retention_note)" >&2
+            exit 5
+          fi
           # The remote advanced (another writer, or the branch was created
           # remotely first). Fetch its tip, re-parent the UNION of the remote tip
           # and our whole local tip on it (preserving offline-accumulated local

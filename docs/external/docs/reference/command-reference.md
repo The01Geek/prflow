@@ -48,7 +48,7 @@ PRFlow also ships internal skills that it dispatches on its own, such as the sta
 | `docs-sync-external` | Bring public docs in line with internal sources and shipped behavior. | Local | Edits customer-facing documentation. | Updated public guidance with internal-only detail removed. |
 | `docs-bootstrap-internal` | Create or comprehensively reorganize developer docs. | Local | Creates and edits internal documentation. | A structured internal documentation set. |
 | `docs-bootstrap-external` | Create or comprehensively rebuild public docs from internal docs. | Local | Creates, edits and can remove customer-facing documentation. | A structured public documentation set. |
-| `docs-verify [--report-only] [--search-space <pathspec>] <topic>` | Check one documentation topic against the code. | Local | Corrects internal docs by default. `--report-only` changes nothing. | Corrected topic docs, or a findings report. |
+| `docs-verify [--report-only] [--lead docs\|code] <topic>` | Check one documentation topic against the code. | Local | Corrects internal docs by default. `--report-only` changes nothing. | Corrected topic docs, or a findings report. |
 | `docs-release-notes` | Add a release note where one applies and reconcile the changelog. | Local | Edits the configured release-note and changelog files. | A customer-facing note, or an explicit decision to skip. |
 | `retrospective-weekly` | Analyze recently merged work and file bounded improvements for human triage. | Local | Updates learning records, opens or updates a state pull request and files selected issues. | A report, a state pull request, filed issues and any blockers. |
 

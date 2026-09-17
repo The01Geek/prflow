@@ -41,6 +41,26 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh" \
   || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
+# Shared CRLF-insensitive whole-file compare (issue #576), used by the stale-installer scan
+# and the prompt-extension example regeneration below. Both DECIDE a write/warning, so the
+# compare must use bash builtins only (no cmp/tr/sed — a missing tool would read as a match).
+# shellcheck source=../lib/compare-crlf.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/compare-crlf.sh" 2>/dev/null \
+  || {
+    echo "devflow: compare-crlf.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using an inline copy" >&2
+    devflow_strip_cr() { printf '%s' "${1//$'\r'/}"; }
+    devflow_files_match_crlf_insensitive() {
+      local _a="" _b=""
+      IFS= read -r -d '' _a < "$1" 2>/dev/null || :
+      IFS= read -r -d '' _b < "$2" 2>/dev/null || :
+      [ "$(devflow_strip_cr "$_a")" = "$(devflow_strip_cr "$_b")" ]
+    }
+  }
+
+# owner/name of the release the download-command breadcrumbs point at, mirroring
+# install.sh's `${DEVFLOW_REPO:-The01Geek/prflow}` default (a coupled default, not a new pin).
+REPO="${DEVFLOW_REPO:-The01Geek/prflow}"
+
 log() { printf 'devflow-scaffold: %s\n' "$1"; }
 die() { printf 'devflow-scaffold: %s\n' "$1" >&2; exit 2; }
 
@@ -125,6 +145,37 @@ DEST="$(prflow_state_dir "$TARGET_ROOT")"
 CONFIG="$DEST/config.json"
 
 mkdir -p "$DEST"
+
+# Stale committed-installer scan (issue #576). Warn about a committed installer copy at the scan
+# root that predates the installer self-check — an old copy silently applies old logic on the
+# next upgrade. Look at the three known installer names in the SCAN_ROOT (the REAL repo on a
+# dry run, which the sandbox does not carry). The release's own install.sh sits at
+# $SELF_DIR/../install.sh in a marketplace/clone/fetched tree but NOT in a vendored
+# .prflow/vendor/prflow/ slice (which ships none) — skip the whole scan there.
+_release_installer="$SELF_DIR/../install.sh"
+if [ ! -f "$_release_installer" ]; then
+  log "stale-installer scan skipped: no release install.sh beside the scaffolder (a vendored plugin slice ships none)."
+else
+  # Version for the download tag; jq is preflight-guaranteed, empty on any read failure.
+  _pv="$("$DEVFLOW_JQ" -r '.version // empty' "$SELF_DIR/../.claude-plugin/plugin.json" 2>/dev/null || true)"
+  for _si_name in install.sh devflow-install.sh prflow-install.sh; do
+    _si="$SCAN_ROOT/$_si_name"
+    [ -f "$_si" ] || continue
+    # A stale copy is a real PRFlow installer (it carries DEVFLOW_REF) that differs from the
+    # release's install.sh. A file lacking DEVFLOW_REF is not our installer; a byte-identical
+    # (CRLF aside) copy is the matching one — neither warns. The DEVFLOW_REF test reads the
+    # file with a bash builtin + `case`, never grep, so a host without grep still scans.
+    _si_content=""
+    IFS= read -r -d '' _si_content < "$_si" 2>/dev/null || :
+    case "$_si_content" in *DEVFLOW_REF*) : ;; *) continue ;; esac
+    devflow_files_match_crlf_insensitive "$_si" "$_release_installer" && continue
+    if [ -n "$_pv" ]; then
+      log "warning: $_si is a committed PRFlow installer that does not match this release's install.sh; re-running it upgrades with stale logic. Download the matching installer with: curl -fsSL https://raw.githubusercontent.com/${REPO}/v${_pv}/install.sh -o devflow-install.sh"
+    else
+      log "warning: $_si is a committed PRFlow installer that does not match this release's install.sh; re-running it upgrades with stale logic. Download the matching installer from https://raw.githubusercontent.com/${REPO}/<release-tag>/install.sh before re-running."
+    fi
+  done
+fi
 
 # Schema is generated, never hand-edited — safe to overwrite every run so
 # editors always validate against the current field set.
@@ -309,15 +360,16 @@ else
     [ -n "$pe_skill" ] || continue
     pe_target="$EXTENSIONS_DIR/$pe_skill.md.example"
     pe_live="$EXTENSIONS_DIR/$pe_skill.md"
-    # Per-file backfill, two skip conditions in one guard (issue #118): skip when the
-    # .example already exists (an adopter's edited example — never clobber it), OR when a
-    # LIVE <skill>.md already exists (the adopter activated this extension, so dropping a
-    # redundant <skill>.md.example beside it is just confusing clutter). Both are `[ -e ]`
-    # tests inside the `if` condition (exempt from `set -e`) leading to a single rc-0
+    # Per-file backfill (issue #118; regeneration added in #576): skip creation ONLY when no
+    # example exists yet AND a LIVE <skill>.md already exists (the adopter activated this
+    # extension — a redundant <skill>.md.example beside it is clutter). Do NOT skip merely
+    # because the .example exists: an example an older release wrote must be regenerated so its
+    # guidance does not stay stale forever (the overwrite is guarded below to touch only a
+    # DIFFERING example, so an adopter's byte-identical copy is left alone). Both `[ ... ]`
+    # tests sit inside the `if` condition (exempt from `set -e`) leading to a single rc-0
     # `continue`, so the guard cannot abort the loop under `set -euo pipefail`; the live
-    # <skill>.md is read-only here (never created, modified, or deleted), and only absent
-    # .example files for un-activated skills are created.
-    if [ -e "$pe_target" ] || [ -e "$pe_live" ]; then
+    # <skill>.md is read-only here (never created, modified, or deleted).
+    if [ ! -e "$pe_target" ] && [ -e "$pe_live" ]; then
       continue
     fi
     # The body is itself one Markdown comment block: the first line opens `<!--`, the
@@ -330,9 +382,9 @@ else
     # (a per-file failure must not abort the whole scaffold under `set -e`: the `if`
     # condition exempts the failure, and the breadcrumb names the file) PLUS atomicity:
     # the final `<skill>.md.example` only ever appears complete, so a failed/partial
-    # write (read-only dir, ENOSPC mid-write) can never leave a truncated file at the
-    # guarded path that the `[ -e ]` guard above would then treat as present and never
-    # retry. On failure only the temp is removed; the guarded path is untouched.
+    # write (read-only dir, ENOSPC mid-write) can never leave a truncated file that a
+    # later run then mistakes for a complete example. On failure only the temp is removed;
+    # the target is untouched.
     pe_tmp="$pe_target.tmp"
     # The body is written in three grouped printf calls so the spec example can
     # carry INERT `## Audit dimensions` (Step 3.6 audit forwarding) and `## Evidence axes`
@@ -380,13 +432,26 @@ else
              '## Evidence axes' \
              '- A repo-specific evidence axis every issue must record, named with what to check.'; } &&
          printf '%s\n' '-->'
-       } > "$pe_tmp" && mv "$pe_tmp" "$pe_target"; then
-      pe_created=$((pe_created + 1))
+       } > "$pe_tmp"; then
+      # Regeneration guard (issue #576): move the freshly built body into place only when the
+      # target is absent or its content DIFFERS (CRLF aside) — so a stale example is refreshed
+      # while an already-matching one (and every idempotent re-run) is left byte-identical.
+      if [ -e "$pe_target" ] && devflow_files_match_crlf_insensitive "$pe_tmp" "$pe_target"; then
+        rm -f "$pe_tmp"
+      elif mv "$pe_tmp" "$pe_target"; then
+        pe_created=$((pe_created + 1))
+      else
+        # mv MUST stay in the elif condition (set -e exempt): moving it to a bare statement
+        # makes a missing/failing mv abort the whole scaffold with rc 127 on a host without
+        # mv, instead of taking this best-effort breadcrumb path (issue #576 regression).
+        rm -f "$pe_tmp"
+        log "could not move the example into place for $pe_target; skipping it (scaffold continues)."
+      fi
     else
       # Remove only the temp candidate — never a partial $pe_target (mv is atomic, so
-      # the guarded path was never partially written). A lingering temp is harmless: it
-      # ends in .tmp (not .md.example), so it matches neither the loader nor the
-      # backfill `[ -e "$pe_target" ]` guard, and a later re-run truncates it anew.
+      # the target was never partially written). A lingering temp is harmless: it ends in
+      # .tmp (not .md.example), so it matches neither the loader nor this loop, and a later
+      # re-run truncates it anew.
       rm -f "$pe_tmp"
       log "could not write $pe_target; skipping this prompt-extension example (scaffold continues)."
     fi
@@ -438,6 +503,7 @@ fi
 # name instead, further down.
 PRFLOW_WORKFLOW_SCAN_PY='
 import re, sys
+sys.stdout.reconfigure(newline="\n")
 
 # A superseded read is either a brand-named config key or the superseded vendored
 # path / state directory. Both mean the file predates the rename and would read a
@@ -478,6 +544,7 @@ sys.exit(0)
 #   exit 2  the config or the rename map could not be read/parsed -- write nothing
 PRFLOW_MIGRATE_PY='
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 
 cfg_path, out_path, map_path, example_path = sys.argv[1:5]
 try:
@@ -564,6 +631,7 @@ for old_disp, new_disp in conflicts:
 # renamed. Best-effort: an unreadable config or map writes nothing (exit 2).
 PRFLOW_MIGRATE_SKILL_PY='
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 
 cfg_path, out_path, map_path, example_path = sys.argv[1:5]
 try:
@@ -762,6 +830,7 @@ fi
 if command -v python3 >/dev/null 2>&1 && [ -f "$CONFIG" ]; then
   pin_value="$(PRFLOW_CFG="$CONFIG" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(os.environ["PRFLOW_CFG"], encoding="utf-8") as fh:
         data = json.load(fh)

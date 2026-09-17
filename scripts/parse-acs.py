@@ -85,6 +85,7 @@ from pathlib import Path
 # `lib/test/test_python_scripts.py` drives this directory's helpers) does not.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from gh_fresh_env import fresh_gh_env
 from section_parse import (
     POST_MERGE_TAG,
     extract_section,
@@ -163,7 +164,7 @@ def _fetch_body(issue: int) -> str:
         # does not raise under a non-UTF-8 ambient codec. Implies text mode.
         r = subprocess.run(
             [GH, 'issue', 'view', str(issue), '--json', 'body', '-q', '.body'],
-            check=True, capture_output=True, encoding="utf-8",
+            check=True, capture_output=True, encoding="utf-8", env=fresh_gh_env(),
         )
     except (subprocess.CalledProcessError, OSError) as e:
         # OSError covers a gh that cannot execute at all (ENOEXEC shim, absent
@@ -195,8 +196,37 @@ def _parse_checkboxes(section_lines: list[str]) -> list[dict]:
     return items
 
 
+# The heading-shaped tail that disqualifies a bare `post-merge` match (issue #387): the
+# whole word `verification` immediately after the trigger's whitespace names the
+# "Post-Merge Verification" document SECTION, not a statement about when a criterion can be
+# verified. Matched against the text FOLLOWING a `post-merge` occurrence, so backtick- or
+# punctuation-wrapping of the name is handled by the trigger's own `\b` boundary.
+_POST_MERGE_HEADING_TAIL_RE = re.compile(r'^\s+verification\b', re.IGNORECASE)
+
+
 def _is_post_merge(text: str) -> bool:
-    return any(r.search(text) for r in _POST_MERGE_RES)
+    """True iff `text` states a post-merge/post-deploy timing trigger (issue #387).
+
+    Every trigger but the bare `post-merge` phrase tags on any match. `post-merge` is
+    special-cased per occurrence: a heading-shaped hit — `post-merge` immediately followed
+    by whitespace and the whole word `verification` (matched case-insensitively, backticks
+    included) — names the document section and does NOT tag, while a `post-merge` used as a
+    when-clause ("verify post-merge") still does. A non-string `text` is not tagged and does
+    not crash.
+    """
+    if not isinstance(text, str):
+        return False
+    for phrase, regex in zip(POST_MERGE_TRIGGERS, _POST_MERGE_RES):
+        if phrase != 'post-merge':
+            if regex.search(text):
+                return True
+            continue
+        # Per-occurrence: one line may carry both the section name and a real when-clause,
+        # so a heading-shaped occurrence disqualifies only itself, never the whole phrase.
+        for match in regex.finditer(text):
+            if not _POST_MERGE_HEADING_TAIL_RE.match(text[match.end():]):
+                return True
+    return False
 
 
 def _warn_near_miss(parsed: list, body: str, canonical: str, needle: str) -> None:
@@ -317,7 +347,7 @@ def main():
             # breadcrumb below with a traceback (preflight.py's _run_git contract).
             try:
                 top = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
-                                     capture_output=True, text=True)
+                                     capture_output=True, text=True, encoding="utf-8")
                 rc, root = top.returncode, top.stdout.strip()
             except OSError:
                 rc, root = 1, ''

@@ -50,10 +50,12 @@ from pathlib import Path
 
 try:
     import fcntl
-except ImportError:  # non-POSIX (Windows): receipts cannot take the sequence lock
-    # Do not degrade to an unlocked sequence — two writers would mint the same seq and
-    # O_EXCL would reject the second receipt as a duplicate rather than as the real cause.
+except ImportError:  # non-POSIX (Windows): fcntl.flock is unavailable
     fcntl = None
+try:
+    import msvcrt  # native Windows: the sequence lock's only exclusive-locking primitive
+except ImportError:  # POSIX
+    msvcrt = None
 
 # Running under preflight.py already puts scripts/ on sys.path, but a test that
 # loads this module via importlib.util.spec_from_file_location does not — so the
@@ -562,6 +564,45 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
     return invocations
 
 
+# ── the sequence lock ──────────────────────────────────────────────────────────
+# One fixed byte range, because `msvcrt.locking` locks relative to the current file
+# position: both calls seek to 0 so the lock and its release name the same region.
+_LOCK_BYTES = 1
+
+
+def _require_locking_primitive() -> None:
+    """The two helpers' shared precondition, enforced at their own boundary so a caller that
+    skips the pre-open check still gets the named non-success rather than an `AttributeError`
+    off a `None` module."""
+    if fcntl is None and msvcrt is None:
+        # Do not degrade to an unlocked sequence — two writers would mint the same seq
+        # and O_EXCL would reject the second receipt as a duplicate, not as the cause.
+        raise ReceiptError(
+            "sequence-lock-unsupported: neither fcntl nor msvcrt is available on this "
+            f"platform ({sys.platform}); the changed-file lint layer requires file locking"
+        )
+
+
+def _lock_exclusive(handle) -> None:
+    """Take the exclusive lock on the open sequence-lock file."""
+    _require_locking_primitive()
+    if fcntl is not None:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        return
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, _LOCK_BYTES)
+
+
+def _unlock(handle) -> None:
+    """Release the lock `_lock_exclusive` took."""
+    _require_locking_primitive()
+    if fcntl is not None:
+        fcntl.flock(handle, fcntl.LOCK_UN)
+        return
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, _LOCK_BYTES)
+
+
 # ── atomic receipts ──────────────────────────────────────────────────────────
 class ReceiptError(Exception):
     """A named receipt non-success (a duplicate path, or a sequence-lock failure)."""
@@ -582,22 +623,28 @@ class ReceiptWriter:
     def _next_seq(self) -> int:
         """Read-increment-write the monotonic sequence under an exclusive file lock, so
         two concurrent writers in the same run directory cannot mint the same seq."""
-        if fcntl is None:
-            raise ReceiptError(
-                "sequence-lock-unsupported: fcntl is unavailable on this platform "
-                f"({sys.platform}); the changed-file lint layer requires POSIX file locking"
-            )
-        with open(self._lock_path, "w", encoding="utf-8") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            try:
+        # Checked before the lock file is opened, so an unsupported platform leaves no
+        # stray `.seq.lock` behind; the helpers re-check at their own boundary.
+        _require_locking_primitive()
+        # Every OSError from the locked region — opening the lock file, taking or releasing
+        # the lock, reading or writing the sequence — is the "sequence-lock failure" this
+        # class's ReceiptError already names, so it leaves as that named non-success rather
+        # than an uncaught traceback. `msvcrt.locking` reaches here after retrying for about
+        # ten seconds under real contention; `fcntl.flock` waits instead of raising.
+        try:
+            with open(self._lock_path, "w", encoding="utf-8") as lock:
+                _lock_exclusive(lock)
                 try:
-                    current = int(self._seq_path.read_text(encoding="utf-8"))
-                except (FileNotFoundError, ValueError):
-                    current = 0
-                self._seq_path.write_text(str(current + 1), encoding="utf-8")
-                return current
-            finally:
-                fcntl.flock(lock, fcntl.LOCK_UN)
+                    try:
+                        current = int(self._seq_path.read_text(encoding="utf-8"))
+                    except (FileNotFoundError, ValueError):
+                        current = 0
+                    self._seq_path.write_text(str(current + 1), encoding="utf-8")
+                    return current
+                finally:
+                    _unlock(lock)
+        except OSError as exc:
+            raise ReceiptError(f"sequence-lock-failed: {exc}") from exc
 
     def write(self, op: str, fields: dict) -> tuple[str, int]:
         seq = self._next_seq()
@@ -628,11 +675,40 @@ def _safe(component: str) -> str:
     return cleaned or "unknown"
 
 
+# ── ruff family comparison (issue #603) ─────────────────────────────────────
+# Reimplemented rather than imported: the sibling `lib/test/ruff-version-skew.py` is pruned
+# from the vendored plugin, so importing it would break a consumer run (a lib/test import in
+# a shipped scripts/ helper is exactly what issue #603 AC10 forbids).
+_RUFF_FAMILY_RE = re.compile(r"([0-9]+)\.([0-9]+)")
+
+
+def _minor_family(text: str | None) -> str | None:
+    """The `major.minor` family of the first version token in `text`, or None."""
+    if not text:
+        return None
+    m = _RUFF_FAMILY_RE.search(text)
+    return f"{m.group(1)}.{m.group(2)}" if m else None
+
+
+def _distill_ruff_family(families: list[str]) -> str:
+    """One summary verdict across a run's ruff invocations. Precedence surfaces the worst
+    signal first — a real skew, then an unestablished (unknown) comparison, then match —
+    so a green-looking summary can never hide a skew. `none` when the run ran no ruff
+    invocation at all (there is no receipt for the summary to agree with)."""
+    if "skew" in families:
+        return "skew"
+    if "unestablished" in families:
+        return "unestablished"
+    if "match" in families:
+        return "match"
+    return "none"
+
+
 # ── receipt field assembly + invocation execution ───────────────────────────
 def _tool_version(tool_bin: str) -> str | None:
     try:
         proc = subprocess.run(
-            [tool_bin, "--version"], capture_output=True, text=True,
+            [tool_bin, "--version"], capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=30, check=False,
         )
     except (OSError, subprocess.SubprocessError):
@@ -658,11 +734,17 @@ def _examined_population(pop: Population) -> list[dict]:
     return entries
 
 
-def _run_invocation(inv: Invocation, top: str, tool_cache: dict) -> dict:
+def _run_invocation(inv: Invocation, top: str, tool_cache: dict,
+                    ruff_family_pinned: str | None = None) -> dict:
     """Execute one invocation advisorily and return its receipt outcome fields. A tool
     absent from PATH is a named non-success (``tool-absent``), never an install. The
     tool binary and its ``--version`` are resolved once per tool via ``tool_cache``, so
-    a run with several invocations of the same tool spawns no redundant probes."""
+    a run with several invocations of the same tool spawns no redundant probes.
+
+    For a ruff invocation, when ``ruff_family_pinned`` is supplied (issue #603), the
+    receipt also carries ``ruff_family`` — ``match``/``skew``/``unestablished`` — comparing
+    the reported ``--version`` family against the pinned one; this is set before every
+    return, so the ``tool-absent`` outcome carries ``unestablished`` beside it."""
     if inv.tool not in tool_cache:
         _bin = shutil.which(inv.tool)
         tool_cache[inv.tool] = (_bin, _tool_version(_bin) if _bin else None)
@@ -673,6 +755,14 @@ def _run_invocation(inv: Invocation, top: str, tool_cache: dict) -> dict:
         "timeout_seconds": inv.timeout,
         "selected": [_path_entry(p) for p in inv.paths],
     }
+    if inv.tool == "ruff" and ruff_family_pinned is not None:
+        reported_family = _minor_family(tool_version)
+        if tool_bin is None or reported_family is None:
+            result["ruff_family"] = "unestablished"
+        elif reported_family == ruff_family_pinned:
+            result["ruff_family"] = "match"
+        else:
+            result["ruff_family"] = "skew"
     if tool_bin is None:
         result.update(exit=None, duration_ms=0, outcome="tool-absent", tool_version=None)
         return result
@@ -683,7 +773,7 @@ def _run_invocation(inv: Invocation, top: str, tool_cache: dict) -> dict:
     started = time.monotonic()
     try:
         proc = subprocess.run(
-            argv, cwd=top, capture_output=True, text=True,
+            argv, cwd=top, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=inv.timeout, check=False,
         )
     except subprocess.TimeoutExpired:
@@ -713,7 +803,7 @@ LINT_ERROR = 3
 
 def _repo_toplevel(cwd: str | None = None) -> str | None:
     proc = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=False, cwd=cwd
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", check=False, cwd=cwd
     )
     top = proc.stdout.strip()
     return top if proc.returncode == 0 and top else None
@@ -799,13 +889,19 @@ def _base_receipt_fields(subcommand, run_id, attempt, provenance) -> dict:
     }
 
 
-def _emit_invocations(invocations, pop, top, writer, base_fields, examined) -> int:
-    """Run each invocation, write its receipt, and return the receipt count. A named
-    receipt non-success raises `ReceiptError` to the caller."""
+def _emit_invocations(invocations, pop, top, writer, base_fields, examined,
+                      ruff_family_pinned: str | None = None) -> tuple[int, str]:
+    """Run each invocation, write its receipt, and return (receipt count, distilled ruff
+    family). A named receipt non-success raises `ReceiptError` to the caller. The distilled
+    family (issue #603) summarizes the run's ruff invocations for the caller's summary line;
+    it is `none` when no ruff family was recorded (no ruff invocation, or none requested)."""
     written = 0
     tool_cache: dict = {}
+    ruff_families: list[str] = []
     for inv in invocations:
-        outcome = _run_invocation(inv, top, tool_cache)
+        outcome = _run_invocation(inv, top, tool_cache, ruff_family_pinned)
+        if "ruff_family" in outcome:
+            ruff_families.append(outcome["ruff_family"])
         fields = dict(base_fields)
         fields.update(outcome)
         if examined is not None:
@@ -813,7 +909,7 @@ def _emit_invocations(invocations, pop, top, writer, base_fields, examined) -> i
         fields["skips"] = _skip_entries(pop) if pop is not None else []
         writer.write(inv.op_id, fields)
         written += 1
-    return written
+    return written, _distill_ruff_family(ruff_families)
 
 
 def _skip_entries(pop: Population) -> list[dict]:
@@ -849,14 +945,21 @@ def cmd_lint_changed(args) -> int:
     base_fields = _base_receipt_fields("lint-changed", run_id, attempt, provenance)
     examined = _examined_population(pop)
     writer = ReceiptWriter(top, run_id, attempt)
+    # The pinned ruff family (issue #603). The manifest is established here, so a present
+    # ruff.version parses; when ruff is not pinned this is None and no ruff invocation
+    # records a family (the summary then reads `ruff-family=none`).
+    ruff_cfg = (result.manifest.get("tools") or {}).get("ruff")
+    ruff_family_pinned = _minor_family(ruff_cfg.get("version")) if isinstance(ruff_cfg, dict) else None
     try:
-        written = _emit_invocations(invocations, pop, top, writer, base_fields, examined)
+        written, ruff_family = _emit_invocations(
+            invocations, pop, top, writer, base_fields, examined, ruff_family_pinned)
     except ReceiptError as exc:
         print(f"LINT-CHANGED receipt-non-success {exc}", file=sys.stderr)
         return LINT_ERROR
     print(
         f"LINT-CHANGED established-{pop.status} population={len(pop.records)} "
-        f"run={len(pop.run_paths())} invocations={len(invocations)} receipts={written}"
+        f"run={len(pop.run_paths())} invocations={len(invocations)} receipts={written} "
+        f"ruff-family={ruff_family}"
     )
     return LINT_OK
 
@@ -881,7 +984,9 @@ def cmd_lint_full(args) -> int:
     base_fields = _base_receipt_fields("lint-full", run_id, attempt, provenance)
     writer = ReceiptWriter(top, run_id, attempt)
     try:
-        written = _emit_invocations(invocations, None, top, writer, base_fields, None)
+        # lint-full's receipts and summary are unchanged (issue #603 scopes the ruff-family
+        # comparison to lint-changed): pass no pinned family and drop the distilled value.
+        written, _ = _emit_invocations(invocations, None, top, writer, base_fields, None)
     except ReceiptError as exc:
         print(f"LINT-FULL receipt-non-success {exc}", file=sys.stderr)
         return LINT_ERROR

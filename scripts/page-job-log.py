@@ -39,6 +39,9 @@ import sys
 import unicodedata
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_fresh_env import fresh_gh_env
+
 PROG = "page-job-log"
 MAX_LINES = 300          # at most this many lines served per invocation
 MAX_LINE_CHARS = 500     # at most this many characters per served line (post-sanitize)
@@ -129,7 +132,7 @@ def main(argv):
         try:
             proc = subprocess.run(
                 [_gh(), "run", "view", "--job", job, "--log"],
-                capture_output=True,
+                capture_output=True, env=fresh_gh_env(),
             )
         except OSError as exc:
             print(f"{PROG}: could not run the GitHub CLI to fetch job {job}: {exc}",

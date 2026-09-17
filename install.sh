@@ -142,6 +142,19 @@ DEVFLOW_SUPERSEDED_PLUGIN_SPECS='devflow@devflow-marketplace'
 log() { printf 'devflow-install: %s\n' "$1"; }
 die() { printf 'devflow-install: %s\n' "$1" >&2; exit 1; }
 
+# CRLF-insensitive text compare with bash builtins ONLY — the installer self-check below
+# uses it to DECIDE a stop, so routing it through cmp/tr/sed would let a host missing one
+# read as a match and skip the stop. COUPLED SITE: lib/compare-crlf.sh holds the same
+# functions; install.sh cannot source it (a pre-fix $SRC lacks it, and a curl|bash run has
+# nothing on disk to source), so edit this copy and lib/compare-crlf.sh together.
+devflow_strip_cr() { printf '%s' "${1//$'\r'/}"; }
+devflow_files_match_crlf_insensitive() {
+  local _a="" _b=""
+  IFS= read -r -d '' _a < "$1" 2>/dev/null || :
+  IFS= read -r -d '' _b < "$2" 2>/dev/null || :
+  [ "$(devflow_strip_cr "$_a")" = "$(devflow_strip_cr "$_b")" ]
+}
+
 # Pin .prflow/config.json's prflow_version to the ref we installed, so the
 # runtime fetch (vendor-plugin) never tracks mutable main. Adds or updates the
 # single key without clobbering the rest of the config — using the FIRST
@@ -538,6 +551,7 @@ devflow_resolve_python() {
 # exactly this. Callers must branch on the rc, never on emptiness alone.
 DEVFLOW_DIGEST_PY='
 import hashlib, os, sys
+sys.stdout.reconfigure(newline="\n")
 p = sys.argv[1]
 def filedig(fp):
     h = hashlib.sha256()
@@ -572,6 +586,7 @@ devflow_digest() {
 # degrades to the empty string rather than aborting the installer.
 DEVFLOW_MANIFEST_READ_PY='
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(sys.argv[1], encoding="utf-8") as fh:
         data = json.load(fh)
@@ -846,6 +861,7 @@ devflow_report_env_identifier_freeze() {
 # guard still reports the skew.
 DEVFLOW_ENABLE_SKEW_PY='
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(".prflow/config.json", encoding="utf-8") as fh:
         cfg = json.load(fh)
@@ -890,6 +906,7 @@ devflow_warn_enable_key_skew() {
 # provisioner rather than growing a second, drifting copy of the same removal.
 DEVFLOW_SETTINGS_SCAN_PY='
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 path = sys.argv[1]
 markets = [m for m in sys.argv[2].split() if m]
 specs = [s for s in sys.argv[3].split() if s]
@@ -962,6 +979,7 @@ DEVFLOW_STALE_BOT_LOGINS='devflow-autopilot=prflow-implementer'
 # proceeds. It never writes.
 DEVFLOW_CONFIG_SCAN_PY='
 import json, sys
+sys.stdout.reconfigure(newline="\n")
 path = sys.argv[1]
 pairs = [p.split("=", 1) for p in sys.argv[2].split() if "=" in p]
 try:
@@ -1039,9 +1057,13 @@ devflow_report_stale_config_identifiers() {
 # empty (i.e. reassuring) preview.
 DEVFLOW_DIFF_PY='
 import difflib, os, sys
+sys.stdout.reconfigure(newline="\n")
 real, prev = sys.argv[1], sys.argv[2]
 scopes = sys.argv[3:]
-SKIP = (".prflow/vendor",)
+# tmp/ is the ignored scratch dir of either state directory: never a byte the upgrade
+# writes, and (unlike vendor) a place a consumer keeps arbitrary files — dropping it from
+# SKIP would surface every scratch file as a false DELETE once the sandbox copy omits it.
+SKIP = (".prflow/vendor", ".prflow/tmp", ".devflow/vendor", ".devflow/tmp")
 def walk(base):
     out = {}
     for scope in scopes:
@@ -1060,12 +1082,25 @@ def walk(base):
     return out
 a, b = walk(real), walk(prev)
 def text(fp):
+    # None => binary (opened, but not decodable as UTF-8); an OSError instance => the file
+    # could not be opened at all (a dangling symlink, a path too long to open). Merging the
+    # two would make an unopenable file read as "binary" and, at the both-sides compare,
+    # re-raise on the rb reopen and abort the whole dry run.
     try:
         with open(fp, encoding="utf-8") as fh:
             return fh.read().splitlines(keepends=True)
-    except (UnicodeDecodeError, OSError):
+    except UnicodeDecodeError:
         return None
+    except OSError as exc:
+        return exc
 changed = 0
+uncompared = 0
+def report_unreadable(rel, exc):
+    # One emission point for the UNREADABLE row and the uncompared bump, so the three
+    # read sites (ADD branch, both-sides text, both-sides byte reopen) cannot drift.
+    global uncompared
+    uncompared += 1
+    sys.stdout.write("UNREADABLE " + rel + " (" + (exc.strerror or str(exc)) + ")\n")
 for rel in sorted(set(a) | set(b)):
     # A file that exists on only ONE side is an add or a delete, and its whole body is
     # not a diff a reader needs: report it as one line with its size. Only a file that
@@ -1077,17 +1112,29 @@ for rel in sorted(set(a) | set(b)):
         continue
     if rel not in a:
         body = text(b[rel])
+        if isinstance(body, OSError):
+            report_unreadable(rel, body)
+            continue
         size = "binary" if body is None else str(len(body)) + " lines"
         changed += 1
         sys.stdout.write("ADD    " + rel + " (" + size + ")\n")
         continue
     left, right = text(a[rel]), text(b[rel])
+    if isinstance(left, OSError) or isinstance(right, OSError):
+        report_unreadable(rel, left if isinstance(left, OSError) else right)
+        continue
     if left is None or right is None:
-        # A binary artifact on both sides: compare bytes, and never try to diff them.
-        with open(a[rel], "rb") as fh1, open(b[rel], "rb") as fh2:
-            if fh1.read() != fh2.read():
-                changed += 1
-                sys.stdout.write("MODIFY " + rel + " (binary)\n")
+        # A binary artifact on both sides: compare bytes, and never try to diff them. Guard
+        # the reopen: a file text() read as binary can still fail to open here (a symlink that
+        # dangles between the two reads), and an unhandled OSError would abort the whole dry
+        # run rather than report the one file it could not compare.
+        try:
+            with open(a[rel], "rb") as fh1, open(b[rel], "rb") as fh2:
+                if fh1.read() != fh2.read():
+                    changed += 1
+                    sys.stdout.write("MODIFY " + rel + " (binary)\n")
+        except OSError as exc:
+            report_unreadable(rel, exc)
         continue
     if left == right:
         continue
@@ -1096,11 +1143,18 @@ for rel in sorted(set(a) | set(b)):
     for line in difflib.unified_diff(left, right, fromfile="a/" + rel, tofile="b/" + rel):
         sys.stdout.write(line if line.endswith("\n") else line + "\n")
 sys.stdout.write("devflow-install: " + str(changed) + " file(s) would change.\n")
+# The count line prints only when at least one path could not be compared, so the summary
+# line above stays byte-identical on every clean run (a pinned fixed string in the suite).
+if uncompared:
+    sys.stdout.write("devflow-install: " + str(uncompared) + " file(s) could not be compared (listed above as UNREADABLE).\n")
 '
-# The subtrees the preview copies and diffs. `.prflow/vendor` is excluded from the
-# diff body (a DEVFLOW_VENDOR=1 tree is thousands of files and its churn is reported
-# as one line by the apply log instead), and only the two `.claude/` paths this
-# installer READS are copied — never the consumer's wider `.claude/`.
+# The subtrees the preview copies and diffs. Each state directory's `vendor/` and `tmp/`
+# scratch dir are excluded from the diff body — on both `.prflow` and `.devflow`, matching
+# devflow_build_preview's `vendor|tmp` sandbox skip, so an un-migrated `.devflow/vendor`
+# tree does not surface as false DELETE rows (a DEVFLOW_VENDOR=1 tree is thousands of files,
+# reported as one line by the apply log instead; tmp/ is never an upgrade byte),
+# and only the two `.claude/` paths this installer READS are copied — never the consumer's
+# wider `.claude/`.
 #
 # `.claude/plugins` is in the DIFF scope, not merely the sandbox copy, because
 # prune_stale_vendored_plugin can `rm -rf .claude/plugins/devflow` on a pre-relocation
@@ -1130,8 +1184,9 @@ devflow_render_preview() {
 
 # Materialize the sandbox: a copy of the consumer subtrees the apply path reads or
 # writes. Missing subtrees are simply absent in the copy, which is exactly what the
-# apply path would see. `.prflow/vendor` is skipped — the apply path recreates it
-# from $SRC when DEVFLOW_VENDOR=1 and never reads the existing one.
+# apply path would see. `vendor` is skipped — the apply path recreates it from $SRC when
+# DEVFLOW_VENDOR=1 and never reads the existing one — and `tmp` is skipped as the ignored
+# scratch dir the upgrade never writes (it can be large, and hold files the diff cannot open).
 devflow_build_preview() {
   local real="$1" prev="$2" d
   mkdir -p "$prev"
@@ -1146,7 +1201,7 @@ devflow_build_preview() {
       mkdir -p "$prev/$_sd"
       for d in "$real"/"$_sd"/*; do
         [ -e "$d" ] || continue
-        case "${d##*/}" in vendor) continue ;; esac
+        case "${d##*/}" in vendor|tmp) continue ;; esac
         cp -R "$d" "$prev/$_sd/"
       done
       [ -f "$real/$_sd/.gitignore" ] && cp "$real/$_sd/.gitignore" "$prev/$_sd/.gitignore"
@@ -1228,8 +1283,25 @@ devflow_apply_all() (
   #    in the workspace at runtime, so it need not be committed. DEVFLOW_VENDOR=1
   #    commits it instead (self-hosting). Both paths copy through the ONE shared
   #    slice definition, so the file set can never drift between installer and CI.
+  # Vendor-mode detection (issue #576): a repository that already commits the plugin tree
+  # under .prflow/vendor/prflow/ is treated as vendor mode even on a thin install, so an
+  # upgrade refreshes the committed tree instead of leaving CI run the stale committed copy.
+  # Read the REAL target root, never the dry-run sandbox ($1 here, which carries no
+  # .prflow/vendor — devflow_build_preview skips it): `scan` is the real repo on a dry run
+  # and empty on a real apply (where $PWD is already the real repo). A bare-.git or non-repo
+  # target makes git ls-files fail → empty → NOT vendor mode, keeping today's thin behavior.
+  local real_root="${scan:-$PWD}" _vendor_tracked="" _vendor_autodetected=0
+  _vendor_tracked="$(git -C "$real_root" ls-files -- '.prflow/vendor/prflow' 2>/dev/null || true)"
+  if [ "${DEVFLOW_VENDOR:-}" != "1" ] && [ -n "$_vendor_tracked" ]; then
+    DEVFLOW_VENDOR=1
+    _vendor_autodetected=1
+  fi
   if [ "${DEVFLOW_VENDOR:-}" = "1" ]; then
-    log "vendoring plugin → .prflow/vendor/prflow/ (DEVFLOW_VENDOR=1)"
+    if [ "$_vendor_autodetected" = 1 ]; then
+      log "refreshing the committed plugin tree → .prflow/vendor/prflow/ (a git-tracked vendor tree was found; to switch to a thin install, remove the committed .prflow/vendor/prflow/ tree and re-run)"
+    else
+      log "vendoring plugin → .prflow/vendor/prflow/ (DEVFLOW_VENDOR=1)"
+    fi
     devflow_copy_slice "$SRC" ".prflow/vendor/prflow"
   else
     log "thin install: the plugin is fetched at runtime (set DEVFLOW_VENDOR=1 to commit it instead)"
@@ -1542,6 +1614,35 @@ case "$DEVFLOW_INSTALL_STATE:$DEVFLOW_MODE_REQUEST" in
   *)                  MODE=dry-run ;;
 esac
 log "detected ${DEVFLOW_INSTALL_STATE} installation; running in ${MODE} mode."
+
+# ── Installer self-check: the running installer vs the release it just fetched ──
+# The operator downloads install.sh once and re-runs it with a new DEVFLOW_REF; the
+# script logic is fixed at download time while the files it installs come from the
+# fetched release. When the two differ, old logic writes new files with no warning
+# (issue #576). Compare THIS file against the fetched tree's install.sh (line endings
+# aside) and stop before the first write under apply mode — unless DEVFLOW_ALLOW_INSTALLER_DRIFT=1
+# overrides, mirroring the self-install guard's DEVFLOW_ALLOW_* pattern. This is a
+# comparison ONLY: never re-exec $SRC/install.sh, which would run code the operator
+# never read and break the documented download-read-run trust model.
+_self_path="${BASH_SOURCE[0]:-}"
+if [ -z "$_self_path" ] || [ ! -f "$_self_path" ] || [ ! -r "$_self_path" ]; then
+  # curl … | bash, or any invocation where the running file is unreadable/not a regular
+  # file: nothing to compare against, so skip and continue.
+  log "installer self-check skipped: cannot read the running installer's own file (e.g. a 'curl … | bash' run)."
+elif [ ! -f "$SRC/install.sh" ]; then
+  # A vendored plugin slice ships no top-level install.sh, so the fetched tree may carry
+  # none: nothing to compare against, skip and continue.
+  log "installer self-check skipped: the fetched release tree carries no install.sh to compare against."
+elif ! devflow_files_match_crlf_insensitive "$_self_path" "$SRC/install.sh"; then
+  _drift_dl="curl -fsSL https://raw.githubusercontent.com/${REPO}/${REF}/install.sh -o devflow-install.sh"
+  if [ "$MODE" = dry-run ]; then
+    log "warning: this installer does not match the fetched release's install.sh; the plan below is produced by this (possibly older) installer's logic. Download the matching installer with: $_drift_dl"
+  elif [ -n "${DEVFLOW_ALLOW_INSTALLER_DRIFT:-}" ]; then
+    log "warning: this installer does not match the fetched release's install.sh; installing anyway (DEVFLOW_ALLOW_INSTALLER_DRIFT=1). To use the matching installer: $_drift_dl"
+  else
+    die "this installer does not match the fetched release's install.sh — re-running a saved installer against a different release applies old logic to new files. Download the matching installer and re-run it: $_drift_dl  (or set DEVFLOW_ALLOW_INSTALLER_DRIFT=1 to install with this installer anyway)."
+  fi
+fi
 
 if [ "$MODE" = dry-run ]; then
   # The preview runs the REAL apply path against a sandbox copy of this repository, then

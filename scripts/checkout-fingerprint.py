@@ -89,7 +89,7 @@ def _git(args: list[str], cwd: str, env: dict | None = None, check: bool = True)
         cwd=cwd,
         env=env,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     if check and proc.returncode != 0:
@@ -101,7 +101,7 @@ def _toplevel() -> str:
     proc = subprocess.run(
         [_GIT, "rev-parse", "--show-toplevel"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     if proc.returncode != 0:
@@ -118,7 +118,7 @@ def _head(top: str) -> str:
         [_GIT, "rev-parse", "--verify", "HEAD"],
         cwd=top,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     if proc.returncode == 0:
@@ -133,7 +133,7 @@ def _head(top: str) -> str:
         [_GIT, "symbolic-ref", "-q", "HEAD"],
         cwd=top,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         check=False,
     )
     if symref.returncode == 0 and symref.stdout.strip():

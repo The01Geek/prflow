@@ -14,27 +14,36 @@ reconciliation is accepted.
 Two subcommands:
 
   prepare --issue <N>
-    Capture the five-field `checkout-fingerprint.py` baseline, allocate a FRESH per-attempt
-    directory beneath the checkout's `.prflow/tmp/` (so every first-party write the dispatch
-    makes lands in ignored space), mint distinct evidence/claim report destinations plus the
-    `criteria_path` the orchestrator writes the tagged criteria list to before dispatch, and
-    print those paths as one JSON object the orchestrator passes by value into the two dispatch
-    prompts and the later `check` call. Fresh allocation is what stops a previous attempt's
-    report from being reused. (Phase 3.4 mints no verification flight — the evidence verifier
-    runs its command directly — so `prepare` prints no flight state/logs directory.)
+    Write the attempt root's `.gitignore` holding the single line `*`, THEN capture the
+    five-field `checkout-fingerprint.py` baseline, allocate a FRESH per-attempt directory
+    beneath the checkout's `.prflow/tmp/` (so every first-party write the dispatch makes lands
+    in ignored space), mint distinct evidence/claim report destinations plus the `criteria_path`
+    the orchestrator writes the tagged criteria list to before dispatch, and print those paths
+    as one JSON object the orchestrator passes by value into the two dispatch prompts and the
+    later `check` call. The `.gitignore` is written before the baseline so every attempt file —
+    this attempt's and any earlier attempt's left in the root — drops out of git's untracked
+    listing before the baseline rather than reading as drift in a repo whose `.prflow/tmp/` is
+    not itself gitignored. Fresh allocation is what stops a previous attempt's report from being
+    reused. (Phase 3.4 mints no verification flight — the evidence verifier runs its command
+    directly — so `prepare` prints no flight state/logs directory.)
 
   check --attempt-dir <dir> --evidence-file <path> --criteria-file <path> [--claim-file <path>]
     Re-run the fingerprint and compare it field-by-field against the baseline `prepare` saved.
     An UNCHANGED fingerprint permits report processing: read the tagged criteria list, invoke
-    the reconciler on the assigned files with that list, and pass its JSON result through
-    unchanged. `--claim-file` is optional: omit it only when the criteria file names no
-    `command` criterion (every criterion then reconciles from the evidence report alone);
-    omitting it while any criterion is `command`, and a supplied `--claim-file` that is missing
-    or unreadable, each exit 3 with no reconciliation printed — as does a criteria file that is
-    missing, unreadable, or not a bare JSON list. A changed fingerprint, a missing baseline,
-    and a failed measurement are each independently blocking — the gate does not proceed, and
-    the failure names the changed fingerprint field(s) and, for the tracked and untracked
-    fields, the offending `git status --porcelain` paths. The helper only reads and reports: it
+    the reconciler on the assigned files with that list, write a bounded per-criterion
+    dispositions record to `ac-dispositions.md` in the attempt directory, and print one
+    compact routing line of JSON — `all_satisfied`, `blocking`, each criterion's `criterion`,
+    `status`, `remedy` and `reason`, and the record's `dispositions_path`. `--claim-file` is
+    optional: omit it only when the criteria file names no `command` criterion (every criterion
+    then reconciles from the evidence report alone); omitting it while any criterion is
+    `command`, and a supplied `--claim-file` that is missing or unreadable, each exit 3 with no
+    reconciliation printed — as does a criteria file that is missing, unreadable, or not a bare
+    JSON list. A changed fingerprint, a missing baseline, and a failed measurement are each
+    independently blocking — the gate does not proceed, and the failure names the changed
+    fingerprint field(s) and, for the tracked field the offending `git status --porcelain`
+    paths and for the untracked field the offending `git ls-files -o --exclude-standard` paths
+    (which name a stray file inside an untracked directory that porcelain collapses to the
+    directory). The helper only reads, reconciles, and writes the dispositions record; it
     performs no rollback, deletion, or staging.
 
 The guard reuses `checkout-fingerprint.py`'s producer, so it covers exactly what that
@@ -45,16 +54,21 @@ verifier pair; it does not attribute a change to one verifier and is not hostile
 containment.
 
 Exit codes:
-    0 — reconciliation produced on a clean checkout (stdout is `reconcile-ac-verifiers.py`'s
-        own JSON, unchanged — even when it reports blocking criteria, a normal reconciliation
-        outcome, not a helper failure)
+    0 — reconciliation produced on a clean checkout: stdout is the one-line routing JSON
+        (`all_satisfied`, `blocking`, the per-criterion routing projection, and
+        `dispositions_path`) and the bounded per-criterion record is written to
+        `ac-dispositions.md` in the attempt directory — even when the reconciliation reports
+        blocking criteria, a normal outcome, not a helper failure
     1 — a `prepare` failure (fingerprint capture, directory allocation, or symlink rejection)
     2 — a `check` guard failure: drift, a missing/unreadable baseline, a failed measurement,
-        or a symlink-rejected path — all independently blocking. stdout carries a guard JSON
-        object naming the cause; stderr carries a breadcrumb.
+        or a symlink-rejected path (the `ac-dispositions.md` destination included) — all
+        independently blocking. stdout carries a guard JSON object naming the cause; stderr
+        carries a breadcrumb.
     3 — a `check` input was unestablished, no reconciliation printed: a report or the criteria
         file unreadable/malformed/not-a-bare-list, `--claim-file` omitted while a `command`
-        criterion is present, or a supplied `--claim-file` missing/unreadable
+        criterion is present, a supplied `--claim-file` missing/unreadable, or the
+        `ac-dispositions.md` record could not be written (empty stdout, a stderr line prefixed
+        `could not write the dispositions record:`)
 """
 
 from __future__ import annotations
@@ -96,6 +110,15 @@ def _load_sibling(modname: str, filename: str):
     return mod
 
 
+def _fwd(path: str) -> str:
+    """Emit a machine-read path with forward slashes only.
+
+    Keyed off the active path flavour, so a POSIX host — where a backslash is a legal
+    filename byte — is byte-for-byte unchanged, while a native-Windows Python stops
+    handing the orchestrator a `C:/repo\\.prflow` mix of both separators."""
+    return path.replace(os.path.sep, "/") if os.path.sep != "/" else path
+
+
 class _GuardError(Exception):
     """A checkout-integrity guard could not be satisfied (independently blocking)."""
 
@@ -106,7 +129,7 @@ def _toplevel() -> str:
     try:
         proc = subprocess.run(
             [_GIT, "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding="utf-8", check=False,
         )
     except OSError as exc:
         raise _GuardError(f"could not run git: {exc}") from exc
@@ -157,7 +180,7 @@ def _porcelain(top: str) -> list[str]:
     try:
         proc = subprocess.run(
             [_GIT, "status", "--porcelain"],
-            cwd=top, capture_output=True, text=True, check=False,
+            cwd=top, capture_output=True, text=True, encoding="utf-8", check=False,
         )
     except OSError:
         return []
@@ -179,15 +202,27 @@ def _tracked_offenders(lines: list[str]) -> list[str]:
     return out
 
 
-def _untracked_offenders(lines: list[str]) -> list[str]:
-    return [ln[3:] for ln in lines if ln.startswith("?? ")]
+def _untracked_offenders(top: str) -> list[str]:
+    """Untracked, non-ignored paths from git's exclude-aware listing — the same source the
+    fingerprint's `untracked_digest` reads. `git status --porcelain` collapses an untracked
+    directory to a single `?? dir/` line, so it cannot name a stray file inside one; the
+    exclude-aware `ls-files -o` listing names each file, matching what the fingerprint compared."""
+    try:
+        proc = subprocess.run(
+            [_GIT, "ls-files", "-o", "--exclude-standard", "-z"],
+            cwd=top, capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+    except OSError:
+        return []
+    if proc.returncode != 0:
+        return []
+    return [p for p in proc.stdout.split("\0") if p]
 
 
 def _cmd_prepare(args) -> int:
     fp_mod = _load_sibling("_ava_checkout_fingerprint", "checkout-fingerprint.py")
     try:
         top = _toplevel()
-        baseline = _fingerprint(fp_mod)
     except _GuardError as exc:
         print(f"ac-verifier-artifacts: prepare: {exc}", file=sys.stderr)
         return 1
@@ -199,11 +234,21 @@ def _cmd_prepare(args) -> int:
         attempt_root = os.path.join(top, args.scratch_base, _ATTEMPT_ROOT_LEAF)
     else:
         attempt_root = os.path.join(top, *_ATTEMPT_ROOT_PREFIX_PARTS, str(args.issue), _ATTEMPT_ROOT_LEAF)
+    boundary = os.path.join(top, ".prflow", "tmp")
     try:
         # Guard the path BEFORE creating it, so a symlinked component (or a base escaping
         # `.prflow/tmp`) is rejected rather than followed by makedirs.
-        _reject_symlink_path(attempt_root, os.path.join(top, ".prflow", "tmp"))
+        _reject_symlink_path(attempt_root, boundary)
         os.makedirs(attempt_root, exist_ok=True)
+        # Write the attempt root's `.gitignore` (holding `*`) and capture the baseline only
+        # AFTER it exists, so every attempt file under this root — this attempt's and any
+        # earlier attempt's — is already excluded from git's untracked listing at baseline
+        # time. Without this the baseline would predate the attempt files and `check` would
+        # read them as untracked drift in a repo whose `.prflow/tmp/` is not itself gitignored.
+        gitignore_path = os.path.join(attempt_root, ".gitignore")
+        _reject_symlink_path(gitignore_path, boundary)
+        _ensure_star_gitignore(gitignore_path)
+        baseline = _fingerprint(fp_mod)
         attempt_dir = tempfile.mkdtemp(prefix=f"{args.issue}-", dir=attempt_root)
         os.chmod(attempt_dir, 0o700)
         evidence_path = os.path.join(attempt_dir, "evidence-report.json")
@@ -214,7 +259,6 @@ def _cmd_prepare(args) -> int:
         criteria_path = os.path.join(attempt_dir, "criteria.json")
         # Reject a symlink anywhere along each destination before handing it out, so a verifier
         # can never be pointed at a link that redirects its write outside the ignored dir.
-        boundary = os.path.join(top, ".prflow", "tmp")
         for dest in (evidence_path, claim_path, baseline_path, criteria_path):
             _reject_symlink_path(dest, boundary)
         _atomic_write_json(baseline_path, baseline)
@@ -222,14 +266,21 @@ def _cmd_prepare(args) -> int:
         print(f"ac-verifier-artifacts: prepare: {exc}", file=sys.stderr)
         return 1
 
-    sys.stdout.write(json.dumps({
-        "attempt_dir": attempt_dir,
-        "evidence_report_path": evidence_path,
-        "claim_report_path": claim_path,
-        "baseline_fingerprint_path": baseline_path,
-        "criteria_path": criteria_path,
-    }, sort_keys=True) + "\n")
+    sys.stdout.write(_prepare_payload(
+        attempt_dir, evidence_path, claim_path, baseline_path, criteria_path))
     return 0
+
+
+def _prepare_payload(attempt_dir, evidence_path, claim_path, baseline_path,
+                     criteria_path) -> str:
+    """`prepare`'s stdout line — the orchestrator's destinations, forward-slashed."""
+    return json.dumps({
+        "attempt_dir": _fwd(attempt_dir),
+        "evidence_report_path": _fwd(evidence_path),
+        "claim_report_path": _fwd(claim_path),
+        "baseline_fingerprint_path": _fwd(baseline_path),
+        "criteria_path": _fwd(criteria_path),
+    }, sort_keys=True) + "\n"
 
 
 def _atomic_write_json(path: str, obj) -> None:
@@ -247,6 +298,89 @@ def _atomic_write_json(path: str, obj) -> None:
         except OSError:
             pass
         raise
+
+
+def _atomic_write_text(path: str, text: str) -> None:
+    """Atomic-replace a UTF-8 text file with `\\n` endings, mirroring `_atomic_write_json`."""
+    directory = os.path.dirname(path)
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".md")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _ensure_star_gitignore(path: str) -> None:
+    """Write a `.gitignore` holding the single line `*` when it is absent or its bytes are not
+    exactly `*\\n`; an already-correct file is left byte-untouched so a re-run does not rewrite it."""
+    try:
+        with open(path, "rb") as fh:
+            if fh.read() == b"*\n":
+                return
+    except OSError:
+        pass
+    _atomic_write_text(path, "*\n")
+
+
+def _truncate_to_bytes(value: str, limit: int) -> str:
+    """Copy `value` unchanged when its UTF-8 length is at most `limit`; otherwise cut it after
+    its last whole character within `limit` bytes and append the literal ` [truncated]`."""
+    encoded = value.encode("utf-8")
+    if len(encoded) <= limit:
+        return value
+    cut = encoded[:limit]
+    while cut:
+        try:
+            head = cut.decode("utf-8")
+            break
+        except UnicodeDecodeError:
+            cut = cut[:-1]
+    else:
+        head = ""
+    return head + " [truncated]"
+
+
+def _bounded_dispositions(disp) -> dict:
+    """Bound every string slot value in a disposition map to 60 UTF-8 bytes; a non-string
+    value passes through unchanged (issue #581)."""
+    return {k: (_truncate_to_bytes(v, 60) if isinstance(v, str) else v)
+            for k, v in disp.items()}
+
+
+def _dispositions_line(c: dict) -> dict:
+    """Project one reconciled-criterion record into its bounded dispositions-record line."""
+    evidence = c["evidence"]
+    return {
+        "criterion": c["criterion"],
+        "status": c["status"],
+        "remedy": c["remedy"],
+        "evidence": _truncate_to_bytes(evidence, 200) if isinstance(evidence, str) else evidence,
+        "evidence_status_reported": c["evidence_status_reported"],
+        "claim_status_reported": c["claim_status_reported"],
+        "evidence_dispositions": _bounded_dispositions(c["evidence_dispositions"]),
+        "claim_dispositions": _bounded_dispositions(c["claim_dispositions"]),
+        "undischarged_slots": c["undischarged_slots"],
+    }
+
+
+def _write_dispositions(path: str, criteria: list) -> None:
+    """Write the per-criterion dispositions record as UTF-8 JSON lines (`ensure_ascii=False`,
+    `\\n` endings). An empty reconciliation writes the single line `{"criteria": []}`."""
+    if not criteria:
+        body = json.dumps({"criteria": []}, ensure_ascii=False) + "\n"
+    else:
+        body = "".join(
+            json.dumps(_dispositions_line(c), ensure_ascii=False, sort_keys=True) + "\n"
+            for c in criteria)
+    _atomic_write_text(path, body)
 
 
 def _cmd_check(args) -> int:
@@ -267,7 +401,8 @@ def _cmd_check(args) -> int:
         # tampered handoff cannot make the reconciler read through a symlink outside ignored space.
         # `--claim-file` is optional (issue #439), so it is guarded only when supplied.
         boundary = os.path.join(top, ".prflow", "tmp")
-        guarded = [args.evidence_file, args.criteria_file]
+        dispositions_path = os.path.join(attempt_dir, "ac-dispositions.md")
+        guarded = [args.evidence_file, args.criteria_file, dispositions_path]
         if args.claim_file is not None:
             guarded.append(args.claim_file)
         for dest in guarded:
@@ -300,12 +435,10 @@ def _cmd_check(args) -> int:
     changed = sorted(k for k in set(fresh) | set(baseline) if baseline.get(k) != fresh.get(k))
     if changed:
         offending: dict[str, list[str]] = {}
-        if "tracked_digest" in changed or "untracked_digest" in changed:
-            porcelain = _porcelain(top)
-            if "tracked_digest" in changed:
-                offending["tracked_digest"] = _tracked_offenders(porcelain)
-            if "untracked_digest" in changed:
-                offending["untracked_digest"] = _untracked_offenders(porcelain)
+        if "tracked_digest" in changed:
+            offending["tracked_digest"] = _tracked_offenders(_porcelain(top))
+        if "untracked_digest" in changed:
+            offending["untracked_digest"] = _untracked_offenders(top)
         print(f"ac-verifier-artifacts: check: checkout drift — changed fields "
               f"{changed}; the run's implementation may be contaminated. Resolve the "
               f"change (a verification command that leaves non-ignored artifacts must "
@@ -344,7 +477,26 @@ def _cmd_check(args) -> int:
         print(f"ac-verifier-artifacts: check: could not read a verifier report: {exc}",
               file=sys.stderr)
         return 3
-    print(json.dumps(recon.reconcile(evidence_records, claim_records, class_by_num), indent=2))
+    result = recon.reconcile(evidence_records, claim_records, class_by_num)
+    # Write the full bounded per-criterion record to a file, then print only the compact routing
+    # line: the orchestrator routes on the line's closed tokens and reads a criterion's own record
+    # line from the file only when its remedy is not `tick`, so the full record never re-enters the
+    # orchestrator's context. A write failure is unestablished output (exit 3), not a guard block.
+    try:
+        _write_dispositions(dispositions_path, result["criteria"])
+    except OSError as exc:
+        print(f"ac-verifier-artifacts: check: could not write the dispositions record: "
+              f"{dispositions_path}: {exc}", file=sys.stderr)
+        return 3
+    routing = {
+        "all_satisfied": result["all_satisfied"],
+        "blocking": result["blocking"],
+        "criteria": [{"criterion": c["criterion"], "status": c["status"],
+                      "remedy": c["remedy"], "reason": c["reason"]}
+                     for c in result["criteria"]],
+        "dispositions_path": dispositions_path,
+    }
+    print(json.dumps(routing, sort_keys=True))
     return 0
 
 

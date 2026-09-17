@@ -408,9 +408,13 @@ def iter_view:
       # Per-entry dispatch mode + corroboration (issue #115), keyed off the return
       # file map the wrapper derived. The population predicate mirrors
       # do_self_check: a source:"review" or synthesized:true record is not checked
-      # (step1 not-checked), and the shadow entry is checked only on a shadow
-      # object whose coverage is not "not_verified". All derefs type-guarded so an
-      # agent-mutable malformed record never aborts the filter.
+      # (step1 not-checked); the step1 entry is ADDITIONALLY not checked when the
+      # persisted loop_role is exactly "promoted" (issue #556 — a promoted iter
+      # issues no Step 1 dispatch); and the shadow entry is checked only on a shadow
+      # object whose coverage is not "not_verified" — off $base_checked, NOT
+      # $step1_checked, so the promoted exclusion never stops checking its shadow.
+      # All derefs type-guarded so an agent-mutable malformed record never aborts the
+      # filter; loop_role is compared exactly, so a non-string never matches.
       dispatch: (
         (($it.iter | tostring)) as $ikey
         | (($return_files[$ikey]) // {}) as $rf
@@ -418,11 +422,12 @@ def iter_view:
         # non-object, and an empty-valued field collapses the whole record to
         # nothing — so a shadowless iter would vanish from the trace and record.
         | (($it.shadow) | if type == "object" then . else null end) as $sh
-        | ((($it.source) != "review") and (($it.synthesized) != true)) as $step1_checked
+        | ((($it.source) != "review") and (($it.synthesized) != true)) as $base_checked
+        | ($base_checked and (($it.loop_role) != "promoted")) as $step1_checked
         | (($it.dispatch_mode) | if type == "string" then . else null end) as $step1_recmode
         | (($it.dispatch_disposition) | if type == "string" then . else null end) as $step1_disp
         | (($rf.step1) // "absent") as $step1_file
-        | ($step1_checked and ($sh != null) and (($sh.coverage) != "not_verified")) as $shadow_checked
+        | ($base_checked and ($sh != null) and (($sh.coverage) != "not_verified")) as $shadow_checked
         | (($sh.dispatch_mode) | if type == "string" then . else null end) as $shadow_recmode
         | (($sh.dispatch_disposition) | if type == "string" then . else null end) as $shadow_disp
         | (($rf.shadow) // "absent") as $shadow_file

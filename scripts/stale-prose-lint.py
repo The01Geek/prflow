@@ -59,9 +59,13 @@ byte-equality between a JSON record and a prose line, and so is unreachable in p
   ``rule`` TSV token ``R3`` — there is no ``R3b`` output token. The numeric R3
   arm's ``_COUNT_RE`` requires the trigger noun in **plural** form and refuses a
   numeral directly preceded by ``#`` / ``§`` / a digit / ``.`` / ``-`` (issue
-  #1405) — so a singular ordinal reference (``Step 3 item 6``) or a ``#402``-style
-  reference is not read as a count claim; a plural ordinal (``Step 3 items 1-4``)
-  is a disclosed residual that still gates.
+  #1405) — so a ``#402``-style reference is not read as a count claim. A numeral
+  introduced by a whole-word heading-form step label — ``Move`` / ``Phase`` /
+  ``Step`` / ``Tier`` / ``AC`` / ``Case`` (issue #557) — is a step NUMBER, not a
+  count, and is skipped at both the gating R3 arm and the recognition tier, so
+  neither ``Step 3 item 6`` nor ``Step 3 items 1-4`` is read as a count claim; a
+  lowercase or non-label prefix (``ReMove``, ``MAC``, a bare ``move``) is not a
+  label and still grades.
 * **R4 modality-conflict (operator-token restricted).** A deny-absolute
   (``never``/``no``/``not``/``any``/``forbidden`` …) about a **backticked operator
   token** — one of ``> >> < << | || && & |& 2> 2>> &>`` — that the SAME post-diff
@@ -488,7 +492,7 @@ _COUNT_NOUNS = r"assertions?|asserts?|checks?|bullets?|items?|entries?|cases?"
 _NUM_LOOKBEHIND = r"(?<![#§\d.\-])"
 # The gating R3 pattern carries two guards the non-gating recognition tier already ships (issue
 # #1405): the trigger noun must be PLURAL, and the numeral must clear _NUM_LOOKBEHIND — see the
-# module-header R3 spec for the rule and its disclosed plural-ordinal residual. Both live HERE,
+# module-header R3 spec for the rule (and the issue-#557 heading-label skip). Both live HERE,
 # on the compiled pattern, leaving _COUNT_NOUNS byte-identical: the recognition tier interpolates
 # that constant and must keep recognising singular nouns. The plural alternation is derived from
 # _COUNT_NOUNS (the single source of nouns) by promoting each optional-plural ``s?`` to ``s``.
@@ -1291,6 +1295,21 @@ def _adjacent_assert_idxs(lines, claim_idx):
     return out
 
 
+# Heading-form step labels (issue #557): a count-shape numeral immediately preceded by one of
+# these whole-word labels plus whitespace is a step number, not a count, and is skipped at both
+# count tiers via the shared _labeled_step_number predicate below. Keep it case-SENSITIVE and
+# whole-word (`^` or a non-[A-Za-z0-9_] char before the label): loosening either would wrongly
+# skip a non-label prefix such as lowercase "move", "MAC", or "ReMove".
+_LABEL_PREFIX_RE = re.compile(r"(?:^|[^A-Za-z0-9_])(?:Move|Phase|Step|Tier|AC|Case)\s+\Z")
+
+
+def _labeled_step_number(prefix):
+    """True when ``prefix`` — the text before a count-shape numeral — ends with a whole-word
+    heading-form step label plus whitespace (issue #557), making the count shape a step number
+    rather than a count claim. Shared by the gating _COUNT_RE walk and _recognize_count."""
+    return _LABEL_PREFIX_RE.search(prefix) is not None
+
+
 def _mods_ok(mods):
     """True when every intervening modifier token in ``mods`` is a plain modifier word — not a
     partitive/conjunction (of/per/and/or) and not numeral-shaped. See the recognition-tier
@@ -1311,6 +1330,8 @@ def _recognize_count(text):
     match disqualified by its modifiers does not mask a later valid claim on the same line."""
     for m in _RECOG_RE.finditer(text):
         if not _mods_ok(m.group("mods")):
+            continue
+        if _labeled_step_number(text[:m.start()]):
             continue
         word = m.group("word")
         n = _WORD_NUM[word.lower()] if word else int(m.group("digit"))
@@ -1485,8 +1506,12 @@ def examine_file(path, added, lines, rows, move=None):
                         demote=_demote_ok(exempt, added, move, claim_sources, assert_idxs, lines))
             continue
 
-        # R3 — exact numeric count claim ("N assertions") count-locked
-        cm = _COUNT_RE.search(text)
+        # R3 — exact numeric count claim ("N assertions") count-locked. Walk every match so a
+        # labeled step number ("Move 1 checks", issue #557) is skipped without masking a later
+        # unlabeled count on the same line, and fall through (no `continue`) when every match is
+        # a step label so R4 and the recognition tiers still run.
+        cm = next((m for m in _COUNT_RE.finditer(text)
+                   if not _labeled_step_number(text[:m.start()])), None)
         if cm:
             n = int(cm.group(1))
             assert_idxs = _adjacent_assert_idxs(lines, idx)

@@ -611,6 +611,16 @@ jobs:
   claude:
     needs: [config, gate]
     if: needs.gate.outputs.should_run == 'true' && needs.gate.outputs.duplicate != 'true'
+    # Issue #471: one live agent per issue — a stall-backstop resume or a racing
+    # re-trigger QUEUES until the in-progress claude job ends. Never set
+    # cancel-in-progress: true (a deliberate cancel feeds the run-identity/recovery
+    # machinery and discards a live run's work). Keep the group job-level and keyed
+    # on the gate's resolved issue number; a run that will not execute gets its own
+    # group so it can never displace a queued sibling. A queued job superseded by a
+    # newer one is cancelled before start, which spot_recovery routes to noop.
+    concurrency:
+      group: prflow-implement-issue-${{ (needs.gate.outputs.should_run == 'true' && needs.gate.outputs.duplicate != 'true' && needs.gate.outputs.number) || format('run-{0}', github.run_id) }}
+      cancel-in-progress: false
     runs-on: ${{ vars.DEVFLOW_IMPLEMENT_RUNNER && (startsWith(vars.DEVFLOW_IMPLEMENT_RUNNER, '[') && fromJSON(vars.DEVFLOW_IMPLEMENT_RUNNER) || format(vars.DEVFLOW_IMPLEMENT_RUNNER, github.run_id)) || (vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest') }}
     permissions:
       contents: write
@@ -1137,7 +1147,7 @@ jobs:
         id: plugins
         run: |
           set -euo pipefail
-          BAKED_PLUGINS="$(printf '%s\n' code-review@claude-plugins-official claude-md-management@claude-plugins-official prflow@devflow-marketplace)"
+          BAKED_PLUGINS="$(printf '%s\n' prflow@devflow-marketplace)"
           BAKED_MARKETPLACES="$(printf '%s\n' https://github.com/anthropics/claude-plugins-official.git ./)"
           SETTINGS=.claude/settings.json
           HELPER=.prflow/vendor/prflow/scripts/resolve-extra-plugins.sh
@@ -1433,8 +1443,8 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=implement manifest_version=39 sha256=2adcd4a9fbc2b93625664c4fe984412ed587f0e9c31237902b2f95623fc30a57
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh run download:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=implement manifest_version=40 sha256=3d0436784ce7d782b53174e9bbde5c44f626506697efadc4851b06d8652e0659
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh run download:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
           # Union the vendored plugin's own helper grants into the baked list (issue #352).
           # Capture as RESOLVED, never a second TOOLS= (breaks the #1170 single-TOOLS pin and
           # --check); baseline on STDIN and MANIFEST/PROFILE in env, never as args (MSYS rewrites path-shaped args).
@@ -1768,13 +1778,8 @@ jobs:
           # steps.plugins directly.
           plugin_marketplaces: ${{ steps.vendor_marketplace.outputs.plugin_marketplaces }}
 
-          # code-review@ and claude-md-management@ are ambient-command conveniences (the
-          # /code-review and /revise-claude-md slash commands), NOT engine dependencies —
-          # PRFlow's engine dispatches neither. The "zero companion-plugin dependencies"
-          # claim is scoped to the consumer install + what the engine dispatches; see
-          # https://prflow.ai/docs §6. devflow@ is PRFlow itself. The baked
-          # baseline three are composed by the step above; settings-declared extras are
-          # appended beyond them.
+          # The baked baseline (PRFlow itself) is composed by the step above;
+          # settings-declared extras are appended beyond it.
           plugins: ${{ steps.plugins.outputs.plugins }}
 
           base_branch: ${{ needs.config.outputs.base_branch }}
@@ -2745,10 +2750,32 @@ jobs:
             exit 0
           fi
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          BASE_BRANCH="$("$V/config-get.sh" .base_branch main)"
+          [ -n "$BASE_BRANCH" ] || BASE_BRANCH=main
+          # Record the empty-branch fact after a terminal flip (issue #600, AC16),
+          # mirroring the in-job backstop's record_empty_branch — but with NO interim
+          # guard: it is called only from the terminal flips (flip-cancelled and the
+          # 💥 Failed terminalize), never on a resume path. Best-effort: the helper
+          # always exits 0, so the recovery job's success exit is never changed.
+          record_empty_branch_recovery() {
+            local wp_id wp_body
+            wp_id="$(python3 "$V/workpad.py" id "$ISSUE_NUMBER" 2>/dev/null)" || wp_id=""
+            wp_body=""
+            [ -n "$wp_id" ] && { wp_body="$(python3 "$V/workpad.py" body "$wp_id" 2>/dev/null)" || wp_body=""; }
+            ISSUE_NUMBER="$ISSUE_NUMBER" BRANCH="" BASE="$BASE_BRANCH" REMOTE=origin \
+              RUN_URL="$RUN_URL" EB_WORKPAD_BODY="$wp_body" \
+              bash "$V/record-empty-branch.sh" \
+              || echo "::warning::spot-recovery: empty-branch producer exited non-zero; workpad note may be unwritten"
+          }
 
           # ── Evidence → seven normalized flags → decision ──────────────────
+          # A scratch facts file carries the issue-600 cause facts (capacity token,
+          # runner name, failure annotation) beside the seven-flag stdout, which is
+          # unchanged. A missing/empty file collapses to unknown/unavailable below.
+          FACTS_FILE="$(mktemp)" || FACTS_FILE=""
           EVID="$(bash "$V/gather-recovery-evidence.sh" --repo "$GITHUB_REPOSITORY" \
-            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --issue "$ISSUE_NUMBER")"
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" --issue "$ISSUE_NUMBER" \
+            ${FACTS_FILE:+--facts-file "$FACTS_FILE"})"
           # Seven lines, fixed order; a short read fails toward unclassifiable.
           mapfile -t F <<< "$EVID"
           if [ "${#F[@]}" -lt 7 ]; then
@@ -2757,6 +2784,38 @@ jobs:
           fi
           OUTCOME="$(bash "$V/recovery-classify.sh" "${F[0]}" "${F[1]}" "${F[2]}" "${F[3]}" "${F[4]}" "${F[5]}" "${F[6]}")"
           echo "spot-recovery: job_result=${JOB_RESULT} classify=${OUTCOME} flags=[${F[*]}]"
+
+          # ── One bounded cause line (issue #600) ───────────────────────────
+          # Read the cause facts back; a missing/empty facts file (an older vendored
+          # gatherer that ignored --facts-file) collapses to unknown/unavailable.
+          if [ -n "$FACTS_FILE" ] && [ -s "$FACTS_FILE" ]; then
+            CAPACITY_TOKEN="$(jq -r '.capacity_token // "unknown"' "$FACTS_FILE" 2>/dev/null)"; [ -n "$CAPACITY_TOKEN" ] || CAPACITY_TOKEN="unknown"
+            RUNNER_NAME="$(jq -r '.runner_name // empty' "$FACTS_FILE" 2>/dev/null)"
+            ANNOTATION_MESSAGE="$(jq -r '.annotation_message // empty' "$FACTS_FILE" 2>/dev/null)"
+            NEVER_STARTED="$(jq -r '.never_started // "unknown"' "$FACTS_FILE" 2>/dev/null)"
+          else
+            CAPACITY_TOKEN="unknown"; RUNNER_NAME=""; ANNOTATION_MESSAGE=""
+          fi
+          [ -n "${NEVER_STARTED:-}" ] || NEVER_STARTED="unknown"
+          [ -n "$FACTS_FILE" ] && rm -f "$FACTS_FILE"
+          # Build the cause line once. A vendored describe-dead-run-cause.sh that
+          # predates the recovery arm ignores RECOVERY_JOB_CONCLUSION and prints its
+          # legacy two-operand clause ("claude step …"); the recovery arm always opens
+          # "claude job …". Detect that prefix and, when absent, post WITHOUT a cause
+          # line plus a ::warning:: rather than a cause line naming no facts (AC18).
+          CAUSE=""
+          CAUSE_HELPER="$V/describe-dead-run-cause.sh"
+          if [ -f "$CAUSE_HELPER" ]; then
+            PROBE="$(RECOVERY_JOB_CONCLUSION="$JOB_RESULT" RECOVERY_CAPACITY_TOKEN="$CAPACITY_TOKEN" \
+              RECOVERY_RUNNER_NAME="$RUNNER_NAME" RECOVERY_ANNOTATION_MESSAGE="$ANNOTATION_MESSAGE" \
+              bash "$CAUSE_HELPER" 2>/dev/null)"
+            case "$PROBE" in
+              "claude job "*) CAUSE="$PROBE" ;;
+            esac
+          fi
+          if [ -z "$CAUSE" ]; then
+            echo "::warning::spot-recovery: the vendored describe-dead-run-cause.sh predates the issue-600 recovery arm (or is absent); posting without a cause line"
+          fi
 
           # ── Workpad status class (issue #287 read contract) ───────────────
           STATUS_OUT="$(python3 "$V/workpad.py" status "$ISSUE_NUMBER")"; STATUS_RC=$?
@@ -2820,22 +2879,49 @@ jobs:
           # the looser count > cap), so the decision is suite-drivable; only the
           # I/O (count, comment body, post) lives here.
           post_capped_resume() {
-            local attempts max already elig k body
+            local attempts max already elig k body sentence
             attempts="$(count_lifetime_attempts)"
             max="$("$V/config-get.sh" .prflow_implement.stall_backstop.max_resume_attempts 2)"
             [ -n "$max" ] || max=2
             if already_resumed_this_attempt; then already=true; else already=false; fi
             elig="$(bash "$V/recovery-resume-eligible.sh" "$attempts" "$max" "$already" "${APP_TOKEN_PRESENT}")"
-            if [ "$elig" != "post" ]; then
-              echo "::warning::spot-recovery: not resuming — recovery-resume-eligible='${elig}' (attempts=${attempts} max=${max} already_resumed=${already} app_token_present=${APP_TOKEN_PRESENT})"
-              return 0
-            fi
+            case "$elig" in
+              post) ;;
+              at-cap)
+                # A refused-at-cap resume terminalizes 💥 Failed rather than leaving the
+                # workpad interim (AC12) — UNLESS this attempt was already resumed, in
+                # which case a live resume exists and state must not change (AC13).
+                if [ "$already" = "true" ]; then
+                  echo "::warning::spot-recovery: not resuming — at cap and this attempt was already resumed (attempts=${attempts} max=${max}); no state change"
+                else
+                  post_refused_terminalize at-cap "$attempts" "$max"
+                fi
+                return 0 ;;
+              no-app-token)
+                # No workflow-capable App token: an inert resume can never re-trigger,
+                # so terminalize 💥 Failed instead of leaving the workpad interim (AC14).
+                post_refused_terminalize no-app-token "$attempts" "$max"
+                return 0 ;;
+              *)
+                # already-resumed / malformed: no state change (AC15).
+                echo "::warning::spot-recovery: not resuming — recovery-resume-eligible='${elig}' (attempts=${attempts} max=${max} already_resumed=${already} app_token_present=${APP_TOKEN_PRESENT}); no state change"
+                return 0 ;;
+            esac
             k=$((attempts + 1))
+            # The reclaim sentence is used ONLY for a proven reclaim; an unclassifiable
+            # failure resumed here names the conclusion instead, so nothing outside the
+            # cause line claims a Spot reclaim (AC4/AC5).
+            if [ "$OUTCOME" = "reclaim" ]; then
+              sentence="$(printf '**PRFlow Spot-reclaim recovery** — the `claude` job was reclaimed (EC2 Spot); auto-resume attempt %s of %s' "$k" "$max")"
+            else
+              sentence="$(printf '**PRFlow stall-backstop recovery** — the `claude` job ended `%s`; auto-resume attempt %s of %s' "$JOB_RESULT" "$k" "$max")"
+            fi
             body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; no resume posted"; return 0; }
             {
               printf '%s\n' "$MARKER"
               printf '%s\n\n' "$ATTEMPT_MARK"
-              printf '**PRFlow Spot-reclaim recovery** — the `claude` job was reclaimed (EC2 Spot); auto-resume attempt %s of %s\n' "$k" "$max"
+              printf '%s\n' "$sentence"
+              [ -n "$CAUSE" ] && printf '%s\n' "$CAUSE"
               printf '%s\n' "$RUN_URL"
               printf '/prflow:implement %s\n' "$ISSUE_NUMBER"
             } > "$body"
@@ -2877,21 +2963,31 @@ jobs:
           _term_already_posted() {
             [ "$COMMENTS_OK" = "true" ] && jq -e --arg m "$TERM_MARK" 'any(.[]; (.body // "") | contains($m))' "$COMMENTS_FILE" >/dev/null 2>&1
           }
-          # fail-exhausted terminalize: the auto-resume cap is reached and the workpad is
-          # still interim — i.e. the in-job backstop's own fail-exhausted flip did not land
-          # (the claude job was reclaimed before the in-job backstop step ran). Terminalize
-          # 💥 Failed here rather than leave the workpad indefinitely interim.
-          post_fail_exhausted() {
-            local body
+          # Terminalize 💥 Failed when a resume is refused and the workpad is still
+          # interim (issue #600): cap-exhausted / at-cap, or no-app-token. Reached from
+          # the resume-reclaim and failure-stall-decide paths; attempts/max are passed
+          # in, not read as globals. The comment carries the cause line and NO
+          # auto-resume trigger, and never the reclaim wording (AC7/AC14); it records the
+          # empty-branch fact via record_empty_branch_recovery (AC16).
+          post_refused_terminalize() {
+            local reason="$1" rt_attempts="$2" rt_max="$3" body reason_text
+            case "$reason" in
+              cap-exhausted) reason_text="$(printf 'the auto-resume cap is exhausted (max %s, made %s)' "$rt_max" "$rt_attempts")" ;;
+              at-cap)        reason_text="$(printf 'the auto-resume cap is already at its limit (max %s, made %s)' "$rt_max" "$rt_attempts")" ;;
+              no-app-token)  reason_text="no App token was available to re-trigger the run" ;;
+              *)             reason_text="the run could not be resumed" ;;
+            esac
             if ! python3 "$V/workpad.py" update "$ISSUE_NUMBER" --status Failed \
-              --note "run terminalized: auto-resume cap exhausted (max ${max}, made ${attempts}); not left interim — ${RUN_URL}"; then
-              echo "::error::spot-recovery: could not flip the workpad to 💥 Failed for the cap-exhausted terminalize — the run may be left interim; investigate and re-run the implement command for this issue manually"
+              --note "run terminalized: ${reason_text}; not left interim — ${RUN_URL}"; then
+              echo "::error::spot-recovery: could not flip the workpad to 💥 Failed for the ${reason} terminalize — the run may be left interim; investigate and re-run the implement command for this issue manually"
             fi
-            if _term_already_posted; then echo "spot-recovery: cap-exhausted terminalize comment already posted for this run attempt; not reposting"; return 0; fi
-            body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; fail-exhausted comment not posted"; return 0; }
+            record_empty_branch_recovery
+            if _term_already_posted; then echo "spot-recovery: terminalize comment already posted for this run attempt; not reposting"; return 0; fi
+            body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; terminalize comment not posted"; return 0; }
             {
               printf '%s\n\n' "$TERM_MARK"
-              printf '**PRFlow Spot-reclaim recovery** — the `claude` job failed and the auto-resume cap is exhausted (max %s, made %s). The run is terminalized 💥 Failed rather than left indefinitely interim. This comment carries NO auto-resume trigger line — re-run the implement command for this issue manually.\n' "${max}" "${attempts}"
+              printf '**PRFlow recovery** — the `claude` job ended and %s. The run is terminalized 💥 Failed rather than left indefinitely interim. This comment carries NO auto-resume trigger line — re-run the implement command for this issue manually.\n' "$reason_text"
+              [ -n "$CAUSE" ] && printf '%s\n' "$CAUSE"
               printf '%s\n' "$RUN_URL"
             } > "$body"
             bash "$V/post-issue-comment.sh" "$ISSUE_NUMBER" "$body"
@@ -2900,8 +2996,8 @@ jobs:
 
           # Route the classify outcome × job status × workpad class through the pure
           # recovery-resume-decide.sh (AC47/AC48/AC49/AC54), then act on its token.
-          ACTION="$(bash "$V/recovery-resume-decide.sh" "$OUTCOME" "$JOB_RESULT" "$CLASS")"
-          echo "spot-recovery: action=${ACTION}"
+          ACTION="$(bash "$V/recovery-resume-decide.sh" "$OUTCOME" "$JOB_RESULT" "$CLASS" "$NEVER_STARTED")"
+          echo "spot-recovery: action=${ACTION} never_started=${NEVER_STARTED}"
           case "$ACTION" in
             resume-reclaim)
               # Issue #305: defer only on an opted-in `failure`; a `cancelled` reclaim
@@ -2912,10 +3008,13 @@ jobs:
               # AC48/AC54: flip the interim workpad to Cancelled through the existing
               # writer (issue labels + PR labels via issues:write land; the stopped-run
               # PR-body note degrades best-effort under the AC46 pull-requests:read
-              # least-privilege grant — a documented, accepted degradation).
+              # least-privilege grant — a documented, accepted degradation). The note
+              # carries the cause line (issue #600 AC8), and the flip records the
+              # empty-branch fact.
               python3 "$V/workpad.py" update "$ISSUE_NUMBER" --status Cancelled \
-                --note "run cancelled (spot-recovery: no reclaim evidence, job.status=cancelled) — ${RUN_URL}" \
+                --note "run cancelled: ${CAUSE:-cause unavailable} — ${RUN_URL}" \
                 || echo "::warning::spot-recovery: could not flip workpad to Cancelled"
+              record_empty_branch_recovery
               ;;
             failure-stall-decide)
               # AC49: a failed job preserves the existing stall-backstop decision table.
@@ -2937,7 +3036,7 @@ jobs:
                 case "$DECISION" in
                   resume) post_capped_resume ;;
                   defer) post_deferred_notice ;;
-                  fail-exhausted) post_fail_exhausted ;;
+                  fail-exhausted) post_refused_terminalize cap-exhausted "$attempts" "$max" ;;
                   *) echo "spot-recovery: no resume (decision=${DECISION}); the interim/terminal/unreadable arms leave state to the in-job backstop where it ran" ;;
                 esac
               fi

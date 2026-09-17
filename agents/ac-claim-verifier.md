@@ -74,9 +74,11 @@ the shipped code (following dispatch into pre-existing code the diff calls but d
   does the named instrument measure the property the criterion claims? A fitting instrument
   (`wc -c` beside "at most N bytes") is `satisfied`, with the instrument-and-claim fit as your
   pointer; a mismatched one (a byte counter beside a *word* ceiling) is `unmet`. Producing and
-  checking the number is the evidence verifier's, so a fitting instrument is never `unmet`
-  merely because you did not run it; a fit a thorough read leaves undecidable is
-  `unestablished`, naming what you could not resolve.
+  checking the number is the evidence verifier's — it records the criterion's `stated_terms`
+  against the `observed_value` and the reconciler sets the gate status from that pair — so a
+  fitting instrument is never `unmet` merely because you did not run it; a fit a thorough read
+  leaves undecidable is `unestablished`, naming what you could not resolve. You write no
+  `stated_terms`/`observed_value`/`quantified` fields; those are the evidence verifier's alone.
 - **Cannot establish.** A criterion that fits none of the shapes above and that a thorough
   read (Grep + Glob + Read) still cannot decide → `unestablished`, naming what you searched
   and where.
@@ -121,8 +123,10 @@ state the disposition, never to perform the step.
 ## Output
 
 Write exactly one JSON object — no code fence, no other text — to your **assigned report
-path** with the Write tool, then return only that path as your final output (the orchestrator
-reads the file, not your return text). The object is a list of per-criterion records:
+path** with the Write tool, then make your whole hand-back — your final message and any
+runner-provided hand-back tool message alike — exactly that report path and nothing else added
+(the orchestrator reads the file, not your return text). The object is a list of per-criterion
+records:
 
 ```json
 {

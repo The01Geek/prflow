@@ -215,6 +215,7 @@ fi
 # sentinel is needed.
 _parsed="$(DEVFLOW_ATTR_USERJSON="$_user_json" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 raw = os.environ.get("DEVFLOW_ATTR_USERJSON", "")
 try:
     d = json.loads(raw)
