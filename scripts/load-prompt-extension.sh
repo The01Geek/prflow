@@ -222,6 +222,7 @@ _lpe_rstrip() {
 _lpe_compute_digest() {
     python3 - "$1" <<'PYEOF'
 import hashlib, sys
+sys.stdout.reconfigure(newline="\n")
 p = sys.argv[1]
 try:
     if p:

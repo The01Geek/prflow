@@ -72,7 +72,7 @@ Splitting the two means an approver reviews the implementation contract rather t
 PRFlow does not create an issue as soon as it has enough context.
 
 1. Review the draft PRFlow saved to a file, whose path it shows. Ask for the complete title and body in chat when you want them, by choosing *print the full draft in chat*.
-2. Choose whether to spend a fresh-context audit round on the draft. PRFlow offers one before it runs. Each round you accept re-verifies the draft against the repository and takes time, so you pay only for the rounds you choose. The default is none, and a satisfied reviewer declines.
+2. Choose whether to spend a fresh-context audit round on the draft. PRFlow offers one before it runs. Each round you accept re-verifies the draft against the repository and takes time, so you pay only for the rounds you choose. The default is none, and a satisfied reviewer declines. When a round returns confirmed defects, PRFlow applies them to the draft and re-shows the revised version before offering another round, so you never spend a further round re-auditing text that has not changed.
 3. Approve that exact draft, or request changes.
 4. Choose whether to assign the new issue to yourself. Issues are created unassigned.
 5. PRFlow creates the issue once both decisions are explicit.

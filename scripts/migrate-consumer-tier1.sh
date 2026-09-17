@@ -88,6 +88,7 @@ done
 if [ "$PIN_FROM_PLUGIN" = "1" ] && [ -z "$PIN" ]; then
   PIN="$(PRFLOW_MANIFEST="$SELF_DIR/../.claude-plugin/plugin.json" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(os.environ["PRFLOW_MANIFEST"], encoding="utf-8") as fh:
         version = json.load(fh)["version"]
@@ -125,6 +126,7 @@ command -v python3 >/dev/null 2>&1 || die "python3 is required to migrate; nothi
 # exists to make. Bash owns only argument parsing and the exit code.
 PRFLOW_MIGRATE_TIER1_PY='
 import json, os, re, shutil, sys
+sys.stdout.reconfigure(newline="\n")
 
 root, mode, pin, map_path = sys.argv[1:5]
 

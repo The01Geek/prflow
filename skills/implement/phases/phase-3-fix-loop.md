@@ -5,6 +5,8 @@
 
 ### 3.3 Review & Fix
 
+When §3.1's review reuse adopted a completed review, skip this section and continue to Phase 3.4.
+
 Phase 3.3 runs in a fresh `review-fix-worker` subagent that shares this checkout. The worker owns the entire relocated procedure — the pre-loop status capture, the `review-and-fix` loop and its `--push-each-iteration` commits, the observability-persistence backstop, the post-return branch guard, the loop-verdict-marker routing, the coverage-record stamp and per-member enumeration, the in-loop roster reflection, the three Review extension-row ticks, the residual flush, the bounded re-review, the severity-aware exit, the soft-proceed, and the Blocked path. That procedure lives in `<skill-dir>/references/phase-3-3-review-fix.md`; you do **not** read it here and you do **not** replay it inline on any outcome. You load only these dispatch, handoff-validation, and continuation instructions.
 
 **Commit before dispatch (shared checkout).** The worker edits and commits into this same checkout, so establish a clean tracked tree first: read `git status --porcelain --untracked-files=no` and commit any uncommitted change through the sanctioned durability-checkpoint helper before dispatching — a subagent dispatched over uncommitted work can lose it. Read the exit status from the tool result; on a refused or non-zero read, record it and take the Blocked path below rather than dispatching over an unestablished tree.
@@ -26,7 +28,6 @@ Read the exit code from the tool result. Only exit 0 (a conforming handoff whose
 **Route on the validated handoff's `outcome`:**
 
 - `proceed` (validator exit 0) → the worker completed the review — the clean-completion or soft-proceed path — and already stamped the coverage record, ticked the three Review extension rows and the `review-and-fix` gate, and surfaced any residual findings on the workpad. Carry its `unresolved_findings` forward for the human merge decision and continue to Phase 3.4; do not re-stamp coverage or re-run the loop.
-- `needs-confirmation` (validator exit 0) → the worker surfaced a human decision it does not own. On the local/interactive tier ask the user and pause here; on the cloud tier stop at `Status: Blocked` naming the unresolved human decision (an automatic re-trigger is not confirmation). Do not answer it for the user or continue into Phase 3.4.
 - `blocked` / `error` (validator exit 0) → the worker already set `Status: Blocked` and emitted the 👎 outcome reaction for its own cause (a genuine unresolved Critical, an `engine-root: incomplete`/`evidence-missing` terminal, a twice-refused `review-and-fix` Skill call, or an extension/credential failure). Stop; do not replay Phase 3.3 inline. A returned extension-incompletion stop is retained as a blocker, never auto-re-dispatched to reset the worker's retry limit.
 - An unusable return (validator exit 2 or 3, a stale/mismatched-identity or escaping-path rejection, a missing `handoff_path`, or no reader output at all) → record an actionable blocker naming what the reader reported, set `Status: Blocked` with a `blocked` reflection, emit the 👎 outcome reaction, and stop. The parent does **not** take over the loop or reconstruct the worker's state; a failed worker boundary is an explicit non-success, not a fallback to inline execution.
 

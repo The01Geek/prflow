@@ -331,6 +331,16 @@
           "read_as": "`[ -z \"${DEVFLOW_ALLOW_SELF_INSTALL:-}\" ]` in install.sh's self-install apply-guard and skills/init/SKILL.md's top-of-flow guard; a non-empty value lifts the refusal",
           "failure_visibility": "silent",
           "failure_mode": "Silent loss of the self-install bypass (issue #317). Renamed, the guard reads the bypass as empty, so an intentional self-install into PRFlow's own engine checkout -- or a repository whose own plugin coincidentally carries the accepted name -- is refused again with no sign the bypass was set: install.sh writes nothing and /prflow:init refuses at the top, exactly as if the operator had never opted in. The guard is a no-op in an ordinary consumer repo, so the loss surfaces only for the maintainer or coincidental-name consumer who set the override."
+        },
+        {
+          "name": "DEVFLOW_ALLOW_INSTALLER_DRIFT",
+          "arm": "A2",
+          "channel": "operator",
+          "kind": "environment variable (install-time)",
+          "set_where": "your shell profile, or the invocation that runs install.sh -- `DEVFLOW_ALLOW_INSTALLER_DRIFT=1 bash devflow-install.sh --apply`",
+          "read_as": "`[ -n \"${DEVFLOW_ALLOW_INSTALLER_DRIFT:-}\" ]` in install.sh's installer self-check, which lifts the mismatch stop in apply mode (issue #576)",
+          "failure_visibility": "silent",
+          "failure_mode": "Silent loss of the installer-drift bypass (issue #576). Renamed, the self-check reads the bypass as empty, so an apply-mode run whose own installer file differs from the fetched release's install.sh is refused again with no sign the bypass was set -- the installer stops before its first write, exactly as if the operator had never opted in. The guard fires only on a mismatched installer, so the loss surfaces only for the operator upgrading from a saved installer copy who deliberately chose to proceed despite the drift."
         }
       ],
       "adjudicated_out": [

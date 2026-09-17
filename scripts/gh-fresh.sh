@@ -12,7 +12,10 @@
 # It is wired by the install step (scripts/install-gh-wrapper.sh, issue #533)
 # ahead of the real `gh` on PATH via GITHUB_PATH: direct skill-fence `gh` calls,
 # PRFlow's own gh-callers (whose lib/resolve-gh.sh PATH probe finds the wrapper
-# when DEVFLOW_GH is unset), and every post-claude step all resolve to it. The
+# when DEVFLOW_GH is unset), and every post-claude step all resolve to it. A
+# native-Windows python3 cannot run this extensionless file, so PRFlow's Python
+# gh-callers apply decide() in-process via scripts/gh_fresh_env.py; change the
+# two together (lib/test/test_python_scripts_part4.py compares them). The
 # install step deliberately publishes NO process-global DEVFLOW_GH — that env
 # value would persist into later job steps and outrank fixture PATH stubs in
 # the repo test suite; DEVFLOW_GH stays an explicit caller/test override seam.
@@ -102,7 +105,7 @@ sha256_of() {
   # could-not-establish defer arm — a preserved outcome, not a new one).
   local h
   if command -v python3 >/dev/null 2>&1; then
-    if h="$(printf '%s' "$1" | python3 -c 'import hashlib,sys; sys.stdout.write(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' 2>/dev/null)" \
+    if h="$(printf '%s' "$1" | python3 -c 'import hashlib,sys; sys.stdout.reconfigure(newline="\n"); sys.stdout.write(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())' 2>/dev/null)" \
        && [ -n "$h" ]; then
       printf '%s' "$h"
       return 0

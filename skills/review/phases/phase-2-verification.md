@@ -16,19 +16,11 @@ The lite path is bounded to claims reducing to substring presence/absence — se
 
 Item-side field-completion re-ask (pre-dispatch). A generator miss of a load-bearing normalizer field must degrade to a measurement, not a silent stall. At partition, collect any agent items missing `claim_provenance` (and any `source_authored` items missing `source_excerpt`) into **one field-completion re-ask** to the `checklist-generator`: pass the offenders back by `claim_signature`, have it return only the completed fields, accept no new items. This re-ask runs exactly once; items still missing the field stay normalization-ineligible downstream; those whose raw verdict later comes back FAIL are counted in `{field_defect_fail_count}` (item 6's membership — the label counts only FAILs; a PASS/INCONCLUSIVE survivor carries the marker uncounted).
 
-### 2.0.5 Narrow-reuse from iter-(N-1) (fix-loop callers only)
+### 2.0.5 Skip dispatch for reused items
 
-When invoked by `/prflow:review-and-fix` on iteration N≥2, the caller supplies (a) the iter-(N-1) checklist and (b) the files the iter-(N-1) fix commit modified (`fix_files`). Before partitioning into lite/agent batches, the orchestrator MUST reuse the prior verdict (skipping re-verification) for every item whose verdict is mechanically unchanged under the predicate below.
+Phase 1 §1.0 already selected the carried items and copied their prior `verdict`, `evidence`, `file_checked` and — when present — `raw_verdict` and `normalized` (the `NORMALIZED (wording-only): ` prefix travels in the copied `evidence`). So Phase 2 decides nothing here: an item tagged `reused_from_iter_prev: true` skips partitioning and dispatch entirely and keeps the verdict it arrived with. Every other item — carried but not reusing a PASS, and every new one — verifies fresh on the paths below.
 
-For each item in the current iteration's checklist, reuse the prior verdict (skip verification) iff ALL hold:
-
-1. There exists an item in the iter-(N-1) checklist with the same `claim_signature`.
-2. That prior item's `verdict` is `PASS`.
-3. The current item's `source_file` is NOT in `fix_files`.
-
-For each reused item, copy `verdict`, `evidence`, `file_checked`, and — when present — `raw_verdict` and `normalized` from the prior result (the `NORMALIZED (wording-only): ` prefix already travels in the copied `evidence`) and tag it `reused_from_iter_prev: true` in the workpad. Everything else — new variance-recovery items, items whose prior verdict was FAIL or INCONCLUSIVE, items whose `source_file` the fix touched — verifies fresh. Each such fresh item is persisted with `reused_from_iter_prev: false`.
-
-Output: `Reused {K} of {N} checklist verdicts from iter-(N-1) (matching claim_signature, prior verdict PASS, source_file untouched by fix commit). Verifying remaining {N-K} fresh.`
+Output: `Reused {K} of {N} checklist verdicts (carried forward with a prior PASS). Verifying remaining {N-K} fresh.`
 
 ### 2.1a Run lite probes directly
 
@@ -62,6 +54,8 @@ Dispatch barrier. Every subagent dispatch described here is bound by the dispatc
 Split the *agent* items into batches of up to 8; launch each batch's agents in parallel via multiple Agent tool calls in one message.
 
 A self-assessed budget or context state may not lower the number of items dispatched here. A run cannot establish its own remaining context on any tier, so that belief is an unestablished measurement, never a reason to verify fewer items than the checklist holds: dispatch every agent item. A run that believes it is out of budget performs the dispatch, or stops at a non-terminal/`Blocked` status naming the step it did not perform — never a narrowed pass. This binds the local and cloud tiers identically.
+
+Reading source in this context never completes an agent item: the no-suite-launch rule a caller carries in is the *dispatched verifier's* method (read source, launch no suite), never a licence to settle the claim here instead of dispatching. An agent item completes only when its verifier Wrote the nonce file (§2.2).
 
 Use the Agent tool with `subagent_type: "prflow:checklist-verifier"` for each item. Resolve overrides for `prflow:checklist-verifier` once per Phase 2 per Per-Subagent Model/Effort Overrides above, applying any resolved `model` to the dispatch's Agent-tool `model` override.
 
@@ -117,9 +111,11 @@ Three-way helper-degradation split (fail-closed, never conflated) — diagnosed 
 - Bad-input arm — the helper printed its structured bad-input report (`{"bad_input": true, …}`, the LLM-transcribed pairs file was unparseable/truncated): re-Write the pairs file once and re-invoke; a second bad-input report ends the attempt — proceed with zero normalization (raw verdicts via prose parse) and one warning line naming the transcription failure, never the grant remedy.
 - Everything-else arm — anything else printed, including a `No such file`/rc-127 error (a helper-less plugin prints error text, not a silent denial), a Python traceback, any non-zero-exit stderr, and true silence (a matcher denial produces no output at all — a possible denial, never an empty value): perform zero normalization and zero retry classification — every agent item records its raw verdict via prose parse — and replace the appended counts line with one warning line quoting what the invocation printed plus the tier-appropriate remedy (cloud grant keys — the review/implement runner allowlists and the profile `TOOLS=` line / `prflow_implement.allowed_tools` — the `prflow_version`/workflow upgrade-together note, and local-tier operator provisioning). The run proceeds — never a stall, never an inferred normalization.
 
+**Dispatch coverage, before the combined write.** Read `.prflow/tmp/review/<slug>/<run-id>/verdicts/iter-<N>/` with the Glob tool and compare it against this iteration's fresh agent items. Each one with no file there re-enters 2.1b **once** — that absence is what a run leaves when it settled the claim in this context instead of dispatching — and its returned verdict re-runs the normalization above. An item the helper already classified `channel` has spent its repair and is exempt. Never synthesize a file or a nonce: the fix-loop caller's evidence gate grades these files and FAILs a missing one.
+
 Store all verification results in a single combined array (lite + agent), keyed by `id`, using each item's stored (post-normalization) verdict; a normalized item stores `verdict: "PASS"`, `raw_verdict: "FAIL"`, `normalized: true`, and the `NORMALIZED (wording-only): ` evidence prefix, and counts passed in every tally.
 
-Write this combined results array with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/verification-iter-<N>.json` (same `<slug>/<run-id>` and `<N>` as the §1.6 checklist artifact). Write it EXPLICITLY from this combined array — never derive it from the per-item nonce verifier files. Phase 4.2 reads this file for its tallies, so a run that skips this write leaves Phase 4.2 with no verdicts to tally. An empty array `[]` is valid — an all-lite-probe run and an empty-checklist run both write `[]`. Substitute the `<slug>/<run-id>/verification-iter-<N>.json` path literally, never as a `$VAR` expansion (denied on the cloud matcher).
+Write this combined results array with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/verification-iter-<N>.json` (same `<slug>/<run-id>` and `<N>` as the §1.6 checklist artifact). Write it EXPLICITLY from this combined array — never derive it from the per-item nonce verifier files. **The file root is the array itself, never an object wrapping it** — a `{"verification": [...]}` wrapper copies the engine-return shape and grades `review-artifact-malformed`, since the evidence gate reads the root and never unwraps. Phase 4.2 reads this file for its tallies, so a run that skips this write leaves Phase 4.2 with no verdicts to tally. An empty array `[]` is valid — an all-lite-probe run and an empty-checklist run both write `[]`. Substitute the `<slug>/<run-id>/verification-iter-<N>.json` path literally, never as a `$VAR` expansion (denied on the cloud matcher).
 
 Output: `Verified: {pass_count} passed, {fail_count} failed, {inconclusive_count} inconclusive ({lite_count} via lite probe, {agent_count} via agent).`
 

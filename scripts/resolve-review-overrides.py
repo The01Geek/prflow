@@ -624,7 +624,7 @@ def _config_get(config_get, config_file, dotted_key, warnings):
         cmd.append(config_file)
     try:
         out = subprocess.run(
-            cmd, capture_output=True, text=True, check=False
+            cmd, capture_output=True, text=True, encoding="utf-8", check=False
         )
     except OSError as exc:
         # Name the interpreter, not just the script: after #365 the exec target that

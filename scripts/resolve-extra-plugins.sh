@@ -36,8 +36,7 @@
 #   the code applies them:
 #     - value not boolean true: boolean false is silently skipped (the suppression
 #       case); the STRING "true" is not emitted and draws a wrong-type breadcrumb.
-#     - key equal to a baked baseline entry (code-review@claude-plugins-official,
-#       claude-md-management@claude-plugins-official, prflow@devflow-marketplace):
+#     - key equal to a baked baseline entry (prflow@devflow-marketplace):
 #       silent skip (already installed by the baseline).
 #     - key with no @marketplace suffix: breadcrumb, not emitted.
 #     - key whose plugin name (the part before @) is one of PRFlow's own accepted
@@ -101,6 +100,7 @@ DEVFLOW_PLUGIN_NAMES="$DEVFLOW_PLUGIN_NAMES" DEVFLOW_MARKETPLACE_NAMES="$DEVFLOW
 python3 -c '
 import json, os, sys
 
+sys.stdout.reconfigure(newline="\n")
 mode = os.environ.get("DEVFLOW_MODE", "")
 settings_path = os.environ.get("DEVFLOW_SETTINGS", "")
 
@@ -189,15 +189,11 @@ DEVFLOW_PLUGIN_SPECS = frozenset(
     p + "@" + m for p in DEVFLOW_PLUGIN_NAMES for m in DEVFLOW_MARKETPLACES
 )
 
-# The non-PRFlow half of the baked baseline stays a literal: those are third-party
-# plugin ids this project does not own and no rename of ours can move.
-FOREIGN_BAKED_PLUGINS = frozenset((
-    "code-review@claude-plugins-official",
-    "claude-md-management@claude-plugins-official",
-))
+# The baked baseline registers claude-plugins-official (a literal: a third-party
+# marketplace no rename of ours can move) but installs no plugin from it.
 FOREIGN_BASE_MARKETPLACES = frozenset(("claude-plugins-official",))
 
-BAKED_PLUGINS = FOREIGN_BAKED_PLUGINS | DEVFLOW_PLUGIN_SPECS
+BAKED_PLUGINS = DEVFLOW_PLUGIN_SPECS
 # The baked-baseline marketplace names — used both as the plugins-mode known set and the
 # marketplaces-mode silent-skip set; the two concepts are the same baseline names.
 BASE_MARKETPLACES = FOREIGN_BASE_MARKETPLACES | DEVFLOW_MARKETPLACES

@@ -6,15 +6,18 @@
 The /implement skill's Phase 4.0.5 merges the run-scoped deferrals manifests
 produced by /devflow:review-and-fix (at `.prflow/tmp/review/<slug>/<run-id>/deferrals.json`,
 one per run) into a single slug-level aggregate, passes that aggregate as
-`--manifest`, files one follow-up GitHub issue per source file, and rewrites
+`--manifest`, files one follow-up GitHub issue per shared deferral reason
+(the finding's category + trimmed explanation + kind; an entry that cannot
+supply a full reason falls back to per-file grouping), and rewrites
 the aggregate with the assigned issue numbers + deterministic deferral IDs. The /devflow:review
 verdict engine then matches these entries against the PR-body block to
 demote already-acknowledged findings.
 
 The helper is repo-agnostic — title/body templates contain no project names
-or hardcoded paths. The `<area>` token in titles is derived from the file
-path's first non-`src/`-equivalent segment (or the basename if no such
-segment exists).
+or hardcoded paths. The `<area>` token in titles is derived from the longest
+leading path prefix the group's files share (its first non-`src/`-equivalent
+segment, or the basename if no such segment exists); a single-file group
+therefore keeps the same `<area>` it carried before reason-based grouping.
 
 Usage:
     file-deferrals.py --source-issue N --pr M --manifest PATH [--dry-run]
@@ -48,7 +51,10 @@ import shlex
 import subprocess
 import sys
 from collections import OrderedDict
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gh_fresh_env import fresh_gh_env
 
 # The gh binary to shell out to. `DEVFLOW_GH` (the documented override the shell
 # helpers resolve via lib/resolve-gh.sh) wins when set and non-empty; else `gh`.
@@ -94,7 +100,7 @@ def _run(cmd, *, stdin=None, check=True):
     # text mode, so `text=True` is dropped (passing both is redundant).
     return subprocess.run(
         cmd, check=check, stdin=stdin,
-        capture_output=True, encoding="utf-8",
+        capture_output=True, encoding="utf-8", env=fresh_gh_env(),
     )
 
 
@@ -169,6 +175,27 @@ def _derive_area(file_path: str) -> str:
     return Path(file_path).stem or "general"
 
 
+def _coerce_str(value: object) -> str:
+    """Coerce a possibly-non-string manifest field to a string.
+
+    The review agents' manifest is external input this helper does not produce,
+    so a field may arrive as an int/list/None; a bare .strip()/join over one
+    raises (the fail-open shape #437 hardened for manifest shape). This degrades
+    it instead, and is identical for the string corpus. A falsy non-string
+    (0, False, []) coerces to its own string form ("0", "False", "[]"), not "",
+    so distinct values keep distinct identity payloads in _compute_id.
+    """
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        sys.stderr.write(
+            f"file-deferrals.py: coerced non-string manifest field "
+            f"({type(value).__name__}) to its string form\n"
+        )
+        return str(value)
+    return value
+
+
 def _compute_id(entry: dict) -> str:
     """Deterministic ID from the finding's stable identity fields.
 
@@ -186,10 +213,10 @@ def _compute_id(entry: dict) -> str:
     consumer's introduction is the trigger to re-key, all sites at once.
     """
     payload = "|".join([
-        entry.get("file", ""),
-        entry.get("symbol", ""),
-        entry.get("kind", ""),
-        entry.get("summary", "").strip(),
+        _coerce_str(entry.get("file")),
+        _coerce_str(entry.get("symbol")),
+        _coerce_str(entry.get("kind")),
+        _coerce_str(entry.get("summary")).strip(),
     ])
     h = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:ID_HEX_LEN]
     return f"{ID_PREFIX}{h}"
@@ -231,9 +258,9 @@ def _render_issue_body(group_findings, source_issue: int, pr_number: int) -> str
         line_str = _format_line_range(f.get("line_range"))
         symbol = f.get("symbol", "") or "(unspecified)"
         kind = f.get("kind", "(unspecified)")
-        summary = (f.get("summary", "") or "").strip()
+        summary = _coerce_str(f.get("summary")).strip()
         category = f.get("category", "(unspecified)")
-        explanation = (f.get("explanation", "") or "").strip()
+        explanation = _coerce_str(f.get("explanation")).strip()
         lines.extend([
             f"### {severity} — {agent}",
             f"**File**: {file_}:{line_str}",
@@ -252,9 +279,52 @@ def _render_issue_body(group_findings, source_issue: int, pr_number: int) -> str
     return "\n".join(lines)
 
 
-def _issue_title(area: str, file_path: str, source_issue: int) -> str:
+def _reason_key(entry: dict) -> tuple[str, str, str, str] | None:
+    """Reason-based grouping key for an entry, or None if it cannot supply one.
+
+    Two findings share a follow-up issue when they agree on category,
+    explanation, and kind, each compared after leading/trailing whitespace is
+    stripped, so a value differing only in surrounding whitespace does not
+    over-split into two issues. All three must be non-empty strings; an entry
+    missing any one, holding an empty/whitespace-only value, or a non-string
+    falls back to file grouping. The stripped category and kind also become the
+    title's, so the title carries no surrounding whitespace either. The leading
+    "reason" tag keeps this key from ever colliding with the ("file", …)
+    fallback key in the same bucket map.
+    """
+    cat = entry.get("category")
+    exp = entry.get("explanation")
+    kind = entry.get("kind")
+    if not (isinstance(cat, str) and isinstance(exp, str) and isinstance(kind, str)):
+        return None
+    if not (cat.strip() and exp.strip() and kind.strip()):
+        return None
+    return ("reason", cat.strip(), exp.strip(), kind.strip())
+
+
+def _shared_area(file_values: list[str]) -> str:
+    """`_derive_area` applied to the longest leading path prefix the group's
+    files share. Files are POSIX repository-relative paths, so the prefix is
+    computed with PurePosixPath rather than the native Path (which would split a
+    forward-slash path differently on Windows). A single-file group yields the
+    same `<area>` its per-file title carried before issue #602.
+    """
+    if not file_values:
+        return _derive_area("(unknown)")
+    # _coerce_str prevents a non-string `file` from raising in PurePosixPath.
+    part_lists = [PurePosixPath(_coerce_str(fv)).parts for fv in file_values]
+    common: list[str] = []
+    for column in zip(*part_lists):
+        if all(part == column[0] for part in column):
+            common.append(column[0])
+        else:
+            break
+    return _derive_area("/".join(common))
+
+
+def _issue_title(area: str, kind: str, category: str, source_issue: int) -> str:
     return (
-        f"{area}: deferred review findings in {file_path} "
+        f"{area}: deferred review findings — {kind} ({category}) "
         f"(carried from #{source_issue})"
     )
 
@@ -279,7 +349,7 @@ def _create_issue(title: str, body: str, dry_run: bool) -> tuple[int, str]:
         r = subprocess.run(
             [GH, "issue", "create", "--title", title, "--body-file", "-"],
             input=body, check=False, encoding="utf-8",
-            capture_output=True,
+            capture_output=True, env=fresh_gh_env(),
         )
     except OSError as e:
         raise RuntimeError(
@@ -468,30 +538,44 @@ def main(argv=None):
     # foreclosure files no issue but still survives into the rewritten manifest
     # unchanged (with an `id` assigned for the dfr- match), so /pr-description
     # and /devflow:review can carry and honor it.
-    groups: OrderedDict[str, list[dict]] = OrderedDict()
+    # issue #602: group by the shared deferral reason (category + trimmed
+    # explanation + kind), not by source file, so findings deferred for one
+    # reason across several files file ONE follow-up issue. An entry that cannot
+    # supply a full reason falls back to its own `file` value — the ("reason",…)
+    # and ("file",…) key tags keep the two kinds from colliding in one map.
+    groups: OrderedDict[tuple[str, ...], list[dict]] = OrderedDict()
     foreclosures: list[dict] = []
     for d in deferrals:
         if _is_foreclosure(d):
             foreclosures.append(d)
         else:
-            groups.setdefault(d.get("file", "(unknown)"), []).append(d)
+            key = _reason_key(d) or ("file", d.get("file", "(unknown)"))
+            groups.setdefault(key, []).append(d)
 
     succeeded_numbers: list[int] = []
-    failed_files: list[str] = []
+    failed_groups: list[str] = []
     surviving: list[dict] = []
 
-    for file_path, findings in groups.items():
-        area = _derive_area(file_path)
-        title = _issue_title(area, file_path, args.source_issue)
+    for key, findings in groups.items():
+        files = [f.get("file", "(unknown)") for f in findings]
+        area = _shared_area(files)
+        if key[0] == "reason":
+            kind, category = key[3], key[1]
+        else:
+            kind = category = "(unspecified)"
+        title = _issue_title(area, kind, category, args.source_issue)
+        # A single group no longer maps to one file, so name it by an
+        # identifying label rather than a bare filename in the failure report.
+        label = f"{area} — {kind} ({category}) [{', '.join(_coerce_str(fv) for fv in files)}]"
         body = _render_issue_body(findings, args.source_issue, args.pr)
         try:
             number, url = _create_issue(title, body, args.dry_run)
         except RuntimeError as e:
             sys.stderr.write(
                 f"file-deferrals.py: failed to file issue for "
-                f"{file_path}: {e}\n"
+                f"{label}: {e}\n"
             )
-            failed_files.append(file_path)
+            failed_groups.append(label)
             continue
 
         for f in findings:
@@ -521,7 +605,7 @@ def main(argv=None):
         _fail("no follow-up issues filed and no entries survived — "
               "every fileable group failed", code=1)
 
-    if failed_files and not succeeded_numbers:
+    if failed_groups and not succeeded_numbers:
         # issue #660 review: a COMPLETE filing failure is a hard signal even
         # when a foreclosure survives to make `surviving` non-empty. Without
         # this arm a manifest mixing one `settled-by-disclosure` entry with
@@ -529,7 +613,7 @@ def main(argv=None):
         # failed real deferral from the rewritten manifest. Foreclosures need no
         # `gh` call, so they can never evidence that filing worked.
         _fail(f"no follow-up issues filed — every fileable group failed "
-              f"({len(failed_files)} group(s)); "
+              f"({len(failed_groups)} group(s)); "
               f"{len(foreclosures)} foreclosure(s) survived but do not "
               f"constitute a successful filing", code=1)
 
@@ -541,7 +625,7 @@ def main(argv=None):
     if args.dry_run:
         sys.stderr.write(
             f"[dry-run] would rewrite manifest with {len(surviving)} entries, "
-            f"dropping {len(failed_files)} failed group(s)\n"
+            f"dropping {len(failed_groups)} failed group(s)\n"
         )
     else:
         _write_manifest_atomic(manifest_path, new_manifest)
@@ -549,10 +633,10 @@ def main(argv=None):
     for n in succeeded_numbers:
         print(n)
 
-    if failed_files:
+    if failed_groups:
         sys.stderr.write(
-            f"file-deferrals.py: {len(failed_files)} group(s) failed and "
-            f"were dropped from manifest: {', '.join(failed_files)}\n"
+            f"file-deferrals.py: {len(failed_groups)} group(s) failed and "
+            f"were dropped from manifest: {', '.join(failed_groups)}\n"
         )
     return 0
 

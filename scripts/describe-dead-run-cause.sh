@@ -84,7 +84,40 @@ _present() {
   esac
 }
 
-if _present "${RATE_LIMIT_TYPE:-}"; then
+# Recovery arm (issue #600): a NEW LEADING precedence rung for the Spot-reclaim
+# recovery job's cause line — keep it ahead of the arms below, which it must not
+# reorder. The annotation is attacker-controlled text GitHub reported: render it
+# inert single-line here (an embedded newline would break the comment's first-line
+# marker / last-line trigger contract; a raw `<!--` could forge a marker) before it
+# reaches any comment.
+if _present "${RECOVERY_JOB_CONCLUSION:-}"; then
+  RCONCLUSION="$RECOVERY_JOB_CONCLUSION"
+  RCAPACITY="${RECOVERY_CAPACITY_TOKEN:-unknown}"
+  [ -n "$RCAPACITY" ] || RCAPACITY="unknown"
+  if _present "${RECOVERY_RUNNER_NAME:-}"; then RRUNNER="$RECOVERY_RUNNER_NAME"; else RRUNNER="unavailable"; fi
+  if _present "${RECOVERY_ANNOTATION_MESSAGE:-}"; then RMESSAGE="$RECOVERY_ANNOTATION_MESSAGE"; else RMESSAGE="unavailable"; fi
+  # Inert single-line rendering — bash parameter expansion only, no un-guaranteed
+  # tool. Replacements target disjoint literals, so their order does not matter.
+  RMESSAGE="${RMESSAGE//$'\r'/}"
+  RMESSAGE="${RMESSAGE//$'\n'/ }"
+  RMESSAGE="${RMESSAGE//\`/[backtick]}"
+  RMESSAGE="${RMESSAGE//\$/[dollar]}"
+  RMESSAGE="${RMESSAGE//<!--/[html-comment]}"
+  RPREFIX="claude job ${RCONCLUSION}, capacity ${RCAPACITY}, runner ${RRUNNER}, annotation: "
+  RFULL="${RPREFIX}${RMESSAGE}"
+  if [ "${#RFULL}" -le 200 ]; then
+    CLAUSE="$RFULL"
+  else
+    # Only the message is shortened; conclusion/capacity/runner stay in full. The
+    # budget floors at 20 of the message's own chars — when the fixed facts alone
+    # already fill the line the clause prints over 200 rather than cutting the
+    # message below its floor (AC precedence).
+    rbudget=$(( 200 - ${#RPREFIX} - 3 ))
+    [ "$rbudget" -ge 20 ] || rbudget=20
+    CLAUSE="${RPREFIX}${RMESSAGE:0:rbudget}..."
+  fi
+  SKIP_GENERIC_CAP=true
+elif _present "${RATE_LIMIT_TYPE:-}"; then
   CLAUSE="rate-limited (${RATE_LIMIT_TYPE}); resets at ${RATE_LIMIT_RESETS_AT:-unavailable}"
 elif _present "${TERMINAL_REASON:-}"; then
   CLAUSE="engine terminated: ${TERMINAL_REASON} (subtype ${SUBTYPE:-unavailable}, api_error_status ${API_ERROR_STATUS:-unavailable})"
@@ -114,5 +147,12 @@ fi
 
 # Cap at 200 characters (AC): a bounded clause keeps the comment line and the
 # progress line legible. `${var:0:200}` is a bash builtin — no un-guaranteed tool.
-printf '%s\n' "${CLAUSE:0:200}"
+# The recovery arm above owns its own bounded truncation (only the annotation
+# message is shortened), so a blind tail-clip here would cut the runner name it
+# guarantees in full; it sets SKIP_GENERIC_CAP to keep its already-bounded clause.
+if [ "${SKIP_GENERIC_CAP:-false}" = "true" ]; then
+  printf '%s\n' "$CLAUSE"
+else
+  printf '%s\n' "${CLAUSE:0:200}"
+fi
 exit 0

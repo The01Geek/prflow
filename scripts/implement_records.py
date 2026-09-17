@@ -37,7 +37,7 @@ def default_store():
     """
     try:
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                              capture_output=True, text=True, check=False)
+                              capture_output=True, text=True, encoding="utf-8", check=False)
         if root.returncode == 0 and root.stdout.strip():
             return Path(root.stdout.strip()) / STORE_RELPATH
     except OSError:

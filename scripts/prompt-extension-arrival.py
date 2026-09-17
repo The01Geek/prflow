@@ -89,10 +89,10 @@ EXIT_FAULT = 3
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import), so a
-    non-UTF-8 ambient codec cannot make a non-ASCII byte in a record/path raise
-    UnicodeEncodeError. Tolerates a non-TextIOWrapper stream (a test's io.StringIO)."""
-    for _stream in (sys.stdout, sys.stderr):
+    """Force stdin/stdout/stderr to UTF-8 on the CLI entry path only (not at import), so a
+    non-UTF-8 ambient codec cannot mangle a non-ASCII byte in the body read from stdin or
+    make one in a record/path raise UnicodeEncodeError. Tolerates a non-TextIOWrapper stream (a test's io.StringIO)."""
+    for _stream in (sys.stdin, sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError, OSError):
@@ -123,7 +123,7 @@ def _git_root() -> str:
         out = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
         root = out.stdout.strip()

@@ -4,7 +4,7 @@ Each arm below states the disposition of the artifacts it covers, and the workin
 
 ## Step 1 — the evidence artifact and the run registry
 
-Step 1's on-entry delete and its write of `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`, and the helper's write of the run's `run-meta.json` registry entry, all fail the same way. Post the returned (or reconciled, or degraded-arm) Step 1 evidence as a visible inline-in-chat block in the current turn — the actual findings, not a bare claim that the pass ran — and re-post it whenever a later turn reaches a check that reads it. Do not trust any on-disk `issue-step1-<slug>.md` or `run-meta.json`; the visible block is the stand-in. With no readable registry the slug is **unestablished**, which routes to the title-derived fallback in `references/step-4-present-create.md`; the run reports the reduced durability and continues.
+Step 1's on-entry delete and its write of `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`, and the helper's write of the run's `run-meta.json` registry entry, all fail the same way. Post the returned (from either lead, or degraded-arm) Step 1 evidence as a visible inline-in-chat block in the current turn — the actual findings, not a bare claim that the pass ran — and re-post it whenever a later turn reaches a check that reads it. Do not trust any on-disk `issue-step1-<slug>.md` or `run-meta.json`; the visible block is the stand-in. With no readable registry the slug is **unestablished**, which routes to the title-derived fallback in `references/step-4-present-create.md`; the run reports the reduced durability and continues.
 
 ## Step 2 — the derivation artifact
 

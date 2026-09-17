@@ -146,6 +146,7 @@ fi
 # decided in bash so both cwd forms pass through devflow_normalize_path identically.
 SEL="$(STORE_ROOT="$STORE_ROOT" STAMP="$STAMP" python3 - <<'PY'
 import os, json, sys
+sys.stdout.reconfigure(newline="\n")
 root = os.environ["STORE_ROOT"]
 try:
     smt = os.stat(os.environ["STAMP"]).st_mtime

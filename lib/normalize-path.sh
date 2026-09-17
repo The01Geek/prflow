@@ -18,7 +18,7 @@
 # by some runners' inline-bash variable stripping), and since issue #1856 they
 # no longer restate this helper's tool-less drive-letter arithmetic either. The
 # shared "Portable helper anchor" paragraph (canonical copy skills/docs/SKILL.md,
-# replicated 17-way and identity-pinned by lib/test/run.sh's P4 loop) now
+# replicated 18-way and identity-pinned by lib/test/run.sh's P4 loop) now
 # instructs the agent to run one standalone wslpath/cygpath probe and then
 # VALIDATE the located directory against the filesystem; spec's variant
 # runs the same probe (also without a drive-letter fallback) but keeps its

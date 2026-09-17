@@ -20,7 +20,7 @@ One further arm you must check yourself, because no trigger fires on it. A `REVI
 
 Conducting the offer. These grounds are one input to the audit-round option of Step 4 sub-step 3a's combined decision question — never a second question of their own; 3a states the channel, the precedence when several grounds hold, and the routing of replies and silence. The offer is outside the Step 2 clarification budget, and waiting for its answer is the same sanctioned waiting state as the Step 4 confirmation gate. Record the outcome with `record-offer` (`--accepted` on "yes") and obey it; never count rounds yourself.
 
-- On "yes", run the full round: verify findings against the code, revise, re-run the Step 3 no-options gate, then run **Revision-delta verification** before re-evaluating the triggers.
+- On "yes", dispatch a fresh audit round on the current bytes. The `revise-then-evaluate-offer` procedure already verified and applied every confirmed finding before this offer was reached, so this arm opens the round rather than re-running a verify/revise cycle: record the acceptance with `record-offer --accepted` — which the state owner refuses (`unresolved-revise-pending`) while the last REVISE round's findings are still unrevised, so a `yes` on unrevised bytes cannot fund a re-audit — then run the round through the ordinary machinery.
 - On "no" — an explicit decline through the question tool, or one of Step 2's three explicit disengagement replies — record `record-override --kind user-decline --surface t1t2-boundary` and proceed to Step 4 with surviving findings quoted verbatim.
 - When the tool refuses the offer because the ceiling is reached, record `record-override --kind cap-reached` and proceed; the summary line names the ceiling.
 

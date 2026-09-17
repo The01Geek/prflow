@@ -196,7 +196,7 @@ def _repo_root() -> Path:
         out = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             check=False,
         )
     except OSError:

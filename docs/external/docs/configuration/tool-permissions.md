@@ -7,6 +7,8 @@ Grant cloud agents only the repository-specific test, lint, build or deployment 
 
 Installation and runtime provisioning do not grant command execution. PRFlow appends configured entries to a built-in allowlist; configured arrays do not replace the base profile.
 
+The built-in list already grants Git (including `git grep` on the implementation and command paths), the GitHub CLI, PRFlow's helpers and common text tools; add entries only for repository-specific commands. New built-in grants reach your repository when you re-run the installer ([Cloud Updates](/docs/runs/cloud/updates)).
+
 <Warning>
   Every entry you add lets an agent run that command against your repository, with whatever the runner environment can reach. A broad pattern such as `Bash(npm run:*)` grants every script in `package.json`, including one added later by a pull request. Grant the narrowest command that does the job, and review a change to these arrays as carefully as a change to a workflow file.
 </Warning>

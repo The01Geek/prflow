@@ -575,22 +575,115 @@ def _special_record_grade(run_root_dir):
     return None
 
 
-def _nonce_file_in_dir(run_root_dir, subdir, item_id):
+def _nonce_file_in_dir(run_root_dir, subdir, item_id, excluded_names=frozenset()):
     """Whether a `<subdir>/<item-id>-*.json` verifier file exists under the run root — the
     entry-scoped variant of `_nonce_file_present` (issue #516). Existence of the nonce FILE is
-    the requirement; no verification array is read."""
+    the requirement; no verification array is read. A basename in `excluded_names` does not
+    count (issue #621: a shadow file whose name is also step1's is the loop's file, since
+    nonces are unique per dispatch)."""
     pattern = os.path.join(run_root_dir, subdir, glob.escape(item_id) + '-*.json')
-    return any(os.path.isfile(p) for p in glob.glob(pattern))
+    return any(os.path.isfile(p) and os.path.basename(p) not in excluded_names
+               for p in glob.glob(pattern))
+
+
+def _snapshot_names(run_root_dir, subdir):
+    """The basenames of the `*.json` verifier files in a snapshot directory (issue #621).
+    Returns (names, None), or (None, 'unreadable') when the directory exists but cannot be
+    listed. An ABSENT directory is the empty set: a producer that copied no verifier file
+    leaves none, an observed fact. An unreadable one is not that fact — `glob` reports both
+    as no matches, and an empty exclusion set excludes nothing while an empty own-snapshot
+    set reports nothing unbound, so each caller would silently claim what it never observed.
+    Unknown is not zero here: the callers route the reason to an unestablished arm."""
+    path = os.path.join(run_root_dir, subdir)
+    try:
+        entries = os.listdir(path)
+    except FileNotFoundError:
+        return set(), None
+    except OSError:
+        return None, 'unreadable'
+    return {name for name in entries
+            if name.endswith('.json') and os.path.isfile(os.path.join(path, name))}, None
+
+
+def _bound_agent_item_ids(checklist_items):
+    """The usable ids of the effective agent-mode items in a bound checklist (issue #621)."""
+    if not isinstance(checklist_items, list):
+        return set()
+    ids = set()
+    for item in checklist_items:
+        if _effective_verification_mode(item) != 'agent':
+            continue
+        item_id = item.get('id') if isinstance(item, dict) else None
+        if isinstance(item_id, str) and item_id:
+            ids.add(item_id)
+    return ids
+
+
+def _unbound_snapshot_files(run_root_dir, verdicts_subdir, checklist_items, excluded_names):
+    """The entry's own snapshot files that belong to no bound agent item (issue #621), by the
+    same `<item-id>-` prefix rule the nonce lookup globs — so a retry's second nonce file for a
+    bound id stays valid while a file carried over from a wider claim set does not. Files the
+    step1-filename exclusion already dropped are not the entry's, so they are ignored here.
+    Returns (sorted basename list, None), or (None, 'unreadable') when the snapshot directory
+    could not be listed — an unenumerable snapshot is not an empty one."""
+    names, reason = _snapshot_names(run_root_dir, verdicts_subdir)
+    if reason is not None:
+        return None, reason
+    bound = _bound_agent_item_ids(checklist_items)
+    return sorted(
+        name for name in names
+        if name not in excluded_names
+        and not any(name.startswith(item_id + '-') for item_id in bound)), None
+
+
+def _shadow_step1_binding(run_root_dir, iteration):
+    """The `step1` binding for the shadow's OWN iteration (issue #621), the reference the
+    shadow's independence is measured against. Returns (binding, None), (None, None) when no
+    step1 binding exists (both step1-derived checks are then skipped), or (None, fault-tuple)
+    for an unreadable or malformed one. The entry/iteration/head mismatch check is deliberately
+    not applied: Step 2.6 can follow an early-exit convergence, so step1's reviewed head can
+    legitimately differ from the shadow's at the same iteration."""
+    binding, reason = _read_active_entry_binding(run_root_dir, 'step1', iteration)
+    if reason == 'unreadable':
+        return None, ('unestablished', 'active-entry-step1-binding-unreadable', None)
+    if reason == 'malformed':
+        return None, ('unestablished', 'active-entry-step1-binding-malformed', None)
+    return binding, None
+
+
+def _shadow_artifact_grade(binding, step1_binding, checklist_value, verification_value):
+    """Grade a bound shadow artifact against step1's own record of the same iteration (issue
+    #621). Returns the unestablished reason, or None when both artifacts are the shadow's own.
+    The shadow and the loop write the same `checklist-iter-<N>.json` /
+    `verification-iter-<N>.json` filenames, so a digest identical to step1's means the shadow
+    never rewrote that artifact and its binding snapshotted step1's work —
+    `active-entry-artifact-stale`. An empty `[]` artifact is exempt: two independent empty
+    artifacts collide by construction, not by staleness. A step1 record carrying no usable
+    digest (its producer could not hash its own artifact) cannot answer the comparison at all,
+    so a NON-EMPTY shadow artifact is then `active-entry-step1-digest-unestablished` rather
+    than a silent pass that skips the staleness check for that artifact."""
+    for value, key in ((checklist_value, 'checklist_sha256'),
+                       (verification_value, 'verification_sha256')):
+        if not value:
+            continue
+        theirs = step1_binding.get(key)
+        if not (isinstance(theirs, str) and theirs):
+            return 'active-entry-step1-digest-unestablished'
+        mine = binding.get(key)
+        if isinstance(mine, str) and mine and mine.lower() == theirs.lower():
+            return 'active-entry-artifact-stale'
+    return None
 
 
 def _active_entry_nonce_satisfied(run_root_dir, entry, verdicts_subdir, checklist_items,
-                                  reuse_map):
+                                  reuse_map, excluded_names=frozenset()):
     """Nonce coverage for an active entry over its OWN entry-scoped verifier snapshot (issue
     #516 AC2/AC3). Every fresh agent item needs a file in `verdicts_subdir` (the binding's
     own iteration-N snapshot); an item named in `reuse_map` is instead satisfied by that
     entry's retained prior-iteration snapshot `verdicts-<entry>/iter-<from_iteration>/`. A
     reuse claim whose `from_iteration` is not a real int, or whose retained file is absent,
-    does not satisfy — reuse must point back to actual retained producer evidence. Returns
+    does not satisfy — reuse must point back to actual retained producer evidence. A fresh
+    file whose basename is in `excluded_names` does not satisfy either (issue #621). Returns
     (satisfied, [missing-item-id, ...])."""
     def resolve_item(item_id):
         if item_id in reuse_map:
@@ -599,7 +692,7 @@ def _active_entry_nonce_satisfied(run_root_dir, entry, verdicts_subdir, checklis
                 return False
             prior_subdir = os.path.join(f'verdicts-{entry}', f'iter-{n}')
             return _nonce_file_in_dir(run_root_dir, prior_subdir, item_id)
-        return _nonce_file_in_dir(run_root_dir, verdicts_subdir, item_id)
+        return _nonce_file_in_dir(run_root_dir, verdicts_subdir, item_id, excluded_names)
     return _nonce_items_satisfied(checklist_items, resolve_item)
 
 
@@ -616,7 +709,16 @@ def _grade_active_entry_detail(run_root_dir, entry, iteration, reviewed_head):
       ('unestablished', 'active-entry-binding-mismatch', None)    binding entry/iter/head ≠ ask
       ('unestablished', 'active-entry-artifact-digest-mismatch', None)  bound file replaced
       ('unestablished', 'active-entry-artifact-digest-unestablished', None)  present artifact,
-                                                                   no usable recorded digest."""
+                                                                   no usable recorded digest
+    and, for the `shadow` entry only, the issue #621 independence arms:
+      ('unestablished', 'active-entry-step1-binding-unreadable'|'...-malformed', None)
+      ('unestablished', 'active-entry-artifact-stale', None)      loop artifact bound as ours
+      ('unestablished', 'active-entry-step1-digest-unestablished', None)  step1 recorded no
+                                                                   usable digest to compare
+      ('unestablished', 'active-entry-step1-snapshot-unreadable', None)   exclusion set
+                                                                   unenumerable
+      ('unestablished', 'active-entry-snapshot-unreadable', None)  own snapshot unenumerable
+      ('fail', ['verdict-file-unbound:<file>', ...], None)        snapshot file with no item."""
     binding, reason = _read_active_entry_binding(run_root_dir, entry, iteration)
     if reason == 'unreadable':
         return 'unestablished', 'active-entry-binding-unreadable', None
@@ -640,7 +742,7 @@ def _grade_active_entry_detail(run_root_dir, entry, iteration, reviewed_head):
     checklist_path = os.path.join(run_root_dir, binding['checklist_artifact'])
     verification_path = os.path.join(run_root_dir, binding['verification_artifact'])
     c_status, c_value = _read_json_array_value(checklist_path)
-    v_status, _v_value = _read_json_array_value(verification_path)
+    v_status, v_value = _read_json_array_value(verification_path)
     if c_status == 'malformed' or v_status == 'malformed':
         return 'unestablished', 'review-artifact-malformed', None
     missing = []
@@ -670,14 +772,38 @@ def _grade_active_entry_detail(run_root_dir, entry, iteration, reviewed_head):
         actual, _sha_reason = _sha256_file(art_path)
         if actual is None or actual.lower() != recorded.lower():
             return 'unestablished', 'active-entry-artifact-digest-mismatch', None
+    # Shadow independence (issue #621): the shadow engine writes the same iteration-scoped
+    # filenames the loop used, so evidence the loop produced must never grade as the shadow's.
+    excluded_names = frozenset()
+    if entry == 'shadow':
+        step1_binding, fault = _shadow_step1_binding(run_root_dir, iteration)
+        if fault is not None:
+            return fault
+        if step1_binding is not None:
+            artifact_reason = _shadow_artifact_grade(
+                binding, step1_binding, c_value, v_value)
+            if artifact_reason is not None:
+                return 'unestablished', artifact_reason, None
+            step1_names, names_reason = _snapshot_names(
+                run_root_dir, step1_binding['verdicts_subdir'])
+            if names_reason is not None:
+                return 'unestablished', 'active-entry-step1-snapshot-unreadable', None
+            excluded_names = frozenset(step1_names)
     reuse_map = {}
     for r in binding.get('reuse', []):
         if isinstance(r, dict) and isinstance(r.get('item_id'), str):
             reuse_map[r['item_id']] = r.get('from_iteration')
     satisfied, nonce_missing = _active_entry_nonce_satisfied(
-        run_root_dir, entry, binding['verdicts_subdir'], c_value, reuse_map)
-    if not satisfied:
-        return 'fail', ['verdict-file:' + m for m in nonce_missing], None
+        run_root_dir, entry, binding['verdicts_subdir'], c_value, reuse_map, excluded_names)
+    missing = ['verdict-file:' + m for m in nonce_missing] if not satisfied else []
+    if entry == 'shadow':
+        unbound, unbound_reason = _unbound_snapshot_files(
+            run_root_dir, binding['verdicts_subdir'], c_value, excluded_names)
+        if unbound_reason is not None:
+            return 'unestablished', 'active-entry-snapshot-unreadable', None
+        missing += ['verdict-file-unbound:' + name for name in unbound]
+    if missing:
+        return 'fail', missing, None
     items = c_value or []
     agent_count = sum(1 for it in items if _effective_verification_mode(it) == 'agent')
     return 'pass', None, agent_count
@@ -1107,11 +1233,11 @@ def _decide(args):
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8 on the entry path (issue #1762). The detail lines
+    """Force stdin/stdout/stderr to UTF-8 on the entry path (issue #1762). The detail lines
     carry em-dashes, so a non-UTF-8 runner would otherwise raise on print. Never called at
     import — that would mutate an importing test's streams. Tolerates a stream with no
     usable reconfigure."""
-    for _stream in (sys.stdout, sys.stderr):
+    for _stream in (sys.stdin, sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError, OSError):

@@ -19,9 +19,11 @@
 #      reads at call time. The mode-0600 half holds only where POSIX mode bits
 #      apply: on Windows the umask/chmod below are ineffective (the filesystem
 #      honors only a read-only flag), so the file is left to whatever the
-#      filesystem's ACLs provide — a comment-only reconciliation of existing
-#      behavior (issue #690). Narrowing that exposure is
-#      tracked separately; this script's behavior is unchanged.
+#      filesystem's ACLs provide (issue #690). The control for that exposure is
+#      operator host setup: one account per runner service, and a work
+#      directory (holding RUNNER_TEMP) restricted to that account and
+#      administrators (issue #633; see the Windows Runners section of the
+#      cloud runners docs).
 #
 # Subcommands:
 #   cycle   run ONE mint-and-rewrite cycle, then exit 0 (best-effort; the suite

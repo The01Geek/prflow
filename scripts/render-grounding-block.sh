@@ -325,8 +325,9 @@ ${ALLOWED_TOOLS}
 > Reach for a single statement whose leading token is a granted head or a resolved helper
 > path; a pipe into \`tee\`; or a \`VAR=\$(cmd)\` capture. Redirect evidence is scoped to the
 > exact tier, command head, target form, and statement that was measured.
-> - **Hard rule: after two denials of a shape, switch to a permitted alternative above
->   — never iterate variants of the denied shape.** Iterating denied variants is what
+> - **Hard rule: after one refusal of an ungranted head, or
+>   after two denials of a shape, switch to a permitted alternative above — never retry
+>   variants.** \`dangerouslyDisableSandbox\` lifts no permission refusal. Iterating denied variants is what
 >   exhausts the run and ends it with no verdict. When the refused command is a bundled
 >   plugin helper, record the refusal on this run's durable record (the workpad, else the
 >   PR description) naming the helper, the tier, and that tier's remedy — on this cloud tier,

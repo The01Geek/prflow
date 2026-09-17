@@ -149,6 +149,7 @@ if [ "$_PRESENCE_MODE" -eq 1 ]; then
     fi
     DEVFLOW_KEY="${key#.}" DEVFLOW_CONFIG="$config_file" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(os.environ["DEVFLOW_CONFIG"], encoding="utf-8") as f:
         data = json.load(f)
@@ -187,6 +188,7 @@ probe_superseded_key() {
     command -v python3 >/dev/null 2>&1 || return 0
     hit="$(PRFLOW_KEY="${key#.}" PRFLOW_CONFIG="$config_file" PRFLOW_MAP="$map_file" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 
 
 def load(path):
@@ -319,6 +321,7 @@ fi
 # arrays comma-join their coerced elements, an object → "[object Object]".
 value=$(DEVFLOW_KEY="${key#.}" DEVFLOW_CONFIG="$config_file" python3 -c '
 import json, os, sys
+sys.stdout.reconfigure(newline="\n")
 try:
     with open(os.environ["DEVFLOW_CONFIG"], encoding="utf-8") as f:
         data = json.load(f)

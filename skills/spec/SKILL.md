@@ -173,63 +173,44 @@ line they pick the candidate whose topic matches the story and confirm it with `
 on any other `slug=unestablished` line they take the title-derived fallback
 stated in the *Runner setup* section — never a slug composed from a partial read.
 
-Every dispatch starts with the shallow arm; the deep arm is reached only by the escalation below.
-Derive any value deciding a leg's pathspec with python3 or bash builtins, never `tr`, `sed`, `wc`,
-`cut` or `head`.
+Dispatch exactly two peers in parallel, on every run that does not take the degraded inline check below — one documentation-lead, one code-lead — each over the whole repository:
 
-- Shallow — the unconditional first shape: one dispatched peer over the union of the deep legs, enumerated from the git index.
-- Deep — two parallel dispatched peers over those legs separately.
+- `/prflow:docs-verify --report-only --lead docs <topic>`
+- `/prflow:docs-verify --report-only --lead code <topic>`
 
-Both arms dispatch rather than run inline; no git history is read.
+Each peer's dispatch prompt is its invocation string above plus the user story, and nothing else. Send no peer beyond these two. Both dispatch rather than run inline; no git history is read.
 
-Legs disjoint by construction: the internal-documentation location, and the tracked tree
-minus that location's subtree — never an assertion they are already disjoint. Resolve that
-location — `.docs.internal` is a config key, not a path — with
+Evidence artifact. The orchestrator — never a peer — writes both returned reports to
+`.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`, anchored to the working directory, before Step 1
+returns, each under a heading naming its lead, plus a note naming any lead whose peer failed. Peers
+write nothing. Each report is written unchanged, including one over the 1,000-word limit, without
+measuring it. Those findings stay resident in your context and durably held in that artifact, so
+Step 3 draws on them by pointer and does not re-quote the findings block into its own output. Step
+2's evidence bundle reads the artifact.
+
+The documentation verdict is taken only from the documentation-lead report; a verdict in the
+code-lead report has no handling. A missing or malformed duty status, and a documentation-lead
+verdict that is missing or not one of `RELIABLE`/`UNRELIABLE`/`ABSENT`, is recorded `unestablished`
+in that file.
+
+Population-identity check. Resolve the internal-documentation location — `.docs.internal` is a
+config key, not a path — with
 `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`.
-A resolution that exits non-zero, prints nothing, or prints a non-path records the documentation
-leg unestablished, never an established absence. A resolver that never ran — refused or absent —
-assumes `docs/internal/`, says so in your output, and records the leg unestablished when that
-directory holds no tracked files.
-Both enumerate from the index, and each reaches its peer as its docs-verify invocation's
-`--search-space <pathspec>` operand — write the leg's resolved pathspec verbatim as that operand,
-the invocation string `/prflow:docs-verify --report-only --search-space <pathspec> <topic>` per that
-grammar's order — never as dispatch-prompt prose its own contract overrides. The duty floor, not the
-space's size, bounds each peer.
+Record the *exact operand and population identity* duty `unestablished`, whatever the
+documentation-lead verdict, in exactly these cases: (a) the documentation-lead report omits its
+resolved internal-documentation location — and an absent or failed documentation-lead report counts
+as case (a), since a report that never arrived omits the location it would have stated, so the
+comparison never fails open; (b) the report names a location different from this resolution; (c) the
+resolution exits non-zero, prints nothing, or prints a non-path; (d) the resolved location exists
+but holds no git-index entries — `git ls-files -- <resolved-location>` prints nothing. When the resolver never ran, compare against `docs/internal/` and
+state that in your output.
 
-The orchestrator reconciles both returns. An empty documentation leg is an established absence only
-when the location itself is absent.
-Record unestablished when the location exists and the read fails, and equally when it exists and
-reads cleanly yet holds no git-index entries (an absolute path, a parent escape, a symlink, an
-untracked docs tree — the schema forbids none), so claim no documentation coverage rather than a
-clean absence.
-Unequal returns — one peer returning, one failing — degrade to the surviving leg with a breadcrumb
-naming the failed leg, never reporting a partial verification as complete.
-An incomplete return — one that succeeds but omits or malforms its duty statuses, or omits a
-bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
-with a breadcrumb naming the missing field, never a discharged floor.
-The dispatch also instructs each peer to state, in its return, both the `--search-space` operand it
-actually ran under and the internal-doc location it resolved; the orchestrator compares that returned operand against the pathspec that leg
-dispatched, and records the leg unestablished with a breadcrumb — escalating shallow→deep like any
-unestablished duty — when the return omits the operand or its stated value does not match, rather
-than an established result, so a peer that silently defaulted the operand is detected, not trusted.
-It also records the *exact operand and population identity* duty unestablished — which escalates — when the shallow report omits the resolved internal-doc location or states one differing from the orchestrator's own `.docs.internal` resolution, so a peer whose resolver call was refused cannot report `ABSENT` over the wrong location while its operand still matches.
-
-Escalation shallow→deep is the only entry to the deep arm. The trigger set is exactly three, complete by construction: `UNRELIABLE`, an unestablished duty, and any judged-not-engaged duty whose returned
-bearing observation is non-empty once the producer's explicit `none-observed` token is excluded —
-that field is always present, so escalate on any value other than `none-observed` and record
-unestablished (which escalates) when it is absent or unparseable. An `ABSENT` verdict is not a trigger: it is an established result the shallow arm has already produced (docs-verify reports an unreadable documentation location as an `unestablished` duty, not as `ABSENT`), so it does not escalate. That comparand is a field of the
-report you receive.
-
-Evidence artifact. The orchestrator — never a peer — writes the returned evidence (reconciled, on
-the deep arm) to `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`, anchored to the working directory, on both
-arms before Step 1 returns. Peers write nothing.
-Those findings stay resident in your context and durably held in that artifact, so Step 3 draws on
-them by pointer and does not re-quote the findings block into its own output. Step 2's evidence bundle and an escalating deep arm read the artifact.
-
-Degraded arm. A failed, unavailable, or rejected pass — or one whose helper anchor cannot resolve —
-degrades to a bounded inline verification with a breadcrumb naming the failure kind, marks its
-evidence degraded, and writes its own output to the same artifact path. It never terminates the run
-and never presents a half-verification as whole.
+Failure arms. When exactly one peer fails, continue with the surviving report and record a note
+naming the failed lead. When both fail, take the degraded inline check: a bounded inline
+verification with a breadcrumb naming the failure kind, marking its evidence degraded and writing
+its own output to the same artifact path. It never terminates the run and never presents a
+half-verification as whole. The completion-wait rule below and the read-only-sandbox fallback cover
+both peers.
 
 Completion-wait discipline (mandatory, mirroring Step 3.6's synchronous dispatch). Dispatch each
 peer through the Agent tool (a non-fork `subagent_type`, `general-purpose` on Claude Code; the

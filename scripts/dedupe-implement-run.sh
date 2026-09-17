@@ -13,7 +13,10 @@
 # which the workflow uses to skip the billable job and post a brief notice. This
 # is repository doctrine covering BOTH duplicate-command paths — this implement
 # path and the /prflow:review command path (scripts/dedupe-review-command.sh,
-# issue #989) — so both are gate-stage checks rather than concurrency groups.
+# issue #989) — so both are gate-stage checks rather than concurrency groups. The
+# runs this check lets through (the stall-resume carve-out, the sub-second race) are
+# serialized downstream by the claude job's per-issue queue-only concurrency group
+# (issue #471); do not drop that group on the grounds that dedupe covers the race.
 #
 # How "same thread" is identified: devflow-implement.yml sets a `run-name`
 # embedding the issue/PR number the command was posted on (CONTEXT_NUMBER). We

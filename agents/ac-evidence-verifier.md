@@ -133,6 +133,28 @@ class mismatch. That record routes `judge`, and the orchestrator re-tags the cri
   thorough read establishes nothing either way → `unestablished`, `evidence` = what you
   read and where, and that you ran no command.
 
+### Quantified criteria — record the stated/observed pair
+
+Independently of the two verification types above, decide whether the criterion **names a
+quantifier, a scope, or a literal value or set** — a count, a named file set, an enumerated
+set of handled cases, or a specific string or number the shipped artifact must carry.
+
+- **It does** — record `stated_terms` (the value or set the criterion states) and
+  `observed_value` (the value you actually observed in the shipped artifact) as two
+  directly-comparable strings, and set your `status` from their comparison: `satisfied` only
+  when they match, `unmet` when they differ. A pointer plus a fit judgment with no such
+  recorded match is not `satisfied` — the reconciler sets the gate status from this pair.
+- **It does not** — set `quantified` to the JSON boolean `false` (not the string `"false"`),
+  and omit the pair; your `satisfied` then rests on the pointer/fit and executed-command
+  rules above.
+
+**A self-disclosed limitation contradicting the criterion's terms is `unmet`.** When shipped
+source, a code comment, or documentation **in the diff** admits the code does not cover a case
+the criterion's stated terms require, report `status` `unmet` for that criterion — the
+disclosure is the contradiction. A caveat that does not contradict the terms does not by itself
+make it `unmet`. **The pull-request body is not an input to this rule** (it does not exist when
+you run); the review pass owns the PR-body backstop.
+
 ## Named steps — every record states what you DID, not only what you concluded
 
 Your report answers *what did you conclude*. On its own that cannot tell an abbreviated
@@ -163,12 +185,25 @@ slot you leave out, or state without that reason, makes the orchestrator record 
 criterion as `unestablished` rather than accepting your status for it. The remedy is to
 state the disposition, never to perform the step.
 
+## Command-shape discipline (cloud runs)
+
+On cloud runs a permission layer silently refuses any command outside its allowlist (`This command requires approval`; nothing runs). Keep to permitted shapes:
+
+- The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
+- Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
+- Prefer your Read, Grep, and Glob tools for inspecting files.
+
+After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
+
 ## Rules
 
 - **One status per criterion, never a collapse.** `unestablished` is a real third value —
   never report it as `satisfied` or `unmet` to avoid an inconclusive answer.
 - **A `satisfied` status carries a non-empty `evidence` pointer** an orchestrator can act on
   without re-running you.
+- **A quantified criterion carries the `stated_terms`/`observed_value` pair; a non-quantified
+  one carries `quantified: false`.** Omitting both makes the reconciler score the criterion
+  `unestablished` — a pointer with no recorded value match is not `satisfied`.
 - Read the **actual** source and command output; do not rely on wording or memory.
 - Never modify the working tree beyond a verification command's own side effects, your one
   write to the assigned report path, and the capture files you write inside `<ATTEMPT_DIR>`
@@ -180,40 +215,44 @@ state the disposition, never to perform the step.
 ## Output
 
 Write exactly one JSON object — no code fence, no other text — to your **assigned report
-path** with the Write tool, then return only that path as your final output (the orchestrator
-reads the file, not your return text). The object is a list of per-criterion records:
+path** with the Write tool, then make your whole hand-back — your final message and any
+runner-provided hand-back tool message alike — exactly that report path and nothing else added
+(the orchestrator reads the file, not your return text). The object is a list of per-criterion
+records:
 
 ```json
 {
   "criteria": [
-    {"criterion": 1, "status": "satisfied", "evidence": "ran <TEST_COMMAND> in-env; summary line '<clean aggregate>' in <ATTEMPT_DIR>/<name>.log on <sha>",
+    {"criterion": 1, "status": "satisfied", "quantified": false, "evidence": "ran <TEST_COMMAND> in-env; summary line '<clean aggregate>' in <ATTEMPT_DIR>/<name>.log on <sha>",
      "dispositions": {
        "type-decided": "yes (verification-command, from the criterion naming the suite)",
        "command-run": "yes (ran <TEST_COMMAND> in-env once, captured to <ATTEMPT_DIR>/<name>.log; it reported a clean aggregate)",
        "claim-traced": "no (command criterion; the claim verifier traces its claim)",
        "evidence-recorded": "yes (the command and its observed result on the HEAD sha)"}},
-    {"criterion": 2, "status": "unmet", "reason": "failed", "evidence": "suite failed: <detail>",
+    {"criterion": 2, "status": "unmet", "reason": "failed", "quantified": false, "evidence": "suite failed: <detail>",
      "dispositions": {
        "type-decided": "yes (verification-command)",
        "command-run": "yes (ran <TEST_COMMAND> in-env; it failed)",
        "claim-traced": "no (command criterion; the claim verifier traces its claim)",
        "evidence-recorded": "yes (the failing detail)"}},
-    {"criterion": 3, "status": "unestablished", "reason": "denied", "evidence": "command denied in this context; prflow_implement.allowed_tools is the remedy",
+    {"criterion": 3, "status": "unestablished", "reason": "denied", "quantified": false, "evidence": "command denied in this context; prflow_implement.allowed_tools is the remedy",
      "dispositions": {
        "type-decided": "yes (verification-command)",
        "command-run": "no (the command was refused in my context — a grant gap)",
        "claim-traced": "no (command criterion; the claim verifier traces its claim)",
        "evidence-recorded": "yes (the denial and the remedy)"}},
-    {"criterion": 4, "status": "satisfied", "evidence": "ran t.py at HEAD; it passed, and scripts/foo.py:42 bears out the claim",
+    {"criterion": 4, "status": "satisfied", "stated_terms": "exactly 3 files", "observed_value": "exactly 3 files", "evidence": "ran t.py at HEAD; it passed, and the diff touches exactly 3 files",
      "dispositions": {
-       "type-decided": "yes (non-command; the criterion names a behavior backed by a test in the diff)",
+       "type-decided": "yes (non-command; the criterion names a count backed by a test in the diff)",
        "command-run": "yes (ran t.py in-env; it passed)",
        "claim-traced": "yes (traced the claim into scripts/foo.py:42, this non-command criterion is mine alone)",
-       "evidence-recorded": "yes (the command result and the traced code path)"}}
+       "evidence-recorded": "yes (the command result and the observed count)"}}
   ]
 }
 ```
 
 `status` is exactly one of `satisfied`, `unmet`, `unestablished`, and `dispositions`
-carries all four slots. Write the raw object to the assigned path — no `json` code fence, since
+carries all four slots. For a quantified criterion the record adds `stated_terms` and
+`observed_value` (two comparable strings); for a non-quantified one it adds `quantified: false`
+(the JSON boolean). Write the raw object to the assigned path — no `json` code fence, since
 the orchestrator's handoff reads the file as raw JSON.

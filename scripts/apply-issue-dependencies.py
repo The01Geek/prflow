@@ -55,6 +55,16 @@ PREFIX = "apply-issue-dependencies.py"
 # other Python gh-callers (workpad.py, file-deferrals.py, …) read it this way.
 GH = os.environ.get("DEVFLOW_GH") or "gh"
 
+# Refreshed-token env for gh calls on native Windows (see gh_fresh_env.py).
+# Guarded like this file's preflight import (partial-copy deployments): a copy
+# without the sibling inherits the ambient token, as before the helper.
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from gh_fresh_env import fresh_gh_env
+except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
+    def fresh_gh_env(env=None, os_name=None):
+        return env
+
 # GitHub's 422 body for an ALREADY-registered blocked_by dependency carries the
 # validation message "Target issue has already been taken" (probed against a real
 # duplicate registration on this repository, issue #1011). Match on that token
@@ -91,7 +101,8 @@ def _gh(args: list[str]) -> tuple[int, str, str]:
     """
     try:
         result = subprocess.run(
-            [GH, *args], capture_output=True, encoding="utf-8", errors="replace"
+            [GH, *args], capture_output=True, encoding="utf-8", errors="replace",
+            env=fresh_gh_env(),
         )
         return result.returncode, result.stdout, result.stderr
     except OSError as exc:

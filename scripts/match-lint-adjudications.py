@@ -343,9 +343,9 @@ def _config_get(key: str, default: str = "", config_path: str | None = None) -> 
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8 in the CLI entry path only (not at import — so
+    """Force stdin/stdout/stderr to UTF-8 in the CLI entry path only (not at import — so
     unit-test imports don't mutate the importer's global streams)."""
-    for _stream in (sys.stdout, sys.stderr):
+    for _stream in (sys.stdin, sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
         except (AttributeError, ValueError, OSError):

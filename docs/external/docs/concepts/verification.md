@@ -86,7 +86,7 @@ Your CI is the check a person reads before merging. It runs on the pull request,
 CI is **not** a substitute for the run verifying its own work. An implementation run has to establish its own result while it is still working, because a run that outsources its verification to a later CI job is reporting on a change it never checked. When the run finishes, both signals exist for you: the evidence the run recorded, and CI's independent result on the pushed commit.
 
 <Note>
-  A cloud implementation run never waits for CI, polls it or cites it as its own test evidence. It verifies in its own environment and leaves CI to you.
+  By default a cloud implementation run verifies in its own environment and leaves your merge-gate CI to you. When `prflow_implement.ci_verification.enabled` is true and the deployment check passes, a full-suite boundary instead dispatches your `ci.yml` workflow for the pushed commit and waits on that run through `ci-verification-request.py`. A failed wait still exits 7. After the existing first line `FAILED <request-id> run=<run-id> url=<url> conclusion=<conclusion>` it prints one `failed-job:` line per failed job and one `recap:` line per identifier in those jobs' `Failure recap` blocks. If the job list or a job log cannot be read, it prints `recap-status: unestablished — <reason>` instead of those recap identifiers. Passing, cancelled, superseded and pending outcomes keep the same first lines and exit codes they already used.
 </Note>
 
 ## What the Evidence Looks Like
@@ -100,7 +100,7 @@ Verification evidence is recorded on the workpad, alongside the run's other prog
   - [ ] acceptance-criteria gate
 ```
 
-The acceptance-criteria gate is where verification evidence is actually spent. Every in-scope acceptance criterion must be supported before the run may finish by a check the run actually ran and observed — a passing test, lint or build command, a recorded probe of the code, or a documented manual check. Reading the code without running anything does not mark a criterion satisfied, so a run cannot report a pull request review-ready on evidence nobody observed. A criterion that could not be established blocks exactly the same way a criterion that failed blocks.
+The acceptance-criteria gate is where verification evidence is actually spent. Every in-scope acceptance criterion must be supported before the run may finish by a check the run actually ran and observed — a passing test, lint or build command, a recorded probe of the code, or a documented manual check. Reading the code without running anything does not mark a criterion satisfied, so a run cannot report a pull request review-ready on evidence nobody observed. For a criterion that names a specific count, value or set, a fitting check is not enough on its own: the value the criterion states has to match what actually shipped, and a check that fits the criterion but whose observed value differs counts as unmet rather than satisfied. A criterion that could not be established blocks exactly the same way a criterion that failed blocks.
 
 A criterion that genuinely needs a real deployed environment is the one exception. It is tagged as post-merge work, left unticked and surfaced in the pull-request description for you to verify after merging. A criterion that is merely awkward to verify does not qualify.
 

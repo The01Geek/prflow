@@ -151,6 +151,30 @@ def build_envelope(*, repo: str, workflow: str, request_id: str, candidate_sha: 
     return validate_envelope(envelope)
 
 
+# Shard-attempt classification for leftover acceptance (issue #543). After a Spot retry
+# reruns only the interrupted shard, the survivors keep an envelope stamped with their
+# earlier attempt. The evidence collector and the offline completion validator both classify
+# each shard's producing attempt through this one predicate, so the leftover rule cannot
+# drift between the two modules.
+ATTEMPT_CURRENT = "current"
+ATTEMPT_LEFTOVER = "leftover"
+ATTEMPT_REFUSE = "refuse"
+
+
+def classify_shard_attempt(prov_attempt: object, current_attempt: int) -> str:
+    """Classify a shard envelope's `run_attempt` against the run's current attempt:
+    `ATTEMPT_CURRENT` when it equals it, `ATTEMPT_LEFTOVER` when it is a strictly-earlier
+    positive integer, `ATTEMPT_REFUSE` otherwise (a foreign or ahead-of-run attempt, or a
+    non-positive/bool value). `current_attempt` is the caller's already-validated integer."""
+    if not _positive_int(prov_attempt):
+        return ATTEMPT_REFUSE
+    if prov_attempt == current_attempt:
+        return ATTEMPT_CURRENT
+    if prov_attempt < current_attempt:
+        return ATTEMPT_LEFTOVER
+    return ATTEMPT_REFUSE
+
+
 def validate_request_identity(request_id: object, candidate_sha: object) -> None:
     """Apply the envelope's request/candidate contract before a selected worker runs tests."""
     if not isinstance(request_id, str) or not _REQUEST_ID_RE.fullmatch(request_id):

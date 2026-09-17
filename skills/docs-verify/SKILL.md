@@ -17,18 +17,18 @@ If the invocation fails because the helper path does not exist (`No such file`, 
 
 ## Mode
 
-`$ARGUMENTS` is a leading run of flags, then the topic. Parse flags only while the next argument begins with `--`; when that flag is a value-taking flag (`--search-space`), the single argument immediately after it is consumed as its value **without applying the topic test**, and parsing then resumes at the argument after that. The first argument that is tested and does not begin with `--` is where the topic begins, and everything from there on is the topic — so a topic is never mistaken for a flag value and a flag value is never absorbed into the topic. Strip the flags before treating the remainder as the topic.
+`$ARGUMENTS` is a leading run of flags, then the topic. Parse flags only while the next argument begins with `--`; when that flag is a value-taking flag (`--lead`), the single argument immediately after it is consumed as its value **without applying the topic test**, and parsing then resumes at the argument after that. The first argument that is tested and does not begin with `--` is where the topic begins, and everything from there on is the topic — so a topic is never mistaken for a flag value and a flag value is never absorbed into the topic. Strip the flags before treating the remainder as the topic.
 
 - `--report-only` — a bare flag.
-- `--search-space <pathspec>` — takes exactly the one argument that follows it. That argument is the flag's value, never part of the topic.
+- `--lead docs|code` — takes exactly the one argument that follows it. That argument is the flag's value, never part of the topic.
 
-Malformed invocations (all arms explicit). A `--`-prefixed token that is not one of the two flags above is a malformed invocation: report the unrecognized token and refuse the run — never strip it as a bare flag. Silently consuming a mistyped `--reprot-only` would drop the caller into the default write mode, which makes file changes, so the parser fails closed on an unrecognized flag exactly as it does for a `--search-space` with no following argument. `--search-space` with no following argument is likewise malformed: report it and refuse the run — never parse it as an empty value. An operand supplied but empty (`--search-space ''`) does **not** fall through to the no-operand default: report `unestablished` for the *exact operand and population identity* duty. Silently coercing a real empty value onto the default would restore the whole-tracked-tree sweep and destroy the two legs' disjointness.
+Malformed invocations (all arms explicit). A `--`-prefixed token in the leading flag run that is not one of the two flags above — `--search-space` included, now unrecognized — is a malformed invocation: report the unrecognized token and refuse the run, never strip it as a bare flag. Silently consuming a mistyped `--reprot-only` would drop the caller into the default write mode, which makes file changes, so the parser fails closed on an unrecognized flag. `--lead` given without `--report-only` is malformed: report it and refuse the run. `--lead` with no following argument is malformed: report it and refuse the run — never parse it as an empty value. `--lead` followed by a value other than `docs` or `code` is malformed: report the value and refuse the run. `--lead` given more than once is malformed: report it and refuse the run. A `--search-space` token appearing at or after the first topic word is read as part of the topic, not a malformed invocation.
 
-Grammar: `[--report-only] [--search-space <pathspec>] <topic…>`.
+Grammar: `[--report-only] [--lead docs|code] <topic…>`.
 
 - Default (no flag) — write mode: verify docs and make file changes to bring them into line with the code (the behavior described throughout this skill).
 - `--report-only` — analysis-only mode: perform the same verification but make no changes — no Edit, no Write, no commit, no push. Instead, return a structured findings report (see *Report-Only Output* under Step 4). Used by `/prflow:spec` to inform a new issue without writing to a protected branch.
-- `--search-space <pathspec>` — the search-space operand (report-only mode): the population this run surveys, in place of this skill's defaults. Steps 1 and 2 both read it. When it is not supplied, behavior is unchanged: Step 1 searches `[[INTERNAL_DOC_LOCATION]]` and Step 2 searches the whole tracked tree.
+- `--lead docs|code` — the search-lead operand (report-only mode): it orders the work over the whole tracked tree, which both steps search either way. `--lead docs` exhausts the internal documentation first, then other tracked documents within the duty floor, then code; `--lead code` starts from the code and treats documentation as supporting evidence; with no `--lead` the order is documentation first, then code. The documentation verdict is returned under `--lead docs` and with no `--lead`, never under `--lead code`.
 
 ### Who you are in report-only mode
 
@@ -48,7 +48,7 @@ implements it. No doc-derived claim enters the report unmarked:
 
 | Fate | Condition | Where it goes |
 | --- | --- | --- |
-| **Finding** | You confirmed it against the implementing code | `Relevant code files` / `Current behavior` |
+| **Finding** | You confirmed it against the implementing code | `Relevant files` / `Current behavior` |
 | **Contradiction** | The code disagrees with the document | `Current behavior` — the code wins |
 | **Unconfirmed** | You did not check it | Stated in-line, marked `doc-sourced, unconfirmed` |
 
@@ -68,13 +68,13 @@ skimming more of them.
 
 ### Breadth bound (report-only mode)
 
-In report-only mode the **duty floor — not the size of the search space — bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. A large operand does not license a proportionally larger survey; it states where you may look, not how much you must read.
+In report-only mode the **duty floor bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. The floor bounds how much you must read; the whole tracked tree states only where you may look.
 
 Return a status for every duty on the floor, never only for the duties you were assigned:
 
 - `discharged` — carried out on this run. A duty you carried out is `discharged` even when its result is empty — you looked and had nothing to report; the empty result is the answer you can state and cite.
 - `unestablished` — engaged but could not be discharged. Record it; never pass it silently.
-- `judged-not-engaged` — judged not to bear on this topic. Reserved for a duty you did not carry out — never for one you carried out and found empty (that is `discharged`). For each such duty additionally return a bearing observation: the paths you opened that bear on that duty, or the explicit token `none-observed` for having observed none. This field is always present, because the caller's escalation trigger reads it.
+- `judged-not-engaged` — judged not to bear on this topic. Reserved for a duty you did not carry out — never one you carried out and found empty (that is `discharged`).
 
 The bar for `discharged` (apply it per duty, before you write the status). `discharged` does not
 mean "I did some work on this duty." It means: **you can state the duty's answer, and cite the tool
@@ -140,7 +140,7 @@ you measured and how you counted it, so the caller has a defined comparand to re
 to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
 the report.
 
-**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. Escalation is a return-value contract: return your doc-reliability signal and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
+**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. This is a return-value contract: return your doc-reliability signal and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
 
 ## Objective (write mode)
 
@@ -186,15 +186,15 @@ Read the shared writing standard before composing in either mode. Both modes com
 ## Detailed Execution Steps
 
 ### Step 1: Locate Documentation Files
-Search for any existing documentation about the topic **within the supplied `--search-space` operand**; when no operand was supplied, search `[[INTERNAL_DOC_LOCATION]]`:
-- When the search space carries an `index.md` routing map (and a `glossary.md`), read the index first and follow its routing to the page that owns the topic — the index locates the owning page faster than a raw search, and a routed page a name-match would miss is still in scope
-- Use the runner's Glob tool to find files in that search space matching the topic name
+Search for any existing documentation about the topic across the whole tracked tree, ordered by lead. Under `--lead docs`, exhaust the internal documentation first — starting from `[[INTERNAL_DOC_LOCATION]]`'s `index.md` routing when that file exists, read every page in that location bearing on the topic before reading any code, then other tracked documents within the six-duty floor. Under `--lead code`, start from the code and treat documentation as supporting evidence. With no `--lead`, read documentation first, then code, and return the documentation verdict:
+- When the internal-doc location carries an `index.md` routing map (and a `glossary.md`), read the index first and follow its routing to the page that owns the topic — the index locates the owning page faster than a raw search, and a routed page a name-match would miss is still in scope
+- Use the runner's Glob tool to find files matching the topic name
 - Search for files containing the topic with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
 - Document all files found (or note if no files exist)
 
 ### Step 2: Search Codebase for Topic
-Identify all code related to the topic, **searching the supplied `--search-space` operand**; when no operand was supplied, search the whole tracked tree. In report-only mode the duty floor above — not the size of that space — bounds how far this search goes:
-- Search that space for classes, functions, and features mentioned in the topic, with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
+Identify all code related to the topic across the whole tracked tree, in the lead order Step 1 states. In report-only mode the duty floor above bounds how far this search goes:
+- Search for classes, functions, and features mentioned in the topic, with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
 - Review all relevant source files
 - Document the key files and features involved
 
@@ -240,9 +240,12 @@ constraints and file-operation rules is worse than not running at all.
 
 Return findings as text — do not write them to a file. Structure:
 
-- **Doc reliability:** `RELIABLE` | `UNRELIABLE` | `ABSENT`
-- **Relevant code files:** the files that implement the topic — the map for the issue and the implementer. Mark which are **essential** (the minimum set someone must read to understand the topic) and cite `file:line` for the specific entry points, guards, and writers you identified.
-- **Current behavior:** what the code actually does today, grounded in the code you read. Include the failure paths and non-obvious couplings an implementer would otherwise discover the hard way.
+- **Doc verdict and location:** `RELIABLE` | `UNRELIABLE` | `ABSENT`, and the internal documentation location this run resolved. Returned under `--lead docs` and with no `--lead`; never under `--lead code`.
+- **Relevant files:** the files implementing the topic — mark the essential ones and cite `file:line` for entry points, guards, and writers.
+- **Current behavior:** what the code does today, including failure paths and non-obvious couplings.
+- **Duty statuses:** one status per floor duty, all six, with a one-clause reason for each `unestablished` duty.
+
+Keep the returned report under 1,000 words.
 
 What the doc-reliability signal ranges over (decide it this way, every time). It says whether the
 documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else, were a reliable map for this
@@ -256,15 +259,12 @@ topic:
 A discrepancy in any file outside that location — a stale default in a schema, a wrong literal in
 a code comment, an out-of-date example config — is not an input to this signal. Report it under
 *Current behavior* if it is load-bearing, and leave the signal unchanged. Two runs over the same tree
-must return the same token; without a stated boundary they do not, and the caller's escalation
+must return the same token; without a stated boundary they do not, and the caller's
 decision turns on noise.
 
 If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is not `ABSENT` — an absence you
 could not establish is not an established absence. Report the *exact operand and population identity*
-duty as `unestablished` and say which read failed.
-- **Search space surveyed:** the `--search-space` operand this run used, or the default it fell back to, **and** the internal-doc location this run resolved (the `.docs.internal` value, or the `docs/internal/` default it fell back to) — state both, so the caller can confirm the population surveyed matches the one it dispatched
-- **Duty statuses:** one status per duty on the *Breadth bound* floor — `discharged`, `unestablished`, or `judged-not-engaged` — for **all six** duties, not only the assigned ones
-- **Bearing observations:** for every duty reported `judged-not-engaged`, the paths opened that bear on it, or `none-observed`
+duty as `unestablished` on the merged *Doc verdict and location* bullet and say which read failed.
 
 Make no Edit, Write, commit, or push in this mode, and dispatch no subagent. The working tree must be unchanged when you finish.
 
@@ -284,4 +284,4 @@ completion or stop the larger task.
 
 Write mode: the completion criteria live in `references/write-mode.md`, loaded at Step 4.
 
-Arguments (`[--report-only] [--search-space <pathspec>] <topic…>` — leading flags, then the topic): $ARGUMENTS
+Arguments (`[--report-only] [--lead docs|code] <topic…>` — leading flags, then the topic): $ARGUMENTS
