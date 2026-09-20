@@ -196,7 +196,7 @@ for _mtpe_dir in .prflow/skill-extensions .prflow/prompt-extensions; do
     _mtpe_old_ext="${_mtpe_dir}/receiving-code-review.md"
     if [ "$FETCH_HEAD_RESOLVES" = yes ] \
         && [ "$(git cat-file -t "FETCH_HEAD:$_mtpe_old_ext" 2>/dev/null || printf 'unknown')" = blob ]; then
-        printf '%s\n' "::warning::devflow: the trusted base ref '$BASE_REF' still carries the superseded prompt extension '$_mtpe_old_ext'; the receiving-code-review skill was renamed to fix, so rename it to ${_mtpe_dir}/fix.md (the loader reads it through transitionally)"
+        printf '%s\n' "::warning::prflow: the trusted base ref '$BASE_REF' still carries the superseded prompt extension '$_mtpe_old_ext'; the receiving-code-review skill was renamed to fix, so rename it to ${_mtpe_dir}/fix.md (the loader reads it through transitionally)"
         break
     fi
 done

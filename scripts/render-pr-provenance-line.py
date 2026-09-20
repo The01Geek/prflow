@@ -47,6 +47,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Nested-repository detection (issue #12): a resolved git root with no .prflow/ under
+# an ancestor that has one reads built-in defaults while looking configured. lib/ sits
+# beside scripts/ in both the source repo and a vendored .prflow/vendor/prflow/ tree; a
+# partial copy without the sibling degrades to a no-op rather than failing the read.
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
+except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
+
+
 #: The plugin manifest, resolved beside this file (mirroring lib/efficiency-trace.sh).
 _MANIFEST_BESIDE_HELPER = Path(__file__).resolve().parent.parent / ".claude-plugin" / "plugin.json"
 
@@ -189,9 +201,13 @@ def read_model() -> str | None:
     return latest
 
 
-def _repo_root() -> Path:
-    """The git working-tree root (SHARED REPO-ROOT CONFIG CONTRACT), falling back to the
-    process CWD when git cannot resolve one."""
+def _git_toplevel() -> Path | None:
+    """The git working-tree root, or ``None`` when git cannot resolve one.
+
+    Do not fold this back into ``_repo_root``: a caller that cannot tell "no git root
+    at all" from "a root that carries no config" fires the issue-#12 ancestor walk in a
+    tree with no git root, where this reader must stay silent.
+    """
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -200,10 +216,16 @@ def _repo_root() -> Path:
             check=False,
         )
     except OSError:
-        return Path.cwd()
+        return None
     if out.returncode == 0 and out.stdout.strip():
         return Path(out.stdout.strip())
-    return Path.cwd()
+    return None
+
+
+def _repo_root() -> Path:
+    """The git working-tree root (SHARED REPO-ROOT CONFIG CONTRACT), falling back to the
+    process CWD when git cannot resolve one."""
+    return _git_toplevel() or Path.cwd()
 
 
 def _config_path(explicit: str | None) -> Path:
@@ -211,7 +233,10 @@ def _config_path(explicit: str | None) -> Path:
     <repo-root>/.prflow/config.json (with a .devflow fallback when only that exists)."""
     if explicit is not None and explicit.strip():
         return Path(explicit.strip())
-    root = _repo_root()
+    toplevel = _git_toplevel()
+    if toplevel is not None:
+        _warn_ancestor_config(toplevel, "render-pr-provenance-line.py", "pass --config <path>")
+    root = toplevel or Path.cwd()
     canonical = root / ".prflow" / "config.json"
     if not canonical.exists():
         superseded = root / ".devflow" / "config.json"

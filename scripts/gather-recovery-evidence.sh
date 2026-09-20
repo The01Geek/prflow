@@ -18,7 +18,9 @@
 # AC46 fail-safe: ANY query/pagination/parse/identity-mismatch/permission failure
 # emits ALL SEVEN flags `false` (so recovery-classify.sh returns `unclassifiable`
 # and no reclaim resume) with a specific stderr breadcrumb naming the failed call —
-# a reclaim requires every query to have positively succeeded.
+# a reclaim requires every query to have positively succeeded. The facts file's
+# `evidence_read` is `ok` only when every query succeeded, else `failed`, so a
+# failed read is never mistaken for "read, found nothing" (issue #798).
 #
 # Author authentication (AC/recovery-classify contract): MARKER_AUTHOR_OK is read
 # from the comment's API-reported user.type == "Bot", NEVER from the marker body —
@@ -64,6 +66,7 @@ CAPACITY_TOKEN="unknown"
 RUNNER_NAME=""
 ANNOTATION_MESSAGE=""
 NEVER_STARTED="unknown"
+EVIDENCE_READ="failed"
 
 # Best-effort: write the facts file only when --facts-file was passed. jq is
 # preflight-guaranteed; a jq failure leaves the file unwritten/empty via `|| true`,
@@ -72,7 +75,8 @@ write_facts_file() {
   [ -n "$FACTS_FILE" ] || return 0
   "$DEVFLOW_JQ" -n \
     --arg ct "$CAPACITY_TOKEN" --arg rn "$RUNNER_NAME" --arg am "$ANNOTATION_MESSAGE" --arg ns "$NEVER_STARTED" \
-    '{capacity_token: $ct, runner_name: $rn, annotation_message: $am, never_started: $ns}' \
+    --arg er "$EVIDENCE_READ" \
+    '{capacity_token: $ct, runner_name: $rn, annotation_message: $am, never_started: $ns, evidence_read: $er}' \
     > "$FACTS_FILE" 2>/dev/null || true
 }
 
@@ -209,6 +213,7 @@ fi
 # Write the recovery cause facts on the success path too (every earlier exit went
 # through emit_all_false, which already wrote them). The seven-line stdout below is
 # untouched.
+EVIDENCE_READ="ok"
 write_facts_file
 printf '%s\n' "$human_cancel" "$marker_present" "$author_ok" "$repo_match" \
   "$run_id_match" "$run_attempt_match" "$job_id_match"

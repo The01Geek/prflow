@@ -43,7 +43,9 @@ After a refusal, never retry the command respelled, chained, split, or with `dan
 2. **Identify Critical Gaps**: Look for:
    - Untested error handling paths that could cause silent failures
    - Missing edge case coverage for boundary conditions
-   - Uncovered critical business logic branches
+   - Uncovered critical business logic branches, plus a branch the diff **newly adds** to a
+     helper whose result decides a fail-open/fail-closed outcome, a verdict, or a gate —
+     tested siblings make an untested new branch read as covered, so name the branch
    - Absent negative test cases for validation logic
    - Missing tests for concurrent or async behavior where relevant
 
@@ -64,7 +66,11 @@ After a refusal, never retry the command respelled, chained, split, or with `dan
 **Analysis Process:**
 
 1. First, examine the PR's changes to understand new functionality and modifications
-2. Review the accompanying tests to map coverage to functionality
+2. Review the accompanying tests to map coverage to functionality — for a newly added gating
+   branch, to the one assertion that would fail if that branch were broken. Settle it by
+   reading source and assertion; reach for the mutation check above only when reading cannot
+   and your tools permit it, and report a refused or unavailable check as unverified rather
+   than as a gap or as clean
 3. Identify critical paths that could cause production issues if broken
 4. Check for tests that are too tightly coupled to implementation
 5. Look for missing negative cases and error scenarios

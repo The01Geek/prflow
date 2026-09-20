@@ -87,7 +87,7 @@ set -u
 ISSUE="${1:-}"
 case "$ISSUE" in
   '' | *[!0-9]*)
-    echo "devflow: read-doc-needed-deliverables.sh: usage: read-doc-needed-deliverables.sh <issue-number>" >&2
+    echo "prflow: read-doc-needed-deliverables.sh: usage: read-doc-needed-deliverables.sh <issue-number>" >&2
     exit 64
     ;;
 esac
@@ -109,7 +109,7 @@ if [ -f "$_RDND_DIR/../lib/resolve-gh.sh" ] \
    && type devflow_resolve_gh >/dev/null 2>&1; then
   : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 else
-  echo "devflow: lib/resolve-gh.sh is not sourceable beside read-doc-needed-deliverables.sh (partial deployment) — the issue body cannot be read" >&2
+  echo "prflow: lib/resolve-gh.sh is not sourceable beside read-doc-needed-deliverables.sh (partial deployment) — the issue body cannot be read" >&2
   printf 'docgate-outcome: %s\n' body-read-failed
   exit 11
 fi
@@ -117,10 +117,12 @@ fi
 EXTRACTOR="${DEVFLOW_DOC_NEEDED_EXTRACTOR:-$_RDND_DIR/extract-doc-needed-paths.sh}"
 
 # Documentation-location allowlist (issue #222): resolved here from config and handed to the extractor
-# as DEVFLOW_DOC_NEEDED_ALLOWLIST (one member per line) — internal + external docs roots (external only
-# while enabled, so a repo that disabled it is not blocked on it), release-notes, changelog, README.md.
+# as DEVFLOW_DOC_NEEDED_ALLOWLIST (one member per line) — internal + external docs roots, release-notes,
+# changelog, README.md. The external root is admissible whatever `.docs.external_enabled` says (issue
+# #440): an issue-named external deliverable overrides that routine toggle and is routed to
+# docs-sync-external directly, so dropping the member would refuse the very path the override delivers.
 _rdnd_allowlist_unresolved() {
-  echo "devflow: a configured documentation-allowlist member could not be resolved (config-get.sh failed, or resolved to a non-path/wrong-type value) — not filtering deliverables against an untrusted allowlist" >&2
+  echo "prflow: a configured documentation-allowlist member could not be resolved (config-get.sh failed, or resolved to a non-path/wrong-type value) — not filtering deliverables against an untrusted allowlist" >&2
   printf 'docgate-outcome: %s\n' allowlist-unresolved
   exit 13
 }
@@ -135,21 +137,17 @@ if [ -z "${DEVFLOW_DOC_NEEDED_ALLOWLIST+set}" ]; then
   CONFIG_GET="$_RDND_DIR/config-get.sh"
   _alw_internal="$("$CONFIG_GET" .docs.internal docs/internal/)" || _rdnd_allowlist_unresolved
   _rdnd_valid_path_member "$_alw_internal" || _rdnd_allowlist_unresolved
-  _alw_ext_enabled="$("$CONFIG_GET" .docs.external_enabled true)" || _rdnd_allowlist_unresolved
   _alw_release="$("$CONFIG_GET" .docs.release_notes_file docs/external/release-notes.md)" || _rdnd_allowlist_unresolved
   _rdnd_valid_path_member "$_alw_release" || _rdnd_allowlist_unresolved
   _alw_changelog="$("$CONFIG_GET" .docs.changelog_file CHANGELOG.md)" || _rdnd_allowlist_unresolved
   _rdnd_valid_path_member "$_alw_changelog" || _rdnd_allowlist_unresolved
+  _alw_external="$("$CONFIG_GET" .docs.external docs/external/)" || _rdnd_allowlist_unresolved
+  _rdnd_valid_path_member "$_alw_external" || _rdnd_allowlist_unresolved
   _alw_list="$_alw_internal
 $_alw_release
 $_alw_changelog
-README.md"
-  if [ "$_alw_ext_enabled" != "false" ]; then
-    _alw_external="$("$CONFIG_GET" .docs.external docs/external/)" || _rdnd_allowlist_unresolved
-    _rdnd_valid_path_member "$_alw_external" || _rdnd_allowlist_unresolved
-    _alw_list="$_alw_list
+README.md
 $_alw_external"
-  fi
   export DEVFLOW_DOC_NEEDED_ALLOWLIST="$_alw_list"
 fi
 
@@ -163,7 +161,7 @@ BODY_FILE="$SCRATCH/devflow-docgate-body-$ISSUE.txt"
 # An unusable scratch leaf leaves the body unread, which is a read failure and
 # never an empty deliverable list.
 if ! mkdir -p "$SCRATCH"; then
-  echo "devflow: could not create $SCRATCH for the Documentation Needed gate" >&2
+  echo "prflow: could not create $SCRATCH for the Documentation Needed gate" >&2
   printf 'docgate-outcome: %s\n' body-read-failed
   exit 11
 fi

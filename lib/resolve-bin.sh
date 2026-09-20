@@ -74,7 +74,7 @@ devflow_resolve_bin() {
       # fail-closed guard below; the fallback routes straight into it.
       var_name="DEVFLOW_$(printf '%s' "$tool" | tr '[:lower:]-' '[:upper:]_' 2>/dev/null)" || var_name="DEVFLOW_"
       if [ "$var_name" = "DEVFLOW_" ]; then
-        printf 'devflow: could not derive the override variable name for "%s" (tr unavailable?) — override not consulted, probing candidates\n' "$tool" >&2
+        printf 'prflow: could not derive the override variable name for "%s" (tr unavailable?) — override not consulted, probing candidates\n' "$tool" >&2
         var_name=__DEVFLOW_NO_OVERRIDE__
       fi
       ;;
@@ -103,7 +103,7 @@ devflow_resolve_bin() {
   # sentinel the tr-unavailable arm parks in var_name.
   local _display="$var_name"
   if [ "$_display" = "__DEVFLOW_NO_OVERRIDE__" ]; then _display="the DEVFLOW_<TOOL> override for $tool"; fi
-  printf 'devflow: no runnable %s or %s.exe found on PATH; falling back to bare "%s" — set %s to a working binary\n' \
+  printf 'prflow: no runnable %s or %s.exe found on PATH; falling back to bare "%s" — set %s to a working binary\n' \
     "$tool" "$tool" "$tool" "$_display" >&2
   printf '%s\n' "$tool"
   return 0

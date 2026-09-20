@@ -49,21 +49,54 @@ PHASE_FILES = {
     "phase-4-documentation.md": "phase4",
 }
 WORKER_PHASE_FILES = {"phase-4-finalization.md": "phase4"}
+# Gated references under skills/implement/references/ whose basename the `sweep-` prefix rule
+# below does not cover (issue #733). A reference matching no rule is attributed to NO phase, so
+# that phase under-reports exactly on the runs where the gate fires — the only runs a deferral's
+# saving is visible on. Every gated reference outside the sweep-prefix shape needs a row here,
+# except one whose declaring phase files sit in two different phases: a basename map has no single
+# correct label for it, so lib/test/test_context_eval_shared.py registers it as a known gap
+# instead. That guard is equality, so attributing one later must delete its entry there.
+REFERENCE_PHASE_FILES = {
+    "extension-row-ticks.md": "phase3",
+    "phase-1-intake.md": "phase1",
+    "phase-2-5-workflow-edit-guard.md": "phase2",
+    "phase-3-3-review-fix.md": "phase3",
+    "post-merge-tagging.md": "phase3",
+}
 PHASE_READ_LABELS = tuple(sorted(set(PHASE_FILES.values())))
 SWEEP_REFERENCE_PREFIX = "sweep-"
 SWEEP_REFERENCE_SUFFIX = ".md"
 SWEEP_REFERENCE_PHASE = "phase2"
-if SWEEP_REFERENCE_PHASE not in PHASE_READ_LABELS:
-    raise AssertionError(
-        f"SWEEP_REFERENCE_PHASE {SWEEP_REFERENCE_PHASE!r} must be a PHASE_READ_LABELS member")
-# _phase_read_label only counts a worker file whose label is already a PHASE_FILES value; a
-# worker label absent from that set would silently never count. Enforce the subset fail-fast at
-# import rather than leaving it to the runtime guard.
-_worker_orphan_labels = set(WORKER_PHASE_FILES.values()) - set(PHASE_FILES.values())
-if _worker_orphan_labels:
-    raise AssertionError(
-        "WORKER_PHASE_FILES values must be a subset of PHASE_FILES values "
-        f"(orphan labels: {sorted(_worker_orphan_labels)})")
+
+
+def _validate_label_subsets(phase_files, worker_phase_files, reference_phase_files,
+                            sweep_phase, phase_read_labels):
+    """Raise `AssertionError` when a label map would silently under-report a phase.
+
+    `_phase_read_label` only counts a worker/reference file whose label is already a
+    `phase_files` value; an orphan label — one no phase file carries — would never count,
+    so that phase under-reports exactly on the runs where its gate fires. This is the
+    import-time fail-fast (called once below), pulled into a function so the guard is
+    testable: `lib/test/test_context_eval_shared.py` drives it with an orphan-bearing map
+    to prove it still raises, rather than only observing the clean-map import succeed.
+    """
+    if sweep_phase not in phase_read_labels:
+        raise AssertionError(
+            f"SWEEP_REFERENCE_PHASE {sweep_phase!r} must be a PHASE_READ_LABELS member")
+    worker_orphans = set(worker_phase_files.values()) - set(phase_files.values())
+    if worker_orphans:
+        raise AssertionError(
+            "WORKER_PHASE_FILES values must be a subset of PHASE_FILES values "
+            f"(orphan labels: {sorted(worker_orphans)})")
+    reference_orphans = set(reference_phase_files.values()) - set(phase_files.values())
+    if reference_orphans:
+        raise AssertionError(
+            "REFERENCE_PHASE_FILES values must be a subset of PHASE_FILES values "
+            f"(orphan labels: {sorted(reference_orphans)})")
+
+
+_validate_label_subsets(PHASE_FILES, WORKER_PHASE_FILES, REFERENCE_PHASE_FILES,
+                        SWEEP_REFERENCE_PHASE, PHASE_READ_LABELS)
 
 # The cloud execution file (scripts/scrub-transcript.sh's uploaded artifact, and the raw
 # execution file the harness writes) prepends one `# DEVFLOW SCRUB CAVEAT` line to a
@@ -202,26 +235,59 @@ def read_and_tally(text, skipped):
     return [] if parsed.non_transcript_json else parsed.records
 
 
-def _is_main_thread_record(record):
-    """A record on the orchestrator main thread, not a dispatched subagent's (issue #120
-    AC5). Excluded when `isSidechain` is `true` (local transcripts) OR `parent_tool_use_id`
-    is a non-empty string (the cloud execution file's subagent marker — the real cloud
-    file carries no `isSidechain`, per lib/test/fixtures/execution-file-shape.observed.txt)."""
+def _context_identity(record, source):
+    """The (context key, is_subagent) a record belongs to — the single per-context keying
+    rule both context-cost instruments share (issue #714, lifted here from
+    scripts/review-context-eval.py so a keying fix lands once).
+
+    A subagent thread is recognized by either tier's marker and keyed to keep two
+    contexts apart:
+      * `isSidechain: true` (local transcripts) → keyed by `agentId`;
+      * else a non-empty-string `parent_tool_use_id` (the cloud execution file's subagent
+        marker — the real cloud file carries no `isSidechain`, per
+        lib/test/fixtures/execution-file-shape.observed.txt) → keyed by that id.
+    A record carrying BOTH markers takes the `isSidechain` arm (checked first). Everything
+    else is a main-thread thread keyed by `sessionId`. Each arm falls back to the source
+    path when its identifying field is absent or not a string, so a transcript missing one
+    still separates contexts (each real subagent is its own file). The `main:`/`sub:`
+    prefix separates a main-thread `sessionId` from any subagent identifier; within the
+    `sub:` arm an `agentId` and a `parent_tool_use_id` share one namespace (a `sub:X`
+    from either keys together). This assumes the input convention that a corpus carries
+    one tier's marker — local `isSidechain`/`agentId` or cloud `parent_tool_use_id`; the
+    keying does not enforce it, so a corpus mixing both tiers' markers under a shared id
+    would merge those two contexts into one accumulator.
+    """
     if record.get("isSidechain") is True:
-        return False
+        agent = record.get("agentId")
+        ident = agent if isinstance(agent, str) and agent else "file:" + source
+        return "sub:" + ident, True
     ptid = record.get("parent_tool_use_id")
-    return not (isinstance(ptid, str) and ptid)
+    if isinstance(ptid, str) and ptid:
+        return "sub:" + ptid, True
+    sid = record.get("sessionId")
+    ident = sid if isinstance(sid, str) and sid else "file:" + source
+    return "main:" + ident, False
+
+
+def _is_main_thread_record(record, source=""):
+    """A record on the orchestrator main thread, not a dispatched subagent's (issue #120
+    AC5). The classification is `_context_identity`'s `is_subagent` bit, so the two never
+    disagree; `source` only feeds the file-path fallback the boolean never depends on."""
+    return not _context_identity(record, source)[1]
 
 
 def _phase_read_label(file_path, phase_files, sweep_prefix="", sweep_suffix="",
-                      sweep_label=None, worker_phase_files=None):
+                      sweep_label=None, worker_phase_files=None,
+                      reference_phase_files=None):
     """The phase-read label a Read's `file_path` counts under, or None. Matches on the
     BASENAME because the same file resolves at a repo-relative path locally and a vendored
-    path on the cloud tier. Takes both label maps as arguments rather than redefining them,
-    so PHASE_FILES stays the single test-pinned mirror; `worker_phase_files` defaults to
-    WORKER_PHASE_FILES."""
+    path on the cloud tier. Takes the label maps as arguments rather than redefining them,
+    so PHASE_FILES stays the single test-pinned mirror; `worker_phase_files` and
+    `reference_phase_files` default to WORKER_PHASE_FILES / REFERENCE_PHASE_FILES."""
     if worker_phase_files is None:
         worker_phase_files = WORKER_PHASE_FILES
+    if reference_phase_files is None:
+        reference_phase_files = REFERENCE_PHASE_FILES
     basename = os.path.basename(file_path)
     label = phase_files.get(basename)
     if label is not None:
@@ -229,13 +295,17 @@ def _phase_read_label(file_path, phase_files, sweep_prefix="", sweep_suffix="",
     worker_label = worker_phase_files.get(basename)
     if worker_label is not None and worker_label in phase_files.values():
         return worker_label
+    reference_label = reference_phase_files.get(basename)
+    if reference_label is not None and reference_label in phase_files.values():
+        return reference_label
     if sweep_prefix and basename.startswith(sweep_prefix) and basename.endswith(sweep_suffix):
         return sweep_label
     return None
 
 
 def measure_context(records, phase_files, sweep_prefix="", sweep_suffix="",
-                    sweep_label=None, worker_phase_files=None):
+                    sweep_label=None, worker_phase_files=None,
+                    reference_phase_files=None):
     """Peak main-thread residency and per-phase Read counts over transcript records.
 
     The shared measuring core (issue #120): scripts/extract-execution-cost.py runs it over
@@ -279,7 +349,8 @@ def measure_context(records, phase_files, sweep_prefix="", sweep_suffix="",
             if not isinstance(file_path, str):
                 continue
             label = _phase_read_label(file_path, phase_files, sweep_prefix,
-                                      sweep_suffix, sweep_label, worker_phase_files)
+                                      sweep_suffix, sweep_label, worker_phase_files,
+                                      reference_phase_files)
             if label is not None:
                 phase_reads[label] += 1
     if not saw_main_thread:

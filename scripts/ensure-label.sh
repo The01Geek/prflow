@@ -34,7 +34,7 @@ set -uo pipefail
 # to a blank). Name the arg-slip and exit 0, so a refusal stays the ONLY silent outcome.
 NAME="${1:-}"
 if [ -z "$NAME" ]; then
-    echo "devflow: warning: ensure-label.sh got an empty label name (args: $*); no label ensured. This is NOT a harness denial — it is a caller arg-slip (an empty label literal, or a variable that did not survive into this command)." >&2
+    echo "prflow: warning: ensure-label.sh got an empty label name (args: $*); no label ensured. This is NOT a harness denial — it is a caller arg-slip (an empty label literal, or a variable that did not survive into this command)." >&2
     exit 0
 fi
 
@@ -65,14 +65,14 @@ ERR_OUT="$("$DEVFLOW_GH" api --method POST "repos/{owner}/{repo}/labels" -f "nam
 RC=$?
 
 if [ "$RC" -eq 0 ]; then
-    echo "devflow: created label '$NAME'" >&2
+    echo "prflow: created label '$NAME'" >&2
 else
     shopt -s nocasematch
     case "$ERR_OUT" in
         *already_exists*|*"already exists"*|*"already been taken"*)
-            echo "devflow: label '$NAME' already exists" >&2 ;;
+            echo "prflow: label '$NAME' already exists" >&2 ;;
         *)
-            echo "devflow: warning: could not ensure label '$NAME' (best-effort, continuing): ${ERR_OUT}" >&2 ;;
+            echo "prflow: warning: could not ensure label '$NAME' (best-effort, continuing): ${ERR_OUT}" >&2 ;;
     esac
     shopt -u nocasematch
 fi

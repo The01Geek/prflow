@@ -41,12 +41,15 @@ Output — one JSON object on stdout, rc 0 whenever the helper ran::
 
     {
       "results": [ { "id", "raw_verdict", "verdict", "normalized",
-                     "evidence", "file_checked", "source",
+                     "evidence", "file_checked", "view_revision", "source",
                      "defect", "defect_class",
                      "normalization_ineligible" }, ... ],
       "needs_retry": [ { "id", "kind": "verdict"|"auxiliary", "defect" }, ... ],
       "counts": { "normalized_count", "field_defect_fail_count" }
     }
+
+``view_revision`` (issue #851) is the 40-hex commit id of the source view the verifier read,
+carried through for the build-mode provenance gate below; a non-string is dropped to null.
 
 A malformed pairs file (unparseable / truncated / wrong-shape) instead prints the
 structured **bad-input report** — ``{"bad_input": true, "error": ...}`` — to
@@ -113,13 +116,56 @@ normalization-eligible: such items satisfy conjuncts (1) and (2) structurally, s
 only the verifier's own self-reported auxiliary fields would stand between a raw
 FAIL on an acceptance criterion and a stored PASS.
 
+Build mode — ``<inputs-file> --checklist <checklist-iter-N.json> --verdicts-dir
+<dir> --out <verification-iter-N.json>``. The helper derives the pairs itself and
+writes the combined verification array, so the orchestrator types only judgment::
+
+    {
+      "nonces":         { "VC-3": "<nonce>" },            # one per dispatched item
+      "lite":           [ { "id", "verdict", "evidence", "file_checked", "view_revision" } ],
+      "response_text":  { "VC-9": "<response of a verifier that wrote no file>" },
+      "pinned_verdict": { "VC-4": "FAIL" },               # field-completion re-ask
+      "recovered":      { "VC-9": { "verdict", "evidence" } },  # in-context recovery
+      "views":          { "head": { "revision": "<40-hex>", "inventory": "<path>" },
+                          "base": { "revision": "<40-hex>", "inventory": "<path>" } }
+    }
+
+``views`` (issue #851) binds the run's head and base source-view inventories. When present,
+the collector runs a provenance gate before the tally: a verdict whose ``view_revision`` is
+not the bound head or base, is absent, or whose ``file_checked`` path is absent from that
+view's inventory and not recorded there as ``deleted``, is left unestablished and cannot earn
+PASS (a raw PASS is forced to INCONCLUSIVE with a ``view_ineligible`` marker; cited evidence
+text is never byte-compared). The gate is inert when ``views`` is absent, so a legacy run is
+unaffected and the wording-only normalization contract is unchanged. The summary carries a
+``view_check`` object ``{bound_revisions, states}``.
+
+Each checklist item is partitioned exactly as the evidence gate partitions it: a
+``reused_from_iter_prev: true`` item carrying a prior ``PASS`` keeps the verdict it
+arrived with; an effective-lite item takes its ``lite`` entry; every other item is
+an agent pair whose ``verdict_path`` is ``<verdicts-dir>/<id>-<nonce>.json`` — the
+nonce comes ONLY from ``nonces``, never from a directory listing, so the binding
+above holds. No stored verdict is ever null: an item with no usable verdict stores
+``INCONCLUSIVE`` naming the defect, and ``recovered`` applies only to a
+verdict-defect item. Every optional input is classified in ``inputs_seen`` and a
+wrong-typed one is ignored with an ``input_warnings`` line. Stdout is the summary
+``{written, tally, counts, needs_retry, non_pass, inputs_seen, input_warnings}``;
+when the ``--out`` write fails, ``written`` is null and the array rides along as
+``verification`` for the orchestrator to Write.
+
+``checklist <op> …`` as the first argument instead routes to the Phase 1 checklist
+assembly in the sibling ``checklist_finalize.py`` (its ops, files and output are
+documented there). It rides this helper because a cloud profile grants leading
+tokens per helper, and this one is granted wherever the review engine runs.
+
 Exit codes:
     0  Helper ran (results OR bad-input report printed).
     1  Unsupported Python (< 3.11).
-    2  Bad arguments (no pairs-file path given).
+    2  Bad arguments (no pairs-file or build-mode inputs-file path given; a build-mode
+       flag without its value, or build mode without all of its flags).
 """
 
 import json
+import os
 import sys
 import traceback
 
@@ -132,7 +178,7 @@ if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation below
     print(json.dumps({"bad_input": True, "error": "unsupported_python",
                       "detail": "Python 3.11+ required (found {}.{}.{})".format(*sys.version_info[:3])}, indent=2))
     sys.stderr.write(
-        "devflow: Python 3.11+ required (found {}.{}.{}).\n".format(*sys.version_info[:3])
+        "prflow: Python 3.11+ required (found {}.{}.{}).\n".format(*sys.version_info[:3])
     )
     sys.exit(1)
 
@@ -333,6 +379,7 @@ def _process_pair(pair):
         "normalized": False,
         "evidence": None,
         "file_checked": None,
+        "view_revision": None,
         "source": source,
         "defect": None,
         "defect_class": None,
@@ -378,6 +425,11 @@ def _process_pair(pair):
     result["evidence"] = evidence if isinstance(evidence, str) else None
     fc = obj.get("file_checked")
     result["file_checked"] = fc if isinstance(fc, str) else None
+    # issue #851: the commit-bound view revision the verifier read, carried through for the
+    # collector's provenance check (build mode). Non-string is dropped to None so the check
+    # treats it as absent rather than crashing.
+    vr = obj.get("view_revision")
+    result["view_revision"] = vr if isinstance(vr, str) else None
 
     # --- auxiliary-field classification ----------------------------------------
     pp_state = _aux_state(obj, "property_proven")
@@ -515,11 +567,15 @@ def run(pairs_file):
     if not isinstance(payload, dict) or not isinstance(payload.get("pairs"), list):
         return {"bad_input": True, "error": "pairs_file_wrong_shape",
                 "detail": "expected a JSON object with a 'pairs' array"}
+    return run_pairs(payload["pairs"])
 
+
+def run_pairs(pairs):
+    """Process a pairs list (from a pairs file, or derived by ``build``)."""
     results = []
     needs_retry = []
     field_defect_fail_count = 0
-    for idx, pair in enumerate(payload["pairs"]):
+    for idx, pair in enumerate(pairs):
         if not isinstance(pair, dict):
             # A non-dict element (a stray null/string/number/list from a corrupt
             # transcription) is a verdict defect, NOT a silent no-op: emit an
@@ -595,9 +651,400 @@ def run(pairs_file):
     }
 
 
+def _checklist_main(argv):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        import checklist_finalize
+    except ImportError as e:
+        # stdout, not only stderr: byte-empty stdout reads as a matcher denial.
+        print(json.dumps({"ok": False, "error": "checklist_module_missing",
+                          "detail": str(e)[:200]}, indent=2))
+        return 0
+    return checklist_finalize.main(argv)
+
+
+BUILD_FLAGS = ("--checklist", "--verdicts-dir", "--out")
+_INPUT_TYPES = {"nonces": dict, "lite": list, "response_text": dict,
+                "pinned_verdict": dict, "recovered": dict, "views": dict}
+
+# issue #851 collector view-provenance check.
+VIEW_INELIGIBLE_PREFIX = "VIEW-UNESTABLISHED: "
+_HEX40 = tuple("0123456789abcdef")
+
+
+def _is_hex40(value):
+    # Accept a 40-hex (SHA-1) or 64-hex (SHA-256) commit id, matching the producer's
+    # HEX40_RE in review-engine-io.py: a SHA-256 repo emits 64-hex revisions, and a
+    # collector that rejected them would demote every PASS on such a repo.
+    return isinstance(value, str) and len(value) in (40, 64) and all(c in _HEX40 for c in value)
+
+
+def _strip_line_anchor(fc):
+    """Return ``file_checked`` with a trailing ``:<line>`` / ``:<line>-<line>`` anchor removed.
+
+    The verifier contract emits ``file_checked`` as ``path:line`` or ``path:line-range``
+    (agents/checklist-verifier.md), while the view inventory records bare paths, so the
+    membership test must compare bare paths. Only a final ``:``-segment that is a pure line
+    anchor (digits, or digits-digits) is stripped; a path whose tail is not a line anchor is
+    returned unchanged. A non-string is returned unchanged."""
+    if not isinstance(fc, str):
+        return fc
+    idx = fc.rfind(":")
+    if idx <= 0:
+        return fc
+    parts = fc[idx + 1:].split("-")
+    if 1 <= len(parts) <= 2 and all(p.isdigit() for p in parts):
+        return fc[:idx]
+    return fc
+
+
+def _load_view_index(views):
+    """Parse the build-mode ``views`` input into ``(index, bound_revisions, head_revision, warnings)``.
+
+    ``index`` maps each bound revision SHA to the set of paths its inventory records (present
+    entries AND ``kind: "deleted"`` records alike — a deleted record is legitimate absence, not
+    an unread path). ``bound_revisions`` is the set of the run's head/base revisions and
+    ``head_revision`` is the head slot's revision (or ``None``). A malformed ``views`` block, or
+    an unreadable/mis-shaped inventory, yields no bound revision for that slot and a warning; when
+    the run supplied ``views`` but none are usable the caller fails closed (build()'s gate),
+    never standing a raw PASS unchecked. The adversarial
+    {object,array,scalar,valid-falsy,missing,wrong-type} matrix is guarded here."""
+    index, bound, warnings, head_revision = {}, set(), [], None
+    if not isinstance(views, dict) or not views:
+        return index, bound, head_revision, warnings
+    for slot in ("head", "base"):
+        spec = views.get(slot)
+        if slot not in views:
+            continue
+        if not isinstance(spec, dict):
+            warnings.append(f"views[{slot}]: expected an object, got {_shape(True, spec)} -- ignored")
+            continue
+        revision = spec.get("revision")
+        inv_path = spec.get("inventory")
+        if not _is_hex40(revision):
+            warnings.append(f"views[{slot}]: revision is not a 40- or 64-hex commit id -- ignored")
+            continue
+        if not isinstance(inv_path, str) or not inv_path:
+            warnings.append(f"views[{slot}]: inventory path missing -- ignored")
+            continue
+        try:
+            with open(inv_path, "r", encoding="utf-8") as fh:
+                inv = json.load(fh)
+        except (OSError, UnicodeDecodeError, ValueError) as e:
+            warnings.append(f"views[{slot}]: inventory unreadable/unparseable ({str(e)[:80]}) -- ignored")
+            continue
+        entries = inv.get("entries") if isinstance(inv, dict) else None
+        if not isinstance(entries, list):
+            warnings.append(f"views[{slot}]: inventory has no entries array -- ignored")
+            continue
+        paths = {e["path"] for e in entries
+                 if isinstance(e, dict) and isinstance(e.get("path"), str)}
+        index[revision] = paths
+        bound.add(revision)
+        if slot == "head":
+            head_revision = revision
+    return index, bound, head_revision, warnings
+
+
+def _view_state(entry, index, bound):
+    """Classify a verification entry's view provenance against the bound inventories.
+    Returns ``"ok"`` | ``"absent"`` | ``"wrong-revision"`` | ``"path-not-in-inventory"``.
+    Cited evidence text is never inspected — only ``view_revision`` and ``file_checked``."""
+    vr = entry.get("view_revision")
+    if not _is_hex40(vr):
+        return "absent"
+    if vr not in bound:
+        return "wrong-revision"
+    fc = _strip_line_anchor(entry.get("file_checked"))
+    if isinstance(fc, str) and fc and fc not in index.get(vr, set()):
+        return "path-not-in-inventory"
+    return "ok"
+
+
+def effective_mode(item):
+    """``'lite'`` only for ``verification_mode: "lite"`` with a well-formed
+    ``lite_probe``; everything else is ``'agent'`` — the evidence gate's partition
+    (scripts/review-evidence-gate.py), so an item the gate demands a nonce file for
+    is never settled here by a lite entry."""
+    if not isinstance(item, dict) or item.get("verification_mode") != "lite":
+        return "agent"
+    probe = item.get("lite_probe")
+    if (isinstance(probe, dict)
+            and probe.get("kind") in ("string_present", "string_absent")
+            and isinstance(probe.get("string"), str)
+            and isinstance(probe.get("file"), str)):
+        return "lite"
+    return "agent"
+
+
+def _shape(present, val):
+    if not present:
+        return "missing"
+    if isinstance(val, bool):
+        return "boolean"
+    if isinstance(val, dict):
+        return f"object({len(val)})"
+    if isinstance(val, list):
+        return f"array({len(val)})"
+    if val is None:
+        return "null"
+    return "string" if isinstance(val, str) else "number"
+
+
+def _path_safe(token):
+    """A checklist id / nonce usable as a filename part: non-empty, no separator,
+    no NUL, no parent hop — both are transcribed from PR-author-influenced text."""
+    return (isinstance(token, str) and bool(token) and ".." not in token
+            and not any(c in token for c in "/\\\x00"))
+
+
+def _load(path, label, want):
+    """Return ``(value, None)`` or ``(None, bad_input_report)``."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = fh.read()
+    except (OSError, UnicodeDecodeError, ValueError) as e:
+        return None, {"bad_input": True, "error": f"{label}_unreadable", "detail": str(e)}
+    if not raw.strip():
+        return None, {"bad_input": True, "error": f"{label}_empty",
+                      "detail": f"the {label} file was empty"}
+    try:
+        val = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as e:
+        return None, {"bad_input": True, "error": f"{label}_unparseable",
+                      "detail": f"not valid JSON: {e}"}
+    if not isinstance(val, want):
+        return None, {"bad_input": True, "error": f"{label}_wrong_shape",
+                      "detail": f"expected a JSON {'object' if want is dict else 'array'}"
+                                f" root, got {_shape(True, val)}"}
+    return val, None
+
+
+def _stub(item_id, evidence, **extra):
+    return {"id": item_id, "verdict": "INCONCLUSIVE", "evidence": evidence,
+            "file_checked": None, **extra}
+
+
+def _demote_pass(entry, state):
+    """Force a PASS to INCONCLUSIVE with the view-ineligibility marker for `state`,
+    prefixing the prior evidence. Both build() view-gate arms share this contract."""
+    entry["verdict"] = "INCONCLUSIVE"
+    entry["view_ineligible"] = state
+    entry["evidence"] = (VIEW_INELIGIBLE_PREFIX + f"provenance {state}: "
+                         + (entry.get("evidence") or ""))
+
+
+def build(inputs_file, checklist_file, verdicts_dir, out_file):
+    inputs, bad = _load(inputs_file, "inputs_file", dict)
+    if bad:
+        return bad
+    checklist, bad = _load(checklist_file, "checklist", list)
+    if bad:
+        return bad
+
+    seen, warnings, inp = {}, [], {}
+    for key, want in _INPUT_TYPES.items():
+        val = inputs.get(key)
+        seen[key] = _shape(key in inputs, val)
+        if isinstance(val, want):
+            inp[key] = val
+        else:
+            inp[key] = want()
+            if key in inputs:
+                warnings.append(f"{key}: expected {'object' if want is dict else 'array'}, "
+                                f"got {seen[key]} -- ignored")
+
+    lite = {}
+    for idx, entry in enumerate(inp["lite"]):
+        if (isinstance(entry, dict) and isinstance(entry.get("id"), str)
+                and entry.get("verdict") in VERDICT_ENUM):
+            lite[entry["id"]] = entry
+        else:
+            warnings.append(f"lite[{idx}]: needs a string id and a PASS|FAIL|INCONCLUSIVE "
+                            "verdict -- ignored")
+
+    verification, pairs, slots = [], [], []
+    lite_count = reused_count = 0
+    for idx, item in enumerate(checklist):
+        if not isinstance(item, dict):
+            warnings.append(f"checklist[{idx}]: not an object")
+            verification.append(_stub(None, f"checklist element {idx} is not an object"))
+            continue
+        item_id = item.get("id")
+        if item.get("reused_from_iter_prev") is True and item.get("verdict") == "PASS":
+            reused_count += 1
+            entry = {k: item[k] for k in ("id", "verdict", "evidence", "file_checked",
+                                          "raw_verdict", "normalized", "reused_from_iter",
+                                          "view_revision")
+                     if k in item}
+            entry["reused_from_iter_prev"] = True
+            verification.append(entry)
+        elif effective_mode(item) == "lite":
+            lite_count += 1
+            got = lite.get(item_id) if isinstance(item_id, str) else None
+            if got is None:
+                warnings.append(f"lite: no result supplied for {item_id!r}")
+                verification.append(_stub(item_id, "no lite-probe result supplied"))
+            else:
+                ev, fc = got.get("evidence"), got.get("file_checked")
+                vr = got.get("view_revision")
+                verification.append({"id": item_id, "verdict": got["verdict"],
+                                     "evidence": ev if isinstance(ev, str) else None,
+                                     "file_checked": fc if isinstance(fc, str) else None,
+                                     "view_revision": vr if isinstance(vr, str) else None})
+        else:
+            key = item_id if isinstance(item_id, str) else None
+            pair = {"item": item}
+            nonce = inp["nonces"].get(key)
+            if _path_safe(key) and _path_safe(nonce):
+                pair["verdict_path"] = os.path.join(verdicts_dir, f"{key}-{nonce}.json")
+            elif key in inp["nonces"]:
+                warnings.append(f"nonces[{key!r}]: id or nonce is not a usable filename "
+                                "part -- ignored")
+            for field in ("response_text", "pinned_verdict"):
+                if isinstance(inp[field].get(key), str):
+                    pair[field] = inp[field][key]
+            slots.append(len(verification))
+            verification.append(None)
+            pairs.append(pair)
+
+    ran = run_pairs(pairs)
+    recovered_ids = set()
+    for slot, result in zip(slots, ran["results"]):
+        item_id = result.get("id")
+        if result.get("verdict") is None:
+            rec = inp["recovered"].get(item_id) if isinstance(item_id, str) else None
+            if (result.get("defect_class") == "verdict" and isinstance(rec, dict)
+                    and rec.get("verdict") in VERDICT_ENUM):
+                ev = rec.get("evidence")
+                result["verdict"] = result["raw_verdict"] = rec["verdict"]
+                result["evidence"] = ev if isinstance(ev, str) else "recovered via in-context parse"
+                result["source"] = "recovered"
+                recovered_ids.add(item_id)
+            else:
+                result["verdict"] = "INCONCLUSIVE"
+                result["evidence"] = f"verifier produced no usable verdict ({result.get('defect')})"
+        verification[slot] = result
+
+    # issue #851 collector view-provenance gate: when the run supplies commit-bound views, a
+    # verdict whose provenance the bound inventories cannot confirm (a revision other than the
+    # run's head/base, an absent view_revision, or a file_checked path absent from that view's
+    # inventory and not recorded deleted) is left unestablished and cannot earn PASS. The gate
+    # is inert when no views are supplied (legacy runs), so it never weakens the existing
+    # wording-only normalization (AC6). Cited evidence text is never byte-compared (AC3).
+    # Read "were views supplied?" from the RAW input, not the coerced inp["views"] (a wrong-typed
+    # views is coerced to {} above, so keying on inp["views"] would let a corrupted binding run
+    # fail open). A run supplied views when the raw value is a non-empty dict OR the key is present
+    # with any non-dict value (a scalar/array/valid-falsy false/0/"" is a corrupted views block,
+    # not a legacy omission) — either way the gate fails closed below. A legacy run omits the key
+    # or sends an empty dict {}; both stay inert so wording-only normalization is preserved (AC6).
+    _raw_views = inputs.get("views")
+    views_supplied = ((isinstance(_raw_views, dict) and bool(_raw_views))
+                      or ("views" in inputs and not isinstance(_raw_views, dict)))
+    view_index, bound_revisions, head_revision, view_warnings = _load_view_index(inp["views"])
+    warnings.extend(view_warnings)
+    view_states = {"ok": 0, "absent": 0, "wrong-revision": 0, "path-not-in-inventory": 0,
+                   "views-unusable": 0}
+    if bound_revisions:
+        head_paths = view_index.get(head_revision, set()) if head_revision else set()
+        for entry in verification:
+            # A reused-forward PASS was re-confirmed unchanged at the current head by the engine's
+            # variance recovery (Phase 1.0 only carries an item whose source file is byte-identical
+            # HEAD-to-HEAD), so its provenance IS the current head. Re-stamp its stale prior
+            # view_revision to the head revision when its (anchor-stripped) path is in the head
+            # inventory; a reused item whose path is absent from the head view is left to demote.
+            if entry.get("reused_from_iter_prev") is True and head_revision is not None:
+                fc = _strip_line_anchor(entry.get("file_checked"))
+                if isinstance(fc, str) and fc in head_paths:
+                    entry["view_revision"] = head_revision
+            state = _view_state(entry, view_index, bound_revisions)
+            entry["view_state"] = state
+            view_states[state] = view_states.get(state, 0) + 1
+            if state != "ok" and entry.get("verdict") == "PASS":
+                _demote_pass(entry, state)
+    elif views_supplied:
+        # The run supplied views (it intended commit binding) but none were usable — every slot
+        # was malformed or unreadable. Fail closed: provenance cannot be certified, so no raw PASS
+        # may stand (issue #851). This is distinct from a legacy run that supplies no views, where
+        # the gate is correctly inert and wording-only normalization is preserved (AC6).
+        for entry in verification:
+            entry["view_state"] = "views-unusable"
+            view_states["views-unusable"] += 1
+            if entry.get("verdict") == "PASS":
+                _demote_pass(entry, "views-unusable")
+
+    tally = {"pass": 0, "fail": 0, "inconclusive": 0, "lite": lite_count,
+             "agent": len(pairs), "reused": reused_count}
+    for entry in verification:
+        tally[entry["verdict"].lower()] += 1
+
+    out = {"written": out_file, "tally": tally, "counts": ran["counts"],
+           "needs_retry": [r for r in ran["needs_retry"] if r.get("id") not in recovered_ids],
+           "non_pass": [e for e in verification if e["verdict"] != "PASS"],
+           "inputs_seen": seen, "input_warnings": warnings,
+           "view_check": {"bound_revisions": sorted(bound_revisions), "states": view_states}}
+    try:
+        with open(out_file, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(verification, fh, indent=1)
+            fh.write("\n")
+    except (OSError, ValueError) as e:
+        out["written"] = None
+        out["write_error"] = str(e)[:200]
+        out["verification"] = verification
+    return out
+
+
+def _parse_build_args(argv):
+    """Return ``(positional, flags)`` or ``(None, error-text)``."""
+    positional, flags = [], {}
+    i = 0
+    while i < len(argv):
+        if argv[i] in BUILD_FLAGS:
+            if i + 1 >= len(argv):
+                return None, f"{argv[i]} needs a value"
+            flags[argv[i]] = argv[i + 1]
+            i += 2
+        else:
+            positional.append(argv[i])
+            i += 1
+    if flags and len(flags) != len(BUILD_FLAGS):
+        return None, "build mode needs all of " + " ".join(BUILD_FLAGS)
+    return positional, flags
+
+
 def main(argv=None):
     _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--help" in argv or "-h" in argv:
+        # A help flag anywhere in argv prints usage and does nothing else — no
+        # pairs-file read, no JSON verdict. rc 0.
+        print("usage: normalize-verdicts.py <pairs-file>")
+        print("       normalize-verdicts.py checklist carry|raw|finalize <work-dir> ...")
+        print("       normalize-verdicts.py <inputs-file> " + " ".join(f"{f} <path>" for f in BUILD_FLAGS))
+        return 0
+    if argv and argv[0] == "checklist":
+        return _checklist_main(argv[1:])
+    positional, flags = _parse_build_args(argv)
+    if positional is None or (flags and not positional):
+        # stdout too, for the same reason as the no-argument arm below.
+        detail = flags if positional is None else "build mode needs an inputs-file path"
+        print(json.dumps({"bad_input": True, "error": "bad_build_arguments",
+                          "detail": detail}, indent=2))
+        sys.stderr.write(f"normalize-verdicts.py: {detail}\n")
+        return 2
+    if flags:
+        try:
+            out = build(positional[0], flags["--checklist"], flags["--verdicts-dir"],
+                        flags["--out"])
+        except Exception as e:
+            sys.stderr.write(
+                "normalize-verdicts.py: internal error — this is a helper defect:\n"
+                + traceback.format_exc()
+            )
+            out = {"bad_input": True, "error": "helper_internal_error",
+                   "detail": f"{type(e).__name__}: {e}"[:200]}
+        print(json.dumps(out, indent=2))
+        return 0
     if not argv:
         # Emit on stdout as well as stderr, for the same reason as the version guard
         # above: byte-empty stdout is read as a matcher denial and misattributes a

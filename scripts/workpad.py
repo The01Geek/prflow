@@ -29,6 +29,7 @@ Usage:
     workpad.py create    ISSUE BODY_FILE
     workpad.py new-body  ISSUE [--run-link V] [--branch V] [--marker M]
     workpad.py now
+    workpad.py compact   ISSUE [--marker M]
     workpad.py update    ISSUE [mutations...] [--print-body] [--marker M]
     workpad.py handoff-state FILE --issue N --run-id ID --run-attempt ATTEMPT
 
@@ -75,7 +76,7 @@ from pathlib import Path
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
     sys.stderr.write(
-        "devflow: Python 3.11+ required (found {}.{}.{}). This helper requires"
+        "prflow: Python 3.11+ required (found {}.{}.{}). This helper requires"
         " features of Python 3.11+. Install Python 3.11+; on Windows/Git-Bash"
         " run scripts/provision-python3-shim.sh --apply.\n".format(*sys.version_info[:3])
     )
@@ -92,10 +93,16 @@ try:
     # (the #343 gate exercise does exactly that), so the path insert degrades with the
     # import instead of raising ahead of a gate that must fail fast.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    # Nested-repository detection (issue #12): a resolved root with no .prflow/ under
+    # an ancestor that has one reads built-in defaults while looking configured.
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
     from state_dir import resolve_state_dir as _resolve_state_dir
 except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _resolve_state_dir(repo_root, stream=None):
         return str(Path(repo_root) / ".prflow")
+
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
 
 # Shared section/checkbox parsing rules (issue #781) — the SAME implementation
 # `scripts/parse-acs.py` uses to WRITE the workpad's `## Acceptance Criteria`
@@ -410,9 +417,14 @@ def _workpad_marker(explicit=None):
     # file for the same cwd. An absent file is the normal unconfigured case — silent
     # fallback so the local tier works with no config at all. (Limitation:
     # --show-toplevel returns the NEAREST git root, so a nested submodule/inner repo
-    # or a monorepo whose .prflow/ is not at the git root is not covered.)
+    # or a monorepo whose .prflow/ is not at the git root resolves a root carrying no
+    # config. Resolution is unchanged, but that shape is DETECTED since issue #12: an
+    # ancestor carrying a .prflow/ earns a lib/ancestor_config.py stderr breadcrumb
+    # naming the resolved root, that ancestor, and the --marker remedy.)
     _root = _repo_root()
     if _root is not None:
+        _warn_ancestor_config(_root, 'workpad.py',
+                              'pass --marker or set DEVFLOW_WORKPAD_MARKER')
         config_file = Path(_resolve_state_dir(_root)) / 'config.json'
     else:
         cwd = Path.cwd()
@@ -507,9 +519,15 @@ def _stage_body_bytes(text, into_dir=None):
     return staged
 
 
-def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
+def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1,
+                          collect_all=False):
     """Scan an issue's comments (paginated) and return the first whose body
     starts with `marker`, or None when the scan completed and none matched.
+
+    `collect_all=True` instead returns the LIST of every matching comment, which
+    costs a full walk of every page (the first-match arm short-circuits). Only
+    `intake-triage` asks for it, because refusing a duplicated workpad is part of
+    its complete-by-construction contract; no other caller pays the extra pages.
 
     Single source for the marker-scan that `cmd_id`, `cmd_status`, `cmd_body`'s
     `--issue` arm and the acs surfaces (`_acs_read_workpad`, and so
@@ -522,6 +540,7 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
     workpad); a clean scan with no match returns None
     so the caller can apply its own "not found" contract (exit 2)."""
     page = 1
+    matches = []
     while True:
         try:
             r = _run([
@@ -555,9 +574,11 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1):
             # consumer of the returned comment reads an LF-only body (issue #349).
             c['body'] = _canonicalize_body(c.get('body') or '')
             if c['body'].startswith(_marker_variants(marker)):
-                return c
+                if not collect_all:
+                    return c
+                matches.append(c)
         if len(items) < 100:
-            return None
+            return matches if collect_all else None
         page += 1
 
 
@@ -877,16 +898,28 @@ def cmd_status(args):
     if c is None:
         # Scanned every page, no workpad — same benign exit 2 as `id`.
         sys.exit(2)
-    body = c.get('body') or ''
+    word = _recognized_status_word_or_exit1(c.get('body') or '', 'status')
+    glyph = _status_glyph(word)
+    cls = _status_class(glyph)
+    print(f"{cls} {glyph} {word}")
+
+
+def _recognized_status_word_or_exit1(body, cmd):
+    """The recognized Status word carried by `body`, else exit 1 naming why.
+
+    The single source of the present-but-unreadable arm `status` and
+    `intake-triage` share: missing Status line, empty value, or a value outside
+    the recognized vocabulary. Exit 1 means the read succeeded and the CONTENT is
+    unusable — never a transport failure."""
     if not _STATUS_VALUE_RE.search(body):
         sys.stderr.write(
-            "workpad.py status: workpad found but no Status line in it\n"
+            f"workpad.py {cmd}: workpad found but no Status line in it\n"
         )
         sys.exit(1)
     word = _status_word_from_body(body)
     if not word:
         sys.stderr.write(
-            "workpad.py status: workpad Status line has no value\n"
+            f"workpad.py {cmd}: workpad Status line has no value\n"
         )
         sys.exit(1)
     if not _is_recognized_status_word(word):
@@ -895,14 +928,94 @@ def cmd_status(args):
             + ['Blocked', 'Failed', 'Cancelled']
         )
         sys.stderr.write(
-            f"workpad.py status: workpad Status word {word!r} is not a "
+            f"workpad.py {cmd}: workpad Status word {word!r} is not a "
             f"recognized status (expected one of {recognized}) — "
             "present-but-unreadable\n"
         )
         sys.exit(1)
-    glyph = _status_glyph(word)
-    cls = _status_class(glyph)
-    print(f"{cls} {glyph} {word}")
+    return word
+
+
+def cmd_intake_triage(args):
+    """Print implement intake's whole read-only workpad triage state as one JSON
+    object, from ONE repo resolution and ONE marker scan (issue #436).
+
+    Replaces the separate `id` + `status` + `body` + `prior-status` reads the
+    intake procedure used to issue over the same comment — each of which re-ran
+    `gh repo view` and its own comment scan.
+
+    stdout on exit 0 is exactly one JSON object with these five keys, complete by
+    construction (no partial object is ever emitted):
+      comment_id     the workpad comment id (positive int)
+      status_class   complete | blocked | failed | cancelled | interim
+      status_word    the parsed Status word
+      body           the canonical (LF-normalized) full workpad body
+      prior_status   the recorded prior terminal Status word, or null when no
+                     prior-status marker is present
+    Exit codes:
+      0  the object above
+      1  a workpad is present but structurally unreadable — a duplicated marker
+         comment, a malformed comment record, an unreadable Status (see
+         `_recognized_status_word_or_exit1`), or a duplicated prior-status marker
+         set. The caller stops rather than acting on plausible partial state.
+      2  scanned cleanly, no workpad (stdout empty) — the create arm
+      3  a gh transport/API/parse failure, from `_repo_full` or the scan
+
+    Deliberately read-only and separate from `reset-resume-status` (an earlier
+    mutation) and offline `handoff-state`: those serve different ordering and
+    consistency boundaries. `update` keeps its own live re-fetch — never reuse
+    this pre-mutation body for a write."""
+    marker = _workpad_marker(args.marker)
+    issue = args.issue
+    matches = _find_workpad_comment(
+        'intake-triage', _repo_full(api_fail_code=3), issue, marker,
+        api_fail_code=3, collect_all=True,
+    )
+    if not matches:
+        sys.stderr.write(
+            f"workpad.py intake-triage: no workpad comment carrying {marker!r} on "
+            f"issue #{issue}; nothing to triage\n"
+        )
+        sys.exit(2)
+    if len(matches) > 1:
+        sys.stderr.write(
+            f"workpad.py intake-triage: found {len(matches)} comments carrying "
+            f"{marker!r} on issue #{issue} (expected exactly 1); refusing to pick "
+            "one\n"
+        )
+        sys.exit(1)
+    c = matches[0]
+    comment_id = c.get('id')
+    # bool is an int subclass, so screen it out explicitly; a malformed comments
+    # response must not become a plausible `comment_id`.
+    if isinstance(comment_id, bool) or not isinstance(comment_id, int) or comment_id <= 0:
+        sys.stderr.write(
+            f"workpad.py intake-triage: the workpad comment on issue #{issue} "
+            f"carries no positive integer id (got {comment_id!r}); malformed "
+            "comments response\n"
+        )
+        sys.exit(1)
+    body = c.get('body') or ''
+    word = _recognized_status_word_or_exit1(body, 'intake-triage')
+    # A garbled marker matches no payload and reads as absent (null) — the same
+    # answer the caller's live-Status fallback already handles. A DUPLICATED set
+    # is refused instead: emitting one of two conflicting words, or null beside
+    # them, would be exactly the plausible partial state this command forbids.
+    progress = _progress_content_or_none(body)
+    words = _prior_status_marker_payloads(progress) if progress is not None else []
+    if len(words) > 1:
+        sys.stderr.write(
+            f"workpad.py intake-triage: found {len(words)} prior-status markers "
+            "(expected at most 1); the prior status cannot be established\n"
+        )
+        sys.exit(1)
+    sys.stdout.write(json.dumps({
+        'comment_id': comment_id,
+        'status_class': _status_class(_status_glyph(word)),
+        'status_word': word,
+        'body': body,
+        'prior_status': words[0] if words else None,
+    }, ensure_ascii=False) + '\n')
 
 
 # ---------------------------------------------------------------------------
@@ -1683,8 +1796,15 @@ def _progress_apply(live: str, tick, append_text) -> str:
             'land — no PATCH was made')
     if tick:
         heading, bp_content = sections[bp_idx]
-        sections[bp_idx] = (
-            heading, _tick_checkbox(bp_content, tick, _REVIEW_BLUEPRINT_SECTION))
+        # Unlike `update`, an already-ticked row is refused here: a replay must
+        # not PATCH a second `Last updated` over a landed boundary.
+        bp_content, _ticked_now = _tick_checkbox(
+            bp_content, tick, _REVIEW_BLUEPRINT_SECTION)
+        if not _ticked_now:
+            raise _TickMatchError(
+                f"the {_REVIEW_BLUEPRINT_SECTION} checkbox matching {tick!r} is "
+                f"already ticked — no PATCH was made")
+        sections[bp_idx] = (heading, bp_content)
     if append_text is not None:
         fi_idx = _find_section(sections, _REVIEW_FINDINGS_SECTION)
         if fi_idx is None:
@@ -1742,6 +1862,25 @@ def cmd_progress(args):
 _COMMENT_URL_RE = re.compile(r'#issuecomment-(\d+)\s*$')
 
 
+def _post_issue_comment(cmd, issue, composed, api_fail_code=1):
+    """Post `composed` as a new comment on `issue` and return gh's raw stdout (which
+    carries the new comment's URL). The ONE comment-creation seam: `create` posts the
+    workpad through it and `compact` posts the overflow comment (issue #755), so both
+    stage their body as BYTES (issue #349 — a text-mode write would re-inflate it with
+    CR) and both report a transport failure the same way."""
+    staged = _stage_body_bytes(composed)
+    try:
+        r = _run([
+            GH, 'issue', 'comment', str(issue),
+            '--body-file', str(staged),
+        ])
+    except (subprocess.CalledProcessError, OSError) as e:
+        _fail(cmd, e, code=api_fail_code)
+    finally:
+        staged.unlink(missing_ok=True)
+    return r.stdout
+
+
 def cmd_create(args):
     body_path = Path(args.body_file)
     if not body_path.is_file():
@@ -1752,17 +1891,8 @@ def cmd_create(args):
     # Bytes, then canonicalize (issue #349): post LF-only bytes so a body file a
     # native-Windows new-body wrote as CRLF is stored canonical, not re-inflated.
     _, composed = _read_canonical_body(body_path, 'create')
-    staged = _stage_body_bytes(composed)
-    try:
-        r = _run([
-            GH, 'issue', 'comment', str(args.issue),
-            '--body-file', str(staged),
-        ])
-    except (subprocess.CalledProcessError, OSError) as e:
-        _fail('create', e)
-    finally:
-        staged.unlink(missing_ok=True)
-    m = _COMMENT_URL_RE.search(r.stdout)
+    out = _post_issue_comment('create', args.issue, composed)
+    m = _COMMENT_URL_RE.search(out)
     if m:
         print(m.group(1))
         return
@@ -1777,7 +1907,7 @@ def cmd_create(args):
         "may or may not have been posted. Inspect the issue manually before "
         "retrying. Raw stdout:\n"
     )
-    sys.stderr.write(r.stdout)
+    sys.stderr.write(out)
     sys.exit(1)
 
 
@@ -2509,9 +2639,9 @@ def cmd_deferred_reflection_audit(args):
 # never drift from the skeleton the gate/new-body seed. `_REPRODUCTION_ROW_SUBSTR`
 # is the substring the reconcile matches an existing row by (tick-state- and
 # marker-agnostic), so a future reword of the parenthetical never blinds detection.
-_REPRODUCTION_ROW_TEXT = 'reproduction captured (bug issues only)'
+_REPRODUCTION_ROW_TEXT = 'Reproduction captured (bug issues only)'
 _REPRODUCTION_ROW = f'  - [ ] {_REPRODUCTION_ROW_TEXT}'
-_REPRODUCTION_ROW_SUBSTR = 'reproduction captured'
+_REPRODUCTION_ROW_SUBSTR = 'Reproduction captured'
 
 
 # One nested `## Progress` checkbox row per consumer prompt-extension surface an
@@ -2523,23 +2653,26 @@ _REPRODUCTION_ROW_SUBSTR = 'reproduction captured'
 # `_REPRODUCTION_ROW_SUBSTR` model, so a later reword of the text blinds neither.
 #
 # WORDING IS A HARD CONSTRAINT, not style. `_tick_checkbox` raises when more than
-# one unticked row matches, so a row whose text contained a substring a live
-# `--tick-progress` call passes would break that EXISTING tick rather than merely
-# failing its own — `Documentation` and `review-and-fix` already label rows.
-# `requesting-code-review` is deliberately absent: the dispatched final-pass
-# reviewer already fetches it unconditionally under its own return contract.
+# one unticked row matches (case-insensitive substring), so a row whose text
+# contains a substring a live `--tick-progress` call passes breaks that EXISTING
+# tick rather than merely failing its own. Naming each row by its extension file
+# puts `review-and-fix.md` inside the literal `review-and-fix` row's reach, so that
+# row's substring is backticked (`_REVIEW_AND_FIX_ROW`); `Documentation` labels a
+# row too. `requesting-code-review` is deliberately absent: the dispatched
+# final-pass reviewer already fetches it unconditionally under its own return
+# contract.
 #
 # Each entry is `(phase, text, substr)`; `phase` names the top-level `## Progress`
 # row the surface is reached under.
 _EXTENSION_ROWS = (
-    ('Setup', 'prompt extension resolved: implement',
-     'extension resolved: implement'),
-    ('Review', 'prompt extension resolved: review engine',
-     'extension resolved: review engine'),
-    ('Review', 'prompt extension resolved: fix loop',
-     'extension resolved: fix loop'),
-    ('Review', 'prompt extension resolved: code-review reception',
-     'extension resolved: code-review reception'),
+    ('Setup', 'Skill extension resolved: implement.md',
+     'extension resolved: implement.md'),
+    ('Review', 'Skill extension resolved: review.md',
+     'extension resolved: review.md'),
+    ('Review', 'Skill extension resolved: review-and-fix.md',
+     'extension resolved: review-and-fix.md'),
+    ('Review', 'Skill extension resolved: fix.md',
+     'extension resolved: fix.md'),
 )
 
 
@@ -2560,8 +2693,11 @@ _REVIEW_PROGRESS_ROWS = (
 # The literal **Review** rows the run ticks around the managed rows. Each pairs
 # rendered text with the tick substring the phase files already emit — never
 # reword either half, or `_tick_checkbox`/`_reconcile_extension_rows` stop matching.
-_REVIEW_AND_FIX_ROW = ('`review-and-fix`', 'review-and-fix')
-_AC_GATE_ROW = ('acceptance-criteria gate', 'acceptance-criteria gate')
+# The fix-loop row carries ` loop` so its substring stays outside the reach of the
+# `Skill extension resolved: review-and-fix.md` row above (an operand matching both
+# unticked rows raises instead of ticking either).
+_REVIEW_AND_FIX_ROW = ('Review-and-fix loop', 'Review-and-fix loop')
+_AC_GATE_ROW = ('Acceptance-criteria gate', 'Acceptance-criteria gate')
 
 # The whole **Review** block declared ONCE in tick order — SINGLE SOURCE for both the
 # skeleton and the repair. Built by REFERENCE only: this ordered view must never become
@@ -2631,7 +2767,7 @@ def cmd_new_body(args):
         else _REPRODUCTION_ROW + '\n'
     )
     sys.stdout.write(f"""{marker}
-# PRFlow Workpad — Issue #{args.issue}
+# PRFlow Workpad
 
 **Status:** 🚀 Setup
 **Branch:** {branch}
@@ -2640,10 +2776,10 @@ def cmd_new_body(args):
 **Last updated:** {last_updated}
 
 ## Progress
-- [ ] **Setup** — branch & workpad
+- [ ] **Setup**
   - {seed_ts} — /prflow:implement run started
 {_extension_rows_block('Setup')}- [ ] **Implement**
-{repro}  - [ ] code + sweeps
+{repro}  - [ ] Code + sweeps
 - [ ] **Review**
 {_review_block_block()}- [ ] **Documentation**
 {_extension_rows_block('Documentation')}- [ ] **PR marked ready**
@@ -2682,12 +2818,12 @@ _PR_RE = re.compile(r'^\*\*PR:\*\*\s+.*$', re.MULTILINE)
 _LAST_UPDATED_RE = re.compile(r'^\*\*Last updated:\*\*\s+.*$', re.MULTILINE)
 _SECTION_RE = re.compile(r'^(##\s+.+)$', re.MULTILINE)
 # Single source for the checkbox-row grammar shared by `_rewrite_checkbox` and
-# `_tick_checkbox_by_index` (4 groups: 1=indent+bullet, 2=`[ xX]` state cell,
-# 3=gap, 4=text). The state cell (group 2) is *preserved* by `_rewrite_checkbox`
-# and *overwritten* with `[x]` by `_tick_checkbox_by_index` — the two writers index
-# the same grammar differently, so keep the group order stable if you edit it.
-# `_tick_checkbox` keeps its own `[ ]`-only variant because it filters to unticked
-# rows. Hoisted to a constant so the row grammar can't drift between call sites.
+# its tick/carry-forward writers (4 groups: 1=indent+bullet, 2=`[ xX]` state
+# cell, 3=gap, 4=text). `_rewrite_checkbox` *preserves* group 2 and the tick
+# writers *overwrite* it with `[x]`, so keep the group order stable if you edit it.
+# `_tick_checkbox` reads the same grammar: since issue #635 it must see ticked rows
+# too, to tell a satisfied replay from a miss. Hoisted to a constant so the row
+# grammar can't drift between call sites.
 _CHECKBOX_ROW_RE = re.compile(r'^(\s*[-*]\s+)(\[[ xX]\])(\s+)(.*)$')
 
 # Canonical status glyphs. The Status line always begins with one;
@@ -2807,6 +2943,25 @@ _MANAGED_LABEL_COLORS = {
 # the template without updating the others would misfile notes silently; the
 # import-time assert below and the `new-body`-template test guard against that.
 _PROGRESS_PHASES = ('Setup', 'Implement', 'Review', 'Documentation', 'PR marked ready')
+
+# The `_PROGRESS_PHASES` rows the terminal-Complete backstop never ticks (issue
+# #635). `PR marked ready` records an OUTCOME the Complete write cannot vouch for:
+# a run whose `implement_pr_state` is `draft`, or whose publish failed, ends
+# Complete with the PR still a draft, and Phase 4.3 ticks the row only on the
+# published outcome. The row stays in `_PROGRESS_PHASES` — the note-filing map and
+# `derive-run-profile.py` still read it there.
+_BACKSTOP_EXCLUDED_PHASES = ('PR marked ready',)
+_BACKSTOP_PROGRESS_PHASES = tuple(
+    ph for ph in _PROGRESS_PHASES if ph not in _BACKSTOP_EXCLUDED_PHASES
+)
+
+# Fail loudly at import if the exclusion ever names a row the canonical list does
+# not carry — a rename there would otherwise silently restore the backstop tick.
+# An explicit raise, not a bare `assert`, which `python3 -O` strips.
+if not set(_BACKSTOP_EXCLUDED_PHASES) <= set(_PROGRESS_PHASES):
+    raise AssertionError(
+        'workpad: _BACKSTOP_EXCLUDED_PHASES names a phase not in _PROGRESS_PHASES: '
+        f'{set(_BACKSTOP_EXCLUDED_PHASES) - set(_PROGRESS_PHASES)}')
 
 # Maps a workpad Status word (glyph-stripped, lowercased) to the ## Progress
 # top-level phase its notes nest under. Several in-progress statuses share one
@@ -2936,13 +3091,14 @@ def _find_section(sections: list[tuple[str, str]], name: str) -> int | None:
 
 
 def _tick_top_level_progress_phases(sections: list[tuple[str, str]]) -> None:
-    """Tick every still-unticked top-level ## Progress phase row (issue #1337).
+    """Tick every still-unticked `_BACKSTOP_PROGRESS_PHASES` row (issue #1337).
 
     The deterministic backstop for the cooperative per-phase `--tick-progress`
     calls: the terminal `--status Complete` write invokes this so a Complete
     workpad never sits above a `- [ ] **Implement**` / `- [ ] **Review**` row that
-    a volatile tick miss left unticked. The row set is sourced from
-    `_PROGRESS_PHASES` (the single source of truth, never a transcribed list); rows
+    a volatile tick miss left unticked. The row set is `_BACKSTOP_PROGRESS_PHASES`
+    — `_PROGRESS_PHASES` (the single source of truth, never a transcribed list)
+    minus the outcome row the terminal write cannot vouch for; rows
     are matched with `_TOP_LEVEL_CHECKBOX_RE`, so only column-0 checkbox rows are
     considered and nested sub-items keep their prior state. Absent (or non-canonical)
     `## Progress` is a structural no-op — the Complete write still succeeds exactly
@@ -2955,7 +3111,7 @@ def _tick_top_level_progress_phases(sections: list[tuple[str, str]]) -> None:
     for line in content.split('\n'):
         m = _TOP_LEVEL_CHECKBOX_RE.match(line)
         if m and m.group(1) == ' ' and any(
-            ph.lower() in m.group(2).lower() for ph in _PROGRESS_PHASES
+            ph.lower() in m.group(2).lower() for ph in _BACKSTOP_PROGRESS_PHASES
         ):
             line = line.replace('[ ]', '[x]', 1)
         out.append(line)
@@ -3008,47 +3164,71 @@ def _join_preserving_newline(new_lines, content: str) -> str:
     return '\n'.join(new_lines) + ('\n' if content.endswith('\n') else '')
 
 
-def _tick_checkbox(content: str, text_substr: str, section_label: str) -> str:
-    """Tick exactly one matching unticked `- [ ]`/`* [ ]` checkbox in the section.
+def _tick_checkbox(
+    content: str, text_substr: str, section_label: str
+) -> tuple[str, bool]:
+    """Tick the one row `text_substr` names, returning `(content, ticked_now)`.
 
-    Only `[ ]` rows are considered candidates; already-ticked rows are ignored.
-    A duplicate `--tick-plan`/`--tick-ac` value (or a substring that only matches
-    an already-ticked row, or that matches nothing, or that matches multiple rows)
-    raises `_TickMatchError` — a *volatile* per-row failure that `_apply_mutations`
-    collects and `cmd_update` reports without discarding the call's other
-    mutations. This is distinct from a structural `_UpdateError` (a missing
+    A tick request is SATISFIED when its target row reads `[x]` — whether this
+    call ticked it or an earlier one did (issue #635). `ticked_now` is False for
+    the already-ticked case, which is what lets `_is_satisfied_tick_replay`
+    recognise a pure replay without re-deriving this resolution. Resolution
+    prefers a unique unticked row; a substring matching no unticked row and
+    exactly one ticked row is satisfied unchanged.
+
+    Three volatile misses remain, each naming its own cause: no match, an
+    ambiguous match among unticked rows, and an ambiguous match among ticked rows
+    (judged on the ticked set too, so an all-ticked ambiguous substring can never
+    report a replay). Each raises `_TickMatchError` — a *volatile* per-row failure
+    `_apply_mutations` collects and `cmd_update` reports without discarding the
+    call's other mutations, distinct from a structural `_UpdateError` (a missing
     section), which still aborts the whole call before any PATCH."""
-    candidates = []
+    candidates = []  # unticked matches: (line_idx, match)
+    ticked = 0       # already-ticked matches
     new_lines = []
     for line in content.splitlines():
-        m = re.match(r'^(\s*[-*]\s+)\[ \](\s+)(.*)$', line)
-        if m and text_substr.lower() in m.group(3).lower():
-            candidates.append((len(new_lines), m))
+        m = _CHECKBOX_ROW_RE.match(line)
+        if m and text_substr.lower() in m.group(4).lower():
+            if m.group(2) == '[ ]':
+                candidates.append((len(new_lines), m))
+            else:
+                ticked += 1
         new_lines.append(line)
-    if not candidates:
-        raise _TickMatchError(
-            f"no unticked {section_label} checkbox matched substring "
-            f"{text_substr!r} (already ticked, or no match)"
-        )
     if len(candidates) > 1:
         raise _TickMatchError(
-            f"{len(candidates)} {section_label} checkboxes match {text_substr!r}; "
-            f"be more specific"
+            f"{len(candidates)} {section_label} checkboxes match {text_substr!r} "
+            f"(ambiguous match); be more specific"
+        )
+    if not candidates:
+        if ticked == 1:
+            return content, False
+        if ticked > 1:
+            raise _TickMatchError(
+                f"{ticked} already-ticked {section_label} checkboxes match "
+                f"{text_substr!r} (ambiguous match); be more specific"
+            )
+        raise _TickMatchError(
+            f"no {section_label} checkbox matched substring "
+            f"{text_substr!r} (no match)"
         )
     line_idx, m = candidates[0]
-    new_lines[line_idx] = f"{m.group(1)}[x]{m.group(2)}{m.group(3)}"
-    return _join_preserving_newline(new_lines, content)
+    new_lines[line_idx] = f"{m.group(1)}[x]{m.group(3)}{m.group(4)}"
+    return _join_preserving_newline(new_lines, content), True
 
 
-def _tick_checkbox_by_index(content: str, n: int, section_label: str) -> str:
+def _tick_checkbox_by_index(
+    content: str, n: int, section_label: str
+) -> tuple[str, bool]:
     """Tick the Nth checkbox (1-based) in the section, counting *every*
-    `- [ ]`/`* [ ]` and `- [x]`/`* [x]` row in document order.
+    `- [ ]`/`* [ ]` and `- [x]`/`* [x]` row in document order. Returns
+    `(content, ticked_now)` on the `_tick_checkbox` contract.
 
     Addressing by position avoids the fragile, hand-picked unique-substring
-    requirement of `_tick_checkbox` for batched ticks. An out-of-range N, or an N
-    that lands on an already-ticked row, is a *volatile* `_TickMatchError` (same
-    class the substring path raises) — collected and reported, never a structural
-    abort. Mirrors the `_rewrite_checkbox` row-walk (`[ xX]` state class)."""
+    requirement of `_tick_checkbox` for batched ticks. An index landing on an
+    already-ticked row is SATISFIED (issue #635) and returns `ticked_now` False;
+    only an out-of-range N remains a *volatile* `_TickMatchError` (same class the
+    substring path raises) — collected and reported, never a structural abort.
+    Mirrors the `_rewrite_checkbox` row-walk (`[ xX]` state class)."""
     rows = []  # (line_idx, match) for every checkbox row, ticked or not
     new_lines = []
     for line in content.splitlines():
@@ -3063,11 +3243,46 @@ def _tick_checkbox_by_index(content: str, n: int, section_label: str) -> str:
         )
     line_idx, m = rows[n - 1]
     if m.group(2) != '[ ]':
-        raise _TickMatchError(
-            f"{section_label} checkbox {n} is already ticked"
-        )
+        return content, False
     new_lines[line_idx] = f"{m.group(1)}[x]{m.group(3)}{m.group(4)}"
-    return _join_preserving_newline(new_lines, content)
+    return _join_preserving_newline(new_lines, content), True
+
+
+def _carried_tick_key(text: str) -> str:
+    """The identity a `--replace-plan-file` tick is carried forward by: the row's
+    text with every run of whitespace collapsed to one space and the ends
+    stripped. Case-SENSITIVE — a reworded or re-cased step is a different step, so
+    only a pure whitespace/indentation change keeps its tick (issue #635)."""
+    return ' '.join(text.split())
+
+
+def _carry_forward_ticks(old_content: str, new_content: str) -> str:
+    """Return `new_content` with each row whose text matches a ticked row of
+    `old_content` re-ticked, one old ticked row to at most one new row.
+
+    `--replace-plan-file` swaps the whole `## Plan` section, which used to untick
+    every row that had not changed; the carry-forward keeps a run's landed plan
+    progress across a re-plan (issue #635). Indentation lives outside the text
+    group of `_CHECKBOX_ROW_RE`, so a re-indented row still matches. An already-
+    ticked new row consumes no budget — it needs no carry."""
+    budget: dict[str, int] = {}
+    for line in old_content.splitlines():
+        m = _CHECKBOX_ROW_RE.match(line)
+        if m and m.group(2) != '[ ]':
+            key = _carried_tick_key(m.group(4))
+            budget[key] = budget.get(key, 0) + 1
+    if not budget:
+        return new_content
+    out = []
+    for line in new_content.splitlines():
+        m = _CHECKBOX_ROW_RE.match(line)
+        if m and m.group(2) == '[ ]':
+            key = _carried_tick_key(m.group(4))
+            if budget.get(key, 0) > 0:
+                budget[key] -= 1
+                line = f"{m.group(1)}[x]{m.group(3)}{m.group(4)}"
+        out.append(line)
+    return _join_preserving_newline(out, new_content)
 
 
 def _find_checkbox_row(content: str, old_substr: str, section_label: str):
@@ -3175,7 +3390,7 @@ def _append_progress_note(
     next top-level phase — so a phase's appended notes stay grouped and
     chronological across many update calls. The one exception is the Setup
     run-started seed note, which `cmd_new_body` writes into the template directly
-    above the `prompt extension resolved: implement` checkbox (issue #22), not
+    above the `Skill extension resolved: implement.md` checkbox (issue #22), not
     through this function, so it precedes that checkbox rather than sitting at the
     block end. `timestamp` is the time-only `HH:MM:SS` string. When
     `phase_label` is None, or no row matches it, the note is appended flat at
@@ -3812,10 +4027,11 @@ class _UpdateError(Exception):
 
 class _TickMatchError(Exception):
     """Raised by the tick helpers (`_tick_checkbox`, `_tick_checkbox_by_index`)
-    for a *volatile* per-row failure: a substring matching zero/multiple rows, an
-    out-of-range index, or an index landing on an already-ticked row, *inside a
-    present section*. Deliberately NOT a subclass of `_UpdateError` so the
-    structural `except _UpdateError` in `cmd_update` never captures it. Collected
+    — and by `_progress_apply` for an already-ticked Blueprint row — for a
+    *volatile* per-row failure *inside a present section*: a substring
+    matching no row or ambiguously, or an out-of-range index. Deliberately NOT
+    a subclass of `_UpdateError`, so the structural `except _UpdateError` in
+    `cmd_update` never captures it. Collected
     per-tick in `_apply_mutations`; the call's other mutations still apply and
     PATCH, and `cmd_update` then exits non-zero naming each failed tick."""
 
@@ -4729,10 +4945,10 @@ def _cmd_update_inner(args):
         # Pure replay: preserve the live body, skip PATCH, and emit the replay-specific
         # breadcrumb. Combined mutations never reach this arm; the class contract owns
         # the shared no-op semantics.
-        if replay.kind == 'review-progress':
+        if replay.kind == 'satisfied-ticks':
             sys.stderr.write(
-                "workpad.py update: review boundary replay — every requested "
-                "review row is already ticked; no Last updated refresh, no PATCH.\n"
+                "workpad.py update: tick replay — every requested row is "
+                "already ticked; no Last updated refresh, no PATCH.\n"
             )
         else:
             sys.stderr.write(
@@ -4818,6 +5034,13 @@ def _cmd_update_inner(args):
         _fail('update patch', e)
     finally:
         tmp_path.unlink(missing_ok=True)
+    # Headroom reading for the body this call PATCHed (issue #755). Written here —
+    # after the `finally`, before anything else — so it reports on EVERY landed
+    # PATCH including the volatile-tick-miss exit, and so a stderr write can never
+    # raise inside the try above and mislabel a landed PATCH as a failed one. A call
+    # that issued no PATCH (a replay, a refusal) reaches no line at all, so the line's
+    # presence means a write landed.
+    sys.stderr.write(_update_headroom_line(_byte_len(body)))
     # The PATCH succeeded: drop the buffer file ONLY when `_plan_buffer_replay`
     # reported that every buffered item is now accounted for (folded into this
     # body or already present). When a buffered item could not be folded — its
@@ -4940,13 +5163,13 @@ def _apply_section_ticks(
     Criteria`) from the substring and index requests.
 
     Structural failure (the section is absent while ticks were requested) raises
-    `_UpdateError` to abort the whole call. A per-row miss (substring zero/multiple,
-    out-of-range/already-ticked index) is *volatile*: it is appended to
+    `_UpdateError` to abort the whole call. A per-row miss (a substring matching no
+    row or ambiguously, an out-of-range index) is *volatile*: it is appended to
     `failed_ticks` as a flag-named descriptor and the remaining ticks still apply.
     Substring ticks are processed before index ticks; index positions count every
-    `[ ]`/`[x]` row, so a prior substring tick never shifts an index target — though
-    a substring tick that lands on the *same* row a later index targets makes that
-    index report a benign "already ticked" volatile miss."""
+    `[ ]`/`[x]` row, so a prior substring tick never shifts an index target — and
+    an index landing on the *same* row an earlier substring tick took is satisfied,
+    not a miss (issue #635)."""
     if not substr_texts and not index_ns:
         return
     idx = _find_section(sections, section_name)
@@ -4955,12 +5178,12 @@ def _apply_section_ticks(
     heading, content = sections[idx]
     for text in substr_texts:
         try:
-            content = _tick_checkbox(content, text, section_name)
+            content, _ticked_now = _tick_checkbox(content, text, section_name)
         except _TickMatchError as e:
             failed_ticks.append(f"--tick-{flag_base} {text!r} — {e}")
     for n in index_ns:
         try:
-            content = _tick_checkbox_by_index(content, n, section_name)
+            content, _ticked_now = _tick_checkbox_by_index(content, n, section_name)
         except _TickMatchError as e:
             failed_ticks.append(f"--tick-{flag_base}-n {n} — {e}")
     sections[idx] = (heading, content)
@@ -5029,9 +5252,359 @@ def _check_body_within_limit(nbytes: int) -> None:
         raise _UpdateError(
             f"the resulting comment body is {nbytes} bytes, over GitHub's "
             f"{_COMMENT_BYTE_LIMIT}-byte comment limit (the reported count is a "
-            f"byte count, measured as UTF-8 bytes); shorten the workpad. No PATCH "
-            f"was made."
+            f"byte count, measured as UTF-8 bytes); shorten the workpad, or run "
+            f"`workpad.py compact <issue>` to move its oldest unprotected bullets "
+            f"into an overflow comment. No PATCH was made."
         )
+
+
+# ── Compaction (issue #755) ──────────────────────────────────────────────────
+# A workpad at the cap has no recovery inside `update`: the write is refused and
+# its content is not buffered, so the run improvises — and the one run that did
+# cut the tails off over-length bullets, unregistering the review-coverage record
+# that lives in a bullet TAIL and blocking its own terminal gate. `compact` is
+# that recovery. It is EXPLICIT, never automatic, and it moves WHOLE bullets: a
+# partial line is precisely the failure being fixed.
+_COMPACT_TARGET_BYTES = _COMMENT_BYTE_LIMIT - 8192
+
+# Held back from the target for the accounting row appended AFTER the selection is
+# fixed (its URL is unknown until the comment is posted). The row is fixed prose,
+# two integers and one comment URL, so no moved content can spend the reserve; it
+# only makes the selection — and so the refusal — marginally conservative, which
+# the 8,192 bytes of headroom below the cap absorb.
+_COMPACT_ACCOUNTING_RESERVE = 512
+
+# Line 1 of the overflow comment. The workpad marker is deliberately NOT on line 1
+# and IS on line 2, because the three matchers for that marker differ:
+#   * `_find_workpad_comment` matches a body that STARTS WITH it, so line 2 keeps
+#     every workpad read resolving the real workpad;
+#   * `scripts/resolve-implement-trigger.sh` and `scripts/resolve-command-trigger.sh`
+#     DECLINE any comment containing it anywhere, so line 2 makes the overflow
+#     comment inert to both listeners;
+#   * `lib/fetch-pr-context.sh` matches it case-insensitively as a substring and
+#     takes the EARLIEST match, so it can select an overflow comment once a workpad
+#     is deleted and recreated. Line 3 copies the workpad's live `**Status:**` line
+#     so that mis-selection yields a parsed status word instead of that reader's
+#     `Unparsed` sentinel, and the comment carries no `## PRFlow Reflections`
+#     heading so it yields zero reflections rather than misattributed ones.
+# Each line answers a different consumer; moving one re-breaks that consumer alone.
+_COMPACT_OVERFLOW_MARKER = '<!-- prflow:workpad-overflow -->'
+
+# A `### ℹ️ Notes` reflection bullet: any list item, since the reflection writer
+# renders a kind glyph rather than the Progress timestamp prefix.
+_COMPACT_BULLET_RE = re.compile(r'^[ \t]*[-*][ \t]+')
+# A checkbox row (a Plan row, an acceptance-criteria row, a phase row). Never a
+# candidate, and never absorbed into one as a continuation line.
+_COMPACT_CHECKBOX_RE = re.compile(r'^[ \t]*[-*][ \t]+\[[ xX]\]')
+
+
+def _compact_indent(line: str) -> int:
+    """Leading-whitespace width of `line`, a tab counting as one column. Only ever
+    compared against another line's, never rendered."""
+    return len(line) - len(line.lstrip(' \t'))
+
+
+def _compact_section_bounds(lines, start):
+    """`(start, stop)` — `start` through the line before the next `## ` heading."""
+    for j in range(start, len(lines)):
+        if lines[j].startswith('## '):
+            return start, j
+    return start, len(lines)
+
+
+def _compact_heading_hits(lines, name):
+    """Indices of the `## {name}` headings, matched exactly as `_find_section`
+    matches (case-insensitively over the stripped heading line)."""
+    target = f'## {name}'.lower()
+    return [i for i, ln in enumerate(lines)
+            if _SECTION_RE.match(ln) and ln.strip().lower() == target]
+
+
+def _compact_progress_region(lines):
+    """`(start, stop)` bounding the ONE `## Progress` section's content, or None.
+
+    Exactly-one, the rule `_single_section_content` states: `_find_section` answers
+    with the FIRST match, so a duplicated section would let this reader speak for
+    half the body — and this reader DELETES lines and appends the accounting row."""
+    hits = _compact_heading_hits(lines, 'Progress')
+    if len(hits) != 1:
+        return None
+    return _compact_section_bounds(lines, hits[0] + 1)
+
+
+def _compact_notes_region(lines):
+    """`(start, stop)` bounding the `### ℹ️ Notes` bullets inside the ONE reflection
+    section, or None when either the section or the sub-heading is absent or
+    duplicated.
+
+    Only this sub-section is movable: `lib/fetch-pr-context.sh`'s retrospective
+    parser reads a bullet under `### ⚠️ Action required` or `### 💡 Improvements` as
+    friction, so moving one would silently clear a signal the retrospective owes.
+    Current heading spelling first, superseded second — `_single_reflection_content`'s
+    order. A legacy `<details>` wrapper closes the region like a sub-heading does."""
+    section = None
+    for name in (_REFLECTION_HEADING, _REFLECTION_HEADING_SUPERSEDED):
+        hits = _compact_heading_hits(lines, name)
+        if len(hits) == 1:
+            section = _compact_section_bounds(lines, hits[0] + 1)
+            break
+        if hits:
+            return None
+    if section is None:
+        return None
+    heading = _SUBSECTION_HEADINGS['notes']
+    hits = [i for i in range(*section) if lines[i].strip() == heading]
+    if len(hits) != 1:
+        return None
+    start = hits[0] + 1
+    for j in range(start, section[1]):
+        if _SUBSECTION_HEADING_RE.match(lines[j]) or lines[j].strip() == '</details>':
+            return start, j
+    return start, section[1]
+
+
+def _compact_bullets_in(lines, region, bullet_re):
+    """Whole bullets inside `region` as `(first, stop, text)`, in document order.
+
+    A bullet is its own line plus every following line that is non-blank, indented
+    PAST it and not a heading — exactly the continuation lines `_render_note` writes,
+    and a nested list under them. The indent test alone separates a SIBLING bullet
+    (same indent or less, so the block ends) from nested content (deeper, so it
+    travels with its bullet): matching a sibling by its `- ` prefix instead would
+    strand a continuation line that happens to start one, and the next phase row and
+    a phase's sub-checkboxes both sit at or above a note bullet's own indent."""
+    out = []
+    if region is None:
+        return out
+    start, stop = region
+    i = start
+    while i < stop:
+        if bullet_re.match(lines[i]) is None or _COMPACT_CHECKBOX_RE.match(lines[i]):
+            i += 1
+            continue
+        indent = _compact_indent(lines[i])
+        j = i + 1
+        while (j < stop
+               and lines[j].strip()
+               and _compact_indent(lines[j]) > indent
+               and not lines[j].lstrip().startswith('#')):
+            j += 1
+        out.append((i, j, '\n'.join(lines[i:j])))
+        i = j
+    return out
+
+
+def _compact_is_protected(text: str) -> bool:
+    """True when a bullet carries a PRFlow marker anywhere in its text.
+
+    Every machine-read workpad record is a marker inside a `## Progress` bullet and
+    several are recognized only as that bullet's TAIL, so moving one unregisters the
+    record. Both namespaces are protected: a legacy workpad's records carry the
+    superseded spelling, and the readers still resolve it."""
+    return _MARKER_NS_CURRENT in text or _MARKER_NS_SUPERSEDED in text
+
+
+def _compact_status_line(body: str):
+    """The workpad's EARLIEST `**Status:**` line, verbatim, or None.
+
+    Matched with `_STATUS_VALUE_RE`, the pattern every Status reader shares, and
+    earliest-first because `lib/fetch-pr-context.sh` — the reader the copy exists
+    for — also takes the earliest one."""
+    for line in body.split('\n'):
+        if _STATUS_VALUE_RE.match(line):
+            return line
+    return None
+
+
+def _compact_plan(body, target=_COMPACT_TARGET_BYTES,
+                  reserve=_COMPACT_ACCOUNTING_RESERVE):
+    """`(selected, projected_bytes)` — the oldest unprotected bullets, in document
+    order, whose removal brings `body` to `target` with `reserve` bytes left for the
+    accounting row. `selected` is None when the candidates run out first (the caller
+    refuses atomically); `projected_bytes` is what would be left either way.
+
+    Pure: it issues no request and mutates nothing, so the selection and both refusal
+    arms are drivable from an in-memory body."""
+    lines = body.split('\n')
+    candidates = (
+        _compact_bullets_in(lines, _compact_progress_region(lines),
+                            _PROGRESS_BULLET_RE)
+        + _compact_bullets_in(lines, _compact_notes_region(lines),
+                              _COMPACT_BULLET_RE))
+    candidates.sort(key=lambda b: b[0])
+    budget = target - reserve
+    left = _byte_len(body)
+    selected = []
+    for first, stop, text in candidates:
+        if left <= budget:
+            break
+        if _compact_is_protected(text):
+            continue
+        selected.append((first, stop, text))
+        # '\n'.join means each removed line costs its own bytes plus one separator,
+        # exactly — so this arithmetic needs no re-encode of the whole body.
+        left -= sum(_byte_len(lines[i]) + 1 for i in range(first, stop))
+    if left > budget:
+        return None, left
+    return selected, left
+
+
+def _compose_overflow_comment(marker, status_line, selected):
+    """The overflow comment body: the three fixed opening lines (see
+    `_COMPACT_OVERFLOW_MARKER`), a blank line so markdown renders the list, then
+    every moved bullet byte-for-byte with no substitution. `marker` is the RESOLVED
+    workpad marker, so a consumer's custom marker is what the listeners decline."""
+    parts = [_COMPACT_OVERFLOW_MARKER, marker, status_line, '']
+    parts.extend(text for _, _, text in selected)
+    return '\n'.join(parts) + '\n'
+
+
+def _compact_accounting_note(moved, moved_bytes, url):
+    """The one Progress row a compaction appends. Single line, so it renders as one
+    bullet and a later compaction can move it like any other unprotected bullet."""
+    return (f"Workpad compacted: moved {moved} bullet(s), {moved_bytes} UTF-8 "
+            f"bytes, to overflow comment {url}")
+
+
+def _update_headroom_line(nbytes: int) -> str:
+    """The `workpad-bytes: <n>/65536` stderr line for a landed `update` PATCH.
+
+    Past `_COMPACT_TARGET_BYTES` it carries a `WARNING: ` prefix and names the
+    remedy; at or below it carries neither, so a run well short of the limit reads
+    one plain measurement and nothing else."""
+    if nbytes > _COMPACT_TARGET_BYTES:
+        return (f"workpad.py update: WARNING: workpad-bytes: {nbytes}/"
+                f"{_COMMENT_BYTE_LIMIT} — over the {_COMPACT_TARGET_BYTES}-byte "
+                f"compaction target; run `workpad.py compact <issue>` to move the "
+                f"oldest unprotected bullets into an overflow comment.\n")
+    return f"workpad.py update: workpad-bytes: {nbytes}/{_COMMENT_BYTE_LIMIT}\n"
+
+
+def cmd_compact(args):
+    """Move the oldest unprotected bullets into ONE overflow comment until the
+    workpad is at or below `_COMPACT_TARGET_BYTES` (issue #755).
+
+    The overflow comment is posted BEFORE the workpad PATCH, deliberately: every
+    failure then leaves the moved text in two places rather than none. Duplication
+    over loss.
+
+    Exit vocabulary: 0 = compacted (JSON receipt on stdout), or already at/below the
+    target (measurement on stdout, no comment, no PATCH); 1 = structural refusal
+    (no `**Status:**` line to copy, or no single `## Progress` section to account
+    in) with nothing posted and nothing PATCHed; 2 = clean scan, no workpad;
+    3 = gh transport/parse failure, INCLUDING a PATCH that failed after the overflow
+    comment landed — that message names the posted comment and the workpad body is
+    byte-identical; 5 = the target is unreachable, naming which of the two causes
+    applies. 4 is not used here (it is `export-snapshot`'s write refusal)."""
+    marker = _workpad_marker(args.marker)
+    repo = _repo_full(api_fail_code=3)
+    c = _find_workpad_comment('compact', repo, args.issue, marker, api_fail_code=3)
+    if c is None:
+        sys.stderr.write(
+            f"workpad.py compact: no workpad comment on issue #{args.issue} "
+            f"(marker scan clean-absent); nothing to compact\n")
+        sys.exit(2)
+    if 'id' not in c:
+        _fail('compact',
+              f"workpad comment on issue #{args.issue} carries no id field "
+              f"(malformed comments response); cannot compact", code=3)
+    body = _comment_body_channel(c)
+    nbytes = _byte_len(body)
+    if nbytes <= _COMPACT_TARGET_BYTES:
+        sys.stdout.write(
+            f"workpad-bytes: {nbytes}/{_COMMENT_BYTE_LIMIT}; at or below the "
+            f"{_COMPACT_TARGET_BYTES}-byte compaction target — no comment posted, "
+            f"no PATCH made\n")
+        return
+    # Everything that can refuse is decided BEFORE the comment is posted, so a
+    # refusal costs no comment and a posted comment is always followed by a PATCH
+    # attempt.
+    status_line = _compact_status_line(body)
+    if status_line is None:
+        sys.stderr.write(
+            "workpad.py compact: the workpad carries no `**Status:**` line to copy "
+            "onto the overflow comment, which is what keeps a mis-selected read "
+            "parseable; refusing. No comment posted, no PATCH made.\n")
+        sys.exit(1)
+    lines = body.split('\n')
+    if _compact_progress_region(lines) is None:
+        sys.stderr.write(
+            "workpad.py compact: the workpad does not present exactly one "
+            "`## Progress` section, so the accounting row has no home; refusing. "
+            "No comment posted, no PATCH made.\n")
+        sys.exit(1)
+    selected, projected = _compact_plan(body)
+    if selected is None:
+        sys.stderr.write(
+            f"workpad.py compact: cannot reach the {_COMPACT_TARGET_BYTES}-byte "
+            f"target — no movable bullet remains ({projected} bytes would be left; "
+            f"every other bullet carries a marker, is a checkbox row, or sits "
+            f"outside `## Progress` and `{_SUBSECTION_HEADINGS['notes']}`). No "
+            f"comment posted, no PATCH made.\n")
+        sys.exit(5)
+    overflow = _compose_overflow_comment(marker, status_line, selected)
+    if _byte_len(overflow) > _COMMENT_BYTE_LIMIT:
+        sys.stderr.write(
+            f"workpad.py compact: cannot reach the {_COMPACT_TARGET_BYTES}-byte "
+            f"target — the assembled overflow comment would be {_byte_len(overflow)} "
+            f"bytes, over GitHub's {_COMMENT_BYTE_LIMIT}-byte limit, and one "
+            f"compaction posts one comment. No comment posted, no PATCH made.\n")
+        sys.exit(5)
+    dropped = {i for first, stop, _ in selected for i in range(first, stop)}
+    kept = [ln for i, ln in enumerate(lines) if i not in dropped]
+    kept_region = _compact_progress_region(kept)
+    if kept_region is None:  # defensive: removing bullets cannot remove a heading
+        sys.stderr.write(
+            "workpad.py compact: the post-removal body no longer presents one "
+            "`## Progress` section; refusing. No comment posted, no PATCH made.\n")
+        sys.exit(1)
+    moved_bytes = sum(_byte_len(text) for _, _, text in selected)
+
+    posted = _post_issue_comment('compact', args.issue, overflow, api_fail_code=3)
+    url = next((ln.strip() for ln in reversed(posted.split('\n'))
+                if _COMMENT_URL_RE.search(ln.strip())), None)
+    if url is None:
+        # `gh issue comment` is documented to print the new comment's URL. Without
+        # it the comment may already exist on the issue, so the workpad is left
+        # byte-identical rather than PATCHed against a comment we cannot cite.
+        sys.stderr.write(
+            "workpad.py compact: gh printed no comment URL, so the overflow comment "
+            "may or may not have been posted; the workpad is left byte-identical. "
+            "Inspect the issue before retrying. Raw stdout:\n")
+        sys.stderr.write(posted)
+        sys.exit(3)
+
+    first, stop = kept_region
+    content = _append_progress_note(
+        '\n'.join(kept[first:stop]),
+        _compact_accounting_note(len(selected), moved_bytes, url),
+        datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M:%S'),
+        None)
+    new_body = '\n'.join(kept[:first] + content.split('\n') + kept[stop:])
+    try:
+        _patch_comment_body(repo, c['id'], new_body)
+    except (_UpdateError, subprocess.CalledProcessError, OSError) as e:
+        detail = getattr(e, 'stderr', None) if isinstance(
+            e, subprocess.CalledProcessError) else None
+        if isinstance(detail, bytes):
+            detail = detail.decode('utf-8', 'replace')
+        detail = (detail.strip() if isinstance(detail, str) else '') or str(e)
+        sys.stderr.write(
+            f"workpad.py compact: the overflow comment WAS posted at {url}, but the "
+            f"workpad PATCH failed ({detail}); the workpad body is unchanged, so "
+            f"every moved bullet is present in BOTH places and nothing is lost. "
+            f"Re-run compact once the failure is resolved, or delete that comment.\n")
+        sys.exit(3)
+    sys.stdout.write(json.dumps({
+        "issue": args.issue,
+        "comment_id": c['id'],
+        "overflow_comment": url,
+        "moved_bullets": len(selected),
+        "moved_bytes": moved_bytes,
+        "bytes_before": nbytes,
+        "bytes_after": _byte_len(new_body),
+        "target": _COMPACT_TARGET_BYTES,
+    }) + "\n")
 
 
 def _ends_with_post_merge(text: str) -> bool:
@@ -5297,6 +5870,97 @@ def _strip_all_completion_marker_rows(content: str) -> str:
     content = _strip_completion_ci_marker_rows(content)
     content = _strip_completion_cloud_ci_marker_rows(content)
     return content
+
+
+# ── Phase 2 sweep-evidence family (issue #438) ─────────────────────────────────
+#
+# A machine-readable record of what a run's Phase 2 sweeps did — the selected set,
+# each sweep's terminal outcome, and the distinct corrections each sweep owned —
+# recorded through the workpad so the weekly retrospective can measure sweep yield
+# without reading prose. Unlike the completion families above this is NOT globally
+# singleton: each run's record is keyed by its own run identity, so multiple runs'
+# records coexist in a retained body for the summarizer (scripts/sweep-evidence.py) to
+# measure; a later validated record for the SAME run identity replaces only that run's
+# prior row. The row is exempt from the caller-note budget and from compaction, so the
+# encoded payload is capped at `_NOTE_BYTE_BUDGET` instead. The base64url-unpadded JSON
+# payload (`_encode_ci_payload`, shape-agnostic) rides a
+# `sweep-evidence:<run_identity>:<payload>` keyed-checkpoint marker.
+# `_SWEEP_EVIDENCE_MARKER_RE` is a coupled mirror of scripts/sweep-evidence.py's
+# `_MARKER_RE` (edited together; the round-trip test writes a marker here and reads it
+# there so a drift fails a test rather than silently under-counting).
+_SWEEP_EVIDENCE_KEY_PREFIX = 'sweep-evidence:'
+_SWEEP_EVIDENCE_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint sweep-evidence:([^:\s]+):([^\s]+?) -->'
+)
+_SWEEP_EVIDENCE_VALIDATOR_CACHE = None
+
+
+def _strip_sweep_evidence_marker_rows_for_run(content, run_identity):
+    """Remove any ## Progress row carrying THIS run identity's sweep-evidence marker,
+    so a later validated record replaces the prior one for the same run rather than
+    accumulating — while another run's rows are left untouched (per-run, not global)."""
+    kept = []
+    for ln in content.splitlines(keepends=True):
+        m = _SWEEP_EVIDENCE_MARKER_RE.search(ln)
+        if m and m.group(1) == run_identity:
+            continue
+        kept.append(ln)
+    return ''.join(kept)
+
+
+def _load_sweep_evidence_validator():
+    """Lazily import the sibling `sweep-evidence.py` module, once. Returns the module,
+    or None when the sibling is absent OR present-but-unimportable beside this
+    workpad.py copy (the standalone-deployment closure) — the caller's diagnostic names
+    both causes. Imported by file path because the filename carries a hyphen; the result
+    is memoized. Tests exercise the standalone-copy arm by monkeypatching this function
+    to return None."""
+    global _SWEEP_EVIDENCE_VALIDATOR_CACHE
+    if _SWEEP_EVIDENCE_VALIDATOR_CACHE is not None:
+        return _SWEEP_EVIDENCE_VALIDATOR_CACHE
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sweep-evidence.py')
+    if not os.path.exists(path):
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location('_devflow_sweep_evidence', path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception:
+        return None
+    _SWEEP_EVIDENCE_VALIDATOR_CACHE = mod
+    return mod
+
+
+def _validate_sweep_evidence(record):
+    """Validate a decoded sweep-evidence record through the sibling validator.
+
+    Raises a structural `_UpdateError` (no PATCH) on an absent validator sibling, an
+    internal validator failure, or a non-`ok` verdict. Returns None on a clean pass.
+    Mirrors `_validate_cloud_ci_evidence`'s three-way failure shape."""
+    validator = _load_sweep_evidence_validator()
+    if validator is None or not hasattr(validator, 'validate_sweep_evidence'):
+        # `_load_sweep_evidence_validator` returns None for BOTH an absent sibling and a
+        # present-but-unimportable one, so the diagnostic names both causes rather than
+        # asserting absence — a present-but-broken sweep-evidence.py must not read as
+        # missing to an operator debugging the standalone-copy closure.
+        raise _UpdateError(
+            "sweep evidence [missing-validator]: the sweep-evidence validator module "
+            "(sweep-evidence.py) is not available or not importable beside this "
+            "workpad.py copy, so a --record-sweep-evidence write cannot be validated. "
+            "No PATCH was made."
+        )
+    try:
+        token, detail = validator.validate_sweep_evidence(record)
+    except Exception as e:
+        raise _UpdateError(
+            f"sweep evidence: the validator raised an internal error "
+            f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."
+        )
+    if token != 'ok':
+        raise _UpdateError(
+            f"sweep evidence rejected [{token}]: {detail}. No PATCH was made."
+        )
 
 
 # ── Verification-evidence record (issue #2131) ─────────────────────────────────
@@ -6171,10 +6835,11 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
     {'resolved': bool, 'reason': str, 'lines': int, 'files': int, 'paths': [str]}.
 
     resolved is False — never a refusal; the caller records the checklist axis
-    `unestablished` — when the reviewed head is unestablished/absent, no base ref can be
-    read, no merge base exists (unrelated histories on a depth-limited checkout), or any
-    git invocation fails (non-zero exit or OSError) or emits a malformed row. Mirrors
-    `_repo_root`'s habit of catching both CalledProcessError and OSError."""
+    `unestablished` — when the reviewed head is unestablished/absent, the repository is
+    shallow, no base ref can be read, no merge base exists (unrelated histories on a
+    depth-limited checkout), or any git invocation fails (non-zero exit or OSError) or
+    emits a malformed row. Mirrors `_repo_root`'s habit of catching both
+    CalledProcessError and OSError."""
     def _unresolved(reason):
         return {'resolved': False, 'reason': reason,
                 'lines': 0, 'files': 0, 'paths': []}
@@ -6190,6 +6855,18 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
             capture_output=True, encoding='utf-8').stdout
 
     try:
+        # A SHALLOW repository has no trustworthy merge base (issue #802): a graft makes
+        # the base tip look parentless, so `git merge-base` does not fail — it answers
+        # with a far older ancestor reached around the boundary, and the diff below then
+        # counts every commit merged into the base since. Refuse to measure rather than
+        # publish that number; anything but a literal `false` (an unparseable answer, an
+        # older git without the flag exits non-zero into the handler) is not a proof of
+        # full history.
+        if _git(['rev-parse', '--is-shallow-repository']).strip() != 'false':
+            return _unresolved(
+                'the repository is a shallow clone, so the merge base with the '
+                'reviewed head cannot be trusted (deepen it with git fetch '
+                '--unshallow, or check out with fetch-depth: 0)')
         # `_git` runs check=True, so an unreadable base (origin/HEAD unset) or an
         # unresolvable merge base (unrelated histories on a depth-limited checkout)
         # raises here and is caught below as unresolved — no separate empty-value guard
@@ -6472,16 +7149,18 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
 
 
 # ── Resume-reuse records (issue #616) ──────────────────────────────────────────
-# A re-triggered implement run reuses completed planning and review only when a
-# durable record still matches the current inputs. Two families ride the keyed-
-# checkpoint marker grammar and, unlike the review-coverage family, survive
-# `--strip-inherited-checkpoints`: each binds itself to the inputs it was produced
-# from, so a later attempt can check it instead of trusting it.
+# A re-triggered implement run reuses completed planning, review and the issue-
+# claim audit only when a durable record still matches the current inputs. Three
+# families ride the keyed-checkpoint marker grammar and, unlike the review-coverage
+# family, survive `--strip-inherited-checkpoints`: each binds itself to the inputs
+# it was produced from, so a later attempt can check it instead of trusting it.
 #   plan-inputs:<issue-digest>
 #   reusable-review:<head>:<merge-base>:<issue-digest>:<verdict>:<checklist>:<roster>
-# The issue digest is computed here from the live issue body, never from a
-# model-copied file. The head and merge-base are resolved with git against the
-# configured base branch. Any unresolvable input is `unestablished`, never a match.
+#   audit-inputs:<issue-digest>:<ac-digest>:<capability>:<policy-digest>:<merge-base>
+# The issue digest is computed here from the live issue body; the audit family's
+# ac- and policy-digests digest the named files here. The head and merge-base are
+# resolved with git against the configured base branch. Any unresolvable input is
+# `unestablished`, never a match.
 _PLAN_INPUTS_KEY_PREFIX = 'plan-inputs:'
 _PLAN_INPUTS_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint plan-inputs:([^\s]+?) -->'
@@ -6498,6 +7177,25 @@ _REUSABLE_REVIEW_VERDICTS = (
 _REUSABLE_REVIEW_CHECKLISTS = ('complete', 'skipped-intentional')
 _SHA40_RE = re.compile(r'\A[0-9a-f]{40}\Z')
 _SHA256_HEX_RE = re.compile(r'\A[0-9a-f]{64}\Z')
+# The audit-inputs family (issue #689): `capability` is the one field a caller
+# supplies by value, so it is validated against a closed vocabulary before it is
+# written — a value carrying whitespace would silently truncate the whitespace-
+# delimited marker row.
+_AUDIT_INPUTS_KEY_PREFIX = 'audit-inputs:'
+_AUDIT_INPUTS_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint audit-inputs:([^\s]+?) -->'
+)
+_AUDIT_CAPABILITY_KEYS = frozenset(
+    f'{_t}.{_s}' for _t in ('local', 'cloud')
+    for _s in ('present', 'absent', 'unestablished'))
+_AUDIT_INPUTS_FIELDS = (
+    'issue-digest', 'ac-digest', 'capability', 'policy-digest', 'merge-base')
+_AUDIT_INPUTS_MAX_LEN = (3 * 64 + 40 + max(map(len, _AUDIT_CAPABILITY_KEYS))
+                         + len(_AUDIT_INPUTS_FIELDS) - 1)
+# The audit checked its claims (Pass 1 enumerations, Pass 7 negatives) against the
+# tree at its merge-base, so a record stays reusable only while the base has moved
+# at most this many commits past it; further drift re-runs the audit.
+_AUDIT_REUSE_MAX_BASE_DRIFT = 3
 
 
 def _reuse_issue_digest(issue):
@@ -6510,6 +7208,24 @@ def _reuse_issue_digest(issue):
     except (subprocess.CalledProcessError, OSError) as e:
         return None, f'the issue body could not be read ({e})'
     text = (r.stdout or '').replace('\r\n', '\n').rstrip('\n')
+    return hashlib.sha256(text.encode('utf-8')).hexdigest(), None
+
+
+def _reuse_file_digest(path):
+    """(sha256-hex, None) of a file's text, or (None, reason) (issue #689).
+
+    Canonicalized exactly as `_reuse_issue_digest` — CRLF→LF and a dropped
+    trailing newline — so the digest a Windows-authored artifact records equals
+    the one a POSIX runner checks. An absent, unreadable, or non-UTF-8 file is a
+    reason, never a digest, so an unresolvable input reads `unestablished`."""
+    if not path:
+        return None, 'no file path was given'
+    try:
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        return None, f'{path} could not be read ({e})'
+    text = text.replace('\r\n', '\n').rstrip('\n')
     return hashlib.sha256(text.encode('utf-8')).hexdigest(), None
 
 
@@ -6566,11 +7282,71 @@ def _parse_reusable_review_payload(payload: str):
             'verdict': verdict, 'checklist': checklist, 'roster': members}
 
 
+def _parse_audit_inputs_payload(payload):
+    """(record, None) for a well-formed stored audit payload, else (None, reason).
+
+    Never raises. `reason` is a specific breadcrumb per shape: `payload-missing`,
+    `payload-not-a-string:<type>`, `payload-empty`, `payload-whitespace`,
+    `payload-over-length`, `field-count-<n>`, `<field>-empty`,
+    `<field>-not-sha256` / `merge-base-not-sha40`, `capability-out-of-vocabulary`."""
+    if payload is None:
+        return None, 'payload-missing'
+    if not isinstance(payload, str):
+        return None, f'payload-not-a-string:{type(payload).__name__}'
+    if not payload:
+        return None, 'payload-empty'
+    if any(ch.isspace() for ch in payload):
+        return None, 'payload-whitespace'
+    if len(payload) > _AUDIT_INPUTS_MAX_LEN:
+        return None, 'payload-over-length'
+    fields = payload.split(':')
+    if len(fields) != len(_AUDIT_INPUTS_FIELDS):
+        return None, f'field-count-{len(fields)}'
+    for name, value in zip(_AUDIT_INPUTS_FIELDS, fields):
+        if not value:
+            return None, f'{name}-empty'
+        if name == 'capability':
+            if value not in _AUDIT_CAPABILITY_KEYS:
+                return None, 'capability-out-of-vocabulary'
+        elif name == 'merge-base':
+            if not _SHA40_RE.match(value):
+                return None, 'merge-base-not-sha40'
+        elif not _SHA256_HEX_RE.match(value):
+            return None, f'{name}-not-sha256'
+    issue_digest, ac_digest, capability, policy_digest, merge_base = fields
+    return {'issue_digest': issue_digest, 'ac_digest': ac_digest,
+            'capability': capability, 'policy_digest': policy_digest,
+            'merge_base': merge_base}, None
+
+
+def _reuse_base_drift(recorded, current, repo_root):
+    """(commit-count, None) the base moved from `recorded` to `current`,
+    (None, 'not-ancestor') when `recorded` is not an ancestor of `current`, or
+    (None, reason) when git cannot answer (issue #689)."""
+    def _git(argv):
+        return subprocess.run(['git', *argv], cwd=repo_root, capture_output=True,
+                              encoding='utf-8')
+    try:
+        anc = _git(['merge-base', '--is-ancestor', recorded, current])
+        if anc.returncode == 1:
+            return None, 'not-ancestor'
+        if anc.returncode != 0:
+            return None, f'git merge-base --is-ancestor exited {anc.returncode}'
+        cnt = _git(['rev-list', '--count', f'{recorded}..{current}'])
+    except OSError as e:
+        return None, f'git could not run ({e})'
+    out = (cnt.stdout or '').strip()
+    if cnt.returncode != 0 or not out.isdigit():
+        return None, f'git rev-list --count exited {cnt.returncode}'
+    return int(out), None
+
+
 def _reuse_record(progress_content: str, kind: str):
     """('ok', record) | ('absent'|'duplicate'|'malformed', None) for one family.
 
     Only tail-anchored producer rows count, as for the review-coverage family."""
     pattern = (_PLAN_INPUTS_MARKER_RE if kind == 'plan'
+               else _AUDIT_INPUTS_MARKER_RE if kind == 'audit'
                else _REUSABLE_REVIEW_MARKER_RE)
     payloads = list(_review_coverage_marker_rows(progress_content, pattern))
     if not payloads:
@@ -6581,20 +7357,28 @@ def _reuse_record(progress_content: str, kind: str):
         if not _SHA256_HEX_RE.match(payloads[0]):
             return 'malformed', None
         return 'ok', {'digest': payloads[0]}
+    if kind == 'audit':
+        # A malformed audit payload returns its breadcrumb in the record slot.
+        record, reason = _parse_audit_inputs_payload(payloads[0])
+        return ('ok', record) if record else ('malformed', reason)
     record = _parse_reusable_review_payload(payloads[0])
     return ('ok', record) if record else ('malformed', None)
 
 
-def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root):
+def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root, *,
+                    audit_inputs=None):
     """Decide reuse for one family against the current inputs.
 
     Returns (result, detail, record): result is `match`, `absent`, `duplicate`,
     `malformed`, `incomplete` (detail names the unticked Review rows), `mismatch`
     (detail names the field) or `unestablished` (detail names the unresolved
-    input)."""
+    input; for a malformed audit row, the parser breadcrumb). `audit_inputs` —
+    required for `kind == 'audit'` — carries the resolved-AC file, the capability
+    key and the versioning-policy file; the file digests and the merge-base are
+    resolved here, so an unreadable one reads `unestablished`, never a match."""
     state, record = _reuse_record(progress_content, kind)
     if state != 'ok':
-        return state, '', None
+        return state, (record if isinstance(record, str) else ''), None
     if kind == 'review':
         unticked = _unticked_review_rows(progress_content)
         if unticked:
@@ -6610,6 +7394,42 @@ def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root):
             return 'mismatch', 'head', record
         if candidate['merge_base'] != record['merge_base']:
             return 'mismatch', 'merge-base', record
+    if kind == 'audit':
+        ac_digest, aerr = _reuse_file_digest((audit_inputs or {}).get('ac_file'))
+        if aerr is not None:
+            return 'unestablished', aerr, None
+        policy_digest, perr = _reuse_file_digest(
+            (audit_inputs or {}).get('policy_file'))
+        if perr is not None:
+            return 'unestablished', perr, None
+        capability = (audit_inputs or {}).get('capability')
+        if not capability:
+            # A missing capability operand is an unresolved input, not a changed
+            # one — the same fail-closed `unestablished` shape the two file digests
+            # take above, so a forgotten operand never reads as a genuine capability
+            # change (mismatch).
+            return 'unestablished', 'no capability key was given', None
+        if digest != record['issue_digest']:
+            return 'mismatch', 'issue-body', record
+        if ac_digest != record['ac_digest']:
+            return 'mismatch', 'resolved-ac', record
+        if capability != record['capability']:
+            return 'mismatch', 'capability', record
+        if policy_digest != record['policy_digest']:
+            return 'mismatch', 'versioning-policy', record
+        candidate, err = _reuse_candidate('HEAD', repo_root)
+        if err is not None:
+            return 'unestablished', err, None
+        if candidate['merge_base'] != record['merge_base']:
+            drift, derr = _reuse_base_drift(
+                record['merge_base'], candidate['merge_base'], repo_root)
+            if derr == 'not-ancestor':
+                return 'mismatch', 'merge-base', record
+            if derr is not None:
+                return 'unestablished', derr, None
+            if drift > _AUDIT_REUSE_MAX_BASE_DRIFT:
+                return 'mismatch', 'base-drift', record
+        return 'match', '', record
     if digest != record['digest']:
         return 'mismatch', 'issue-body', record
     return 'match', '', record
@@ -6633,12 +7453,12 @@ def _strip_marker_rows(content: str, pattern) -> str:
 
 
 def cmd_reuse_check(args):
-    """Answer whether a recorded plan or review is reusable now (issue #616).
+    """Answer whether a recorded plan, review or audit is reusable now (issue #616).
 
     Exit 0 on a match, 1 when there is nothing reusable (absent, duplicate,
-    malformed, incomplete, mismatch), 2 when the answer is unestablished
-    (workpad, issue body or git unreadable). Prints one `reuse-check:` line;
-    never prints the body."""
+    malformed, incomplete, mismatch), 2 when the answer is unestablished (workpad,
+    issue body, git, or an audit input file unreadable). Prints one `reuse-check:`
+    line; never prints the body."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'reuse-check', _repo_full(api_fail_code=2), args.issue, marker,
@@ -6649,11 +7469,20 @@ def cmd_reuse_check(args):
         print(f'reuse-check: kind={args.kind} result=unestablished '
               'reason=workpad-unreadable')
         sys.exit(2)
+    audit_inputs = None
+    if args.kind == 'audit':
+        audit_inputs = {
+            'ac_file': getattr(args, 'ac_file', None),
+            'capability': getattr(args, 'capability', None),
+            'policy_file': getattr(args, 'versioning_policy_file', None),
+        }
     result, detail, record = _reuse_evaluate(
-        content, args.kind, args.issue, _repo_root())
+        content, args.kind, args.issue, _repo_root(), audit_inputs=audit_inputs)
     line = f'reuse-check: kind={args.kind} result={result}'
     if result == 'mismatch':
         line += f' field={detail}'
+    elif result == 'malformed' and detail:
+        line += f' reason={detail}'
     elif result == 'incomplete':
         line += f' unticked={detail.replace(" ", "-")}'
     elif result == 'unestablished':
@@ -6677,8 +7506,10 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
     (_COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX,
      '`--record-completion-evidence-cloud-ci`'),
+    (_SWEEP_EVIDENCE_KEY_PREFIX, '`--record-sweep-evidence`'),
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
     (_PLAN_INPUTS_KEY_PREFIX, '`--record-plan-inputs`'),
+    (_AUDIT_INPUTS_KEY_PREFIX, '`--record-audit-inputs`'),
     (_REUSABLE_REVIEW_KEY_PREFIX, '`--record-reusable-review`'),
     (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
 )
@@ -6990,7 +7821,7 @@ def _review_coverage_verdict(progress_content: str) -> None:
 
 def _extension_row_verdict(progress_content: str) -> None:
     """The extension-row half of the terminal gate (issue #1817): a terminal
-    `--status Complete` is refused while any `_EXTENSION_ROWS` `prompt extension
+    `--status Complete` is refused while any `_EXTENSION_ROWS` `Skill extension
     resolved:` row is BOTH unticked AND unaccompanied by that row's sanctioned
     `state not established` note — the same fail-open the unticked-AC hard-fail
     closes, applied to the extension rows so an unticked row on a Complete workpad
@@ -7081,7 +7912,7 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     PATCH), like every other member here.
 
     Also enforces the extension-row gate (issue #1817): every `_EXTENSION_ROWS`
-    `prompt extension resolved:` row present in ## Progress must be ticked or carry a
+    `Skill extension resolved:` row present in ## Progress must be ticked or carry a
     `state not established` note, so a resolved-but-unrecorded row cannot pass
     silently. A wholly-absent row set (a pre-#1462 workpad) is tolerated. A violation
     is a structural `_UpdateError` (no PATCH), like every other member here."""
@@ -7283,9 +8114,9 @@ def _strip_required_artifact_checkpoint_rows(content: str) -> str:
 class _NoOpReplay(Exception):
     """Signals a supported pure replay before any mutation occurs.
 
-    `kind` distinguishes the existing keyed-checkpoint replay from an
-    implement-driven review-boundary replay, so `cmd_update` can emit an accurate
-    breadcrumb while sharing the same success/no-PATCH control path.
+    `kind` distinguishes the existing keyed-checkpoint replay from a satisfied-tick
+    replay, so `cmd_update` can emit an accurate breadcrumb while sharing the same
+    success/no-PATCH control path.
 
     Raised by `_apply_mutations` BEFORE it mutates anything; `cmd_update` catches
     it, echoes the unchanged body only under `--print-body`, and exits 0 without
@@ -7328,40 +8159,70 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'record_resume_point', None),
         getattr(args, 'record_verification_evidence', False),
         getattr(args, 'record_plan_inputs', False),
+        getattr(args, 'record_audit_inputs', None),
         getattr(args, 'record_reusable_review', None),
         getattr(args, 'adopt_reusable_review', False),
+        getattr(args, 'resolve_doc_reflection', None),
+        getattr(args, 'strip_prior_status_marker', False),
     ])
 
 
-def _is_review_progress_replay(body: str, args) -> bool:
-    """Return true for a pure replay of already-ticked review-boundary rows.
+# `update` operands that select or guard the call rather than mutate the body.
+_REPLAY_CONTEXT_ARGS = frozenset({
+    'issue', 'marker', 'repo_root', 'claim_identity', 'expect_comment_id',
+    'expect_status', 'print_body', 'func', 'cmd',
+})
+_TICK_ARGS = frozenset({
+    'tick_progress', 'tick_plan', 'tick_plan_n', 'tick_ac', 'tick_ac_n',
+})
 
-    Exact operands declared by `_REVIEW_PROGRESS_ROWS` are successful no-ops only
-    when every requested row resolves uniquely and is already ticked. Unknown,
-    missing, ambiguous, or unticked operands retain ordinary tick/miss behavior.
-    """
-    requested = list(args.tick_progress or [])
-    declared = {substr for _text, substr in _REVIEW_PROGRESS_ROWS}
-    if not requested or any(text not in declared for text in requested):
+
+def _is_satisfied_tick_replay(body: str, args) -> bool:
+    """Return true for a pure replay: the call's ONLY mutations are ticks whose
+    rows are already ticked (issue #635).
+
+    Decided through the production resolvers themselves — a request is satisfied
+    exactly when `_tick_checkbox`/`_tick_checkbox_by_index` resolves it without
+    ticking anything — so this predicate can never disagree with the tick it is
+    predicting. Any miss, any tick that would land now, and any other set operand
+    keeps the ordinary path, so a companion flag (`--record-roster-member`
+    without its parent, say) still reaches its validation. Every operand outside
+    `_REPLAY_CONTEXT_ARGS` counts, so a new flag cannot be silently dropped."""
+    tick_reqs = (
+        ('Progress', list(args.tick_progress or []), []),
+        ('Plan', list(args.tick_plan or []), list(args.tick_plan_n or [])),
+        ('Acceptance Criteria', list(args.tick_ac or []),
+         list(args.tick_ac_n or [])),
+    )
+    if not any(substrs or ns for _section, substrs, ns in tick_reqs):
         return False
-    if getattr(args, 'checkpoint', None):
-        return False
-    without_review_ticks = argparse.Namespace(**vars(args))
-    without_review_ticks.tick_progress = []
-    if _has_non_checkpoint_mutation(without_review_ticks):
+    if any(value for name, value in vars(args).items()
+           if name not in _REPLAY_CONTEXT_ARGS and name not in _TICK_ARGS):
         return False
 
     _preamble, sections = _split_sections(body)
-    idx = _find_section(sections, 'Progress')
-    if idx is None:
-        return False
-    _heading, content = sections[idx]
-    rows = [m for line in content.splitlines()
-            if (m := _CHECKBOX_ROW_RE.match(line))]
-    for text in requested:
-        matches = [m for m in rows if text.lower() in m.group(4).lower()]
-        if len(matches) != 1 or matches[0].group(2).lower() != '[x]':
+    for section_name, substrs, ns in tick_reqs:
+        if not substrs and not ns:
+            continue
+        idx = _find_section(sections, section_name)
+        if idx is None:
             return False
+        _heading, content = sections[idx]
+        for text in substrs:
+            try:
+                content, ticked_now = _tick_checkbox(content, text, section_name)
+            except _TickMatchError:
+                return False
+            if ticked_now:
+                return False
+        for n in ns:
+            try:
+                content, ticked_now = _tick_checkbox_by_index(
+                    content, n, section_name)
+            except _TickMatchError:
+                return False
+            if ticked_now:
+                return False
     return True
 
 
@@ -7777,10 +8638,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         if not checkpoint_inserts and not _has_non_checkpoint_mutation(args):
             raise _NoOpReplay()
 
-    # Review re-entry can repeat a boundary whose tuple row is already ticked.
+    # A resumed run can repeat a tick whose row an earlier call already ticked.
     # Decide that pure replay before Last updated or any other body mutation.
-    if _is_review_progress_replay(body, args):
-        raise _NoOpReplay('review-progress')
+    if _is_satisfied_tick_replay(body, args):
+        raise _NoOpReplay('satisfied-ticks')
 
     # Completion verification-flight evidence recording (issue #1087). Validate the
     # record BEFORE any body mutation so a non-pass key is a structural failure that
@@ -7857,6 +8718,36 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             )
         cloud_ci_payload = _encode_ci_payload(_cloud_ci_record)
         _validate_cloud_ci_evidence(args, cloud_ci_payload)
+
+    # Phase 2 sweep-evidence recording (issue #438). Read from a FILE (a JSON object
+    # too large for a CLI operand), validated and size-checked BEFORE any body
+    # mutation — a refused record changes nothing (all-or-nothing). The per-run strip +
+    # append (below) replaces this run's prior row.
+    record_sweep_evidence_file = getattr(args, 'record_sweep_evidence', None)
+    sweep_evidence_payload = None
+    sweep_evidence_run_identity = None
+    sweep_evidence_record = None
+    if record_sweep_evidence_file:
+        try:
+            with open(record_sweep_evidence_file, encoding='utf-8') as _fh:
+                sweep_evidence_record = json.load(_fh)
+        except (OSError, ValueError) as e:
+            raise _UpdateError(
+                f"--record-sweep-evidence: could not read a JSON record from "
+                f"{record_sweep_evidence_file!r} ({e.__class__.__name__}). No PATCH "
+                f"was made."
+            )
+        sweep_evidence_run_identity = (
+            sweep_evidence_record.get('run_identity')
+            if isinstance(sweep_evidence_record, dict) else None)
+        _validate_sweep_evidence(sweep_evidence_record)
+        sweep_evidence_payload = _encode_ci_payload(sweep_evidence_record)
+        if len(sweep_evidence_payload) > _NOTE_BYTE_BUDGET:
+            raise _UpdateError(
+                f"sweep evidence rejected [payload-over-budget]: the encoded record is "
+                f"{len(sweep_evidence_payload)} bytes, over the {_NOTE_BYTE_BUDGET}-byte "
+                f"budget; shorten its evidence references. No PATCH was made."
+            )
 
     # Explicit invalidation of any recorded completion evidence (issue #403). A final
     # edit, a base update that changes the candidate, or a repair must strip stale
@@ -8141,6 +9032,50 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f'workpad.py: plan-inputs record not written — {_pi_err}\n')
             reuse_skip_notes.append(
                 'plan-inputs record not written — the issue body did not resolve')
+    # Audit-inputs record (issue #689): `clean-complete` writes one row; the
+    # `not-reusable` arm carries no operand and only strips (below), exactly like
+    # `--invalidate-completion-evidence`. A missing or out-of-vocabulary operand or
+    # an unresolvable input skips the row with a note naming it, as the plan-inputs
+    # write-time skip does, so a bad operand never fails the auditor's one audit-end
+    # update; the strip still runs, so no stale clean record survives.
+    record_audit_inputs = getattr(args, 'record_audit_inputs', None)
+    audit_inputs_payload = None
+    if record_audit_inputs == 'clean-complete':
+        _ai_cap = getattr(args, 'audit_capability', None)
+        _ai_ac_file = getattr(args, 'audit_ac_file', None)
+        _ai_pol_file = getattr(args, 'audit_versioning_policy_file', None)
+        _ai_missing = [flag for flag, val in (
+            ('--audit-ac-file', _ai_ac_file), ('--audit-capability', _ai_cap),
+            ('--audit-versioning-policy-file', _ai_pol_file)) if not val]
+        _ai_issue = _ai_ac = _ai_pol = _ai_mb = None
+        if _ai_missing:
+            _ai_which = f"{', '.join(_ai_missing)} was not given"
+            _ai_err = _ai_which
+        elif _ai_cap not in _AUDIT_CAPABILITY_KEYS:
+            _ai_which = '--audit-capability is outside its vocabulary'
+            _ai_err = f'--audit-capability {_ai_cap!r} is not one of ' + ', '.join(
+                sorted(_AUDIT_CAPABILITY_KEYS))
+        else:
+            _ai_which = 'the issue body did not resolve'
+            _ai_issue, _ai_err = _reuse_issue_digest(args.issue)
+            if _ai_err is None:
+                _ai_which = 'the --audit-ac-file resolved-AC artifact did not resolve'
+                _ai_ac, _ai_err = _reuse_file_digest(_ai_ac_file)
+            if _ai_err is None:
+                _ai_which = 'the --audit-versioning-policy-file did not resolve'
+                _ai_pol, _ai_err = _reuse_file_digest(_ai_pol_file)
+            if _ai_err is None:
+                _ai_which = 'the merge-base with the base branch did not resolve'
+                _ai_cand, _ai_err = _reuse_candidate(
+                    'HEAD', getattr(args, 'repo_root', None) or _repo_root())
+                _ai_mb = _ai_cand['merge_base'] if _ai_err is None else None
+        if _ai_err is not None:
+            sys.stderr.write(
+                f'workpad.py: audit-inputs record not written — {_ai_err}\n')
+            reuse_skip_notes.append(f'audit-inputs record not written — {_ai_which}')
+        else:
+            audit_inputs_payload = (
+                f'{_ai_issue}:{_ai_ac}:{_ai_cap}:{_ai_pol}:{_ai_mb}')
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     # #1984: `environment-denial` must be corroborated by a recorded `missing` roster
@@ -8303,6 +9238,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # ticks were silently lost. Do not move these below `_apply_section_ticks`.
     if args.replace_plan_file:
         new_content = _read_section_file(args.replace_plan_file, '--replace-plan-file')
+        # Carry each old ticked row's tick onto the new row with the same text
+        # (issue #635) so a re-plan no longer unticks the steps that already
+        # landed. Same in-memory mutation as the replacement, so both ride one PATCH.
+        _plan_idx = _find_section(sections, 'Plan')
+        if _plan_idx is not None:
+            new_content = _carry_forward_ticks(
+                sections[_plan_idx][1], new_content)
         sections = _set_section_content(sections, 'Plan', new_content)
 
     if args.replace_acs_file:
@@ -8328,7 +9270,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         sections, 'Progress', 'progress', args.tick_progress, [], failed_ticks,
     )
     # Terminal-Complete backstop (issue #1337): a --status Complete write ticks
-    # every still-unticked top-level ## Progress phase row, so a terminal 🎉 Complete
+    # every still-unticked `_BACKSTOP_PROGRESS_PHASES` row, so a terminal 🎉 Complete
     # workpad never sits above an unticked **Implement** / **Review** parent that a
     # dropped or volatile-missed cooperative --tick-progress left behind. Only
     # Complete ticks — Failed/Cancelled/Blocked and the interim words change no
@@ -8539,7 +9481,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if record_flight_key:
         _ck = _COMPLETION_MARKER_KEY_PREFIX + record_flight_key
         _cv_row = (
-            f'completion verification recorded (flight {record_flight_key[:12]}…, '
+            f'Completion verification recorded (flight {record_flight_key[:12]}…, '
             f'validated) {_checkpoint_marker(_ck)}'
         )
         progress_notes.append(_cv_row)
@@ -8585,13 +9527,31 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _rp_row = f'mid-phase resume point recorded {_checkpoint_marker(_rp_ck)}'
         progress_notes.append(_rp_row)
         _producer_reserved_rows.add(_rp_row)
+    # Sweep-evidence record (issue #438): REPLACES this run's prior row (the per-run
+    # strip below), so the reader sees exactly one record per run identity.
+    if sweep_evidence_payload:
+        _se_ck = (_SWEEP_EVIDENCE_KEY_PREFIX + sweep_evidence_run_identity
+                  + ':' + sweep_evidence_payload)
+        _se_row = (
+            f'sweep evidence recorded (run {sweep_evidence_run_identity}: '
+            f'{len(sweep_evidence_record["selected_sweeps"])} sweeps, '
+            f'{len(sweep_evidence_record["catches"])} catches) '
+            f'{_checkpoint_marker(_se_ck)}')
+        progress_notes.append(_se_row)
+        _producer_reserved_rows.add(_se_row)
     # Resume-reuse records (issue #616): validated above; the prior row of each
     # family is stripped just before the append loop.
     if plan_inputs_digest:
-        _pi_row = (f'plan-inputs recorded (issue body {plan_inputs_digest[:12]}…) '
+        _pi_row = (f'Plan-inputs recorded (issue body {plan_inputs_digest[:12]}…) '
                    f'{_checkpoint_marker(_PLAN_INPUTS_KEY_PREFIX + plan_inputs_digest)}')
         progress_notes.append(_pi_row)
         _producer_reserved_rows.add(_pi_row)
+    if audit_inputs_payload:
+        _ai_row = (
+            f'Audit-inputs recorded (issue body {audit_inputs_payload[:12]}…) '
+            f'{_checkpoint_marker(_AUDIT_INPUTS_KEY_PREFIX + audit_inputs_payload)}')
+        progress_notes.append(_ai_row)
+        _producer_reserved_rows.add(_ai_row)
     if reusable_review_payload:
         _rr_origin = ':'.join(filter(None, (
             os.environ.get('GITHUB_RUN_ID'),
@@ -8717,6 +9677,27 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         if idx is not None:
             heading, content = sections[idx]
             sections[idx] = (heading, _strip_all_completion_marker_rows(content))
+
+    # Per-run sweep-evidence strip (issue #438): only THIS run's prior row goes (another
+    # run's rows are untouched); the incoming row is appended after this strip.
+    if sweep_evidence_payload:
+        idx = _find_section(sections, 'Progress')
+        if idx is not None:
+            heading, content = sections[idx]
+            sections[idx] = (heading, _strip_sweep_evidence_marker_rows_for_run(
+                content, sweep_evidence_run_identity))
+
+    # Audit-inputs strip (issue #689): recording either arm — clean-complete
+    # (replace) or not-reusable (invalidate) — strips a prior audit-inputs row
+    # before the clean-complete row is appended in the note block below. Runs on its
+    # own condition, like the completion-evidence strip above, so a `not-reusable`
+    # call with no other mutation still clears the row.
+    if record_audit_inputs:
+        idx = _find_section(sections, 'Progress')
+        if idx is not None:
+            heading, content = sections[idx]
+            sections[idx] = (
+                heading, _strip_marker_rows(content, _AUDIT_INPUTS_MARKER_RE))
 
     if progress_notes:
         idx = _find_section(sections, 'Progress')
@@ -8980,6 +9961,20 @@ def main():
     s.set_defaults(func=cmd_export_snapshot)
 
     s = sub.add_parser(
+        'compact',
+        help='Shrink an over-target workpad to 57344 UTF-8 bytes or fewer by '
+             'moving its oldest whole progress-note and "### ℹ️ Notes" bullets — '
+             'never one carrying a <!-- prflow: marker, never a partial line — '
+             'byte-for-byte into ONE overflow comment posted BEFORE the workpad '
+             'PATCH. Prints a JSON receipt. Exit 0 (compacted, or already at '
+             'target: no comment, no PATCH), 1 structural refusal, 2 no workpad, '
+             '3 gh failure (a PATCH that fails after the post names the comment '
+             'and leaves the body unchanged), 5 target unreachable.')
+    s.add_argument('issue', type=int)
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_compact)
+
+    s = sub.add_parser(
         'status',
         help='Print the workpad Status as `CLASS GLYPH WORD` (CLASS is one of '
              'complete|blocked|failed|cancelled|interim). Exit 2 if no workpad, '
@@ -8988,6 +9983,20 @@ def main():
     s.add_argument('issue', type=int)
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_status)
+
+    s = sub.add_parser(
+        'intake-triage',
+        help='Print implement intake\'s whole read-only workpad triage state as '
+             'one JSON object — {comment_id, status_class, status_word, body, '
+             'prior_status} — from one repo resolution and one marker scan, '
+             'replacing the separate id/status/body/prior-status reads. Exit 1 '
+             'present-but-unreadable (duplicated workpad, unreadable Status, '
+             'duplicated prior-status marker), 2 cleanly absent (empty stdout), '
+             '3 gh read failure. Read-only; never reuse its body for a write.',
+    )
+    s.add_argument('issue', type=int)
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_intake_triage)
 
     # No `--marker` on either acs subcommand — deliberately. The review engine
     # drives its own `<!-- prflow:review-progress -->` comment through this same
@@ -9087,17 +10096,30 @@ def main():
 
     s = sub.add_parser(
         'reuse-check',
-        help='Decide whether a recorded Plan (plan) or review (review) is reusable '
-             'now (issue #616): the plan-inputs or reusable-review row must be the '
-             'only one, well formed, and match the live issue body (and, for review, '
-             'HEAD and its merge-base with the configured base branch, with every '
-             'Review row before the AC gate ticked). Prints one "reuse-check:" line. '
+        help='Decide whether a recorded Plan (plan), review (review) or issue-claim '
+             'audit (audit) is reusable now (issue #616): the plan-inputs, '
+             'reusable-review or audit-inputs row must be the only one, well formed, '
+             'and match the live issue body (and, for review, HEAD and its merge-base '
+             'with the configured base branch, with every Review row before the AC '
+             'gate ticked; for audit, the --ac-file, --capability and '
+             '--versioning-policy-file operands, and a base that moved at most '
+             f'{_AUDIT_REUSE_MAX_BASE_DRIFT} commits past the recorded merge-base). '
+             'Prints one "reuse-check:" line. '
              'Exits 0 match / 1 nothing reusable (absent, duplicate, malformed, '
              'incomplete, mismatch) / 2 unestablished. Never prints the body.',
     )
     s.add_argument('issue', type=int)
-    s.add_argument('kind', choices=('plan', 'review'))
+    s.add_argument('kind', choices=('plan', 'review', 'audit'))
     s.add_argument('--marker', default=None, help=_marker_help)
+    s.add_argument('--ac-file', default=None, metavar='PATH',
+                   help='(audit) The resolved-AC artifact to digest and compare against '
+                        'the recorded audit-inputs row (issue #689).')
+    s.add_argument('--capability', default=None, metavar='KEY',
+                   help='(audit) The current run-fact capability key <tier>.<app-id-state> '
+                        'to compare against the recorded row (issue #689).')
+    s.add_argument('--versioning-policy-file', default=None, metavar='PATH',
+                   help='(audit) The versioning-policy file to digest and compare against '
+                        'the recorded row (issue #689).')
     s.set_defaults(func=cmd_reuse_check)
 
     s = sub.add_parser(
@@ -9174,6 +10196,8 @@ def main():
         help='Print the lean initial workpad skeleton to stdout (pipe to a '
              'file, then `create`).',
     )
+    # Accepted but unrendered: the skeleton's H1 no longer names the issue (the
+    # workpad is a comment ON that issue), and a vendored workflow still passes it.
     s.add_argument('issue', type=int)
     s.add_argument('--run-link', metavar='VALUE', default=None,
                    help='Run front-matter value (markdown ok). Defaults to a '
@@ -9181,7 +10205,7 @@ def main():
     s.add_argument('--branch', metavar='VALUE', default=None,
                    help='Branch name. Defaults to a "_(creating…)_" placeholder.')
     s.add_argument('--no-reproduction', action='store_true',
-                   help='Omit the bug-only "reproduction captured" sub-item. '
+                   help='Omit the bug-only "Reproduction captured" sub-item. '
                         'Pass when the recorded content classification is '
                         'non-bug; the line renders by default so a deterministic '
                         'label-based pre-render never drops it, and Phase 1.3 '
@@ -9227,25 +10251,25 @@ def main():
                         'Inserted after Branch if the line is absent.')
     u.add_argument('--tick-progress', metavar='TEXT', action='append', default=[],
                    help='Tick one ## Progress checkbox matching TEXT (substring). '
-                        'Repeatable. A zero/multiple-match miss is a volatile '
-                        'failure: the call PATCHes its other mutations and exits '
-                        'non-zero naming the miss (no index form for Progress).')
+                        'Repeatable. A unique already-ticked match is satisfied; '
+                        'no match or an ambiguous one is a volatile failure: the '
+                        'call PATCHes its other mutations and exits non-zero '
+                        'naming the miss (no index form for Progress).')
     u.add_argument('--tick-plan', metavar='TEXT', action='append', default=[],
                    help='Tick one Plan checkbox matching TEXT (substring). '
-                        'Repeatable. A zero/multiple-match miss is volatile (see '
-                        '--tick-progress).')
+                        'Repeatable. Matching as --tick-progress.')
     u.add_argument('--tick-plan-n', metavar='N', type=int, action='append',
                    default=[],
                    help='Tick the Nth Plan checkbox (1-based, counting every '
                         '[ ] and [x] row within the ## Plan section, in document '
                         'order; section-scoped, not whole-document). Repeatable; '
                         'combinable with --tick-plan and every other flag. An '
-                        'out-of-range or already-ticked N is a volatile failure '
-                        '(reported, non-zero exit, other mutations applied).')
+                        'already-ticked N is satisfied; an out-of-range N is a '
+                        'volatile failure (reported, non-zero exit, other '
+                        'mutations applied).')
     u.add_argument('--tick-ac', metavar='TEXT', action='append', default=[],
                    help='Tick one Acceptance Criteria checkbox matching TEXT '
-                        '(substring). Repeatable. A zero/multiple-match miss is '
-                        'volatile (see --tick-progress).')
+                        '(substring). Repeatable. Matching as --tick-progress.')
     u.add_argument('--tick-ac-n', metavar='N', type=int, action='append',
                    default=[],
                    help='Tick the Nth Acceptance Criteria checkbox (1-based, '
@@ -9253,9 +10277,9 @@ def main():
                         'Criteria section, in document order; section-scoped, not '
                         'whole-document). '
                         'Repeatable; combinable with --tick-ac and every other '
-                        'flag. An out-of-range or already-ticked N is a volatile '
-                        'failure (reported, non-zero exit, other mutations '
-                        'applied).')
+                        'flag. An already-ticked N is satisfied; an out-of-range N '
+                        'is a volatile failure (reported, non-zero exit, other '
+                        'mutations applied).')
     u.add_argument('--rewrite-ac', nargs=2, metavar=('OLD', 'NEW'),
                    action='append', default=[],
                    help='Find one AC matching OLD; replace its text with NEW. '
@@ -9435,6 +10459,17 @@ def main():
                         + '. Scoped to that set, so "gha:"-prefixed run checkpoints '
                           'are untouched. Combining it with --checkpoint for one of '
                           'those same keys is rejected before any PATCH.')
+    u.add_argument('--record-sweep-evidence', default=None, metavar='FILE',
+                   help='Record one Phase 2 sweep-evidence JSON record (issue #438): '
+                        'the selected sweep set, each sweep\'s terminal outcome '
+                        '(completed/degraded/unrunnable), and the distinct catches each '
+                        'sweep owned. FILE is validated by sweep-evidence.py before any '
+                        'PATCH; on a pass a hidden "<!-- prflow:checkpoint '
+                        'sweep-evidence:<run_identity>:<payload> -->" ## Progress row is '
+                        'written, replacing only THIS run identity\'s prior row (other '
+                        'runs\' records coexist for the summarizer). A non-ok record, or '
+                        'one whose encoded payload exceeds 2048 bytes, aborts the whole '
+                        'call before any PATCH.')
     u.add_argument('--record-completion-evidence', default=None, metavar='FLIGHT_KEY',
                    help='Record a validated completion verification-flight key '
                         '(issue #1087). The canonical record '
@@ -9599,6 +10634,27 @@ def main():
                         '(issue #616). It survives --strip-inherited-checkpoints. An '
                         'unreadable issue body removes the old row and writes a note '
                         'instead.')
+    u.add_argument('--record-audit-inputs', choices=('clean-complete', 'not-reusable'),
+                   default=None,
+                   help='Record the issue-claim audit reuse row (issue #689). '
+                        'clean-complete writes one "audit-inputs" row binding the audit '
+                        'to the live issue body, the resolved-AC artifact, the capability '
+                        'key, the versioning policy and the merge-base with the base '
+                        'branch (needs --audit-ac-file, --audit-capability, '
+                        '--audit-versioning-policy-file); a missing or invalid operand or '
+                        'an unreadable input removes the old row and writes a note '
+                        'instead. not-reusable '
+                        'strips any recorded row and writes none. Survives '
+                        '--strip-inherited-checkpoints.')
+    u.add_argument('--audit-ac-file', default=None, metavar='PATH',
+                   help='The resolved-acceptance-criteria artifact whose digest the '
+                        '--record-audit-inputs clean-complete row records (issue #689).')
+    u.add_argument('--audit-capability', default=None, metavar='KEY',
+                   help='The run-fact capability key <tier>.<app-id-state> the audit was '
+                        'made under (issue #689); validated against its closed vocabulary.')
+    u.add_argument('--audit-versioning-policy-file', default=None, metavar='PATH',
+                   help='The file holding the VERSIONING_POLICY value whose digest the '
+                        '--record-audit-inputs clean-complete row records (issue #689).')
     u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
                    help='The reviewed head SHA the review-coverage record is derived '
                         'from (issue #1510), stamped as the record\'s as-of anchor '

@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: MIT
 """Add or strip a stopped-run note block at the top of a PR body.
 
-Reads the PR body from stdin, writes the transformed body to stdout. The block
-is delimited by a matching HTML-comment marker pair so removal is exact:
+Reads the PR body from the optional trailing ``<file>`` argument when one is given,
+else from stdin; writes the transformed body to stdout. The block is delimited by a
+matching HTML-comment marker pair so removal is exact:
 
     <!-- prflow:stopped-run-note-start -->
     <the note text, verbatim>
@@ -12,10 +13,15 @@ is delimited by a matching HTML-comment marker pair so removal is exact:
 
 Subcommands (argv[1]):
 
-- ``add <note>`` — prepend a fresh note block carrying <note>, first stripping
-  any block already present so a second add REPLACES rather than duplicates.
-- ``strip`` — remove EVERY note block, returning a body with none byte-for-byte
-  unchanged when it carried none.
+- ``add <note> [<file>]`` — prepend a fresh note block carrying <note>, first
+  stripping any block already present so a second add REPLACES rather than
+  duplicates.
+- ``strip [<file>]`` — remove EVERY note block, returning a body with none
+  byte-for-byte unchanged when it carried none.
+
+``--help`` prints usage and exits 0. A misuse (no subcommand, unknown subcommand,
+``add`` with no note, an extra operand, an empty or non-UTF-8 body, or a
+missing/unreadable ``<file>``) prints one usage line on stderr and exits 2 with empty stdout.
 
 Sanitizing on ``add``: any ``-->`` in <note> is rewritten to ``--&gt;`` so a
 payload that contains the block's own end marker (which itself ends in ``-->``)
@@ -81,23 +87,70 @@ def _force_utf8_streams():
             pass
 
 
+_USAGE = "pr-note-block.py strip [<file>] | add <note> [<file>]"
+
+
+def _usage_die(msg):
+    # One line to stderr, stdout untouched: the caller's non-empty-output guard skips
+    # its PATCH on the empty stdout. Caller returns 2 (mirrors page-job-log.py _usage_die,
+    # but returns rather than sys.exit so main() stays directly callable in tests).
+    print(f"pr-note-block.py: {msg} (usage: {_USAGE})", file=sys.stderr)
+
+
+def _read_body(src):
+    # None => read stdin; a path => read that file with the same UTF-8/verbatim-newline
+    # codec as stdin, so the file form round-trips byte-for-byte like the stdin form. An
+    # unreadable path raises OSError (scope kept to the file open), which main() surfaces
+    # with its cause so a missing file and a permission error stay distinguishable.
+    if src is None:
+        return sys.stdin.read()
+    with open(src, encoding="utf-8", newline="") as fh:
+        return fh.read()
+
+
 def main(argv):
     _force_utf8_streams()
-    if len(argv) < 2:
+    args = argv[1:]
+    if args[:1] in (["--help"], ["-h"]):
+        print(f"usage: {_USAGE}")
+        print("Reads the PR body from <file> when given, else from stdin.")
+        return 0
+    if not args:
+        _usage_die("missing subcommand")
         return 2
-    cmd = argv[1]
-    body = sys.stdin.read()
+    cmd = args[0]
+    if cmd == "strip":
+        if len(args) > 2:
+            _usage_die("strip takes at most one file argument")
+            return 2
+        src = args[1] if len(args) == 2 else None
+    elif cmd == "add":
+        if len(args) < 2 or not args[1]:
+            _usage_die("add requires a note argument")
+            return 2
+        if len(args) > 3:
+            _usage_die("add takes a note and at most one file argument")
+            return 2
+        src = args[2] if len(args) == 3 else None
+    else:
+        _usage_die(f"unknown subcommand: {cmd}")
+        return 2
+    try:
+        body = _read_body(src)
+    except OSError as exc:
+        _usage_die(f"cannot read body file: {src or '<stdin>'} ({exc.strerror or exc})")
+        return 2
+    except UnicodeDecodeError:
+        _usage_die(f"body is not valid UTF-8: {src or '<stdin>'}")
+        return 2
     if not body:
+        _usage_die("empty body")
         return 2
     if cmd == "strip":
         sys.stdout.write(strip_block(body))
-        return 0
-    if cmd == "add":
-        if len(argv) < 3 or not argv[2]:
-            return 2
-        sys.stdout.write(add_block(body, argv[2]))
-        return 0
-    return 2
+    else:
+        sys.stdout.write(add_block(body, args[1]))
+    return 0
 
 
 if __name__ == "__main__":

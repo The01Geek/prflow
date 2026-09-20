@@ -30,7 +30,7 @@ These are all the phrases that declare a blocking dependency, each followed by o
 One phrase can name several issues at once, as in `blocked by #10 and #11`.
 
 <Warning>
-`follow-up to #123` reads like ordinary prose. People write it to record where the work came from, not to say the work is blocked, and PRFlow still treats it as a blocking dependency. If you meant provenance rather than ordering, reword it, for example to `this continues the work in #123`.
+`follow-up to #123` reads like ordinary prose. People write it to record where the work came from, not to say the work is blocked, and PRFlow still treats it as a blocking dependency. If you meant a non-blocking reference rather than ordering, record it in `Technical Context` as `Related work: #123`, or reword the provenance, for example to `this continues the work in #123`.
 </Warning>
 
 Check whether the named prerequisite is actually still open:
@@ -110,7 +110,11 @@ Rewrite each criterion as a checkbox row, then start the run again so the machin
 
 <Accordion title="The working tree has uncommitted changes">
 
-**Symptom:** a local run stops as Blocked before it creates a feature branch, and the workpad records the uncommitted tracked files it found and asks you to commit or stash them.
+**Symptom:** a local run stops as Blocked before it creates a feature branch, and the workpad lists the changed tracked files it found. With no workpad yet, the run reports the stop directly.
+
+**Cloud runs.** A cloud run does not stop for tracked changes. It inspects them, restores the ones setup or line-ending normalization produced, keeps any that are the run's own uncommitted work, notes its decision in the workpad reflections and continues. If the reflections show setup rewriting tracked files on every run, make every `setup.install` command leave tracked files unchanged (for example, a lockfile your package manager rewrites), and match your repository's line-ending and `.gitattributes` normalization.
+
+**Local runs.** The rest of this entry applies.
 
 PRFlow reaches this point still on your base branch, before any feature branch exists. Rather than sweep your uncommitted changes into a stray commit on the base branch, it stops and leaves your tree untouched.
 
@@ -130,7 +134,7 @@ Commit those changes on a branch of your own, or stash them:
 git stash
 ```
 
-Then start the run again. Untracked files do not trigger this stop; only tracked changes do.
+Then start the run again. Untracked files do not trigger this stop; only tracked changes do. PRFlow never restores, commits or stashes files in a local tree.
 
 </Accordion>
 

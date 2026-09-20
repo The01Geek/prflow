@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: MIT
 # Read a value from .prflow/config.json — PRFlow's single config resolver.
 #
-# Usage: config-get.sh KEY [DEFAULT] [CONFIG_FILE]
+# Usage: config-get.sh [--scalar] KEY [DEFAULT] [CONFIG_FILE]
+#        config-get.sh --presence KEY [CONFIG_FILE]
 #   KEY          dot-path like .docs.internal or .prflow.workpad_marker
 #                (leading dot optional). Arbitrary nesting depth supported —
 #                the path is split on dots and walked through nested objects.
@@ -29,10 +30,13 @@
 # this .sh on Windows — [WinError 193] — so it re-implements the same repo-root read
 # in Python via a native git subprocess; issue #275/#295.)
 #
-# Known limitation: `git rev-parse --show-toplevel` returns the NEAREST git root, so
-# a nested git submodule/inner repo resolves to that inner root, and a monorepo whose
-# `.prflow/` is deliberately not at the git root is not covered — consistent with
-# config-source.sh; a walk-up-to-nearest-`.prflow/` resolver was declined for this fix.
+# Known limitation: `git rev-parse --show-toplevel` returns the NEAREST git root, so a
+# nested git submodule/inner repo, and a monorepo whose `.prflow/` is deliberately not
+# at the git root, resolve a root carrying no config — consistent with config-source.sh,
+# and a walk-up-to-nearest-`.prflow/` resolver stays declined. That shape is DETECTED
+# rather than silent since issue #12: when an ancestor carries a `.prflow/`,
+# lib/detect-ancestor-config.sh writes a stderr breadcrumb naming the resolved root,
+# that ancestor, and the CONFIG_FILE remedy. Resolution is unchanged.
 #
 # Parses with python3, which is a hard PRFlow prerequisite (lib/preflight.sh
 # requires python3 >= 3.11; the whole scripts/*.py surface depends on it) and so
@@ -74,6 +78,19 @@ else
     prflow_state_dir() { printf '%s' "${1:-}/.prflow"; }
 fi
 
+# Nested-repository detection (issue #12): a resolved root with no .prflow/ under an
+# ancestor that has one reads built-in defaults while looking configured. Detection
+# only — it changes no resolution. A partial copy without the sibling degrades to a
+# no-op, exactly as the state-dir source above degrades.
+# shellcheck source=../lib/detect-ancestor-config.sh
+if [ -f "$_CONFIG_GET_DIR/../lib/detect-ancestor-config.sh" ] \
+   && . "$_CONFIG_GET_DIR/../lib/detect-ancestor-config.sh" \
+   && type prflow_warn_ancestor_config >/dev/null 2>&1; then
+    :
+else
+    prflow_warn_ancestor_config() { :; }
+fi
+
 # Opt-in --presence mode (issue #208): `--presence KEY [CONFIG_FILE]` reports whether KEY is
 # present, letting the label seam tell present-but-empty ("no labels") from absent ("fallback").
 # The reshape re-homes CONFIG_FILE to $3 (presence takes no DEFAULT); the default read is unchanged.
@@ -82,6 +99,14 @@ if [ "${1:-}" = "--presence" ]; then
     _PRESENCE_MODE=1
     shift
     [ "$#" -ge 2 ] && set -- "$1" "" "$2"
+fi
+# Opt-in --scalar mode (issue #799): `--scalar KEY [DEFAULT] [CONFIG_FILE]` is the default read,
+# except an array or object resolves as unset (stderr breadcrumb) instead of being coerced, so a
+# boolean gate cannot be opened by `["true"]`, whose comma-join reads "true".
+_SCALAR_MODE=0
+if [ "${1:-}" = "--scalar" ]; then
+    _SCALAR_MODE=1
+    shift
 fi
 
 key="${1:-}"
@@ -127,6 +152,12 @@ else
             _git_err="$(git rev-parse --show-toplevel 2>&1 >/dev/null)" || true
             echo "config-get.sh: could not resolve a git repo root${_git_err:+ (git: ${_git_err})} and no .prflow/ at '${_devflow_root}'; using cwd fallback and defaults" >&2
         fi
+    else
+        # A git root WAS resolved: the nested-repository shape is the one silent
+        # wrong-default the arm above cannot see (issue #12). Scoped to this arm so
+        # the no-git-root breadcrumb above keeps its exact output.
+        prflow_warn_ancestor_config "$_devflow_root" "config-get.sh" \
+            "pass it as the CONFIG_FILE argument"
     fi
     config_file="$(prflow_state_dir "$_devflow_root")/config.json"
 fi
@@ -319,7 +350,7 @@ fi
 # coerce() reproduces the prior Node String()/Array.join semantics byte-for-byte:
 # booleans emit lowercase true/false (NOT Python's True/False), null → empty,
 # arrays comma-join their coerced elements, an object → "[object Object]".
-value=$(DEVFLOW_KEY="${key#.}" DEVFLOW_CONFIG="$config_file" python3 -c '
+value=$(DEVFLOW_KEY="${key#.}" DEVFLOW_CONFIG="$config_file" DEVFLOW_SCALAR="$_SCALAR_MODE" python3 -c '
 import json, os, sys
 sys.stdout.reconfigure(newline="\n")
 try:
@@ -348,6 +379,11 @@ for part in os.environ["DEVFLOW_KEY"].split("."):
         sys.exit(0)
     cur = cur[part]
 if cur is None:
+    sys.exit(0)
+if os.environ["DEVFLOW_SCALAR"] == "1" and isinstance(cur, (list, dict)):
+    shape = "an array" if isinstance(cur, list) else "an object"
+    sys.stderr.write("config-get.sh: ." + os.environ["DEVFLOW_KEY"] + " holds " + shape
+                     + ", not a scalar; --scalar resolves it as unset\n")
     sys.exit(0)
 sys.stdout.write(coerce(cur))
 ')

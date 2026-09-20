@@ -129,7 +129,7 @@ DERIVE_ERR="${OUT}.deriveerr"
 DERIVE_RC=0
 python3 "$DERIVER" --body-file "$BODY_FILE" > "$OUT" 2> "$DERIVE_ERR" || DERIVE_RC=$?
 if [ "$DERIVE_RC" -eq 0 ] && [ -s "$OUT" ]; then
-  echo "devflow: prepare-run-profile: derived the run profile for issue $ISSUE from workpad comment $COMMENT_ID" >&2
+  echo "prflow: prepare-run-profile: derived the run profile for issue $ISSUE from workpad comment $COMMENT_ID" >&2
 elif [ "$DERIVE_RC" -ne 0 ]; then
   echo "::warning::prepare-run-profile: derive-run-profile.py exited $DERIVE_RC for workpad comment $COMMENT_ID (issue $ISSUE); its own diagnostic follows, then no run profile is derived this run" >&2
   _echo_captured "$DERIVE_ERR"

@@ -10,12 +10,23 @@
 # scripts/scrub-credentials.sh (one implementation, every channel).
 #
 # Usage: scrub-transcript.sh <execution_file> <out_file> [<store_root>] [<stamp>]
+#        scrub-transcript.sh --select-only <store_root> <stamp>
 #   <execution_file>  steps.claude.outputs.execution_file path (may be absent).
 #   <out_file>        where the scrubbed execution-file transcript is written.
 #   <store_root>      the CLI session store root ($CLAUDE_CONFIG_DIR/projects, else
 #                     $HOME/.claude/projects) — read ONLY when <execution_file> is absent.
 #   <stamp>           a file the workflow wrote just before the Claude step; only session
 #                     files newer than it are eligible (issue #342).
+#
+# --select-only mode (issue #670): run the SAME stamp+cwd selection as the
+# native-session fallback but print each selected TOP-LEVEL session `.jsonl` path
+# (one per line, absolute) to stdout WITHOUT scrubbing or copying, then exit 0.
+# GITHUB_WORKSPACE is read from the environment exactly as the fallback arm reads
+# it. Prints nothing when nothing is eligible; ambiguity resolution (more than one
+# top-level file) is the caller's job — it counts the lines. This mode is
+# independent of prflow.execution_transcript_artifact_enabled (that gate lives in
+# the workflow, never in this script), so prepare-harness-floor.sh's cost-floor
+# fallback reaches a cancelled run's session cost regardless of that flag.
 #
 # Sources, in order: when <execution_file> exists the transcript is that file, scrubbed
 # exactly as before and the store is NEVER read (AC3). When it does NOT (a cancelled or
@@ -39,10 +50,20 @@ _ST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRUBBER="$_ST_DIR/scrub-credentials.sh"
 NORMALIZE="$_ST_DIR/../lib/normalize-path.sh"
 
-EXECUTION_FILE="${1:-}"
-OUT="${2:-}"
-STORE_ROOT_RAW="${3:-}"
-STAMP_RAW="${4:-}"
+SELECT_ONLY=0
+if [ "${1:-}" = "--select-only" ]; then
+  # Select-only mode: print selected top-level session paths, no scrub/copy.
+  SELECT_ONLY=1
+  STORE_ROOT_RAW="${2:-}"
+  STAMP_RAW="${3:-}"
+  EXECUTION_FILE=""
+  OUT=""
+else
+  EXECUTION_FILE="${1:-}"
+  OUT="${2:-}"
+  STORE_ROOT_RAW="${3:-}"
+  STAMP_RAW="${4:-}"
+fi
 
 # source= MUST precede any path= line (AC5), so every terminal arm routes through here.
 emit() {
@@ -67,6 +88,116 @@ scrub_and_caveat() {
   rm -f "$tmp" 2>/dev/null
   return 3
 }
+
+# _normalize_store_inputs: set STORE_ROOT, STAMP, WS and HAS_NORMALIZE from the
+# *_RAW operands, applying devflow_normalize_path on a Windows runner (passthrough
+# elsewhere). Shared by the native-session path and by --select-only, so the
+# normalization has one home — comparing an un-normalized cwd against a normalized
+# workspace mis-rejects paths on a Git Bash runner (issue #342 Windows residual).
+_normalize_store_inputs() {
+  # shellcheck source=/dev/null
+  [ -f "$NORMALIZE" ] && . "$NORMALIZE"
+  STORE_ROOT="$STORE_ROOT_RAW"
+  STAMP="$STAMP_RAW"
+  WS="${GITHUB_WORKSPACE:-}"
+  HAS_NORMALIZE=0
+  if command -v devflow_normalize_path >/dev/null 2>&1; then
+    HAS_NORMALIZE=1
+    STORE_ROOT="$(devflow_normalize_path "$STORE_ROOT_RAW")"
+    STAMP="$(devflow_normalize_path "$STAMP_RAW")"
+    WS="$(devflow_normalize_path "${GITHUB_WORKSPACE:-}")"
+  fi
+}
+
+# _select_session_files: with STORE_ROOT/STAMP/WS/HAS_NORMALIZE set, populate the
+# global SELECTED_ABS / SELECTED_REL arrays with the session files whose first
+# `cwd` names this job's workspace, plus REJECTED / FIRST_CWD for the no-match
+# breadcrumb. The one selection implementation shared by the native-session path
+# and by --select-only, so the stamp+cwd logic lives in one place.
+_select_session_files() {
+  SELECTED_ABS=()
+  SELECTED_REL=()
+  REJECTED=0
+  FIRST_CWD=""
+  local SEL abspath cwd ncwd rel
+  # python3 (a preflight-guaranteed tool, never `find`) selects regular `.jsonl` files newer
+  # than the stamp and reads each one's first `cwd`-bearing record; the workspace match is
+  # decided in bash so both cwd forms pass through devflow_normalize_path identically.
+  SEL="$(STORE_ROOT="$STORE_ROOT" STAMP="$STAMP" python3 - <<'PY'
+import os, json, sys
+sys.stdout.reconfigure(newline="\n")
+root = os.environ["STORE_ROOT"]
+try:
+    smt = os.stat(os.environ["STAMP"]).st_mtime
+except OSError:
+    sys.exit(0)
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames.sort()
+    for name in sorted(filenames):
+        if not name.endswith(".jsonl"):
+            continue
+        full = os.path.join(dirpath, name)
+        if os.path.islink(full) or not os.path.isfile(full):
+            continue
+        try:
+            if not (os.stat(full).st_mtime > smt):
+                continue
+        except OSError:
+            continue
+        cwd = ""
+        try:
+            with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    if isinstance(rec, dict) and isinstance(rec.get("cwd"), str):
+                        cwd = rec["cwd"]
+                        break
+        except OSError:
+            pass
+        sys.stdout.write(full + "\t" + cwd + "\n")
+PY
+)"
+  while IFS=$'\t' read -r abspath cwd; do
+    [ -z "$abspath" ] && continue
+    ncwd="$cwd"
+    if [ -n "$cwd" ] && [ "$HAS_NORMALIZE" = 1 ]; then
+      ncwd="$(devflow_normalize_path "$cwd")"
+    fi
+    if [ -n "$WS" ] && [ "$ncwd" = "$WS" ]; then
+      # Strip the store root and the encoded project directory (the first component), keeping
+      # the nesting below it so <session>.jsonl lands at the output root and
+      # <session>/subagents/<id>.jsonl beneath it.
+      rel="${abspath#"$STORE_ROOT"/}"
+      rel="${rel#*/}"
+      SELECTED_ABS+=("$abspath")
+      SELECTED_REL+=("$rel")
+    else
+      REJECTED=$((REJECTED + 1))
+      [ -z "$FIRST_CWD" ] && [ -n "$cwd" ] && FIRST_CWD="$cwd"
+    fi
+  done <<< "$SEL"
+}
+
+if [ "$SELECT_ONLY" = 1 ]; then
+  # No scrubber is needed — this mode neither scrubs nor copies. Print nothing and
+  # exit 0 on any gap; the caller (prepare-harness-floor.sh) owns every breadcrumb.
+  if [ -z "$STORE_ROOT_RAW" ] || [ -z "$STAMP_RAW" ]; then exit 0; fi
+  _normalize_store_inputs
+  if [ ! -f "$STAMP" ] || [ ! -d "$STORE_ROOT" ]; then exit 0; fi
+  _select_session_files
+  for i in "${!SELECTED_REL[@]}"; do
+    # Top-level session files only (rel with no `/`); a subagents/<id>.jsonl is not
+    # a top-level session and its cost is not summed into the floor (scope note).
+    case "${SELECTED_REL[$i]}" in */*) : ;; *) printf '%s\n' "${SELECTED_ABS[$i]}" ;; esac
+  done
+  exit 0
+fi
 
 if [ -z "$OUT" ]; then
   # No output path is a mis-invocation, not one of the enumerated no-upload arms — keep the
@@ -114,21 +245,7 @@ if [ -z "$STORE_ROOT_RAW" ] || [ -z "$STAMP_RAW" ]; then
   exit 0
 fi
 
-# Normalize the store root, stamp and workspace for a Windows runner (passthrough on Linux/macOS);
-# comparing an un-normalized cwd against a normalized workspace mis-rejects every file on a Git
-# Bash runner (issue #342 Windows residual, diagnosable via the rejected-files notice below).
-# shellcheck source=/dev/null
-[ -f "$NORMALIZE" ] && . "$NORMALIZE"
-STORE_ROOT="$STORE_ROOT_RAW"
-STAMP="$STAMP_RAW"
-WS="${GITHUB_WORKSPACE:-}"
-HAS_NORMALIZE=0
-if command -v devflow_normalize_path >/dev/null 2>&1; then
-  HAS_NORMALIZE=1
-  STORE_ROOT="$(devflow_normalize_path "$STORE_ROOT_RAW")"
-  STAMP="$(devflow_normalize_path "$STAMP_RAW")"
-  WS="$(devflow_normalize_path "${GITHUB_WORKSPACE:-}")"
-fi
+_normalize_store_inputs
 
 if [ ! -f "$STAMP" ]; then
   echo "::notice::no execution file and the transcript stamp file is absent ($STAMP); selecting nothing from the store (no upload)." >&2
@@ -141,73 +258,7 @@ if [ ! -d "$STORE_ROOT" ]; then
   exit 0
 fi
 
-# python3 (a preflight-guaranteed tool, never `find`) selects regular `.jsonl` files newer
-# than the stamp and reads each one's first `cwd`-bearing record; the workspace match is
-# decided in bash so both cwd forms pass through devflow_normalize_path identically.
-SEL="$(STORE_ROOT="$STORE_ROOT" STAMP="$STAMP" python3 - <<'PY'
-import os, json, sys
-sys.stdout.reconfigure(newline="\n")
-root = os.environ["STORE_ROOT"]
-try:
-    smt = os.stat(os.environ["STAMP"]).st_mtime
-except OSError:
-    sys.exit(0)
-for dirpath, dirnames, filenames in os.walk(root):
-    dirnames.sort()
-    for name in sorted(filenames):
-        if not name.endswith(".jsonl"):
-            continue
-        full = os.path.join(dirpath, name)
-        if os.path.islink(full) or not os.path.isfile(full):
-            continue
-        try:
-            if not (os.stat(full).st_mtime > smt):
-                continue
-        except OSError:
-            continue
-        cwd = ""
-        try:
-            with open(full, "r", encoding="utf-8", errors="replace") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        rec = json.loads(line)
-                    except Exception:
-                        continue
-                    if isinstance(rec, dict) and isinstance(rec.get("cwd"), str):
-                        cwd = rec["cwd"]
-                        break
-        except OSError:
-            pass
-        sys.stdout.write(full + "\t" + cwd + "\n")
-PY
-)"
-
-SELECTED_ABS=()
-SELECTED_REL=()
-REJECTED=0
-FIRST_CWD=""
-while IFS=$'\t' read -r abspath cwd; do
-  [ -z "$abspath" ] && continue
-  ncwd="$cwd"
-  if [ -n "$cwd" ] && [ "$HAS_NORMALIZE" = 1 ]; then
-    ncwd="$(devflow_normalize_path "$cwd")"
-  fi
-  if [ -n "$WS" ] && [ "$ncwd" = "$WS" ]; then
-    # Strip the store root and the encoded project directory (the first component), keeping
-    # the nesting below it so <session>.jsonl lands at the output root and
-    # <session>/subagents/<id>.jsonl beneath it.
-    rel="${abspath#"$STORE_ROOT"/}"
-    rel="${rel#*/}"
-    SELECTED_ABS+=("$abspath")
-    SELECTED_REL+=("$rel")
-  else
-    REJECTED=$((REJECTED + 1))
-    [ -z "$FIRST_CWD" ] && [ -n "$cwd" ] && FIRST_CWD="$cwd"
-  fi
-done <<< "$SEL"
+_select_session_files
 
 if [ "${#SELECTED_ABS[@]}" -eq 0 ]; then
   if [ "$REJECTED" -gt 0 ]; then
@@ -219,7 +270,7 @@ if [ "${#SELECTED_ABS[@]}" -eq 0 ]; then
   exit 0
 fi
 
-# The output dir has NO component beginning with `.`: actions/upload-artifact@v4 skips a
+# The output dir has NO component beginning with `.`: actions/upload-artifact@v7 skips a
 # dot-prefixed folder by default, and `if-no-files-found: ignore` would then hide the
 # resulting empty upload.
 OUTDIR="${RUNNER_TEMP:-/tmp}/prflow-native-transcript"

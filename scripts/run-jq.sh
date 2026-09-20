@@ -35,7 +35,7 @@ esac
 if [ -f "$_RUN_JQ_DIR/../lib/resolve-jq.sh" ] && . "$_RUN_JQ_DIR/../lib/resolve-jq.sh"; then
   exec "${DEVFLOW_JQ:-jq}" "$@"
 fi
-echo "devflow: run-jq.sh could not source lib/resolve-jq.sh beside it (partial deployment?) — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+echo "prflow: run-jq.sh could not source lib/resolve-jq.sh beside it (partial deployment?) — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
 # Even on the partial-deploy fallback, honor a pre-set DEVFLOW_JQ and avoid a
 # bare invocation-position `jq` (the #247 DJQ_BARE contract) — `:-jq` degrades
 # to bare jq only when the override is unset/empty, matching the breadcrumb.

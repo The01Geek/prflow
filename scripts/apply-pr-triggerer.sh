@@ -5,12 +5,14 @@
 # created by /prflow:implement to the run's triggering user (issue #1165).
 #
 # WHO the triggerer is, by tier (the helper detects the tier from GITHUB_RUN_ID):
-#   * Cloud (GITHUB_RUN_ID non-empty) — the authorized issue-comment sender the
-#     workflow propagates through DEVFLOW_TRIGGERING_USER. FAIL-CLOSED on identity:
+#   * Cloud (GITHUB_RUN_ID non-empty) — the run's origin identity the workflow
+#     propagates through DEVFLOW_TRIGGERING_USER. FAIL-CLOSED on identity:
 #     when that variable is empty the helper skips assignment and NEVER substitutes
 #     another account (the token owner, the GitHub App identity, or GITHUB_ACTOR).
 #     A missing cloud login is a deployment-skew signal (an older workflow paired
-#     with a newer skill), not permission to guess.
+#     with a newer skill), not permission to guess. A `[bot]`-suffixed login is
+#     skipped before any API call: a bot is not an assignable user, so requesting
+#     one only earns an HTTP 403 (issue #512).
 #   * Local (GITHUB_RUN_ID empty) — the authenticated GitHub login from
 #     `gh api user --jq .login`, the repository's established local-identity pattern
 #     (scripts/file-deferrals.py). An empty or failed lookup skips without guessing.
@@ -39,9 +41,10 @@
 #   * `assignment: skipped <reason>`  — every handled path that does NOT report
 #     applied (invalid input, no cloud triggerer, empty/failed local identity, API
 #     failure, or an unconfirmed response). <reason> is one of: invalid-input,
-#     no-triggering-user, identity-lookup-failed, empty-identity, api-failure,
-#     unconfirmed. Every reason except `unconfirmed` establishes that no assignment
-#     was made; `unconfirmed` establishes only that it could not be confirmed.
+#     no-triggering-user, bot-login, identity-lookup-failed, empty-identity,
+#     api-failure, unconfirmed. Every reason except `unconfirmed` establishes that
+#     no assignment was made; `unconfirmed` establishes only that it could not be
+#     confirmed.
 # It ALWAYS exits 0 (best-effort: an assignment hiccup never aborts the caller) and
 # NEVER prints an empty stdout — so the caller reads "no output at all" as a HARNESS
 # REFUSAL (a denied command produces nothing), distinct from every handled skip.
@@ -63,10 +66,10 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh"
 
 # Emit the machine outcome token to stdout, a matching breadcrumb to stderr, exit 0.
-_applied() { echo "assignment: applied $1"; echo "devflow: assigned PR #${NUMBER} to '$1'" >&2; exit 0; }
+_applied() { echo "assignment: applied $1"; echo "prflow: assigned PR #${NUMBER} to '$1'" >&2; exit 0; }
 _skipped() {
   echo "assignment: skipped $1"
-  echo "devflow: PR assignment skipped ($1) for #${NUMBER:-<none>}${2:+: $2} (best-effort, PR preserved)" >&2
+  echo "prflow: PR assignment skipped ($1) for #${NUMBER:-<none>}${2:+: $2} (best-effort, PR preserved)" >&2
   exit 0
 }
 
@@ -90,6 +93,14 @@ if [ -n "${GITHUB_RUN_ID:-}" ]; then
   if [ -z "$LOGIN" ]; then
     _skipped no-triggering-user "cloud run carries no DEVFLOW_TRIGGERING_USER (deployment skew: an older workflow with a newer skill) — refusing to substitute the token owner, App identity, or GITHUB_ACTOR"
   fi
+  # A bot login is not an assignable user: GitHub answers the POST with HTTP 403,
+  # which would land on the `api-failure` skip and read as a transport problem. It
+  # reaches here when an automatic resume carried no readable origin, so name that
+  # instead — before any API call (issue #512).
+  case "$LOGIN" in
+    *'[bot]')
+      _skipped bot-login "cloud triggering user '${LOGIN}' is a bot, not an assignable user (a resume chain whose originating human could not be decoded) — no assignment requested" ;;
+  esac
 else
   # Local tier — the authenticated GitHub login. A failed query and an empty
   # result are distinct skips; neither guesses a login.

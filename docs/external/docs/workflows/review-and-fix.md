@@ -87,6 +87,8 @@ Where the fix commits end up depends on how you started the run.
 
 Before it concludes on the approval side, PRFlow runs a separate shadow review over the candidate. The shadow pass reports which planned reviewers completed and any coverage gaps it knows about.
 
+One case skips it. When the loop runs inside `/prflow:implement` and its first iteration is clean — no failed check and no finding that stands at Important or above — the loop ends without a re-review or a shadow pass, and the result line reads `shadow skipped, iteration 1 clean`. The pull-request review is the independent pass for that run. A standalone `/prflow:review-and-fix` run is unchanged.
+
 <Note>
   Shadow agreement narrows the chance of a false clean result. It does not close it. A run reporting no gap has not proved that the review found every defect, and it is not a substitute for a human review or a formal merge signal.
 </Note>

@@ -1,5 +1,5 @@
 {
-  "manifest_version": 40,
+  "manifest_version": 41,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -366,6 +366,7 @@
       "Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*)",
       "Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/retro-helper.sh:*)",
+      "Bash(.prflow/vendor/prflow/scripts/retro-outcome-record.py:*)",
       "Bash(.prflow/vendor/prflow/lib/scan.sh:*)",
       "Bash(.prflow/vendor/prflow/lib/materialize-retrospectives.sh:*)",
       "Bash(.prflow/vendor/prflow/lib/pattern-state.sh:*)",

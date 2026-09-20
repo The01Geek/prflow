@@ -13,6 +13,23 @@ the aggregate with the assigned issue numbers + deterministic deferral IDs. The 
 verdict engine then matches these entries against the PR-body block to
 demote already-acknowledged findings.
 
+Two classes of entry survive the rewrite carrying NO `follow_up`, because no
+follow-up issue is owed for them. `settled-by-disclosure` is the foreclosure
+(the already-shipped disclosure is the deliverable). `scheduled-in-run` is the
+second: the source issue's own `**Documentation Needed**` block already names
+the entry's `file`, so the run's own documentation pass is due to edit it
+before the run finishes — filing an issue for work this run is already taking
+on only creates a ticket a human must read and close. The filer resolves that
+deliverable path set once per run by running
+`scripts/extract-doc-needed-paths.sh` over the `--source-issue` body; see
+EXTRACTOR_PATH below for the one way that set differs from the one the
+documentation-deliverable gate enforces. It writes `scheduled-in-run` onto the
+rewritten AGGREGATE's `category` field only; the per-run `deferrals.json` the
+fix loop writes never carries it. When the body cannot be read or the
+extractor fails, the set is
+UNKNOWN rather than empty and every entry files as it would without this
+partition.
+
 The helper is repo-agnostic — title/body templates contain no project names
 or hardcoded paths. The `<area>` token in titles is derived from the longest
 leading path prefix the group's files share (its first non-`src/`-equivalent
@@ -26,14 +43,15 @@ Usage:
 Manifest-mode exit codes:
     0  At least one group of findings was filed successfully (or --dry-run),
        OR there were NO fileable groups at all and the only surviving entries
-       are settled-by-disclosure foreclosures, which file NO follow-up issue by
-       design (issue #621) yet still survive into the rewritten manifest — a
-       manifest whose entries are ALL foreclosures rewrites and exits 0 with
-       zero issue-create calls.
+       are settled-by-disclosure foreclosures (issue #621) and scheduled-in-run
+       entries (issue #758), which file NO follow-up issue by design yet still
+       survive into the rewritten manifest — a manifest whose entries are ALL
+       of those two classes rewrites and exits 0 with zero issue-create calls.
     1  Nothing was filed: either nothing survived at all, or every fileable
-       group failed. A surviving foreclosure does NOT mask a complete filing
-       failure (issue #660 review) — foreclosures need no `gh` call, so they
-       can never evidence that filing worked. Also 1 on invalid input.
+       group failed. A surviving foreclosure or scheduled-in-run entry does NOT
+       mask a complete filing failure (issue #660 review) — neither needs a
+       `gh` call, so neither can evidence that filing worked. Also 1 on
+       invalid input.
     2  Bad arguments / unusable manifest.
 
 Units-mode exit codes:
@@ -56,6 +74,18 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gh_fresh_env import fresh_gh_env
 
+# lib/ is a sibling of scripts/ in the source repo and in a vendored
+# .prflow/vendor/prflow/ tree alike, so this import path holds on every tier.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+try:
+    import bash_launch as _bl
+except Exception:  # pragma: no cover - import-time arm
+    # Unlike resolve-review-overrides.py, a missing launch helper must NOT abort
+    # this process: filing follow-up issues is this helper's job and needs no
+    # bash. Only the deliverable lookup below degrades, and it degrades to
+    # "unknown", which files every entry exactly as it did before issue #758.
+    _bl = None
+
 # The gh binary to shell out to. `DEVFLOW_GH` (the documented override the shell
 # helpers resolve via lib/resolve-gh.sh) wins when set and non-empty; else `gh`.
 GH = os.environ.get("DEVFLOW_GH") or "gh"
@@ -71,12 +101,121 @@ ID_HEX_LEN = 6
 # field; a nested `reason.category` is accepted defensively too.
 FORECLOSURE_CATEGORY = "settled-by-disclosure"
 
+# issue #758: the second file-nothing class. An entry whose `file` the source
+# issue's **Documentation Needed** block already names is discharged by the
+# run's own documentation pass, which cannot be skipped, so filing a follow-up
+# issue for it only manufactures hand cleanup. Written ONLY here, onto the
+# rewritten aggregate's `category`; the fix loop's skip_category set is
+# unchanged. The same top-level-or-nested discriminator as above makes a re-run
+# over an already-rewritten aggregate idempotent even if the deliverable lookup
+# then fails.
+SCHEDULED_CATEGORY = "scheduled-in-run"
+
+# The deterministic reader of an issue body's **Documentation Needed** block,
+# anchored beside this script rather than resolved from PATH or the cwd. Calling
+# it (instead of re-deriving the path list by hand) gives this filer the SAME
+# scope, tokenization and suppression rules the documentation-deliverable gate
+# reads the block with. One difference remains, and it is deliberate: the gate's
+# reader (scripts/read-doc-needed-deliverables.sh) resolves the configured
+# documentation-location allowlist from config and exports it as
+# DEVFLOW_DOC_NEEDED_ALLOWLIST before running the extractor; this caller does
+# not resolve it, and only passes one through when the surrounding environment
+# already exports it. Unset leaves the extractor's location test inactive, so
+# this set is a SUPERSET of the gate's — a path named in the block but outside
+# the allowlist matches here and is refused there. That direction only ever
+# suppresses a filing, never creates a spurious one, which is why the allowlist
+# resolution (four config reads with their own fail-closed arms) is not
+# duplicated here. `DEVFLOW_DOC_NEEDED_EXTRACTOR` overrides the path below, the
+# same test seam scripts/read-doc-needed-deliverables.sh honours.
+EXTRACTOR_PATH = Path(__file__).resolve().parent / "extract-doc-needed-paths.sh"
+
+
+def _entry_category(entry: dict) -> tuple[object, object]:
+    """The flat and nested category slots of a manifest entry, read safely.
+
+    The aggregate is agent-mutable JSON this helper does not produce, so
+    `reason` can arrive as a list/scalar/None; a bare `(entry.get("reason") or
+    {}).get(...)` raises on the non-dict shapes. Both slots degrade to None.
+    """
+    reason = entry.get("reason")
+    nested = reason.get("category") if isinstance(reason, dict) else None
+    return (entry.get("category"), nested)
+
 
 def _is_foreclosure(entry: dict) -> bool:
-    return (
-        entry.get("category") == FORECLOSURE_CATEGORY
-        or (entry.get("reason") or {}).get("category") == FORECLOSURE_CATEGORY
-    )
+    return FORECLOSURE_CATEGORY in _entry_category(entry)
+
+
+def _is_scheduled(entry: dict) -> bool:
+    return SCHEDULED_CATEGORY in _entry_category(entry)
+
+
+def _deliverable_paths(source_issue: int) -> tuple[frozenset[str], str | None]:
+    """The `**Documentation Needed**` paths of `source_issue`'s body.
+
+    Returns `(paths, cause)`. A non-None `cause` means the set is UNKNOWN — the
+    caller then partitions nothing and every entry files as it did before issue
+    #758. Only a clean read that named no path returns an empty set with no
+    cause, so "could not read" is never collapsed onto "named nothing".
+
+    Every arm catches `Exception`, not a curated tuple. The contract this
+    function offers its caller is that ANY lookup failure degrades to unknown;
+    a narrower catch would let one unanticipated exception class escape and
+    abort a filing run whose real work — creating the follow-up issues — does
+    not depend on this lookup at all. `BaseException` is deliberately NOT
+    caught: a KeyboardInterrupt or SystemExit is not a degraded read.
+    """
+    try:
+        read = _run([GH, "issue", "view", str(source_issue), "--json", "body"],
+                    check=False)
+    except Exception as exc:
+        return (frozenset(), f"body-read-failed:{type(exc).__name__}: {exc}"[:160])
+    if read.returncode != 0:
+        first = ((read.stderr or "").strip().splitlines() or [""])[0][:120]
+        return (frozenset(), f"body-read-failed:rc={read.returncode} {first}".strip())
+    try:
+        body = json.loads(read.stdout)["body"]
+    except Exception as exc:
+        return (frozenset(), f"body-read-failed:{type(exc).__name__}")
+    if not isinstance(body, str):
+        return (frozenset(), f"body-read-failed:body-is-{type(body).__name__}")
+
+    extractor = os.environ.get("DEVFLOW_DOC_NEEDED_EXTRACTOR") or str(EXTRACTOR_PATH)
+    if _bl is None:
+        return (frozenset(), "extractor-failed:launch-helper-unimportable")
+    # `bash` stays a literal here, not a shared resolver call: cloud_writer_deps.py
+    # verifies this file's declared exec edge from a statically resolvable binding.
+    bash = os.environ.get("DEVFLOW_BASH") or "bash"
+    try:
+        argument = _bl.script_argument(Path(extractor), cwd=Path.cwd(), bash=bash)
+        out = subprocess.run(
+            [bash, argument], input=body, check=False,
+            capture_output=True, encoding="utf-8",
+        )
+    except Exception as exc:
+        return (frozenset(), f"extractor-failed:{type(exc).__name__}: {exc}"[:160])
+    if out.returncode != 0:
+        first = ((out.stderr or "").strip().splitlines() or [""])[0][:120]
+        return (frozenset(), f"extractor-failed:rc={out.returncode} {first}".strip())
+    return (frozenset(
+        line.strip() for line in out.stdout.splitlines() if line.strip()
+    ), None)
+
+
+def _scheduled_deliverable(entry: dict, deliverables: frozenset[str]) -> str | None:
+    """The deliverable path discharging `entry`, or None if none does.
+
+    EXACT equality against the extractor's own output, which is a set of bare
+    repo-relative POSIX paths. So `./docs/a.md`, `docs/a.md/` and a bare
+    `a.md` are all non-matches by construction — this decides whether a
+    follow-up issue is created, and a fuzzy match would silently drop one. A
+    `file` that is an object, array, number, None, absent or empty never
+    matches.
+    """
+    value = entry.get("file")
+    if not isinstance(value, str) or not value:
+        return None
+    return value if value in deliverables else None
 
 
 def _force_utf8_streams():
@@ -534,10 +673,20 @@ def main(argv=None):
     filed_by = _gh_login() if not args.dry_run else "(dry-run-user)"
     filed_at = _now_iso()
 
+    # issue #758: resolve the run's documentation-deliverable path set ONCE,
+    # before partitioning. An unreadable body or a failed extractor leaves the
+    # set unknown, which is recorded and files everything — never silently
+    # read as "the issue named no deliverable".
+    deliverables, deliverables_cause = _deliverable_paths(args.source_issue)
+    if deliverables_cause:
+        print(f"{SCHEDULED_CATEGORY} result=unavailable "
+              f"cause={_record_value(deliverables_cause)}")
+
     # issue #621: partition foreclosures out of the fileable groups. A
     # foreclosure files no issue but still survives into the rewritten manifest
     # unchanged (with an `id` assigned for the dfr- match), so /pr-description
-    # and /devflow:review can carry and honor it.
+    # and /devflow:review can carry and honor it. issue #758 adds the second
+    # such partition, keyed on the deliverable set resolved above.
     # issue #602: group by the shared deferral reason (category + trimmed
     # explanation + kind), not by source file, so findings deferred for one
     # reason across several files file ONE follow-up issue. An entry that cannot
@@ -545,12 +694,21 @@ def main(argv=None):
     # and ("file",…) key tags keep the two kinds from colliding in one map.
     groups: OrderedDict[tuple[str, ...], list[dict]] = OrderedDict()
     foreclosures: list[dict] = []
+    scheduled: list[tuple[dict, str]] = []
     for d in deferrals:
         if _is_foreclosure(d):
+            # A foreclosure wins over the scheduled partition: it already
+            # carries a disclosure citation and renders in the PR body.
             foreclosures.append(d)
-        else:
-            key = _reason_key(d) or ("file", d.get("file", "(unknown)"))
-            groups.setdefault(key, []).append(d)
+            continue
+        discharged_by = _scheduled_deliverable(d, deliverables)
+        if discharged_by is None and _is_scheduled(d):
+            discharged_by = "(already-marked)"
+        if discharged_by is not None:
+            scheduled.append((d, discharged_by))
+            continue
+        key = _reason_key(d) or ("file", d.get("file", "(unknown)"))
+        groups.setdefault(key, []).append(d)
 
     succeeded_numbers: list[int] = []
     failed_groups: list[str] = []
@@ -598,10 +756,27 @@ def main(argv=None):
         entry.setdefault("id", _compute_id(d))
         surviving.append(entry)
 
+    # issue #758: a scheduled-in-run entry files no issue either — the run's own
+    # documentation pass is already obliged to edit its file before the run can
+    # finish. It keeps its place in the rewritten aggregate under the new
+    # category so nothing downstream renders it as outstanding, and its record
+    # names the finding id and the deliverable that discharges it.
+    for d, discharged_by in scheduled:
+        entry = dict(d)
+        entry.setdefault("id", _compute_id(d))
+        entry["category"] = SCHEDULED_CATEGORY
+        if isinstance(entry.get("reason"), dict):
+            entry["reason"] = dict(entry["reason"], category=SCHEDULED_CATEGORY)
+        surviving.append(entry)
+        print(f"{SCHEDULED_CATEGORY} id={_record_value(entry['id'])} "
+              f"file={_record_value(d.get('file'))} "
+              f"deliverable={_record_value(discharged_by)}")
+
     if not surviving:
-        # Nothing filed AND no foreclosures survived. (A manifest of only
-        # foreclosures reaches here with `surviving` non-empty and exits 0 —
-        # zero issue-create calls, but the aggregate is still rewritten.)
+        # Nothing filed AND no foreclosure or scheduled-in-run entry survived.
+        # (A manifest of only those classes reaches here with `surviving`
+        # non-empty and exits 0 — zero issue-create calls, but the aggregate is
+        # still rewritten.)
         _fail("no follow-up issues filed and no entries survived — "
               "every fileable group failed", code=1)
 
@@ -610,11 +785,13 @@ def main(argv=None):
         # when a foreclosure survives to make `surviving` non-empty. Without
         # this arm a manifest mixing one `settled-by-disclosure` entry with
         # fileable groups that ALL failed would exit 0, silently dropping every
-        # failed real deferral from the rewritten manifest. Foreclosures need no
-        # `gh` call, so they can never evidence that filing worked.
+        # failed real deferral from the rewritten manifest. Neither a
+        # foreclosure nor a scheduled-in-run entry needs a `gh` call, so
+        # neither can evidence that filing worked.
         _fail(f"no follow-up issues filed — every fileable group failed "
               f"({len(failed_groups)} group(s)); "
-              f"{len(foreclosures)} foreclosure(s) survived but do not "
+              f"{len(foreclosures)} foreclosure(s) and {len(scheduled)} "
+              f"scheduled-in-run entry(ies) survived but do not "
               f"constitute a successful filing", code=1)
 
     new_manifest = dict(manifest)

@@ -93,7 +93,7 @@ _PCRT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # partial copy degrades with a breadcrumb instead of aborting under `set -u`.
 # shellcheck source=../lib/resolve-gh.sh
 . "$_PCRT_DIR/../lib/resolve-gh.sh" \
-  || echo "devflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
+  || echo "prflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
 if type devflow_resolve_gh >/dev/null 2>&1; then
   : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 else
@@ -106,7 +106,7 @@ fi
 # lib/login_normalize.py, so no `[bot]`/`app/` strip lives inline here.
 # shellcheck source=../lib/login-match.sh
 . "$_PCRT_DIR/../lib/login-match.sh" 2>/dev/null \
-  || echo "devflow: login-match.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — the author-suppression check will fail closed" >&2
+  || echo "prflow: login-match.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — the author-suppression check will fail closed" >&2
 
 PR="${PR:-}"
 HEAD_SHA="${HEAD_SHA:-}"
@@ -118,7 +118,7 @@ MODE="${MODE:-post}"
 # caller is asking for — so they go to stderr instead.
 _note() {  # $1=notice|warning  $2=message
   if [ "$MODE" = compose ]; then
-    printf 'devflow: %s: %s\n' "$1" "$2" >&2
+    printf 'prflow: %s: %s\n' "$1" "$2" >&2
   else
     printf '::%s::%s\n' "$1" "$2"
   fi
@@ -209,6 +209,19 @@ fi
 # is tested first and `automerge` is emitted only for an open PR, so a merged or
 # closed PR still carrying an auto_merge record takes its own arm (issue #2067).
 #
+# An open PR maps to `draft` when GitHub still marks it a draft and to `conflict`
+# when it is definitively not mergeable (`.mergeable == false`) — both post
+# nothing (issue #858). The draft word closes the reverted-to-draft gap: the
+# calling job's `if:` only sees `github.event.pull_request.draft` from the
+# TRIGGERING event payload, a start-of-run snapshot, so a PR reverted to draft
+# WHILE CI ran still reaches this helper; the conflict word skips a target that
+# cannot merge until its conflicts are resolved (a new green head re-notifies).
+# `.mergeable` is TRISTATE — GitHub computes it asynchronously, so it is `null`
+# until then; only an explicit `false` is a conflict, while `null`/`true` fall
+# through and post (never suppress a review on an unknown mergeability). Draft is
+# tested before conflict, and both only for an OPEN PR, so merged/closed still
+# take their own arms.
+#
 # FAIL CLOSED on an unestablished state — the same asymmetry as the idempotency
 # read and the author comparand: a missed notification is recoverable (a
 # collaborator can still comment /prflow:review by hand), while review spend on an
@@ -223,7 +236,7 @@ fi
 # still runs if scratch allocation fails.
 STATE_ERR="$(mktemp 2>/dev/null || echo /dev/null)"
 if ! PR_STATE="$("$DEVFLOW_GH" api "repos/{owner}/{repo}/pulls/${PR}" \
-      --jq 'if .merged then "merged" elif (.state == "open" and .auto_merge != null) then "automerge" else (.state // "") end' 2>"$STATE_ERR")"; then
+      --jq 'if .merged then "merged" elif (.state == "open" and .draft == true) then "draft" elif (.state == "open" and .mergeable == false) then "conflict" elif (.state == "open" and .auto_merge != null) then "automerge" else (.state // "") end' 2>"$STATE_ERR")"; then
   _note warning "ci auto-review trigger: could not read PR #$PR state to check whether it is still open ($(tr '\n' ' ' < "$STATE_ERR")); NOT posting (fail-closed — review spend on an already-merged or closed target is unrecoverable, a missed notification is not)."
   [ "$STATE_ERR" = /dev/null ] || rm -f "$STATE_ERR"
   exit 0
@@ -232,6 +245,17 @@ fi
 case "$PR_STATE" in
   open)
     : ;;  # still actionable — fall through to the idempotency read and post
+  draft)
+    # Reverted to draft while CI ran (issue #858) — a draft is not ready for
+    # review. The job `if:` only saw the trigger-time payload, so this is the
+    # only place the live draft state is checked.
+    _note warning "ci auto-review trigger: PR #$PR is a draft; NOT posting a review request (a draft is not ready for review — mark it ready for review, or comment /prflow:review by hand once it is)."
+    exit 0 ;;
+  conflict)
+    # Definitively not mergeable (issue #858) — merge conflicts mean the PR
+    # cannot merge until they are resolved; a new green head then re-notifies.
+    _note warning "ci auto-review trigger: PR #$PR has merge conflicts (not mergeable); NOT posting a review request (resolve the conflicts — a new green head re-notifies, or comment /prflow:review by hand)."
+    exit 0 ;;
   automerge)
     # Armed auto-merge merges at CI-green, racing this trigger onto a merged
     # target (issue #2067, PR #2059) — skip, like the merged/closed arms.

@@ -226,14 +226,14 @@ def main(argv):
     _force_utf8_streams()
     if len(argv) != 2:
         sys.stderr.write(
-            "devflow: extract-execution-cost.py: expected exactly one argument "
+            "prflow: extract-execution-cost.py: expected exactly one argument "
             f"(the execution-file path); got {len(argv) - 1}\n"
         )
         return 0  # best-effort exit-0
     path = argv[1]
     records, breadcrumbs, parsed_ok = _parse(path)
     for b in breadcrumbs:
-        sys.stderr.write(f"devflow: extract-execution-cost.py: {b}\n")
+        sys.stderr.write(f"prflow: extract-execution-cost.py: {b}\n")
     if not parsed_ok:
         # Cannot be parsed at all (missing/empty/garbage) → print NOTHING (AC2).
         return 0
@@ -255,7 +255,7 @@ def main(argv):
 
     for key, val in wrong_type.items():
         sys.stderr.write(
-            f"devflow: extract-execution-cost.py: field '{key}' is present but not a "
+            f"prflow: extract-execution-cost.py: field '{key}' is present but not a "
             f"numeric figure ({val!r}); treated as absent (null)\n"
         )
 
@@ -264,7 +264,7 @@ def main(argv):
     # truly all-null payload so it cannot masquerade as cost coverage.
     if cost_usd is None:
         sys.stderr.write(
-            "devflow: extract-execution-cost.py: execution file parsed but carried no "
+            "prflow: extract-execution-cost.py: execution file parsed but carried no "
             "cost figure (cost_usd null); any staged harness_cost records no cost this run\n"
         )
 

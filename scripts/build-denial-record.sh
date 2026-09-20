@@ -70,9 +70,9 @@ set -uo pipefail
 _BDR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/resolve-jq.sh
 . "$_BDR_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: build-denial-record.sh: resolve-jq.sh could not be sourced — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: build-denial-record.sh: resolve-jq.sh could not be sourced — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: build-denial-record.sh: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq'" >&2
+  echo "prflow: build-denial-record.sh: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq'" >&2
   DEVFLOW_JQ=jq
 fi
 
@@ -88,7 +88,7 @@ esac
 # No execution file at all → there is no run to record. Emit nothing (never a
 # fabricated zero-denial record for a run we never observed).
 if [ -z "$EXEC_FILE" ] || [ ! -f "$EXEC_FILE" ] || [ ! -s "$EXEC_FILE" ]; then
-  echo "devflow: build-denial-record.sh: execution file absent or empty ('$EXEC_FILE') — no denial record emitted" >&2
+  echo "prflow: build-denial-record.sh: execution file absent or empty ('$EXEC_FILE') — no denial record emitted" >&2
   exit 0
 fi
 
@@ -161,7 +161,7 @@ if [ -z "$COUNT_TOOLS" ]; then
   # measurement, not a zero. Persist a record that says so (count unavailable) rather
   # than nothing, so a downstream reader can tell "unparseable" from "denied nothing".
   COUNT_TOOLS='{"count":"unavailable","tool_names":[],"fallback_commands":null}'
-  echo "devflow: build-denial-record.sh: could not parse execution file for count/tool_names ('$EXEC_FILE') — recording count as unavailable" >&2
+  echo "prflow: build-denial-record.sh: could not parse execution file for count/tool_names ('$EXEC_FILE') — recording count as unavailable" >&2
 fi
 
 # Shape-drift warning (issue #2064): a result event was present yet the count still resolved
@@ -175,7 +175,7 @@ _bdr_result_present=false
 # read leaves _bdr_count empty and the warning stays suppressed (the safe direction).
 IFS=$'\t' read -r _bdr_count _bdr_result_present < <(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '[.count, (.result_present // false)] | @tsv' 2>/dev/null)
 if [ "$_bdr_count" = unavailable ] && [ "$_bdr_result_present" = true ]; then
-  echo "devflow: build-denial-record.sh: execution-file shape drift suspected — a result event was present but permission_denials_count could not be established (no count field, no permission_denials array); the execution-file shape may have changed" >&2
+  echo "prflow: build-denial-record.sh: execution-file shape drift suspected — a result event was present but permission_denials_count could not be established (no count field, no permission_denials array); the execution-file shape may have changed" >&2
 fi
 
 # ── command text three-state, reusing extract-execution-shape.sh (un-stranding it) ──
@@ -214,7 +214,7 @@ if [ "$COMMANDS_ENABLED" = true ]; then
     _FB="$(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -c '.fallback_commands // empty' 2>/dev/null)" || _FB=""
     if [ -n "$_FB" ]; then
       CMDS_JSON="$_FB"
-      echo "devflow: build-denial-record.sh: extract-execution-shape.sh could not establish the denied commands (no result event in the execution file); recovered them from the denial objects directly, at the same bounds" >&2
+      echo "prflow: build-denial-record.sh: extract-execution-shape.sh could not establish the denied commands (no result event in the execution file); recovered them from the denial objects directly, at the same bounds" >&2
     fi
   fi
 fi
@@ -275,7 +275,7 @@ if [ "$COMMANDS_ENABLED" = true ]; then
               fi
             done < <(printf '%s' "$_raw_cmds" | "$DEVFLOW_JQ" -r '.[] | @base64' 2>/dev/null)
             if [ "$_scrub_ok" -ne 1 ]; then
-              echo "devflow: build-denial-record.sh: credential scrub could not run over the denied command text — persisting NOTHING for this run (fail-closed, AC4)" >&2
+              echo "prflow: build-denial-record.sh: credential scrub could not run over the denied command text — persisting NOTHING for this run (fail-closed, AC4)" >&2
               exit 0
             fi
             # Build the scrubbed array once from the collected strings ($ARGS.positional is
@@ -318,7 +318,7 @@ if ! REC="$("$DEVFLOW_JQ" -cn \
         scrub: {applied: ($applied == "true"),
                 blocklist_incomplete: true,
                 shapes: (if $shapes == "" then null else $shapes end)}}' 2>/dev/null)"; then
-  echo "devflow: build-denial-record.sh: could not assemble the denial record (jq failed) — no record emitted" >&2
+  echo "prflow: build-denial-record.sh: could not assemble the denial record (jq failed) — no record emitted" >&2
   exit 0
 fi
 

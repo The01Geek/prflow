@@ -128,10 +128,12 @@ On `command not found`, `No such file or directory`, or exit 127 from that vendo
 
 Read successful issue numbers from stdout and filing diagnostics from stderr. A partial result that reports entries `were dropped from manifest` records `dropped-failed` with the failed files and continues with successful numbers. The all-foreclosed exit-0 arm is a clean zero-number result because the aggregate rewrite is its deliverable. An already-hydrated idempotent result is a clean no-op; any other non-zero, silence, or unrecognised output records `dropped-failed`.
 
-Invoke the shared label call once for each newly filed review issue. Review findings do not receive AC markers or parent-dependency registration.
+Stdout also carries `scheduled-in-run` records, which are clean and are not issue numbers. A `scheduled-in-run id=<id> file=<path> deliverable=<path>` record means the issue body already names that file as a documentation deliverable, so this run's own documentation pass is due to edit it: the helper filed no issue and kept the entry in the rewritten aggregate under that category, where nothing renders it into the pull request body. Carry one workpad line per such record into the final note, naming its id and deliverable. A single `scheduled-in-run result=unavailable cause=<cause>` record means the deliverable list could not be read and every entry filed as usual — record that cause too; it is a degraded read, not a dropped entry.
+
+Invoke the shared label call once for each newly filed review issue. A `scheduled-in-run` entry is not a filed issue and receives no label call. Review findings do not receive AC markers or parent-dependency registration.
 
 #### Final durable record
 
-After both selected channels finish, make one `workpad.py update` call containing exactly one human-readable `--note` that lists the AC and review issue numbers, and one `--mark-deferred-filed` operand per successfully backed AC marker. Omit empty groups from the note; if no issue was filed or adopted and no marker is discharged, make no success-note write. Reflections required above remain separate failure evidence and do not replace this one success note.
+After both selected channels finish, make one `workpad.py update` call containing exactly one human-readable `--note` that lists the AC and review issue numbers plus any `scheduled-in-run` lines, and one `--mark-deferred-filed` operand per successfully backed AC marker. Omit empty groups from the note; if nothing was filed, adopted, recorded `scheduled-in-run`, or discharged, make no success-note write. Reflections required above remain separate failure evidence and do not replace this one success note.
 
 <!-- prflow:implement-ref step=4.0-4.0.5 file=skills/implement/references/deferred-filing.md end -->

@@ -78,12 +78,12 @@ _EES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # DEVFLOW_JQ unbound and abort the next reference under `set -u`.
 # shellcheck source=../lib/resolve-jq.sh
 . "$_EES_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 # Outcome check, not just sourceability: a sibling that sources clean yet never
 # assigns must still leave a usable jq — never a bare `set -u` abort that breaks the
 # always-exit-0 contract.
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   DEVFLOW_JQ=jq
 fi
 
@@ -94,7 +94,7 @@ _HEADER="# Execution-file shape record"
 # execution_file output is attributable — the id-rename hazard) and in the record
 # itself, so a downstream reader sees WHY every field is unavailable.
 _emit_unavailable() {
-  echo "devflow: extract-execution-shape: $1 — every field unavailable" >&2
+  echo "prflow: extract-execution-shape: $1 — every field unavailable" >&2
   printf '%s\n' "$_HEADER"
   printf 'encoding: unavailable\n'
   printf 'usage: unavailable\n'

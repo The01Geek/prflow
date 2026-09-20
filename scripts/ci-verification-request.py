@@ -122,6 +122,8 @@ _MAX_ARTIFACT_BYTES = 4 * 1024 * 1024
 # GitHub run conclusions that are terminal-and-non-passing. `success` is the only passing
 # one; everything else (including an unknown string) is non-passing.
 _SUCCESS_CONCLUSION = "success"
+# The one non-passing conclusion a resume adopts: the suite ran on this head and failed.
+_FAILURE_CONCLUSION = "failure"
 
 # `wait` exit codes; the contract is stated in the module docstring.
 _EXIT_PASSED = 0
@@ -415,11 +417,14 @@ def _correlate_run(repo: str, request_id: str, head_sha: str) -> tuple[int | Non
     return run.get("databaseId"), run.get("attempt"), (run.get("url") or "")
 
 
-def _adopt_green_dispatch_run(repo: str, head_sha: str) -> dict | None:
-    """A prior attempt's already-green ci.yml dispatch run for this same head, adoptable
+def _adopt_completed_dispatch_run(repo: str, head_sha: str) -> dict | None:
+    """A prior attempt's already-completed ci.yml dispatch run for this same head, adoptable
     by a resume on a fresh runner that holds no local request record (issue #545). Returns
-    {request_id, run_id, run_attempt, run_url} for a completed-success workflow_dispatch run
-    at head_sha whose title carries a single request-id token, else None.
+    {request_id, run_id, run_attempt, run_url} for a completed workflow_dispatch run at
+    head_sha whose title carries a single request-id token, else None. A green run wins; with
+    none, a run that concluded `failure` is adopted too, so the resume's `wait` reports that
+    head's known-red verdict at once instead of re-dispatching and re-waiting the same failure.
+    `cancelled`/`skipped`/`timed_out` settle no verdict on the tree and are never adopted.
 
     Adoption reconstructs the runner-local handle the resume lost; it grants no new trust —
     collect-evidence still binds the downloaded shard provenance to this request_id/run_id/
@@ -453,22 +458,25 @@ def _adopt_green_dispatch_run(repo: str, head_sha: str) -> dict | None:
     if not isinstance(runs, list):
         _skip("run list is not a JSON array")
         return None
-    green = [
-        r for r in runs
-        if isinstance(r, dict) and r.get("headSha") == head_sha
-        and r.get("event") == "workflow_dispatch"
-        and str(r.get("status") or "").lower() == "completed"
-        and str(r.get("conclusion") or "").lower() == _SUCCESS_CONCLUSION
-        and len(_run_request_id_tokens(r)) == 1
-        # A non-int databaseId would store a dispatched record with run_id=None: never
-        # reusable, never reconcilable — skip the run rather than poison the record.
-        and _is_real_int(r.get("databaseId"))
-    ]
-    if not green:
+    def _completed(conclusion: str) -> list:
+        return [
+            r for r in runs
+            if isinstance(r, dict) and r.get("headSha") == head_sha
+            and r.get("event") == "workflow_dispatch"
+            and str(r.get("status") or "").lower() == "completed"
+            and str(r.get("conclusion") or "").lower() == conclusion
+            and len(_run_request_id_tokens(r)) == 1
+            # A non-int databaseId would store a dispatched record with run_id=None: never
+            # reusable, never reconcilable — skip the run rather than poison the record.
+            and _is_real_int(r.get("databaseId"))
+        ]
+
+    adoptable = _completed(_SUCCESS_CONCLUSION) or _completed(_FAILURE_CONCLUSION)
+    if not adoptable:
         return None
-    if len({r.get("databaseId") for r in green}) > 1:
+    if len({r.get("databaseId") for r in adoptable}) > 1:
         return None
-    run = green[0]
+    run = adoptable[0]
     (request_id,) = tuple(_run_request_id_tokens(run))
     attempt = run.get("attempt")
     return {
@@ -510,10 +518,10 @@ def cmd_request(args) -> int:
                 print(f"RECONCILE {pending['request_id']} run=none "
                       "state=dispatched-uncorrelated reason=run-not-yet-visible")
             return 0
-        # No local record: adopt a prior attempt's already-green same-head dispatch run
+        # No local record: adopt a prior attempt's already-completed same-head dispatch run
         # (issue #545). A resume on a fresh runner holds no request record, so without this
-        # it re-dispatches and re-waits a CI cycle already passed for this head.
-        adopt = _adopt_green_dispatch_run(args.repo, args.head_sha)
+        # it re-dispatches and re-waits a CI cycle this head already passed — or failed.
+        adopt = _adopt_completed_dispatch_run(args.repo, args.head_sha)
         if adopt is not None:
             record = {
                 "schema_version": SCHEMA_VERSION,

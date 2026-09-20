@@ -164,7 +164,7 @@ def main(argv=None):
 
     runs, status = load_runs_with_status(args.records)
     if status == "unreadable":
-        print("devflow: implement-benchmark: the experiment-record store exists but could "
+        print("prflow: implement-benchmark: the experiment-record store exists but could "
               "not be read; that is not an empty store, so no cohort below would mean "
               "anything", file=sys.stderr)
         return 1
@@ -182,7 +182,7 @@ def main(argv=None):
                                        ("B", args.cohort_b, cohort_b)):
         distinct = distinct_fingerprints(cohort)
         if len(distinct) > 1:
-            print(f"devflow: implement-benchmark: cohort {label}'s prefix "
+            print(f"prflow: implement-benchmark: cohort {label}'s prefix "
                   f"'{fingerprint}' matches {len(distinct)} distinct fingerprints "
                   f"({', '.join(distinct)}); pass a longer prefix so the cohorts are not "
                   f"silently merged", file=sys.stderr)

@@ -79,6 +79,8 @@ One kind of deferral has no follow-up issue: a finding settled by disclosure, wh
   Because a settled-by-disclosure entry has no follow-up issue, the pull request body is its only durable record. PRFlow therefore never wipes an existing Deferred Findings block when it regenerates a body — it merges rather than overwrites.
 </Note>
 
+A finding the run's own documentation pass discharges produces no row at all. When the issue's `**Documentation Needed**` list already names the file a finding was raised against, that run is already due to edit the file, so PRFlow files no follow-up issue and writes no Deferred Findings row or hidden payload entry for it — and removes one an earlier pass wrote. Every row you read in that table is work genuinely left undone.
+
 ## When There Is No Pull Request
 
 PRFlow does not create one. It outputs the complete description as plain text so you, or whatever opens the pull request, can supply it.

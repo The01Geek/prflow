@@ -37,6 +37,14 @@ Bundled helper files are found relative to the helper itself, not relative to yo
   </Accordion>
 </AccordionGroup>
 
+PRFlow warns you when it hits the first two layouts. If the Git root it resolved carries no `.prflow/` while a directory above it does, the helper writes one line to stderr naming the root it used, the `.prflow/` it did not read, and the explicit option that points it at the right one:
+
+```text
+config-get.sh: repo root '/Users/you/code/acme/vendor/sdk' has no .prflow/, but ancestor '/Users/you/code/acme' does — reading built-in defaults, not that config; to use it, pass it as the CONFIG_FILE argument.
+```
+
+The run continues on its built-in defaults, so the line is a warning, not a failure. A root that has its own `.prflow/` never produces it.
+
 ## Outside a Git Repository
 
 Some helpers fall back to the current directory when no Git root can be found. That fallback is not enough for real work: issue, branch, workpad and pull-request workflows all depend on actual Git and GitHub state. Start those workflows from inside the intended checkout.

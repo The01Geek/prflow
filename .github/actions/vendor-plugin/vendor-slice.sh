@@ -136,12 +136,65 @@ devflow_vendor_git() {
   fi
 }
 
+# Committed-branch advisory only: compare the committed copy's plugin.json version
+# against the configured DEVFLOW_REF (prflow_version) and surface drift as a GitHub
+# Actions annotation. Log-only — never gates vendor_source, execution, or exit code.
+# Every failure mode of the guarded python3 read collapses to ONE ::notice:: carrying
+# `unreadable`; a mismatch against a v<d>.<d>.<d>-shaped ref is a ::warning::; every
+# other comparable ref (a branch, a SHA, empty) is a ::notice::. Called ONLY from the
+# committed branch — the fetch branch already selected DEVFLOW_REF, so comparing there
+# would be vacuous (AC8). Under the file-top `set -euo pipefail` the python3 read is
+# caught with `|| ver=''` so a read failure never aborts the committed branch before
+# devflow_vendor_report_source runs. The comparison uses only bash builtins
+# (parameter expansion, `[[ =~ ]]`, string equality) — no jq/sed/cut decides the
+# emitted annotation (CLAUDE.md's non-preflight-PATH-tool rule).
+devflow_vendor_report_version_drift() {
+  local dest="$1" ref="${DEVFLOW_REF:-}" ver ref_bare
+  if ! command -v python3 >/dev/null 2>&1; then
+    printf '::notice::devflow-vendor: committed plugin.json version is unreadable (no python3 on PATH); skipping the vendor-version drift check.\n'
+    return 0
+  fi
+  ver="$(DEVFLOW_VENDOR_PLUGIN_JSON="$dest/.claude-plugin/plugin.json" python3 -c '
+import json, os, sys
+sys.stdout.reconfigure(newline="\n")
+try:
+    with open(os.environ["DEVFLOW_VENDOR_PLUGIN_JSON"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+v = data.get("version")
+if not isinstance(v, str) or v == "":
+    sys.exit(1)
+sys.stdout.write(v)
+' 2>/dev/null)" || ver=''
+  if [ -z "$ver" ]; then
+    printf '::notice::devflow-vendor: committed plugin.json version is unreadable (missing file, malformed JSON, non-string version, or python3 failed); skipping the vendor-version drift check.\n'
+    return 0
+  fi
+  ref_bare="${ref#v}"
+  if [ "$ref_bare" = "$ver" ]; then
+    return 0
+  fi
+  if [[ "$ref_bare" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    printf '::warning::devflow-vendor: the committed plugin copy is version %s, but prflow_version (DEVFLOW_REF) is pinned to %s — the committed copy is used, not %s.\n' \
+      "$ver" "$ref" "$ref"
+  else
+    local shown="$ref"
+    [ -n "$shown" ] || shown='(empty)'
+    printf '::notice::devflow-vendor: using the committed plugin copy version %s; DEVFLOW_REF is %s and is not consulted while a committed copy exists.\n' \
+      "$ver" "$shown"
+  fi
+}
+
 devflow_vendor_main() {
   local dest="${DEVFLOW_DEST:-.prflow/vendor/prflow}"
 
   # 1. committed branch — a consumer that committed the plugin (self-hosting).
   if [ -d "$dest/scripts" ]; then
     devflow_vendor_log "plugin already present at $dest — using the committed copy."
+    devflow_vendor_report_version_drift "$dest"
     devflow_vendor_report_source committed
     return 0
   fi

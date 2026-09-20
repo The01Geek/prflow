@@ -50,6 +50,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow.execution_denial_commands_enabled` | [Observability and Privacy](/docs/configuration/observability-and-privacy) | Whether denied command text is recorded. |
 | `prflow.execution_diagnostics_enabled` | [Observability and Privacy](/docs/configuration/observability-and-privacy) | Whether run diagnostics are printed to the logs. |
 | `prflow.execution_transcript_artifact_enabled` | [Observability and Privacy](/docs/configuration/observability-and-privacy) | Whether a scrubbed transcript is uploaded as an artifact. |
+| `prflow.execution_transcript_job_log_enabled` | [Observability and Privacy](/docs/configuration/observability-and-privacy) | Whether the transcript, which can include credentials, is streamed unscrubbed into the job log so an abruptly-killed run can still yield one. Applied only in private repositories. |
 | `prflow.provider` | [Model Providers](/docs/configuration/providers) | Provider route for the general cloud command path. |
 | `prflow.publish_model_effort` | [Implementation](/docs/configuration/implementation) | Whether the provenance line names the model and effort. |
 | `prflow.workpad_marker` | [Core Settings](/docs/configuration/core-settings) | The marker that identifies a workpad comment. |

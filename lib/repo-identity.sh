@@ -27,7 +27,7 @@
 # jq binary: resolved once via the sourced sibling resolver (issue #247).
 # shellcheck source=resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 # gh binary: resolved once via the single-source resolver (execution-verified);
 # an explicit DEVFLOW_GH still wins, so test stubs are untouched.

@@ -14,10 +14,6 @@ displaced-path attribution. If the run's engine-ground-truth block lists displac
 
 **Match a porcelain path against the list by prefix, not by equality.** The list publishes **leaf file** paths, but `git status --porcelain` **collapses a wholly-untracked directory to the directory alone** — a consumer that tracks nothing under `.prflow/skill-extensions/` reports `?? .prflow/skill-extensions/`, and one tracking nothing under `.prflow/` reports `?? .prflow/`; neither leaf path appears. An equality-only predicate therefore matches nothing on exactly the consumer shape the untracked clause was added for, and the warning fires on every such review run. So attribute a porcelain path when it **is** a displaced path **or is a directory prefix of one**. All three delta kinds take that attribution, so an untracked displaced path draws no warning either. Remaining paths keep the warning sentence above verbatim. With no displaced list (local tier, manual `devflow.yml` path, consumer skip) all paths keep today's warning.
 
-### 0.1.5 Persist the displaced-path list (compaction survival)
-
-The engine-ground-truth block prepended to this run (rendered by `scripts/render-grounding-block.sh`) carries a displaced-paths section (section 7) ONLY when the workflow published a non-empty `HARDENED_PATHS` this run. Read that section and write the listed repo-relative paths to `.prflow/tmp/displaced-paths.txt` via the **Write tool** (one path per line; write an empty file when there is no such section — `Write(.prflow/tmp/**)` is already granted on the review tier). Phase 2.1a/2.1b, Phase-3 dispatch, and Phase 4.1.6 re-read this file to know which paths route their HEAD verification through `git show`, so a compacted long run keeps the routing at the far end where the sweep executes. A missing or empty file degrades to today's behavior (no displaced list → no routing, no attribution), never to a guess.
-
 ### 0.1.6 Reading a CI job's log
 
 Read a chosen line window of a CI job's log with `scripts/page-job-log.py` — on the cloud review tier the granted leading token `.prflow/vendor/prflow/scripts/page-job-log.py`, called with a flat argument list: a job id, a start line, and an end line as plain words. The first call downloads that job's log once into `.prflow/tmp/`; later calls slice the stored copy. It prints a header line (job id, the log's total line count, the range served, the stored path, any truncation applied) then the capped, sanitized lines.
@@ -58,7 +54,7 @@ Use the PR diff output for Phase 1. Store the head branch name, `baseRefOid` as 
 
 Caller head-override (fix-loop reuse). A wrapping skill (currently `/prflow:review-and-fix`) may pass `head_override = local`. When set, take the PR's head from the local working tree instead of the API: set `$PR_HEAD_SHA=$(git rev-parse HEAD)` — leaving `$PR_API_HEAD_SHA` at the API value, since a locally-committed but unpushed SHA is not a head any other job can resolve — and fetch the diff with `git diff "origin/$PR_BASE_BRANCH...HEAD"` (three-dot) instead of `gh pr diff $PR_NUMBER`. The base is the PR's own base ref `$PR_BASE_BRANCH` (its current fetched tip), not the run-start `$PR_BASE_SHA` — matching `gh pr diff`'s non-override semantics, so a base commit an in-loop Checkpoint-3 (`scripts/update-branch-checkpoint.sh`) merges into the PR head mid-loop is excluded, not attributed as PR-added content. It requires the PR's head branch checked out; the caller guarantees this (review-and-fix Step 0.5). When `head_override` is absent (standalone `/prflow:review`, the default) use the API head as above; do not diff against local `HEAD`, since a standalone review must reflect the pushed PR state, not a dirty or stale checkout.
 
-Resolve the head-override base ref before diffing (mirrors `scripts/update-branch-checkpoint.sh`). The checked arms below refresh the PR's base through an explicit refspec (including names with `/`), retry a shallow merge-base failure once after `--unshallow`, select the immutable run-start SHA only when the named base has disappeared, and make a retargeted/stacked PR's residual visible. Every terminal failure removes candidate and prior caches before stopping; the wrapping `/prflow:implement` run records that stop as Blocked, a standalone run stops and reports it.
+Resolve the head-override base ref before diffing (mirrors `scripts/update-branch-checkpoint.sh`) — the one-call setup helper below does this itself, so run this fence only as that helper's fallback. The checked arms below refresh the PR's base through an explicit refspec (including names with `/`), retry a shallow merge-base failure once after `--unshallow`, select the immutable run-start SHA only when the named base has disappeared, and make a retargeted/stacked PR's residual visible. Every terminal failure removes candidate and prior caches before stopping; the wrapping `/prflow:implement` run records that stop as Blocked, a standalone run stops and reports it.
 
 
 ```bash
@@ -159,7 +155,24 @@ gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !i
 # git diff "origin/$BASE...HEAD" | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' | tee .prflow/tmp/review/<slug>/<run-id>/diff.patch
 ```
 
-In either local-diff mode — PR head override or current branch — replace that one-liner with the ordered steps below. `<resolved-local-diff-base>` is resolved from the selected `$HEAD_OVERRIDE_BASE` (PR head override) or `origin/$BASE` (current branch) — see *Pin the base before rendering* below for the resolution, which must happen before any step is emitted. No step uses a redirect; where a step has multiple stages they pipe, so the diff's bytes never transit this orchestrator.
+**One-call setup (both local-diff modes).** In PR head-override or current-branch mode, run the setup helper once. It replaces the base-resolution fence above, the ordered steps below, Phase 0.3's file list, Phase 0.5's counts and mechanical flags, the root-identity manifest write, and Phase 3.1's dirty-tree snapshot, which it takes last. Emit the vendored literal first; on a not-found reading (`command not found` / `No such file` / exit 127) emit `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/review-dirty-tree.sh engine-setup` with the same arguments — a single leading-token statement, every argument a literal you substitute:
+
+```bash
+.prflow/vendor/prflow/scripts/review-dirty-tree.sh engine-setup --mode <mode> --run-id <run-id> --base-branch <base-branch> --base-sha <base-sha> --configured-base <configured-base> --pr <pr-number> --engine-dir <skill-dir> --identity-hashes <entry-hashes>
+```
+
+`<mode>` is `head-override` (`<base-branch>` is `$PR_BASE_BRANCH`, `<base-sha>` `$PR_BASE_SHA`, `<configured-base>` `$BASE`) or `current-branch` (`<base-branch>` is `$BASE`; omit `--base-sha`, `--configured-base` and `--pr`). `<entry-hashes>` are the root-identity hashes you derived at engine entry, space-separated; a bundle that changed since then stops the helper at `identity: mismatch`.
+
+It prints one JSON line; route on `status`:
+
+- `ok` — hold `slug`, `run_dir`, `diff_path` (`{DIFF_PATH}`), `base` and `base_sha` (the selected `$HEAD_OVERRIDE_BASE` and its pinned commit), `head_sha` (`$PR_HEAD_SHA` under head override, and the commit the diff was produced at), `files` (Phase 0.3's list — status `s`, path `p`, added `a`, deleted `d`), `file_count`, `changed_lines`, `flags`, `audit_hints` and `snapshot_oid` (Phase 3.1's `{GIT_SNAP_BEFORE_OID}`; `unavailable` is a failed snapshot). Report each `warnings` entry. All but `snapshot_oid` persists at `<run_dir>/engine-setup.json` for a compacted context.
+- `empty` — take the "No changes to review" stop above.
+- `error` — stop, quoting `step` and `reason`, exactly as the failure routing below stops; once the run directory resolved, the helper has already removed both caches.
+- No JSON at all (refused, or not found on both arms) — fall back to the base-resolution fence above and the ordered steps below.
+
+In both local-diff modes, helper or fallback, the diff's bytes stay out of this context: never Read `diff.patch` or a batch slice yourself.
+
+Fallback when the setup helper printed no JSON. In either local-diff mode — PR head override or current branch — replace that one-liner with the ordered steps below. `<resolved-local-diff-base>` is resolved from the selected `$HEAD_OVERRIDE_BASE` (PR head override) or `origin/$BASE` (current branch) — see *Pin the base before rendering* below for the resolution, which must happen before any step is emitted. No step uses a redirect; where a step has multiple stages they pipe, so the diff's bytes never transit this orchestrator.
 
 Step 1 — clear stale authority.
 
@@ -243,13 +256,36 @@ This replaces the bare `gh pr diff` / `git diff` invocation at the top of Phase 
 
 `.prflow/tmp/` should be gitignored (ephemeral scratch); the rest of `.prflow/` (`config.json`, `learnings/`, the schema/example) is intentionally tracked. The scaffolder (`scripts/scaffold-config.sh`, run by `install.sh` / `/prflow:init`) writes a scoped `.prflow/.gitignore` ignoring only `tmp/`. This skill does not manage that entry (a repo-level concern); flag missing coverage in chat output only if `.prflow/tmp/` is not already ignored.
 
+### 0.2.8 Materialize the commit-bound source view
+
+Bind checklist generation, verification and lite probes to the reviewed commit rather than the checkout. After the diff cache and SHAs are established, materialize a run-scoped **source view** for the head, and one for the base, through the granted helper — the producer lives in the sibling `review-engine-io.py`, hosted on the same head as `engine-setup`, so this needs no new grant. Emit the vendored literal first; on a not-found reading (`command not found` / `No such file` / exit 127) emit the `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/review-dirty-tree.sh` anchor form with the same arguments. Substitute every argument as a literal:
+
+```bash
+.prflow/vendor/prflow/scripts/review-dirty-tree.sh view-materialize --run-dir <run_dir> --revision head --commit <head-commit> --diff-base <base-commit> --pr <pr-number>
+.prflow/vendor/prflow/scripts/review-dirty-tree.sh view-materialize --run-dir <run_dir> --revision base --commit <base-commit> --diff-base <head-commit>
+```
+
+Resolve the two commits per mode, all as literals — never an argument-position parameter expansion:
+
+- **Standalone PR-number mode:** `<head-commit>` is `$PR_HEAD_SHA`, `<base-commit>` is `$PR_BASE_SHA`, and `--pr <pr-number>` is the parsed `$PR_NUMBER` (its only use is the producer's one-shot `git fetch origin refs/pull/<N>/head` retry before declaring a fork head unavailable). This is standalone PR mode's first invocation of this helper.
+- **Head-override (fix-loop) mode:** `<head-commit>` is `$PR_HEAD_SHA` (the local `HEAD`), `<base-commit>` is the pinned `$HEAD_OVERRIDE_BASE`; omit `--pr`.
+- **Current-branch mode:** `<head-commit>` is the pinned `HEAD` commit, `<base-commit>` is the pinned `origin/$BASE`; omit `--pr`.
+
+Each call prints one JSON line; route on `status`:
+
+- `ok` — hold `view_dir` and `revision` as `{VIEW_HEAD}`/`{VIEW_HEAD_REV}` and `{VIEW_BASE}`/`{VIEW_BASE_REV}`. These are the run's **bound revisions**: checklist generation and verification read repository files from `{VIEW_HEAD}/<stored_path>` (a base-state claim from `{VIEW_BASE}/`), and every verifier stamps the view it read as `view_revision` (Phase 2 / the agent bodies). The inventory at `<view_dir>/inventory.json` maps each original path to its `stored_path` (harness-instruction files — `CLAUDE.md`, `AGENTS.md`, any path under a `.claude/` dir — are stored under a `.src` suffix so the harness never loads a PR-authored copy as instructions; a claim about them still reads the `.src` bytes), and records symlink and submodule entries without materializing them (a Git LFS pointer entry is materialized as its small pointer bytes, never resolved to the large object), and proven-deleted paths as `kind: "deleted"`.
+- `error` — stop, quoting `step` and `reason` (fail-closed: an unavailable commit, failed read, partial materialization or unsafe path). The wrapping `/prflow:implement` run records the stop as **Blocked**; a standalone run stops and reports it. Never fall back to checkout bytes.
+- No JSON at all (helper absent on an older install, or refused) — the source view is unavailable, so record that verification is **incomplete** for this run (a missing capability leaves verification incomplete, never silently trusting checkout bytes as head evidence) and proceed with the collector's view gate inert; do not synthesize a view.
+
+Carry `{VIEW_HEAD}`, `{VIEW_HEAD_REV}`, `{VIEW_BASE}`, `{VIEW_BASE_REV}` into Phase 1 (generator dispatch), Phase 2 (verifier dispatch and the collector's `views` input) and Phase 3.
+
 ### 0.3 Get changed file list
 
-Extract the list of changed files by parsing the filtered `diff.patch` cached in 0.2 (read its `diff --git a/<path> b/<path>` headers), not from an independent `git diff --name-only` / `gh pr diff --name-only`. `.prflow/logs/**` paths were stripped from `diff.patch` in 0.2, so deriving the file list from it excludes them by construction — and Phase 1.1's batch slicing reads the same filtered `diff.patch`, so a `.prflow/logs/` hunk can never re-enter a batch slice, and Phase 3's agents Read the same cached diff. Store this list — Phase 1 and Phase 3 need it.
+Extract the list of changed files by parsing the filtered `diff.patch` cached in 0.2 (read its `diff --git a/<path> b/<path>` headers), not from an independent `git diff --name-only` / `gh pr diff --name-only`. `.prflow/logs/**` paths were stripped from `diff.patch` in 0.2, so deriving the file list from it excludes them by construction — and Phase 1.1's batch slicing reads the same filtered `diff.patch`, so a `.prflow/logs/` hunk can never re-enter a batch slice, and Phase 3's agents Read the same cached diff. When the setup helper ran, its `files` is this list. Store this list — Phase 1 and Phase 3 need it.
 
 ### 0.3.5 Select and seed the progress surface
 
-When `$PROGRESS_SURFACE` is exactly `workpad`, do not seed a live PR progress comment, regardless of PR mode or `prflow_review.live_progress_comment_enabled`; the caller's existing issue workpad is the progress surface, and each tuple-declared phase-boundary tick routes there per the Progress Surfaces section above.
+When `$PROGRESS_SURFACE` is exactly `workpad`, do not seed a live PR progress comment, regardless of PR mode or `prflow_review.live_progress_comment_enabled`; the caller's existing issue workpad is the progress surface, and the fix loop records each tuple-declared phase-boundary row there — Step 1.8 the five phase rows, Loop Exit `Run complete`; the engine ticks none — per the Progress Surfaces section above.
 
 When your prompt carries workflow pre-seeded live-progress values — a `Pre-seeded progress comment id`, marker, and run link the `devflow.yml` command job's seeding step handed off — hold them as `$WP`, `$MARKER`, and `$RUN_URL` and do NOT re-seed; compose no second marker, since the handed-off marker is authoritative. Then follow the update protocol at each phase boundary. The seed procedure in the next paragraph is the fallback for a run whose prompt carries no such values (a local run, an installed workflow predating the seeding step, or a compacted context): there, seed as described, and the helper's find-or-resume arm adopts any comment this run's marker already keys.
 
@@ -271,7 +307,7 @@ Compare the printed commit to `$PR_API_HEAD_SHA` (the API-resolved pushed head f
 - divergent — naming both commit ids (tree and head); this is the expected shape on the shipped cloud tier, whose checkout is pinned to the default branch;
 - unestablished — `git rev-parse HEAD` could not be read (refused, empty, or non-zero).
 
-This recorded divergence fact does not by itself change any verdict — verdicts change only through the diff-touched / displaced-path read channel (Phase 2 / 3 / 4). Unlike the fix loop's Step 0.5 tree-identity check, a divergence here never stops the run: a standalone review's tree is expected to sit on the default branch, and the routing reads head bytes through `git show` regardless.
+This recorded divergence fact does not by itself change any verdict — verdicts change only through the commit-bound source view (§0.2.8), which supplies head/base bytes regardless of the checkout. Unlike the fix loop's Step 0.5 tree-identity check, a divergence here never stops the run: a standalone review's tree is expected to sit on the default branch, and checklist generation and verification read the reviewed commit from the view.
 
 ### 0.4 Discover related GitHub issue and resolve its acceptance criteria
 
@@ -371,7 +407,7 @@ Compute four flags:
 - `has_new_types` = the added-lines slice of the diff (lines starting with `+` but not `+++`) contains, in a code file (file extension NOT in the `config_only` set above), a line that matches `^\+\s*(?:(?:final|abstract|readonly|export(?:\s+default)?|public|pub)\s+)*(class|interface|type|enum|struct|trait)\s+\w+`.
 - `detect_all_audit` = the diff **adds or changes a "detect-all" scanner / audit / coverage-invariant**: a new or modified function, test, or review/skill step that (a) **enumerates a *population* of sites** (files, symbols, config keys, checklist items, agents, call sites, …) and (b) **asserts a completeness property over that whole population** — a count/coverage assertion, a superset/subset check, or an "every / all / none-remaining / no other" claim. The load-bearing signal is the **combination** of *enumerate-a-population* AND *assert-it-is-complete* — set the flag only when the added/changed lines do **both**. A single-target `grep`, a one-off equality assertion, or a check over a fixed hand-listed set is **not** this shape (it enumerates nothing, or asserts no completeness). Read the flag off the *audit being introduced or edited*, not whatever it matches. It is **independent of** the other three flags and can co-occur with any: a detect-all audit that also matches a config-only profile still sets `detect_all_audit`, and one added to product code sets it alone.
 
-Compute counts from the diff already fetched in 0.2/0.3 — no extra `gh` calls.
+Compute counts from the diff already fetched in 0.2/0.3 — no extra `gh` calls. When the setup helper ran, take `small_diff`, `config_only` and `has_new_types` from its `flags`, and decide `detect_all_audit` from its `audit_hints` (added lines, in files whose added lines both enumerate and assert), the file list and `issue_context`. Hints are a floor: set the flag when the change's stated purpose is such an audit even with no hint, and settle a doubtful hint with a bounded Read of that file at that line — never the diff.
 
 Apply the engine profile per the table below. A repository-local path set that a consumer prompt extension declares as forcing the full checklist takes precedence over these rows, so a changed path in that set runs the full Phase 1+2 checklist regardless of `small_diff`/`config_only`. Output one line announcing the chosen profile:
 
@@ -391,4 +427,6 @@ Announce one line, e.g.:
 - `Diff classification: detect_all_audit → full engine (or the selected profile), AND forcing the Phase 3.1.5 completeness-critic pass.`
 - `Diff classification: small_diff + config_only → skipping Phase 1+2 and pr-test-analyzer + type-design-analyzer.`
 - `Diff classification: full engine.`
+
+Next comes Phase 0.6 when enabled, then Phase 3 §3.1 — before Phase 1: the reviewers read nothing Phase 1 or 2 produce, so §3.1 composes them now and states where they dispatch and when they are collected.
 <!-- prflow:review-ref phase=0 file=skills/review/phases/phase-0-setup.md end -->

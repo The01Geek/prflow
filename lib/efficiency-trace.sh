@@ -87,7 +87,7 @@ set -euo pipefail
 # `jq` with a breadcrumb rather than aborting under set -e.
 # shellcheck source=resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
@@ -106,7 +106,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # duplicates, and the persist-time one is what tells the operator what was lost.
 # shellcheck source=lib/telemetry-branch.sh
 . "$HERE/telemetry-branch.sh" || {
-  echo "devflow: telemetry-branch.sh could not be sourced beside ${BASH_SOURCE[0]} — --persist cannot reach the telemetry branch this run; using no-op stubs so backstop reads degrade cleanly (best-effort exit-0 preserved)" >&2
+  echo "prflow: telemetry-branch.sh could not be sourced beside ${BASH_SOURCE[0]} — --persist cannot reach the telemetry branch this run; using no-op stubs so backstop reads degrade cleanly (best-effort exit-0 preserved)" >&2
   devflow_telemetry_branch()       { printf 'prflow-telemetry\n'; }
   devflow_telemetry_ref()          { printf 'refs/heads/prflow-telemetry\n'; }
   devflow_telemetry_blob_exists()  { return 1; }
@@ -1496,12 +1496,12 @@ persist_one() {
 _floor_merge_staged() {
   local file="$1" hc="$2" label="$3" jq_err
   if "$DEVFLOW_JQ" -e 'has("harness_cost")' "$file" >/dev/null 2>&1; then
-    echo "devflow: efficiency-trace.sh --persist: harness cost floor: ${label} already carries harness_cost; left untouched" >&2
+    echo "prflow: efficiency-trace.sh --persist: harness cost floor: ${label} already carries harness_cost; left untouched" >&2
     return 0
   fi
   if jq_err="$("$DEVFLOW_JQ" --argjson hc "$hc" '.harness_cost = $hc' "$file" 2>&1 > "$file.harnesstmp")"; then
     if mv "$file.harnesstmp" "$file" 2>/dev/null; then
-      echo "devflow: efficiency-trace.sh --persist: harness cost floor: attached harness_cost to ${label}" >&2
+      echo "prflow: efficiency-trace.sh --persist: harness cost floor: attached harness_cost to ${label}" >&2
     else
       echo "::warning::efficiency-trace.sh --persist: harness cost floor: could not move the merged ${label} into place; left without harness_cost" >&2
       rm -f "$file.harnesstmp" 2>/dev/null
@@ -1550,6 +1550,24 @@ apply_harness_floor() {
     ev=""
     echo "::warning::efficiency-trace.sh --persist: harness cost floor: could not read .version from ${plugin_json}; engine_version recorded as null" >&2
   fi
+  # cost_source/scope (issue #670): read the source marker the cost handoff carries.
+  # Absent → execution-file/whole-job (today's default, no breadcrumb). Exactly the
+  # string "native-session" → native-session/top-level-session (a cancelled run's
+  # top-level session cost, which excludes subagent files — hence the narrower
+  # scope). Present but any other shape (another string, "", null, a number, object,
+  # array) → execution-file/whole-job with a breadcrumb. The harness_cost template
+  # below constructs a fresh object naming each field, so the marker key is never
+  # copied into harness_cost regardless of the input shape.
+  local cost_source="execution-file" scope="whole-job" marker_class
+  marker_class="$(printf '%s' "$DEVFLOW_EXECUTION_COST" | "$DEVFLOW_JQ" -r \
+    'if (has("__cost_source_marker") | not) then "absent"
+     elif .__cost_source_marker == "native-session" then "native"
+     else "other" end' 2>/dev/null)"
+  case "$marker_class" in
+    native) cost_source="native-session"; scope="top-level-session" ;;
+    other)  echo "::warning::efficiency-trace.sh --persist: harness cost floor: __cost_source_marker present but not the string \"native-session\"; recording cost_source=execution-file/scope=whole-job" >&2 ;;
+    *) : ;;
+  esac
   # Build harness_cost (AC4 — EXACTLY these fields): metadata plus the reader's figures
   # spread in. workflow/command are null when their env is empty (unknown-is-not-zero).
   local harness_cost
@@ -1557,11 +1575,13 @@ apply_harness_floor() {
         --arg ev "$ev" \
         --arg wf "${GITHUB_WORKFLOW_REF:-}" \
         --arg cmd "${DEVFLOW_COMMAND_CLASS:-}" \
-        '{cost_source: "execution-file",
+        --arg cs "$cost_source" \
+        --arg sc "$scope" \
+        '{cost_source: $cs,
           engine_version: (if $ev == "" then null else $ev end),
           workflow: (if $wf == "" then null else $wf end),
           command: (if $cmd == "" then null else $cmd end),
-          scope: "whole-job",
+          scope: $sc,
           cost_usd: .cost_usd,
           tokens: .tokens,
           model_usage: .model_usage,
@@ -1598,12 +1618,12 @@ apply_harness_floor() {
     blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || continue
     [ -n "$blob" ] || continue
     if printf '%s' "$blob" | "$DEVFLOW_JQ" -e 'has("harness_cost")' >/dev/null 2>&1; then
-      echo "devflow: efficiency-trace.sh --persist: harness cost floor: record ${rel} already carries harness_cost; leaving it untouched (backstop re-run no-op)" >&2
+      echo "prflow: efficiency-trace.sh --persist: harness cost floor: record ${rel} already carries harness_cost; leaving it untouched (backstop re-run no-op)" >&2
       return 0
     fi
     mkdir -p "$eff_dir" 2>/dev/null || true
     if printf '%s' "$blob" | "$DEVFLOW_JQ" --argjson hc "$harness_cost" '.harness_cost = $hc' > "${eff_dir}/${base}" 2>/dev/null; then
-      echo "devflow: efficiency-trace.sh --persist: harness cost floor: attached harness_cost to already-persisted record ${rel}" >&2
+      echo "prflow: efficiency-trace.sh --persist: harness cost floor: attached harness_cost to already-persisted record ${rel}" >&2
     else
       echo "::warning::efficiency-trace.sh --persist: harness cost floor: could not merge harness_cost into ${rel}; no floor write" >&2
       rm -f "${eff_dir}/${base}" 2>/dev/null
@@ -1651,7 +1671,7 @@ apply_harness_floor() {
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
           synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
           harness_cost: $hc}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
-    echo "devflow: efficiency-trace.sh --persist: harness cost floor: no record for run-id ${ident}; wrote a minimal cost skeleton ${slug}-${ident}.json (source:null, synthesized:true)" >&2
+    echo "prflow: efficiency-trace.sh --persist: harness cost floor: no record for run-id ${ident}; wrote a minimal cost skeleton ${slug}-${ident}.json (source:null, synthesized:true)" >&2
   else
     echo "::warning::efficiency-trace.sh --persist: harness cost floor: could not write the cost skeleton for ${slug}-${ident}; no floor write" >&2
     rm -f "${eff_dir}/${slug}-${ident}.json" 2>/dev/null
@@ -1696,12 +1716,12 @@ apply_harness_floor() {
 _denial_merge_staged() {
   local file="$1" dr="$2" label="$3" jq_err
   if "$DEVFLOW_JQ" -e 'has("permission_denials")' "$file" >/dev/null 2>&1; then
-    echo "devflow: efficiency-trace.sh --persist: denial floor: ${label} already carries permission_denials; left untouched" >&2
+    echo "prflow: efficiency-trace.sh --persist: denial floor: ${label} already carries permission_denials; left untouched" >&2
     return 0
   fi
   if jq_err="$("$DEVFLOW_JQ" --argjson dr "$dr" '.permission_denials = $dr' "$file" 2>&1 > "$file.denialtmp")"; then
     if mv "$file.denialtmp" "$file" 2>/dev/null; then
-      echo "devflow: efficiency-trace.sh --persist: denial floor: attached permission_denials to ${label}" >&2
+      echo "prflow: efficiency-trace.sh --persist: denial floor: attached permission_denials to ${label}" >&2
     else
       echo "::warning::efficiency-trace.sh --persist: denial floor: could not move the merged ${label} into place; left without permission_denials" >&2
       rm -f "$file.denialtmp" 2>/dev/null
@@ -1751,12 +1771,12 @@ apply_denial_floor() {
     blob="$(devflow_telemetry_show_blob "$root" "$ref" "$rel")" || continue
     [ -n "$blob" ] || continue
     if printf '%s' "$blob" | "$DEVFLOW_JQ" -e 'has("permission_denials")' >/dev/null 2>&1; then
-      echo "devflow: efficiency-trace.sh --persist: denial floor: record ${rel} already carries permission_denials; leaving it untouched (backstop re-run no-op)" >&2
+      echo "prflow: efficiency-trace.sh --persist: denial floor: record ${rel} already carries permission_denials; leaving it untouched (backstop re-run no-op)" >&2
       return 0
     fi
     mkdir -p "$eff_dir" 2>/dev/null || true
     if printf '%s' "$blob" | "$DEVFLOW_JQ" --argjson dr "$dr" '.permission_denials = $dr' > "${eff_dir}/${base}" 2>/dev/null; then
-      echo "devflow: efficiency-trace.sh --persist: denial floor: attached permission_denials to already-persisted record ${rel}" >&2
+      echo "prflow: efficiency-trace.sh --persist: denial floor: attached permission_denials to already-persisted record ${rel}" >&2
     else
       echo "::warning::efficiency-trace.sh --persist: denial floor: could not merge permission_denials into ${rel}; no floor write" >&2
       rm -f "${eff_dir}/${base}" 2>/dev/null
@@ -1807,7 +1827,7 @@ apply_denial_floor() {
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
           synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
           permission_denials: $dr}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
-    echo "devflow: efficiency-trace.sh --persist: denial floor: no record for run-id ${ident}; wrote a minimal denial skeleton ${slug}-${ident}.json (source:null, synthesized:true) so the denial record is durable even without cost figures" >&2
+    echo "prflow: efficiency-trace.sh --persist: denial floor: no record for run-id ${ident}; wrote a minimal denial skeleton ${slug}-${ident}.json (source:null, synthesized:true) so the denial record is durable even without cost figures" >&2
   else
     echo "::warning::efficiency-trace.sh --persist: denial floor: could not write the denial skeleton for ${slug}-${ident}; no floor write" >&2
     rm -f "${eff_dir}/${slug}-${ident}.json" 2>/dev/null
@@ -1838,12 +1858,12 @@ apply_denial_floor() {
 _floor_merge_key_staged() {
   local file="$1" key="$2" val="$3" label="$4" floor="$5" jq_err
   if "$DEVFLOW_JQ" -e --arg k "$key" 'has($k)' "$file" >/dev/null 2>&1; then
-    echo "devflow: efficiency-trace.sh --persist: ${floor}: ${label} already carries ${key}; left untouched" >&2
+    echo "prflow: efficiency-trace.sh --persist: ${floor}: ${label} already carries ${key}; left untouched" >&2
     return 0
   fi
   if jq_err="$("$DEVFLOW_JQ" --arg k "$key" --argjson v "$val" '.[$k] = $v' "$file" 2>&1 > "$file.keytmp")"; then
     if mv "$file.keytmp" "$file" 2>/dev/null; then
-      echo "devflow: efficiency-trace.sh --persist: ${floor}: attached ${key} to ${label}" >&2
+      echo "prflow: efficiency-trace.sh --persist: ${floor}: attached ${key} to ${label}" >&2
     else
       echo "::warning::efficiency-trace.sh --persist: ${floor}: could not move the merged ${label} into place; left without ${key}" >&2
       rm -f "$file.keytmp" 2>/dev/null
@@ -2003,12 +2023,12 @@ apply_run_profile_floor() {
       continue
     fi
     if printf '%s' "$blob" | "$DEVFLOW_JQ" -e 'has("run_profile")' >/dev/null 2>&1; then
-      echo "devflow: efficiency-trace.sh --persist: run-profile floor: record ${rel} already carries run_profile; leaving it untouched (backstop re-run no-op)" >&2
+      echo "prflow: efficiency-trace.sh --persist: run-profile floor: record ${rel} already carries run_profile; leaving it untouched (backstop re-run no-op)" >&2
       return 0
     fi
     mkdir -p "$eff_dir" 2>/dev/null || true
     if printf '%s' "$blob" | "$DEVFLOW_JQ" --argjson rp "$run_profile" '.run_profile = $rp' > "${eff_dir}/${base}" 2>/dev/null; then
-      echo "devflow: efficiency-trace.sh --persist: run-profile floor: attached run_profile to already-persisted record ${rel}" >&2
+      echo "prflow: efficiency-trace.sh --persist: run-profile floor: attached run_profile to already-persisted record ${rel}" >&2
     else
       echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not merge run_profile into ${rel}; no floor write" >&2
       rm -f "${eff_dir}/${base}" 2>/dev/null
@@ -2041,7 +2061,7 @@ apply_run_profile_floor() {
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
           synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
           run_profile: $rp}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
-    echo "devflow: efficiency-trace.sh --persist: run-profile floor: no record for run-id ${ident}; wrote a minimal run-profile skeleton ${slug}-${ident}.json" >&2
+    echo "prflow: efficiency-trace.sh --persist: run-profile floor: no record for run-id ${ident}; wrote a minimal run-profile skeleton ${slug}-${ident}.json" >&2
   else
     echo "::warning::efficiency-trace.sh --persist: run-profile floor: could not write the run-profile skeleton for ${slug}-${ident}; no floor write" >&2
     rm -f "${eff_dir}/${slug}-${ident}.json" 2>/dev/null
@@ -2088,13 +2108,13 @@ apply_pr_less_issue_floor() {
   if [ -d "$eff_dir" ]; then
     for f in "$eff_dir"/*-"$ident".json; do
       [ -e "$f" ] || continue
-      echo "devflow: efficiency-trace.sh --persist: PR-less floor: a record for run-id ${ident} is already staged ($(basename "$f")); leaving it as the host record" >&2
+      echo "prflow: efficiency-trace.sh --persist: PR-less floor: a record for run-id ${ident} is already staged ($(basename "$f")); leaving it as the host record" >&2
       return 0
     done
   fi
   ref="$(devflow_telemetry_ref)"
   if [ -n "$ref" ] && devflow_telemetry_blob_exists "$root" "$ref" ".prflow/logs/efficiency/${slug}-${ident}.json" 2>/dev/null; then
-    echo "devflow: efficiency-trace.sh --persist: PR-less floor: .prflow/logs/efficiency/${slug}-${ident}.json is already on the telemetry branch; declining to overwrite it (backstop re-run no-op)" >&2
+    echo "prflow: efficiency-trace.sh --persist: PR-less floor: .prflow/logs/efficiency/${slug}-${ident}.json is already on the telemetry branch; declining to overwrite it (backstop re-run no-op)" >&2
     return 0
   fi
   generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -2106,7 +2126,7 @@ apply_pr_less_issue_floor() {
           issue_number: $issue,
           no_pr_reason: (if $reason == "" then "unestablished" else $reason end)}' 2>/dev/null)" \
      && printf '%s\n' "$rec" > "${eff_dir}/${slug}-${ident}.json"; then
-    echo "devflow: efficiency-trace.sh --persist: PR-less floor: no PR resolved for issue ${issue}; wrote ${slug}-${ident}.json so the cost, denial and profile floors have a host record" >&2
+    echo "prflow: efficiency-trace.sh --persist: PR-less floor: no PR resolved for issue ${issue}; wrote ${slug}-${ident}.json so the cost, denial and profile floors have a host record" >&2
   else
     echo "::warning::efficiency-trace.sh --persist: PR-less floor: could not write ${slug}-${ident}.json; this run's record is dropped" >&2
     rm -f "${eff_dir}/${slug}-${ident}.json" 2>/dev/null
@@ -2125,7 +2145,7 @@ do_persist() {
   # exec of it: a new exec edge here breaks the issue-#458 Stop-hook drift guard.
   local _tel_rc
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "devflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+    echo "prflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
   else
     # `|| _tel_rc=$?`, never a bare invocation then `$?`: this file runs under
     # `set -e`, which kills the whole --persist on the predicate's non-zero exit.
@@ -2147,17 +2167,17 @@ tel = data.get("telemetry")
 sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
 ' >/dev/null 2>&1 || _tel_rc=$?
     if [ "$_tel_rc" -eq 0 ]; then
-      echo "devflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
+      echo "prflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
       # Targeted form: the master switch declined the whole call → ok skipped (issue #344).
       [ -n "$WORKPAD_DIR" ] && printf 'persist-outcome: ok skipped\n'
       return 0
     elif [ "$_tel_rc" -eq 2 ]; then
-      echo "devflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+      echo "prflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
     elif [ "$_tel_rc" -ne 1 ]; then
       # Catch-all: an exit outside the predicate's {0,1,2} contract means the
       # interpreter itself broke. Announcing it is what stops this gate failing
       # open in silence.
-      echo "devflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+      echo "prflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
     fi
   fi
   root="$(devflow_repo_root)"

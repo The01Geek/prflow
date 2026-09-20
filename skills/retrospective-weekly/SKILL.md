@@ -20,7 +20,7 @@ implement → review pipeline, not landed as an autonomous PR.
 
 Subagent dispatch is user-requested here (injection-condition clause). Invoking `/prflow:retrospective-weekly` is the user's request for subagent dispatch at this loop's two judgment points — the Stage A per-PR retrospective subagents (Step 4) and the Stage B per-pattern issue-spec subagents (Step 8b) — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else; every other step stays the deterministic scripts the conductor runs directly.
 
-Helper-path form (textual). Every bundled-helper command in this skill is written inline with the full portable anchor — `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/<name>` for a `scripts/` helper and `.../../lib/<name>` for a `lib/` helper — resolved per the *Portable helper anchor* note below. Never capture the anchor into a shell variable that a later statement reads: each Bash call is a fresh shell. The five retrospective libraries are no longer sourced into this skill's shell; their thirteen cloud-used functions are reached through the `retro-helper.sh <subcommand>` dispatcher, invoked as a bare granted path (vendored literal first, portable-anchor fallback for the local tier), which reads its inputs from and writes its outputs to fixed `.prflow/tmp/retro-helper/…` files.
+Helper-path form (textual). Every bundled-helper command in this skill is written inline with the full portable anchor — `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/<name>` for a `scripts/` helper and `.../../lib/<name>` for a `lib/` helper — resolved per the *Portable helper anchor* note below. Never capture the anchor into a shell variable that a later statement reads: each Bash call is a fresh shell. The five retrospective libraries are no longer sourced into this skill's shell; their thirteen cloud-used functions are reached through the `retro-helper.sh <subcommand>` dispatcher, invoked as a bare granted path (vendored literal first, portable-anchor fallback for the local tier), which reads its inputs from and writes its outputs to fixed `.prflow/tmp/retro-helper/…` files. `retro-outcome-record.py` calls are vendored-literal only, `|| true`: only the workflow creates the record they write, and it guarantees that path.
 
 Working-directory contract. This skill's `lib/`/`scripts/` helper paths are repo-relative literals resolving against the repository root; no fence emits a leading `cd`.
 
@@ -39,7 +39,7 @@ GitHub autolink hygiene (any text you compose that lands on a GitHub surface —
 
 ---
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. Otherwise locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — by replacing the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) and accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill spell the skill directory as `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. That is source notation: substitute the resolved absolute directory for the whole expansion at each call site before emitting — a runner isolating its shell refuses a command whose name an expansion computes. Take `$CLAUDE_SKILL_DIR`'s value when the runner reports one, else locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — from the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line), accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Substitute inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
 Consumer prompt extension (load first). Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
 
@@ -91,6 +91,7 @@ find .prflow/tmp -maxdepth 1 -type f \( -name 'result-*.json' -o -name 'pr-*.con
 # Clear the depth-2 wrapper output dir too: those outputs are read back by path, some
 # without gating on the wrapper's exit, so a surviving stale copy would fail open.
 rm -rf .prflow/tmp/retro-helper 2>/dev/null || true
+# Never wipe .prflow/tmp/retro-outcome/ or scan.json: the workflow's finalizer reads them.
 ```
 
 ---
@@ -480,7 +481,11 @@ working tree and have never been committed to `main` — `open-state-pr.sh` hand
 committing them onto a separate branch.
 
 ```bash
-STATE_PR=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/open-state-pr.sh)
+if STATE_PR=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/open-state-pr.sh); then
+    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id state_persistence --status success --diagnostic "PR ${STATE_PR}" || true
+else
+    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id state_persistence --status failure --diagnostic "open-state-pr.sh failed (non-zero exit)" || true
+fi
 ```
 
 `open-state-pr.sh` (no required args; optional `--branch <name>`,
@@ -946,13 +951,16 @@ elif "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in 
                     KEY=$(printf '%s' "$TO_FILE" | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r ".[$_fi].key")
                     printf '%s' "$TO_FILE" | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r ".[$_fi].body"  > ".prflow/tmp/issue-body-${KEY}.md"
                     F_TITLE=$(printf '%s' "$TO_FILE" | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r ".[$_fi].title")
+                    .prflow/vendor/prflow/scripts/retro-outcome-record.py require-op --op-id "filing:${KEY}" || true
                     if ISSUE_URL=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/meta-issue.sh --tag "$KEY" --slug "$KEY" --category "$CATEGORY" --title "$F_TITLE" --body-file ".prflow/tmp/issue-body-${KEY}.md" --overrides .prflow/learnings/overrides.json); then
                         _iv=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -nc --arg key "$KEY" --arg cat "$CATEGORY" --arg url "$ISSUE_URL" '{key:$key,category:$cat,url:$url}')
                         intervention_issues+=("$_iv")
                         filed_this_run=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -n --arg n "$filed_this_run" '($n|tonumber) + 1')
                         _pattern_filed=1
+                        .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id "filing:${KEY}" --status success --diagnostic "$ISSUE_URL" || true
                     else
                         blockers+=("Finding ${KEY} (category ${CATEGORY}): meta-issue.sh failed to file the issue — not filed")
+                        .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id "filing:${KEY}" --status failure --diagnostic "meta-issue.sh failed (non-zero exit)" || true
                     fi
                 done < <(printf '%s' "$TO_FILE" | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r 'keys[]')
                 # Push the coarse $SLUG once per pattern, never a composed
@@ -1014,12 +1022,15 @@ elif "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in 
     elif [ "$VERDICT" = file ]; then
         "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r '.body' < ".prflow/tmp/result-${SLUG}.json" > ".prflow/tmp/issue-body-${SLUG}.md"
         TITLE=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -r '.title' < ".prflow/tmp/result-${SLUG}.json")
+        .prflow/vendor/prflow/scripts/retro-outcome-record.py require-op --op-id "filing:${SLUG}" || true
         if ISSUE_URL=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/meta-issue.sh --tag "$SLUG" --slug "$SLUG" --category "$CATEGORY" --title "$TITLE" --body-file ".prflow/tmp/issue-body-${SLUG}.md" --overrides .prflow/learnings/overrides.json); then
             _iv=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -nc --arg key "$SLUG" --arg cat "$CATEGORY" --arg url "$ISSUE_URL" '{key:$key,category:$cat,url:$url}')
             intervention_issues+=("$_iv")
             filed_this_run=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -n --arg n "$filed_this_run" '($n|tonumber) + 1'); filed_slugs+=("$SLUG")
+            .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id "filing:${SLUG}" --status success --diagnostic "$ISSUE_URL" || true
         else
             blockers+=("Pattern ${SLUG}: meta-issue.sh failed to file the issue — not filed")
+            .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id "filing:${SLUG}" --status failure --diagnostic "meta-issue.sh failed (non-zero exit)" || true
         fi
     else
         # Build the element with jq so what lands in `withheld` is valid JSON (Step 9
@@ -1216,9 +1227,14 @@ if { .prflow/vendor/prflow/scripts/retro-helper.sh render-report \
   else
     printf '## Implement runtime trends\n\n_(section omitted — implement-run-report.py --retro produced no output)_\n' >> .prflow/tmp/report.md
   fi
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/post-status.sh --pr "$STATE_PR" --report-file .prflow/tmp/report.md
+  if "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/post-status.sh --pr "$STATE_PR" --report-file .prflow/tmp/report.md; then
+    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status success --diagnostic "posted to PR ${STATE_PR}" || true
+  else
+    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status failure --diagnostic "post-status.sh failed (non-zero exit)" || true
+  fi
 else
   echo "::error::retrospective Step 9: render-report failed or produced an empty report.md — weekly report NOT posted; investigate the summary JSON before re-running" >&2
+  .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status failure --diagnostic "render-report failed; report not posted" || true
 fi
 ```
 
@@ -1261,7 +1277,8 @@ after reviewing.
   `.prflow/learnings/overrides.json` onto it, pushes, and returns you to the branch
   you started on — composing no branch name itself, so a run crossing UTC midnight
   cannot target a branch that never existed, and refusing any head outside the two
-  state-branch prefixes. Substitute the state PR number as a literal:
+  state-branch prefixes. Its outcome is not recorded: a failure only defers the
+  overrides to next week's state PR. Substitute the state PR number as a literal:
 
   ```bash
   .prflow/vendor/prflow/lib/open-state-pr.sh --follow-up <state-pr-number>

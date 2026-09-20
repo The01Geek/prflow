@@ -147,6 +147,72 @@ raise SystemExit(0 if has_figure else 1)
 ' 2>/dev/null
 }
 
+# ── Native-session cost fallback (issue #670) ────────────────────────────────
+# A cancelled or signal-killed run writes no execution_file, so today's absent-file
+# arm loses its cost entirely. The CLI's own top-level session JSONL still records
+# token usage, so recover cost from it: derive the store root and the pre-Claude
+# stamp from the step environment, ask scrub-transcript.sh --select-only for the
+# run's top-level session file(s), and — on EXACTLY one — run it through the same
+# extractor. Sets the globals COST (marked native-session) and COST_INERT. The
+# marker travels INSIDE the cost JSON (into the handoff → DEVFLOW_EXECUTION_COST),
+# never as a fifth env assignment; apply_harness_floor maps it to
+# cost_source/scope. Line counting is a bash-builtin array length, never a
+# non-preflight PATH tool (grep/wc), so a missing tool cannot mis-decide the
+# single-vs-ambiguous branch (CLAUDE.md un-guaranteed-tool rule).
+_native_session_cost_fallback() {
+  local store stamp sel file cost
+  if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+    store="$CLAUDE_CONFIG_DIR/projects"
+  else
+    store="${HOME:-}/.claude/projects"
+  fi
+  stamp="${RUNNER_TEMP:-}/prflow-transcript-stamp"
+  # No stamp (or no RUNNER_TEMP to hold it) → keep today's exact breadcrumb (AC7).
+  if [ -z "${RUNNER_TEMP:-}" ] || [ ! -f "$stamp" ]; then
+    echo "::warning::prepare-harness-floor: harness cost floor inert this run: execution file absent" >&2
+    COST_INERT=1
+    return
+  fi
+  sel="$(bash "$HERE/scrub-transcript.sh" --select-only "$store" "$stamp" 2>/dev/null)"
+  local -a files=()
+  local line
+  while IFS= read -r line; do
+    [ -n "$line" ] && files+=("$line")
+  done <<< "$sel"
+  if [ "${#files[@]}" -eq 0 ]; then
+    echo "::warning::prepare-harness-floor: harness cost floor inert this run: execution file absent and no eligible top-level native session file for this run" >&2
+    COST_INERT=1
+    return
+  fi
+  if [ "${#files[@]}" -gt 1 ]; then
+    echo "::warning::prepare-harness-floor: harness cost floor inert this run: ${#files[@]} top-level native session files matched for this run; ambiguous, declining to attribute cost" >&2
+    COST_INERT=1
+    return
+  fi
+  file="${files[0]}"
+  # Do NOT suppress the reader's stderr — its breadcrumb must reach the step log.
+  cost="$(python3 "$READER" "$file" || true)"
+  if [ -z "$cost" ] || ! _cost_has_figures "$cost"; then
+    echo "::warning::prepare-harness-floor: harness cost floor inert this run: native session file carried no cost or usage figures; refusing to stage an all-null harness_cost" >&2
+    COST_INERT=1
+    return
+  fi
+  # Add the native-session marker inside the cost JSON, preserving a numeric
+  # costUSD 0 (AC8 — never treat 0 as absent). python3 is preflight-guaranteed.
+  # stdout is reconfigured LF-only before it is written (issue #631): on a Windows
+  # runner text-mode stdout translates to CRLF, which would corrupt the JSON this
+  # handoff carries into DEVFLOW_EXECUTION_COST. Its stderr is NOT suppressed, for the
+  # same reason the reader's is not: the traceback naming why the annotation failed is
+  # the only account of it, and the empty-output guard below still fails closed.
+  cost="$(printf '%s' "$cost" | python3 -c 'import json,sys; sys.stdout.reconfigure(newline="\n"); v=json.load(sys.stdin); v["__cost_source_marker"]="native-session"; sys.stdout.write(json.dumps(v))')"
+  if [ -z "$cost" ]; then
+    echo "::warning::prepare-harness-floor: harness cost floor inert this run: could not annotate the native-session cost JSON with its source marker" >&2
+    COST_INERT=1
+    return
+  fi
+  COST="$cost"
+}
+
 # ── Normalize the command to a class + optional explicit PR number ───────────
 # The accepted command namespaces are DERIVED from the declared plugin identity, never
 # hardcoded. This consumer reads the gate's RESOLVED command token, and the detector
@@ -200,8 +266,9 @@ fi
 COST=""
 COST_INERT=""
 if [ -z "$EXEC_FILE" ] || [ ! -f "$EXEC_FILE" ] || [ ! -s "$EXEC_FILE" ]; then
-  echo "::warning::prepare-harness-floor: harness cost floor inert this run: execution file absent" >&2
-  COST_INERT=1
+  # Execution file absent (cancel/kill) → try the run's own top-level CLI session
+  # for cost only (issue #670). Sets COST (native-session-marked) or COST_INERT.
+  _native_session_cost_fallback
 else
   # Do NOT suppress the reader's stderr: its breadcrumb (OSError / empty / JSON-garbage —
   # the exact reason COST comes back empty here) must reach the step log so the "see the

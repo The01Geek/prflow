@@ -39,7 +39,7 @@ set -euo pipefail
 # `jq` with a breadcrumb rather than aborting under set -e.
 # shellcheck source=../lib/resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 # Shared CRLF-insensitive whole-file compare (issue #576), used by the stale-installer scan
 # and the prompt-extension example regeneration below. Both DECIDE a write/warning, so the
@@ -47,7 +47,7 @@ set -euo pipefail
 # shellcheck source=../lib/compare-crlf.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/compare-crlf.sh" 2>/dev/null \
   || {
-    echo "devflow: compare-crlf.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using an inline copy" >&2
+    echo "prflow: compare-crlf.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using an inline copy" >&2
     devflow_strip_cr() { printf '%s' "${1//$'\r'/}"; }
     devflow_files_match_crlf_insensitive() {
       local _a="" _b=""
@@ -471,6 +471,7 @@ fix|add house rules for how review feedback is evaluated, verified, and pushed b
 requesting-code-review|tune what the internalized final-pass reviewer prioritizes for your codebase
 retrospective|add house criteria for what counts as a clean PR in the retrospective
 retrospective-audit|name the intervention patterns your team prioritizes when auditing
+challenge|add domain constraints and evidence sources for challenging proposals
 retrospective-weekly|tune which authors and time window the weekly loop scans
 review|add house review rules the reviewer must enforce
 review-and-fix|add house review rules and fix-loop guardrails specific to your repo

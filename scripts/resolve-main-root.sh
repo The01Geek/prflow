@@ -71,7 +71,7 @@ fi
 if [ -n "$main_root" ] && [ -d "$main_root" ]; then
     printf '%s\n' "$main_root"
 else
-    echo "devflow: resolve-main-root: could not determine the main working-tree root (git unavailable, not a git repo, a bare main repo, or the resolved root no longer exists) — falling back to '$(pwd)'" >&2
+    echo "prflow: resolve-main-root: could not determine the main working-tree root (git unavailable, not a git repo, a bare main repo, or the resolved root no longer exists) — falling back to '$(pwd)'" >&2
     pwd
 fi
 

@@ -62,7 +62,7 @@ _RRB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # devflow_resolve_gh.
 # shellcheck source=../lib/resolve-gh.sh
 . "$_RRB_DIR/../lib/resolve-gh.sh" \
-  || echo "devflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
+  || echo "prflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
 if type devflow_resolve_gh >/dev/null 2>&1; then
   : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 else
@@ -72,9 +72,9 @@ fi
 # than leaving DEVFLOW_JQ unbound and aborting the next reference under `set -u`.
 # shellcheck source=../lib/resolve-jq.sh
 . "$_RRB_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   DEVFLOW_JQ=jq
 fi
 

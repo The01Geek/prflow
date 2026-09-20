@@ -520,14 +520,14 @@ def _read_active_entry_binding(run_root_dir, entry, iteration):
     present-but-malformed one is unestablished (never laundered into a pass)."""
     path = os.path.join(run_root_dir, f'active-entry-{entry}-iter-{iteration}.json')
     try:
-        with open(path, encoding='utf-8') as fh:
-            text = fh.read()
+        with open(path, 'rb') as fh:
+            raw = fh.read()
     except FileNotFoundError:
         return None, 'missing'
     except OSError:
         return None, 'unreadable'
     try:
-        obj = json.loads(text)
+        obj = json.loads(raw)
     except (ValueError, UnicodeError):
         return None, 'malformed'
     if not isinstance(obj, dict):
@@ -547,9 +547,11 @@ def _read_active_entry_binding(run_root_dir, entry, iteration):
         return None, 'malformed'
     if not isinstance(obj.get('iteration'), int) or isinstance(obj.get('iteration'), bool):
         return None, 'malformed'
-    if not isinstance(obj.get('reviewed_head'), str):
-        return None, 'malformed'
-    for key in ('checklist_artifact', 'verification_artifact', 'verdicts_subdir'):
+    # Every string field must be non-empty: an empty `reviewed_head` is an unestablished head,
+    # and on the `--entry latest` path (which grades the binding's OWN recorded head) the
+    # mismatch guard would compare '' against '' and pass — laundering a verdict marker over an
+    # unestablished head. Require it non-empty alongside its siblings, closing that fail-open.
+    for key in ('reviewed_head', 'checklist_artifact', 'verification_artifact', 'verdicts_subdir'):
         if not isinstance(obj.get(key), str) or not obj.get(key):
             return None, 'malformed'
     if not isinstance(obj.get('reuse', []), list):

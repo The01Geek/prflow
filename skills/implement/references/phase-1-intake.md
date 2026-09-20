@@ -124,26 +124,27 @@ Orchestrator override authority. The trigger-phrase classifier is a heuristic, n
 
 Either kind of override goes into the workpad notes (`--note`) with a one-line reason.
 
-A criterion that is partially live (mixed code + live concerns) is tagged post-merge — verify the code-part during /prflow:implement, leave the live-part for after-merge. "Verify the code-part" is the Pre-merge probe contract, not just files-in-the-diff, stated authoritatively in `skills/implement/phases/phase-3-ac-gate.md` (Phase 3.4): before this tag exempts the criterion from the Phase 3.4 gate, run that contract and record each probe command and observed result in the tag `--note`. A probe showing the deferred verification cannot succeed as shipped routes to a pre-merge fix or the Blocked path, never a tag; a denied probe is recorded as denied and does not block. A passed probe never ticks the AC box — it only narrows the deferral to the genuinely-live residue; the live signal still owns the tick.
+A criterion that is partially live (mixed code + live concerns) is tagged post-merge — verify the code-part during /prflow:implement, leave the live-part for after-merge. "Verify the code-part" is the Pre-merge probe contract, not just files-in-the-diff, stated authoritatively in `skills/implement/references/post-merge-tagging.md` (the Phase 3.4 gated procedure): before this tag exempts the criterion from the Phase 3.4 gate, run that contract and record each probe command and observed result in the tag `--note`. A probe showing the deferred verification cannot succeed as shipped routes to a pre-merge fix or the Blocked path, never a tag; a denied probe is recorded as denied and does not block. A passed probe never ticks the AC box — it only narrows the deferral to the genuinely-live residue; the live signal still owns the tick.
 
 ### 1.3 Initialize or Load the Workpad
 
-Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
+Set `ISSUE_NUMBER=$ARGUMENTS` and read the whole workpad triage state in one call:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py id $ISSUE_NUMBER
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py intake-triage $ISSUE_NUMBER
 ```
 
-Read the exit code and printed comment ID from the tool result — never a captured shell variable (some runners drop the exit status of an assignment). The printed comment ID on exit 0 is the workpad id this phase carries forward as `WORKPAD_ID` in your own context.
+Read the exit code and stdout from the tool result — never a captured shell variable (some runners drop the exit status of an assignment). On exit 0 stdout is one JSON object carrying exactly five fields, complete by construction: `comment_id` (carry it forward as `WORKPAD_ID` in your own context), `status_class` (`complete`/`blocked`/`failed`/`cancelled`/`interim`), `status_word` (the live Status word, already glyph-stripped), `body` (the canonical workpad body), and `prior_status` (the prior terminal Status word the §1.0/gate reset recorded, or `null`). **This one read supplies every value the triage below needs — issue no separate `id`, `status`, `body` or `prior-status` read on this path, and fetch the body no second time before hydration.**
 
-Preserve `workpad.py id`'s three-way exit contract before any create decision — branch on all three:
+Branch on all four exits before any create or mutation decision:
 
-- Exit 0 → found; `WORKPAD_ID` is the printed comment ID. Resume it (the resume arm below).
+- Exit 0 → found; resume it (the resume arm below).
 - Exit 2 → scanned cleanly, no workpad; create it (the create arm below). This is the only value that authorizes a create.
-- Exit 1 → a gh-api / parse / transport failure: the identity read did not complete. Do NOT create and do NOT proceed as if absent: stop Phase 1 with a targeted diagnostic naming the failed `id` read.
-- A refused or no-output invocation, or any other exit code → an *unestablished measurement*, never a decided "no workpad": take the same stop path as exit 1, naming the unestablished `id` read.
+- Exit 1 → a workpad is present but structurally unreadable (a duplicated workpad comment, a missing/unrecognized Status, or a duplicated prior-status marker): stop Phase 1 with a targeted diagnostic naming the stderr cause — reset no Status, mutate no body, create no comment.
+- Exit 3 → a gh-api / parse / transport failure: the read did not complete. Do NOT create and do NOT proceed as if absent: take the same no-mutation stop path, naming the failed triage read.
+- A refused or no-output invocation, or any other exit code → an *unestablished measurement*, never a decided "no workpad": take the same stop path, naming the unestablished triage read.
 
-Handoff-provenance + live-status triage (cloud tier). On the cloud tier (`tier: cloud` in the run-facts block) the workflow wrote an advisory handoff record naming this run's provenance. Read it and the live workpad status/body so lifecycle wording is truthful:
+Handoff-provenance + live-status triage (cloud tier). On the cloud tier (`tier: cloud` in the run-facts block) the workflow wrote an advisory handoff record naming this run's provenance. Read it and pair it with the triage state above so lifecycle wording is truthful:
 
 1. Resolve provenance (offline, no network — always exits 0, degrades to `unknown`):
    ```bash
@@ -151,33 +152,28 @@ Handoff-provenance + live-status triage (cloud tier). On the cloud tier (`tier: 
    ```
    The orchestrator substitutes the run-facts block's `run id`/`run attempt` literals for `<run id>`/`<run attempt>` here; when either is `unestablished` or the block is absent (the run-facts fallback), skip this handoff read and treat provenance as `unknown`.
    Read the printed value from the tool result (never a captured shell variable) and hold it as `HANDOFF`. It is one of `created-current-run` / `adopted-existing` / `unknown`. Local runs do NOT read this record — they select wording from live status alone.
-2. Read the live Status and body before any reset. On the found arm (`id` exit 0), run `workpad.py status "$ISSUE_NUMBER"` and preserve its exit contract — 0 (recognized interim/terminal word, class printed), 1 (missing/empty/unrecognized Status — a content-shape failure), 2 (workpad disappeared between the identity and status reads — a race), 3 (gh/transport/auth failure). On exit 1/2/3, stop with a targeted diagnostic — reset no Status, mutate no body, create no comment. Then read the body with `workpad.py body "$WORKPAD_ID"`; a body-fetch failure likewise stops with a diagnostic and no mutation. Retain the observed comment ID and stripped status word — the hydration update passes them as `--expect-comment-id`/`--expect-status` so a concurrent flip or delete/recreate cannot overwrite with this stale snapshot.
+2. Hold the triage result. `status_class` decides interim versus terminal in the table below; retain `comment_id` and `status_word` — the hydration update passes them as `--expect-comment-id`/`--expect-status` so a concurrent flip or delete/recreate cannot overwrite with this stale snapshot.
 3. Select the hydration lifecycle event from provenance × live status:
 
    | Execution state | Lifecycle event (the `--note` wording) |
    | --- | --- |
-   | Cloud `created-current-run`, gate-created workpad | `agent initialized; Phase 1 workpad hydrated` |
+   | Cloud `created-current-run`, gate-created workpad | `Agent initialized; Phase 1 workpad hydrated` |
    | Cloud `adopted-existing`, interim workpad | `/prflow:implement run resumed; Phase 1 workpad hydrated` |
    | Cloud `adopted-existing`, terminal workpad | `/prflow:implement new run initialized from terminal workpad; Phase 1 workpad hydrated` |
-   | Cloud `unknown`, readable workpad | `agent initialized; workpad provenance unavailable; Phase 1 workpad hydrated` |
+   | Cloud `unknown`, readable workpad | `Agent initialized; workpad provenance unavailable; Phase 1 workpad hydrated` |
    | Local, interim workpad | `/prflow:implement run resumed; Phase 1 workpad hydrated` |
    | Local, terminal workpad | `/prflow:implement new run initialized from terminal workpad; Phase 1 workpad hydrated` |
-   | Cleanly-absent workpad (either tier) | the existing `/prflow:implement run started` seed, then `agent initialized; Phase 1 workpad hydrated` |
+   | Cleanly-absent workpad (either tier) | the existing `/prflow:implement run started` seed, then `Agent initialized; Phase 1 workpad hydrated` |
 
    **`run resumed` is reserved for adoption of an *interim* workpad from an earlier execution** — a fresh same-run gate handoff (`created-current-run`) must NOT claim a resume.
 
-Cloud startup checkpoints. On the cloud tier only, timestamp two of the four startup boundaries here with the idempotent keyed-checkpoint API. Keys are `gha:<run id>:<run attempt>:<stage>`, the run id and run attempt substituted from the run-facts block's literals. The stage vocabulary is exactly the four tokens `gate-adopted` / `claude-invoke` / `phase1-entered` / `phase1-hydrated`.
+Cloud startup checkpoint. On the cloud tier only, timestamp the hydration boundary here with the idempotent keyed-checkpoint API. Keys are `gha:<run id>:<run attempt>:<stage>`, the run id and run attempt substituted from the run-facts block's literals. The stage vocabulary is exactly the three tokens `gate-adopted` / `claude-invoke` / `phase1-hydrated`; triage passing is recorded by the hydration row that follows it, not by a row of its own.
 
-**Run-facts fallback note** (stated once; sites below point here). Cloud tier with no run-facts block, or one reporting run id/attempt `unestablished`: SKIP both startup checkpoints, record a workpad `note` reflection saying run id/attempt were unestablished, and omit `--run-link` everywhere below (never pass `[View run]()`).
+**Run-facts fallback note** (stated once; sites below point here). Cloud tier with no run-facts block, or one reporting run id/attempt `unestablished`: SKIP the startup checkpoint, record a workpad `note` reflection saying run id/attempt were unestablished, and omit `--run-link` everywhere below (never pass `[View run]()`).
 
-- Entry checkpoint — after the id/status/body triage passes:
-  ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update "$ISSUE_NUMBER" --checkpoint "gha:<run id>:<run attempt>:phase1-entered" "agent entered Phase 1 setup; workpad triage passed"
-  ```
-  Best-effort: a checkpoint failure warns and continues. `--checkpoint` repairs an absent `## Progress`, but the legacy-workpad migration below is still required before hydration.
 - Hydration checkpoint — combined with the existing Phase 1 hydration update below: append `--checkpoint "gha:<run id>:<run attempt>:phase1-hydrated" "<the selected lifecycle event>"` to that update, alongside `--expect-comment-id`/`--expect-status`.
 
-- `id` exit 2 — no workpad (fresh issue; a local-tier run with no `gate` job) → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. Compose the run link by running `.prflow/vendor/prflow/scripts/compose-run-url.sh` and substituting its `[View run](…)` stdout as a literal into `--run-link`; omit `--run-link` on a local run or the run-facts fallback (see the run-facts fallback note above). Add `--no-reproduction` to the `new-body` call when the §1.1 classification is non-bug (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report.
+- Triage exit 2 — no workpad (fresh issue; a local-tier run with no `gate` job) → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. Compose the run link by running `.prflow/vendor/prflow/scripts/compose-run-url.sh` and substituting its `[View run](…)` stdout as a literal into `--run-link`; omit `--run-link` on a local run or the run-facts fallback (see the run-facts fallback note above). Add `--no-reproduction` to the `new-body` call when the §1.1 classification is non-bug (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report.
 
   Render the skeleton bare so its stdout is observable (cloud tier, with the run link):
   ```bash
@@ -196,12 +192,12 @@ Cloud startup checkpoints. On the cloud tier only, timestamp two of the four sta
       --replace-acs-file <run-scratch>/acs-$ARGUMENTS.md \
       --record-classification {bug-report|non-bug} "{one-line rationale}" \
       --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows \
-      --tick-progress "extension resolved: implement"
+      --tick-progress "extension resolved: implement.md"
   ```
   A fresh create is a fresh run, so this update carries no `resume-kind:` note.
 
   The `## Reproduction` section is added later in 2.1.5 if applicable.
-- `id` exit 0 — a workpad exists (resume, or a re-run) → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `PRFlow Reflections` as load-bearing context (see Workpad Reference), and reconcile any historical completion or review claim among them against later corrective evidence and interrupted-worker state before treating that work as done, per the resume-reconciliation contract in the worker role file — carrying an undischarged review obligation forward through the existing `corrections`/`blockers` handoff fields rather than emitting a completion assessment. Reset for this run and populate the Acceptance Criteria (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
+- Triage exit 0 — a workpad exists (resume, or a re-run) → the triage's `body` is that live body; do not re-fetch it. Treat its `## Progress` notes and `PRFlow Reflections` as load-bearing context (see Workpad Reference), and reconcile any historical completion or review claim among them against later corrective evidence and interrupted-worker state before treating that work as done, per the resume-reconciliation contract in the worker role file — carrying an undischarged review obligation forward through the existing `corrections`/`blockers` handoff fields rather than emitting a completion assessment. Reset for this run and populate the Acceptance Criteria (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
   Compose the run link with `.prflow/vendor/prflow/scripts/compose-run-url.sh` as in the create arm. The fence below is the cloud form; on a local run or the run-facts fallback drop `--run-link` alongside the cloud-only `--checkpoint`/`--expect-*` flags per the note below:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
@@ -214,11 +210,11 @@ Cloud startup checkpoints. On the cloud tier only, timestamp two of the four sta
       --strip-prior-status-marker \
       --record-classification {bug-report|non-bug} "{one-line rationale}" \
       --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows \
-      --tick-progress "extension resolved: implement" \
+      --tick-progress "extension resolved: implement.md" \
       --note "<selected lifecycle event>" \
       --note "resume-kind: <in-flight|terminal-re-trigger>"
   ```
-  The `--note` and combined `phase1-hydrated` checkpoint text are the lifecycle event from the table above, not a hardcoded `/prflow:implement run resumed`; replace `<selected lifecycle event>` with that row and `<observed status word>` with the stripped Status word from triage step 2. The cloud tier includes `--checkpoint`/`--expect-*`/`--run-link`; a local run and the run-facts fallback drop `--checkpoint`/`--run-link`. `--strip-inherited-checkpoints` is included on both tiers, clearing the previous attempt's declared required-artifact rows so `base_update_checkpoint4_present` describes this attempt. A `--checkpoint` for a declared key is always a separate call. If the outcome line reads `remedy=re-resolve-state` (`outcome=precondition-mismatch` — the live comment ID or Status changed under you), do NOT retry blindly: re-read the workpad, re-run the triage, and re-select the wording against the *current* state.
+  The `--note` and combined `phase1-hydrated` checkpoint text are the lifecycle event from the table above, not a hardcoded `/prflow:implement run resumed`; replace `<selected lifecycle event>` with that row and `<observed status word>` with the triage's `status_word`. The cloud tier includes `--checkpoint`/`--expect-*`/`--run-link`; a local run and the run-facts fallback drop `--checkpoint`/`--run-link`. `--strip-inherited-checkpoints` is included on both tiers, clearing the previous attempt's declared required-artifact rows so `base_update_checkpoint4_present` describes this attempt. A `--checkpoint` for a declared key is always a separate call. If the outcome line reads `remedy=re-resolve-state` (`outcome=precondition-mismatch` — the live comment ID or Status changed under you), do NOT retry blindly: re-read the workpad, re-run the triage, and re-select the wording against the *current* state.
 
   Legacy-workpad migration (required): a workpad predating the `## Progress` checklist lacks that section, and `--tick-progress`/`--note` abort the run with `section '## Progress' not found` when it is absent. So when resuming such a workpad you MUST seed a `## Progress` section before Phase 1.5 — `workpad.py body` the live comment, render a fresh skeleton with `workpad.py new-body $ISSUE_NUMBER` (adding `--no-reproduction` when the recorded classification is non-bug, as the create arm above does) into a temp file, splice that output's `## Progress` section into the body (right after the front-matter, before `## Plan`), and `workpad.py patch $WORKPAD_ID <file>`.
 
@@ -226,26 +222,26 @@ After this step, every later phase boundary touches the workpad via `workpad.py 
 
 The hydration update carries exactly the operands its fence lists; an operand targeting an absent section aborts the whole call with no PATCH.
 
-Standalone-write rule. A write that flips `Status`, a `--checkpoint` carrying its own bounded-write reason (`phase1-entered`), and a `--status Blocked` terminal each stand alone as their own `update`, issued at the point they are decided; every other Phase 1 record rides the next standalone `update` on its execution path. See `workpad.py update --help` for the flag-combination rule this batching relies on.
+Standalone-write rule. A write that flips `Status` and a `--status Blocked` terminal each stand alone as their own `update`, issued at the point they are decided; every other Phase 1 record rides the next standalone `update` on its execution path. The fences below carry the exact operands each call takes, so the normal path needs no help read.
 
-Record the classification and reconcile the skeleton (every entry). The 2.1.5 gate reads it; `--reconcile-reproduction` below authoritatively corrects a skeleton reproduction default disagreeing with §1.1's. Resume semantics key on the PRIOR terminal Status, not the live one — the §1.0/gate reset may already have moved it to interim. Run `workpad.py prior-status $ISSUE_NUMBER`: use its recorded word on exit 0; on exit 1 (absent/duplicated/garbled) or exit 2 (structural absence — a legacy workpad with no `## Progress` section) fall back to the live Status from triage step 2, never the stop path; on exit 3 (a transient gh/transport failure) classify **terminal-re-trigger** — the safe default, since reading the reset-mutated interim status as mid-flight would skip a needed re-classification. That status decides whether to classify afresh or read the recorded verdict:
+Record the classification and reconcile the skeleton (every entry). The 2.1.5 gate reads it; `--reconcile-reproduction` below authoritatively corrects a skeleton reproduction default disagreeing with §1.1's. Resume semantics key on the PRIOR terminal Status, not the live one — the §1.0/gate reset may already have moved it to interim. Use the triage's `prior_status`; when it is `null` (no marker recorded, or a legacy workpad with no `## Progress` section) fall back to its `status_word`, never the stop path. That status decides whether to classify afresh or read the recorded verdict:
 
-- Fresh run (the `id` read exited 2), or a resume that finds no `classification: ` note, **or a re-trigger after a *terminal* prior-or-live `Status`** (🎉/👎/💥/🛑) → classify now (per 1.1, from current content and labels) and record it, superseding any stale note — carried as `--record-classification {bug-report|non-bug} "{one-line rationale}"` on the §1.3 hydration update.
+- Fresh run (the triage exited 2), or a resume that finds no `classification: ` note, **or a re-trigger after a *terminal* prior-or-live `Status`** (🎉/👎/💥/🛑) → classify now (per 1.1, from current content and labels) and record it, superseding any stale note — carried as `--record-classification {bug-report|non-bug} "{one-line rationale}"` on the §1.3 hydration update.
 - In-flight resume (non-terminal `Status`, `classification: ` note present) → do NOT re-classify; read the recorded note and use its verdict as-is.
 
 Then reconcile the skeleton to the (recorded or read) classification (idempotent, every entry), carried as `--reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows` on that same hydration update.
 
-`--reconcile-extension-rows` repairs the nested `prompt extension resolved: …` rows into a workpad predating them; include it on both arms like `--reconcile-reproduction`, or every extension tick below misses its row and exits non-zero.
+`--reconcile-extension-rows` repairs the nested `Skill extension resolved: …` rows into a workpad predating them; include it on both arms like `--reconcile-reproduction`, or every extension tick below misses its row and exits non-zero.
 
-Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it). Tick a `prompt extension resolved: …` row only on observed content: the `load-prompt-extension.sh` ladder's full output reached you carrying the extension's contents, or reached you empty (no extension file for that skill). Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation. No result at all, or any partial result, is `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. A tick matching no unticked row is the expected idempotent no-op. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`. The Phase 4.3 terminal `--status Complete` gate mechanizes this: `workpad.py` refuses Complete while any `prompt extension resolved:` row is unticked and carries no `state not established` note.
+Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it). Tick a `Skill extension resolved: …` row only on observed content: the `load-prompt-extension.sh` ladder's full output reached you carrying the extension's contents, or reached you empty (no extension file for that skill). Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation. No result at all, or any partial result, is `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. A tick matching no unticked row is the expected idempotent no-op. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`. The Phase 4.3 terminal `--status Complete` gate mechanizes this: `workpad.py` refuses Complete while any `Skill extension resolved:` row is unticked and carries no `state not established` note.
 
-Tick the implement extension row (every arm). Apply the rule above to the implement extension's own load and carry that outcome on the §1.3 hydration update: `--tick-progress "extension resolved: implement"` where the state was established, else — the row left unticked — `--note "extension resolved: implement — state not established (the loader ladder did not resolve it)"` in its place (never both).
+Tick the implement extension row (every arm). Apply the rule above to the implement extension's own load and carry that outcome on the §1.3 hydration update: `--tick-progress "extension resolved: implement.md"` where the state was established, else — the row left unticked — `--note "Extension resolved: implement.md — state not established (the loader ladder did not resolve it)"` in its place (never both).
 
 Record the durable `resume-kind:` marker (on a resume entry) as a plain `## Progress` `--note`, so the Phase 2 resume gate (`phase-2-implement.md` §2.0) can read back which run kind this triage decided; the gate reads the most recent `resume-kind:` note fail-closed. The kind follows from the resume semantics above:
 
 - In-flight resume (the *do-not-re-classify* arm above) → `resume-kind: in-flight`.
 - Terminal re-trigger (a re-trigger after a *terminal* prior-or-live `Status`, 🎉/👎/💥/🛑) → `resume-kind: terminal-re-trigger`.
-- Fresh run (the `id` read exited 2, or a resume finding no `classification: ` note) → record no `resume-kind:` note at all. The §2.0 gate reads an absent marker as not in-flight.
+- Fresh run (the triage exited 2, or a resume finding no `classification: ` note) → record no `resume-kind:` note at all. The §2.0 gate reads an absent marker as not in-flight.
 
 Evaluated in order, first match wins — a terminal prior-or-live `Status` selects `terminal-re-trigger` even with no `classification: ` note.
 
