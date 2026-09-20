@@ -653,6 +653,87 @@ def _checkout_branch(branch: str) -> tuple[bool, str]:
     return (landed, (checked.stderr or checked.stdout).strip())
 
 
+_FORK_SUFFIX_LIMIT = 5
+
+
+def _unused_branch_name(name: str) -> tuple[str, str]:
+    """The first free name in `name`, `name-r2`, … Returns (name, diagnostic).
+
+    A name whose existence cannot be established (`_branch_exists` → None) is not
+    free: returning it would let a fork check out over live work. The two
+    exhaustion causes carry distinct diagnostics because a crowded namespace and
+    an unestablished probe need different remedies.
+    """
+    unestablished = False
+    for attempt in range(1, _FORK_SUFFIX_LIMIT + 1):
+        candidate = name if attempt == 1 else f"{name}-r{attempt}"
+        exists = _branch_exists(candidate)
+        if exists is False:
+            return (candidate, "")
+        if exists is None:
+            unestablished = True
+    if unestablished:
+        return ("", "branch-name-existence-unestablished")
+    return ("", "branch-name-collision-unresolved")
+
+
+def _fresh_create(
+    *, issue: int, base: str, branch: str | None, title_file: str, recover: bool
+) -> tuple[str, str, str]:
+    """Cut a new feature branch from the base. Returns (branch, diagnostic, start_point).
+
+    The diagnostic is "" on success. `start_point` is the ref the branch was cut
+    from — `origin/<base>`, or the bare local `<base>` when the recovery ladder
+    below fell back to it — and "" when nothing was cut; a caller publishing the
+    result must disclose the local-base case, which no other field names.
+    Creating a branch touches no other ref, so this never discards work whichever
+    path calls it.
+
+    `recover` selects the ladder the first invocation deliberately does not run: a
+    retried base fetch, a fall back to the local base ref, an `issue-<n>` name when
+    derivation produced none, and collision suffixing. The first invocation must
+    keep stopping on each of those so its stop stays the signal the recovery
+    invocation is dispatched on; running the ladder there would hide the condition
+    the agent needs to see.
+    """
+    base_ref = f"refs/remotes/origin/{base}"
+    refspec = f"+refs/heads/{base}:{base_ref}"
+    fetched = _run_git(["fetch", "origin", refspec])
+    start_point = f"origin/{base}"
+    if fetched.returncode != 0:
+        if not recover:
+            return (branch or "", "base-fetch-failed", "")
+        if _run_git(["fetch", "origin", refspec]).returncode != 0:
+            if not _ref_resolves(base):
+                return (branch or "", "base-fetch-failed", "")
+            start_point = base
+    name = branch or ""
+    if not name:
+        helper = str(Path(__file__).resolve().with_name("branch-for-issue.py"))
+        derived = subprocess.run(
+            [sys.executable, helper, str(issue), "--title-file", title_file],
+            check=False, capture_output=True, encoding="utf-8", errors="replace",
+        )
+        if derived.returncode == 0:
+            name = derived.stdout.strip()
+    if not name and recover:
+        name = f"issue-{issue}"
+    # Same consumer-owned form `_branch_exists` uses below, so a name this screen
+    # admits is one that screen can also resolve — `--branch` would expand `@{-n}`
+    # shorthand and leave `_branch_exists` unable to establish it.
+    if not name or _run_git(["check-ref-format", f"refs/heads/{name}"]).returncode != 0:
+        return (name, "invalid-or-uncreated-branch", "")
+    if recover:
+        name, collision = _unused_branch_name(name)
+        if collision:
+            return ("", collision, "")
+    created = _run_git(["checkout", "-b", name, start_point])
+    if created.returncode != 0:
+        diagnostic = (created.stderr or created.stdout).strip()
+        return (name, diagnostic or "invalid-or-uncreated-branch", "")
+    return (name, "", start_point)
+
+
 def _branch_freshness(base: str) -> str:
     base_ref = f"refs/remotes/origin/{base}"
     fetched = _run_git(["fetch", "origin", f"+refs/heads/{base}:{base_ref}"])
@@ -713,8 +794,10 @@ def _branch_setup_verdict(
     *, issue: int, base: str, branch: str, workpad_body: str, handoff: str,
     selected: dict | None, selected_by: str | None,
 ) -> tuple[str, str | None, str]:
+    # Either case: the note is written `Branch-state:` today, and a workpad seeded
+    # by an earlier run carries the lowercase spelling this must still resume from.
     has_recorded_verdict = bool(re.search(
-        rf"branch-state:\s+VALIDATED_RESUME(?:\s+proceed-verdict)?\s+for branch {re.escape(branch)}(?:\s|$)",
+        rf"[Bb]ranch-state:\s+VALIDATED_RESUME(?:\s+proceed-verdict)?\s+for branch {re.escape(branch)}(?:\s|$)",
         workpad_body,
     ))
     state: dict[str, object] = {
@@ -748,8 +831,100 @@ def _branch_setup_verdict(
     return (verdict, payload, reason)
 
 
+def _branch_setup_recover(args: argparse.Namespace, action: str) -> int:
+    """The single recovery re-invocation: adopt the current branch, or fork a new one.
+
+    Reached before the workpad read and Verdict B, because the stops it recovers
+    from include an unreadable workpad and an unestablished verdict — consulting
+    either here would re-raise the condition the agent dispatched this call to get
+    past. A stop from here is terminal: it is the phase's terminal stop 1, the
+    recovery invocation having established no branch. (Stop 2 is a failed
+    branch-setup dispatch, which never reaches this helper at all.)
+    """
+    if action == "adopt":
+        branch = (args.branch or "").strip()
+        if not branch:
+            # The agent read the branch off disk and must pass it; re-deriving it
+            # here would let the helper adopt a branch no caller ever inspected.
+            _branch_setup_record(
+                outcome="stop", stop_kind="invalid-recover-operand", arm="n/a",
+                base=args.base, branch="n/a", freshness="n/a", verdict_b="not-run",
+                recovery="adopt", reason="recover-adopt-requires-branch",
+            )
+            return UNAVAILABLE_EXIT
+        # Screen the operand with the CONSUMER's own operation, not a bespoke
+        # pattern and not `--branch`: every downstream reader of this value
+        # (`_branch_exists`, `_ref_resolves`, `_checkout_branch`) resolves
+        # `refs/heads/<name>`, while `--branch` additionally expands `@{-n}`
+        # shorthand and would admit a value those readers reject.
+        if _run_git(["check-ref-format", f"refs/heads/{branch}"]).returncode != 0:
+            _branch_setup_record(
+                outcome="stop", stop_kind="invalid-recover-operand", arm="n/a",
+                base=args.base, branch="n/a", freshness="n/a", verdict_b="not-run",
+                recovery="adopt", reason="recover-adopt-invalid-branch",
+            )
+            return UNAVAILABLE_EXIT
+        # `_branch_freshness` measures HEAD..origin/<base>, so it describes the
+        # branch at HEAD, not whatever name the caller passed. Proceeding without
+        # establishing they are the same vouches a resume on a branch this helper
+        # never confirmed HEAD is on, beside a distance measured on another. An
+        # empty read establishes that no more than a mismatch does, so all three
+        # stop. They take distinct reasons because the remedies differ: check out
+        # the branch, attach a detached HEAD, or repair the repository the read
+        # failed against.
+        at_head = _run_git(["branch", "--show-current"])
+        current = at_head.stdout.strip() if at_head.returncode == 0 else ""
+        if current != branch:
+            if current:
+                reason = "recover-adopt-branch-not-at-head"
+            elif at_head.returncode == 0:
+                # Empty on a SUCCESSFUL read is git's detached-HEAD answer, a
+                # different state from a read that never produced one.
+                reason = "recover-adopt-head-detached"
+            else:
+                reason = "recover-adopt-head-unreadable"
+            _branch_setup_record(
+                outcome="stop", stop_kind="invalid-recover-operand", arm="n/a",
+                base=args.base, branch="n/a", freshness="n/a", verdict_b="not-run",
+                recovery="adopt", reason=reason,
+            )
+            return UNAVAILABLE_EXIT
+        _branch_setup_record(
+            outcome="proceed", stop_kind="n/a", arm="landed-resume", base=args.base,
+            branch=branch, freshness=_branch_freshness(args.base), verdict_b="not-run",
+            selected_pr="n/a", recovery="adopt-unvouched",
+        )
+        return PROCEED_EXIT
+    branch, diagnostic, start_point = _fresh_create(
+        issue=args.issue, base=args.base, branch=args.branch,
+        title_file=args.title_file, recover=True,
+    )
+    if diagnostic:
+        _branch_setup_record(
+            outcome="stop", stop_kind="feature-branch-create-failed", arm="fresh-create",
+            base=args.base, branch=branch or "n/a", freshness="n/a", verdict_b="not-run",
+            recovery="fork", reason=diagnostic,
+        )
+        return BLOCKED_EXIT
+    # The fork ladder above falls back to the LOCAL base ref when both fetches
+    # fail. A hardcoded "n/a" freshness would report that identically to a fork
+    # off a freshly fetched base, and so would `freshness` alone — a later fetch
+    # may succeed and publish a clean distance over a start point that was never
+    # fetched. Publish both: the measurement, and the start point actually used.
+    _branch_setup_record(
+        outcome="proceed", stop_kind="n/a", arm="fresh-create", base=args.base,
+        branch=branch, freshness=_branch_freshness(args.base), verdict_b="not-run",
+        selected_pr="n/a", recovery="fork",
+        reason="forked-from-local-base" if start_point == args.base else None,
+    )
+    return PROCEED_EXIT
+
+
 def branch_setup(args: argparse.Namespace) -> int:
     """Own Phase 1.4's deterministic reads and branch operations; never merge."""
+    recover = getattr(args, "recover", None)
+    if recover:
+        return _branch_setup_recover(args, recover)
     # A handoff outside HANDOFF_ORIGINS (e.g. the intake JSON path) must stop as an input
     # error here; left to the verdict it reads as unverified provenance (issue #595).
     if args.handoff not in HANDOFF_ORIGINS:
@@ -870,25 +1045,13 @@ def branch_setup(args: argparse.Namespace) -> int:
 
         if not branch:
             arm = "fresh-create"
-            fetched = _run_git([
-                "fetch", "origin", f"+refs/heads/{args.base}:refs/remotes/origin/{args.base}",
-            ])
-            branch = args.branch or ""
-            if fetched.returncode == 0 and not branch:
-                helper = str(Path(__file__).resolve().with_name("branch-for-issue.py"))
-                derived = subprocess.run(
-                    [sys.executable, helper, str(args.issue), "--title-file", args.title_file],
-                    check=False, capture_output=True, encoding="utf-8", errors="replace",
-                )
-                if derived.returncode == 0:
-                    branch = derived.stdout.strip()
-            valid = bool(branch) and _run_git(["check-ref-format", "--branch", branch]).returncode == 0
-            created = _run_git(["checkout", "-b", branch, f"origin/{args.base}"]) if fetched.returncode == 0 and valid else None
-            landed = created is not None and created.returncode == 0
-            if not landed:
-                diagnostic = "base-fetch-failed" if fetched.returncode != 0 else "invalid-or-uncreated-branch"
-                if created is not None:
-                    diagnostic = (created.stderr or created.stdout).strip() or diagnostic
+            # The first invocation never runs the local-base ladder, so its start
+            # point is always the fetched `origin/<base>` and needs no disclosure.
+            branch, diagnostic, _ = _fresh_create(
+                issue=args.issue, base=args.base, branch=args.branch,
+                title_file=args.title_file, recover=False,
+            )
+            if diagnostic:
                 _branch_setup_record(
                     outcome="stop", stop_kind="feature-branch-create-failed", arm=arm,
                     base=args.base, branch=branch or "n/a", freshness="n/a", verdict_b="not-run",
@@ -1224,10 +1387,9 @@ def _classify_branch_state(state: dict) -> tuple[str, str, dict]:
 
     # PRECEDENCE — deliberate, and asymmetric: the workpad wins when both vouch.
     # The two sources are not interchangeable. The workpad carries a run's own
-    # recorded branch and proceed verdict, which resolve a strictly finer set of
-    # verdicts (`matching-without-verdict`, `divergent-*`) than the PR can; the PR
-    # source collapses both onto one fact and therefore screens only through
-    # published-tip reachability. Preferring the workpad where it is trusted keeps
+    # recorded branch, which resolves a strictly finer set of verdicts (`divergent-*`)
+    # than the PR can; the PR source collapses both onto one fact and therefore
+    # reaches only the matching arm. Preferring the workpad where it is trusted keeps
     # an established-provenance run classifying exactly as it did before issue #780
     # — the PR source only ever *adds* a path where there was previously a terminal
     # stop, and never relaxes one that already had a finer answer.
@@ -1240,9 +1402,8 @@ def _classify_branch_state(state: dict) -> tuple[str, str, dict]:
         # nor a workpad-derived proceed verdict may vouch for anything — consulting
         # them would let a forged comment steer the classification the PR was
         # admitted to decide. The PR supplies both operands instead. Reusing the
-        # shared arms below rather than returning early is deliberate: it keeps ONE
-        # published-tip-reachability call site and ONE reason slug for the
-        # diverged-tip stop, so that screen cannot drift between the two sources.
+        # shared arms below rather than returning early is deliberate: it keeps one
+        # matching-arm implementation, so the two sources cannot drift apart.
         # Because `pr_vouched` already required `pr_branch == current_branch`, this
         # path lands on the matching-branch arm by construction.
         derived["provenance_source"] = "open-pr"
@@ -1252,10 +1413,10 @@ def _classify_branch_state(state: dict) -> tuple[str, str, dict]:
     if duplicate:
         return ("AMBIGUOUS", "duplicate-branch-line", derived)
 
-    # Published-tip reachability is only consulted on the absent and matching
-    # arms below; the divergent arm never reads it, so it is derived inside those
-    # arms rather than eagerly (avoids a wasted rev-parse + merge-base pair on the
-    # divergent path).
+    # Published-tip reachability decides only the absent arm below. The matching
+    # arm derives it for diagnostics alone and the divergent arm never reads it,
+    # so it is derived inside the arms that want it rather than eagerly (avoids a
+    # wasted rev-parse + merge-base pair on the divergent path).
     if recorded is None:
         # Absent / placeholder / truncated Branch line. A prior proceed verdict
         # PLUS a published tip still vouches for the ahead history even without a
@@ -1267,13 +1428,12 @@ def _classify_branch_state(state: dict) -> tuple[str, str, dict]:
         return ("AMBIGUOUS", "no-recorded-branch", derived)
 
     if recorded == current_branch:
-        if has_verdict:
-            tip_reachable = _published_tip_reachable(current_branch)
-            derived["published_tip_reachable"] = tip_reachable
-            if tip_reachable:
-                return ("VALIDATED_RESUME", "", derived)
-            return ("AMBIGUOUS", "matching-verdict-tip-unreachable", derived)
-        return ("AMBIGUOUS", "matching-without-verdict", derived)
+        # A vouching source plus a recorded branch equal to the checked-out one is
+        # already the full case for this history being the run's own, so neither a
+        # proceed verdict nor a published tip may withhold the resume (issue #687).
+        # Reachability is still derived for diagnostics; it decides nothing here.
+        derived["published_tip_reachable"] = _published_tip_reachable(current_branch)
+        return ("VALIDATED_RESUME", "", derived)
 
     # Divergent: the recorded branch is not the working branch.
     exists = _branch_exists(recorded)
@@ -1569,6 +1729,8 @@ _SWEEP_EXACT_TEMPLATES = (
     "devflow-docgate-extractor-err-{issue}.txt",
     "issue-claim-audit-record-{issue}.md",
     "issue-claim-projection-{issue}.json",
+    "audit-versioning-policy-{issue}.md",
+    "sweep-evidence-{issue}.json",
 )
 # The 2 wildcard families. The captured digit run is `-`-delimited on both sides,
 # so a group(1) STRING equality against the run's issue is what stops 240 from
@@ -1689,8 +1851,8 @@ def _scratch_remove_file(top: str, target: str) -> int:
 def _sweep_flat_leftovers(scratch_dir: str, issue: str) -> None:
     """Remove this run's own flat pre-folder leftovers from the scratch root.
 
-    Best-effort and scoped: only the closed 18-name set carrying exactly `issue`
-    is removed (16 exact templates + the 2 wildcard families), top-level files
+    Best-effort and scoped: only the closed 20-name set carrying exactly `issue`
+    is removed (18 exact templates + the 2 wildcard families), top-level files
     only. A sibling issue's leftovers, the fixed-name files, and every excluded
     shared path carry a different name and are never candidates.
     """
@@ -1858,6 +2020,7 @@ def main(argv=None) -> int:
     branch_setup_parser.add_argument("--handoff", required=True)
     branch_setup_parser.add_argument("--title-file", required=True)
     branch_setup_parser.add_argument("--branch")
+    branch_setup_parser.add_argument("--recover", choices=("adopt", "fork"))
     branch_setup_parser.set_defaults(func=branch_setup)
     ignore_parser = subparsers.add_parser("ignore-precondition")
     ignore_parser.add_argument("--path")

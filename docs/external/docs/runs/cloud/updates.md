@@ -22,16 +22,16 @@ The installer is review-first on an update: it previews by default, and it never
     Download the newer installer and pass the same new tag as the payload.
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.45.10/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.48.12/install.sh -o devflow-install.sh
     # read devflow-install.sh, then:
-    DEVFLOW_REF=v2.45.10 bash devflow-install.sh
+    DEVFLOW_REF=v2.48.12 bash devflow-install.sh
     ```
 
     On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
   </Step>
   <Step title="Apply It">
     ```bash
-    DEVFLOW_REF=v2.45.10 bash devflow-install.sh --apply
+    DEVFLOW_REF=v2.48.12 bash devflow-install.sh --apply
     ```
 
     This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.
@@ -93,7 +93,7 @@ In a thin install, `prflow_version` in `.prflow/config.json` decides which plugi
 A current example makes the risk concrete. The skills that read `.prflow/skill-extensions/` ship inside the plugin, while the permission entries their delivery needs ship in the workflow files. Raising only `prflow_version` leaves that delivery unpermitted, and a refused delivery is not reported as a failure. The run looks normal and quietly applies less of your configuration.
 
 <Note>
-  In a vendored install, `prflow_version` is ignored. The committed `.prflow/vendor/prflow/` tree supplies the runtime, so update that tree instead. An apply run that finds a git-tracked `.prflow/vendor/prflow/` treats the repository as vendor mode automatically: it replaces the committed tree with the fetched release's plugin files, keeps `/vendor/` out of `.prflow/.gitignore`, and logs how to switch to a thin install — so CI stops running the old plugin after an upgrade.
+  In a vendored install, `prflow_version` is ignored — the committed `.prflow/vendor/prflow/` tree supplies the runtime, so update that tree instead. To keep the ignored pin from drifting silently, each cloud run now compares the committed copy's version against `prflow_version` and annotates the drift: a `::warning::` when `prflow_version` is an exact three-part semver tag (`v<x.y.z>`) that does not match the committed version, and a `::notice::` for any other `prflow_version` — a branch, a SHA, a partial or non-standard semver ref (`v1.2`, `v2.45.0-rc1`), or empty (or the committed `plugin.json` is unreadable). The check is advisory only — it never changes which copy runs. An apply run that finds a git-tracked `.prflow/vendor/prflow/` treats the repository as vendor mode automatically: it replaces the committed tree with the fetched release's plugin files, keeps `/vendor/` out of `.prflow/.gitignore`, and logs how to switch to a thin install — so CI stops running the old plugin after an upgrade.
 </Note>
 
 ## After the Update

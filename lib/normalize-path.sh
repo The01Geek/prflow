@@ -74,7 +74,7 @@ devflow_normalize_path() {
   if [ -z "$drive" ]; then
     # tr unavailable (degenerate PATH): never emit a corrupted /mnt//... path —
     # fall to the documented unchanged-with-breadcrumb residual.
-    printf 'devflow: could not normalize Windows-form path "%s" (drive-letter lowercasing failed — tr unavailable?) — using it unchanged\n' "$input" >&2
+    printf 'prflow: could not normalize Windows-form path "%s" (drive-letter lowercasing failed — tr unavailable?) — using it unchanged\n' "$input" >&2
     printf '%s\n' "$input"
     return 0
   fi
@@ -88,7 +88,7 @@ devflow_normalize_path() {
     printf '/%s%s\n' "$drive" "$rest"
     return 0
   fi
-  printf 'devflow: could not normalize Windows-form path "%s" (no wslpath/cygpath and no WSL/MSYS environment signal) — using it unchanged\n' "$input" >&2
+  printf 'prflow: could not normalize Windows-form path "%s" (no wslpath/cygpath and no WSL/MSYS environment signal) — using it unchanged\n' "$input" >&2
   printf '%s\n' "$input"
   return 0
 }

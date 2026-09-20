@@ -40,13 +40,17 @@ The issue body follows a fixed structure:
 | `## Current Behavior` | What the code does now. |
 | `## Desired Behavior` | The intended outcome, stated as observable behavior. |
 | `## User Impact` | Who gains, and who is unaffected. |
-| `## Technical Context` | Known starting files, architecture fit, dependencies, data and cross-layer impact. |
+| `## Technical Context` | Known starting files, architecture fit, dependencies, data and cross-layer impact. Collapsed by default. |
 | `## Acceptance Criteria` | A checklist of independently testable outcomes. |
-| `## Implementation Notes` | Approach, relevant files and a testing strategy. |
+| `## Implementation Notes` | Approach, relevant files and a testing strategy. Collapsed by default. |
 
 `## Dependencies` and `## 🚫 Blocked — resolve before implementation` are added when they apply.
 
 After creation you get the new issue's URL, and the `PRFlow` label is applied when repository permissions allow it.
+
+<Note>
+  `## Technical Context` and `## Implementation Notes` are implementer reference material, so their contents ship inside a `<details>` block and render collapsed on GitHub — every other section renders open. Expand them to read the detail; agents read the raw body text either way.
+</Note>
 
 <Note>
   The `## Technical Context` section opens with a scope note saying the listed files are starting points, not the full list. That is deliberate. The issue maps the work; it does not bound it.
@@ -85,7 +89,9 @@ PRFlow does not create an issue as soon as it has enough context.
 
 These are two different sections and they mean different things.
 
-`## Dependencies` lists open prerequisite issues as `Blocked by #N`. The [implement workflow](/docs/workflows/implement) reads those declarations and stops while a prerequisite is still open, or when it cannot establish whether it is open.
+`## Dependencies` lists open prerequisite issues as `Blocked by #N`. The [implement workflow](/docs/workflows/implement) reads those declarations and stops while a prerequisite is still open, or when it cannot establish whether it is open. It recognizes prerequisite phrasing — `depends on`, `blocked by`, a line-leading `After #N` — wherever it appears, not only under this heading, so reserve that wording for real prerequisites.
+
+To point at a related issue that does *not* gate the work, record it in `Technical Context` as `Related work: #N` rather than under `## Dependencies`. The neutral wording keeps an advisory reference from being read as an execution prerequisite.
 
 `## 🚫 Blocked — resolve before implementation` lists unresolved product or implementation decisions. If you decline to settle a blocking decision, PRFlow records it here rather than inventing a default. Settle those before implementation starts.
 

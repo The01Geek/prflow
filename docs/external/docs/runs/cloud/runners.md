@@ -28,6 +28,12 @@ The light jobs are, in `devflow.yml`: `config`, `review_dedupe`, `gate`, `review
 
 When `DEVFLOW_LIGHT_RUNNER` is unset or empty, each light job falls back to the `DEVFLOW_RUNNER` chain — `DEVFLOW_RUNNER`'s value, or `ubuntu-latest` when that is also unset. Set nothing new and no job moves.
 
+## Give Standalone Review Its Own Runner
+
+A third optional variable, `DEVFLOW_REVIEW_RUNNER`, applies to one job: the `command` job on a standalone `/prflow:review`. It is preferred over `DEVFLOW_LIGHT_RUNNER` there and takes the same value shapes. Use it when that job is worth its own machine but the one-core helpers are not — a standalone review is model-API-bound, so it wants a long-lived, uninterrupted box rather than a fast one, and the helpers around it finish in about a minute.
+
+Unset or empty, the expression falls through to the `DEVFLOW_LIGHT_RUNNER` chain and then the `DEVFLOW_RUNNER` chain, so setting nothing moves nothing.
+
 <Warning>
   The light jobs still carry secrets: the standalone-review job runs your model-provider API key (under the read-only reviewer identity) and the helper jobs mint the GitHub App token. If you self-host `DEVFLOW_RUNNER` for network isolation, pointing `DEVFLOW_LIGHT_RUNNER` at a GitHub-hosted runner runs those secrets outside that boundary. Keep the light runner inside the same fleet unless a GitHub-hosted light runner is acceptable for those secrets.
 </Warning>
@@ -62,6 +68,10 @@ python3 --version
 ```
 
 Every line should read `ok`, and the version should be 3.11 or higher. Fix each `MISSING` line before you continue.
+
+<Note>
+  The shipped workflows upload their execution transcript with `actions/upload-artifact@v7`, which requires **Actions Runner 2.327.1 or newer** (Node 24). A GitHub-hosted runner meets this floor automatically; a self-hosted runner older than 2.327.1 must be upgraded, or the upload step fails.
+</Note>
 
 <AccordionGroup>
   <Accordion title="Windows Runners">
@@ -119,7 +129,7 @@ Use a single-line path, with the backslashes escaped as shown. An absent or empt
 
 Leave `setup.git_dir_pin` and `setup.git_work_tree_pin` at `false` unless you have validated their constraints:
 
-- `git_dir_pin` is not honored by implementation runs and can misdirect repository-root configuration reads.
+- `git_dir_pin` is not honored by implementation runs and can misdirect repository-root configuration reads. When it is enabled and an implement run ignores it, the run summary now carries a `::warning::` naming the suppression, so the divergence from your config is visible rather than silent.
 - `git_work_tree_pin` breaks remote marketplace cloning. It suits a local-only marketplace list and nothing else.
 
 <Warning>

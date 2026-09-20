@@ -44,12 +44,12 @@ _PEE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # leave DEVFLOW_JQ unbound and abort the next reference under `set -u`.
 # shellcheck source=../lib/resolve-jq.sh
 . "$_PEE_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 # Outcome check, not just sourceability: a sibling that sources clean yet never
 # assigns must still leave a usable jq — never a bare `set -u` abort that breaks
 # the single-token stdout / always-exit-0 contract.
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   DEVFLOW_JQ=jq
 fi
 
@@ -58,7 +58,7 @@ if [ -z "$FILE" ] || [ ! -f "$FILE" ]; then
   # Breadcrumb, not just the fail-safe value: a renamed/removed execution_file
   # output would otherwise disarm this signal silently and permanently (the
   # id-rename hazard — the caller's job log must show WHY is_error read false).
-  echo "devflow: parse-engine-error: execution file absent or empty ('$FILE') — defaulting is_error=false (fail-safe)" >&2
+  echo "prflow: parse-engine-error: execution file absent or empty ('$FILE') — defaulting is_error=false (fail-safe)" >&2
   echo false
   exit 0
 fi
@@ -73,7 +73,7 @@ fi
 if ! PARSED=$("$DEVFLOW_JQ" -rs \
   '[.. | objects | select(.type == "result") | .is_error] | any(. == true)' \
   "$FILE"); then
-  echo "devflow: parse-engine-error: jq failed parsing '$FILE' — defaulting is_error=false (fail-safe)" >&2
+  echo "prflow: parse-engine-error: jq failed parsing '$FILE' — defaulting is_error=false (fail-safe)" >&2
   PARSED=""
 fi
 

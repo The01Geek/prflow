@@ -34,6 +34,6 @@ if [ -f "$_RESOLVE_JQ_DIR/resolve-bin.sh" ] \
   # DEVFLOW_JQ assigned empty.
   : "${DEVFLOW_JQ:=$(devflow_resolve_bin jq)}"
 else
-  echo "devflow: resolve-bin.sh not found or not sourceable beside resolve-jq.sh — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-bin.sh not found or not sourceable beside resolve-jq.sh — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   : "${DEVFLOW_JQ:=jq}"
 fi

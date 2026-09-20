@@ -41,7 +41,7 @@
 # `jq` with a breadcrumb rather than aborting under set -e.
 # shellcheck source=resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 # devflow_filing_cap_verdict <status> <filed_this_run> <max_per_run> \
 #                            <per_cat_count> <max_per_cat> <open_total> <max_open>

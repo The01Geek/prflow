@@ -63,13 +63,16 @@ Blocked by #N — <one-line reason it must land first>
 
 Both the `## Dependencies` heading and the `Blocked by #N` phrasing are exactly the forms `/prflow:implement`'s early dependency preflight recognizes. Omit the section entirely when no prerequisite is open; never write "Dependencies: none".
 
-Keep this section distinct from the two other "dependency"-flavored surfaces:
+Keep this section distinct from the other "dependency"-flavored surfaces:
 
-- `## Dependencies` (this section) — cross-issue ordering: another issue/PR that must land before this work starts. This is the only surface the early dependency preflight reads.
+- `## Dependencies` (this section) — cross-issue ordering: another issue/PR that must land before this work starts. This is where the early dependency preflight expects deliberate prerequisite declarations.
 - `## 🚫 Blocked` — unresolved decisions, not ordering (see below).
 - `Technical Context` → `Dependencies` bullet — the service/module/library this depends on, not another issue.
+- `Technical Context` → `Related work: #N` — a non-blocking, advisory, or conditional pointer to another issue that does not gate this work. Record it here with that neutral wording, never in `## Dependencies`.
 
 A prerequisite that is already closed at drafting time is not listed here — record it as provenance in `Technical Context` instead (e.g. "builds on #M, merged"), not here.
+
+A recognized prerequisite that is still open stops implementation until it lands, so reserve hard declarations for actual prerequisites. The preflight also recognizes inbound declaration wording *outside* the `## Dependencies` section, so a merely advisory reference must avoid declaration phrasing — such as `depends on`, `blocked by`, `must merge after`, `follow-up to`, or a line starting with `After #N` — which is read as a real prerequisite wherever it appears.
 
 ### Problem Statement
 Open the section with one sentence in the fixed user-story form — `As a <role>, I want <capability>, so that <outcome>.` — before the free-prose narrative, on every issue. The rule is unconditional: a defect report or internal tooling uses an honest role ("As a maintainer, I want the run to stop crashing on X, so that Y") rather than being exempted, so no judgement is applied about when the sentence is owed. Then, in free prose: why is this needed? Which user hits what pain.
@@ -84,7 +87,22 @@ The single decided behavior after implementation. State it declaratively ("Owner
 Who benefits and how.
 
 ### Technical Context
-Ground this in the documentation findings passed by the caller. Open the section with this standardized scope note, included verbatim in every issue. It is fixed boilerplate, not an undecided choice — the no-options gate does not apply to it, so never reword or drop it:
+Wrap this section's contents in a `<details>` block so they render collapsed — a reader expands the implementer reference material on demand:
+
+```markdown
+## Technical Context
+
+<details>
+<summary>Known starting points, verified premises</summary>
+
+<the section's contents, exactly as specified below>
+
+</details>
+```
+
+The `##` heading stays outside the wrapper on its own line: every machine reader of the body anchors on that line, and moving it inside `<summary>` deletes the section from all of them. The blank line after `<summary>` and the unindented contents are equally load-bearing — indent them and GitHub renders bullets as a code block. `</details>` closes the section before the next `##` heading.
+
+Ground this in the documentation findings passed by the caller. Open the wrapper with this standardized scope note, included verbatim in every issue. It is fixed boilerplate, not an undecided choice — the no-options gate does not apply to it, so never reword or drop it:
 
 > **Scope note:** The files and details below are the known starting points, not the full list. Before implementing, trace the change through the codebase to find every affected call site, consumer, and layer — this issue maps the work, it does not bound it.
 
@@ -118,6 +136,8 @@ An optional short grounding block — plain prose, no checkbox rows — may open
 - Reference project coding standards from `CLAUDE.md` if available.
 
 ### Implementation Notes
+Wrap this section's contents in the same `<details>` block Technical Context specifies — `##` heading outside, blank line after `<summary>`, contents unindented, `</details>` before the next `##` heading — with the summary line `Approach, relevant files, testing strategy`.
+
 Describe the **one** approach the user chose — not a comparison of candidates. The one-approach rule governs the **Approach**, **Code Patterns**, and **Testing Strategy** bullets; the **Relevant files** block below is a floor-declared *map*, governed by its own bullet instead.
 - **Approach** — the decided design: what changes and why, and how it fits the existing code. Name the surfaces the change is expected to reach in the `Relevant files` block below, not here.
 - **Relevant files** — a floor-declared map of the file and function surfaces the decided Approach is expected to reach, at minimum; the implementing run traces the change and extends this list. Because it is a *map* and not a specification, hedged phrasing is permitted inside this block — write "this likely touches `lib/scan.sh`, and plausibly `lib/classify-pr-kind.jq`" rather than promoting a guess to a stated fact or deleting a useful starting point; the no-options gate skips this block by location, so a hedge here is never read as an unresolved decision. The block admits file and function references only: a behavior decision, a library choice, or a mechanism fork written inside it is non-conforming — resolve it with the user, and on user disengagement it lands in `## 🚫 Blocked`, never as prose in this block. Keep it distinct from Technical Context's **Relevant Classes/Files** bullet: that bullet records the surfaces the Step 1 findings established about current behavior, while this block records the surfaces the chosen Approach is expected to reach — record each surface in exactly one of the two.
@@ -161,7 +181,7 @@ This is the core checklist — the obligations every issue carries. Specialized 
 - [ ] Desired Behavior is stated as one decided behavior, not a menu
 - [ ] Technical Context opens with the standardized scope note, included verbatim
 - [ ] Technical context cites real file paths / class names from this project
-- [ ] Open cross-issue prerequisites are listed in `## Dependencies` as `Blocked by #N — <reason>` lines, per the *Dependencies* section above
+- [ ] Open cross-issue prerequisites are listed in `## Dependencies` as `Blocked by #N — <reason>` lines; non-blocking or advisory issue references instead use neutral `Related work: #N` wording in `Technical Context`, never a declaration in `## Dependencies` — per the *Dependencies* section above
 - [ ] Acceptance criteria are measurable, testable, and unconditional
 - [ ] Each AC states what is true after the change rather than what the diff contains (untouched-surface shape excepted) — *Acceptance Criteria*, first bullet
 - [ ] Criterion apparatus is sorted by the consequence test and the grounding block opens the section — *Acceptance Criteria*, grounding-block bullet
@@ -219,6 +239,9 @@ Survey owners can share results with people outside the tool and keep an offline
 
 ## Technical Context
 
+<details>
+<summary>Known starting points, verified premises</summary>
+
 > **Scope note:** The files and details below are the known starting points, not the full list. Before implementing, trace the change through the codebase to find every affected call site, consumer, and layer — this issue maps the work, it does not bound it.
 
 - Relevant Classes/Files — the report service that returns the results object, and the results page handler that renders it.
@@ -227,15 +250,23 @@ Survey owners can share results with people outside the tool and keep an offline
 - Data/Schema Considerations — none; the export reads existing data and stores nothing.
 - Cross-layer Impact — a new backend endpoint and one button on the results page.
 
+</details>
+
 ## Acceptance Criteria
 - [ ] An owner viewing a finished survey sees an Export as PDF button.
 - [ ] Clicking the button downloads a PDF that contains every chart and table shown on the results page, in the same order.
 - [ ] The PDF opens in a standard reader without signing in.
 
 ## Implementation Notes
+
+<details>
+<summary>Approach, relevant files, testing strategy</summary>
+
 - Approach — add one export endpoint that reuses the results object and renders it to PDF, and one button that calls it.
 - Relevant files — the results page handler and a new export handler beside it.
 - Testing Strategy — one test drives the endpoint against a survey with two charts and asserts the PDF holds both, in order; a second test asserts the endpoint refuses a survey that is not finished.
+
+</details>
 BODY
 ```
 

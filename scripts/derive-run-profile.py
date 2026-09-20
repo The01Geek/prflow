@@ -229,11 +229,11 @@ def main(argv=None):
     try:
         body = Path(args.body_file).read_text(encoding="utf-8")
     except OSError as exc:
-        print(f"devflow: derive-run-profile: cannot read {args.body_file}: {exc}",
+        print(f"prflow: derive-run-profile: cannot read {args.body_file}: {exc}",
               file=sys.stderr)
         return 1
     except UnicodeDecodeError as exc:
-        print(f"devflow: derive-run-profile: {args.body_file} is not UTF-8: {exc}",
+        print(f"prflow: derive-run-profile: {args.body_file} is not UTF-8: {exc}",
               file=sys.stderr)
         return 1
     json.dump(derive(body), sys.stdout, sort_keys=True)

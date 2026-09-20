@@ -174,7 +174,7 @@ if [ "$SWAPPED" -eq 1 ]; then
     # The emitted entry is named in the notice so a live run shows the exact spelling the
     # action will validate — the diagnostic that was missing when the un-prefixed form
     # shipped (PR #1137).
-    echo "::notice::devflow: composed a job-local marketplace at $MK_DIR/marketplace.json and emitted the marketplace entry '$MK_ENTRY'; the prflow plugin now resolves from the vendored subtree ($PLUGIN_DIR), matching a consumer's resolution (issue #1049)."
+    echo "::notice::prflow: composed a job-local marketplace at $MK_DIR/marketplace.json and emitted the marketplace entry '$MK_ENTRY'; the prflow plugin now resolves from the vendored subtree ($PLUGIN_DIR), matching a consumer's resolution (issue #1049)."
 else
     # The baseline `./` entry was not found in the combined list — the marketplace.json
     # was written but nothing consumes it. Surface it rather than resolving silently.

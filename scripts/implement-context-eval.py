@@ -117,10 +117,12 @@ import itertools
 from context_eval_shared import (  # noqa: F401
     PHASE_FILES,
     PHASE_READ_LABELS,
+    REFERENCE_PHASE_FILES,
     SWEEP_REFERENCE_PHASE,
     SWEEP_REFERENCE_PREFIX,
     SWEEP_REFERENCE_SUFFIX,
     UNESTABLISHED,
+    _context_identity,
     _context_tokens,
     _is_main_thread_record,
     _iter_session_files,
@@ -227,7 +229,8 @@ def _phase_label_for_read(file_path):
     """The phase-read label a Read's `file_path` counts under, or None.
 
     A phase file matches PHASE_FILES by basename; a gated Phase 2.3 sweep reference
-    (skills/implement/references/sweep-*.md) counts toward phase2 by basename shape. Both
+    (skills/implement/references/sweep-*.md) counts toward phase2 by basename shape; a
+    gated reference outside that shape matches REFERENCE_PHASE_FILES by basename. All
     match on the basename because the same file resolves at a repo-relative path locally
     and a vendored path on the cloud tier. Delegates to the shared matcher, passing the
     label map as an argument.
@@ -370,6 +373,75 @@ def _gap_stats(times):
     }
 
 
+class SubagentContextAccumulator:
+    """One dispatched-subagent context's residency and phase-read metrics (issue #714).
+
+    The subagent axis reports residency and Read events only — wall time, overlapping
+    children and missing child records are tools/flight-recorder/implement-timeline.py's
+    axis, per the issue. Holds only small scalars (a running peak, counters, a per-phase
+    tally), never full record bodies, so a run with many subagent contexts still streams
+    in bounded memory.
+    """
+
+    def __init__(self, context):
+        self.context = context
+        self.turn_count = 0
+        # Established per-turn residencies; result()'s peak is their max, or UNESTABLISHED
+        # when the list is empty, so a usage-less subagent context reports UNESTABLISHED
+        # rather than a real-looking 0 — the unknown-is-not-zero rule the main peak obeys.
+        self.per_turn_context = []
+        self.usage_missing_turns = 0
+        self.unresolvable_read_paths = 0
+        self.phase_reads = {label: 0 for label in PHASE_READ_LABELS}
+
+    def observe_assistant(self, record):
+        self.turn_count += 1
+        message = record.get("message")
+        if not isinstance(message, dict):
+            message = {}
+        tokens = _context_tokens(message.get("usage"))
+        if tokens is None:
+            self.usage_missing_turns += 1
+        else:
+            self.per_turn_context.append(tokens)
+        content = message.get("content")
+        if not isinstance(content, list):
+            return
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") != "tool_use" or block.get("name") != "Read":
+                continue
+            block_input = block.get("input")
+            file_path = (block_input.get("file_path")
+                         if isinstance(block_input, dict) else None)
+            if not isinstance(file_path, str):
+                # The path could not be ESTABLISHED, so it is accounted rather than
+                # silently dropped, mirroring RunAccumulator's
+                # skipped["unresolvable_read_path"]. Without this tally a harness release
+                # that renamed `input.file_path` would make this subagent's phase_reads
+                # report a real-looking 0 with a clean count — the headline axis measuring
+                # nothing, indistinguishable from a subagent that entered no phase.
+                self.unresolvable_read_paths += 1
+                continue
+            label = _phase_label_for_read(file_path)
+            if label is not None:
+                self.phase_reads[label] += 1
+
+    def result(self):
+        peak = max(self.per_turn_context) if self.per_turn_context else UNESTABLISHED
+        phase_reads = {label: self.phase_reads[label] for label in PHASE_READ_LABELS}
+        return {
+            "context": self.context,
+            "turn_count": self.turn_count,
+            "peak_context": peak,
+            "usage_missing_turns": self.usage_missing_turns,
+            "unresolvable_read_paths": self.unresolvable_read_paths,
+            "phase_reads": phase_reads,
+            "total_phase_reads": sum(phase_reads.values()),
+        }
+
+
 class RunAccumulator:
     """Streams one session file's records and accumulates one run's metrics.
 
@@ -394,6 +466,15 @@ class RunAccumulator:
         self.per_turn_context = []
         self.compact_boundary_count = 0
         self.attributed = False
+        # AC4 record accounting: every accepted assistant record lands in exactly one of
+        # these two counters (classified before any attribution filter), so their sum is
+        # the run's accepted-assistant-record total and a silent drop is impossible.
+        self.main_thread_record_count = 0
+        self.subagent_record_count = 0
+        # issue #714: one accumulator per dispatched-subagent context (keyed by
+        # _context_identity), so the review-fix worker and each engine it dispatches show
+        # up as their own rows instead of being discarded. Empty {} when the run had none.
+        self.subagent_contexts = {}
         # Attributed main-thread turns that carried NO `usage` object at all. Such a turn
         # has no recorded residency, so it is tallied here rather than folded into
         # per_turn_context as a 0 (which would collapse an unmeasured turn onto a real
@@ -421,12 +502,23 @@ class RunAccumulator:
             self.compact_boundary_count += 1
 
     def observe_assistant(self, record):
-        # A dispatched-subagent record never touches the main-thread axes: the phase files
-        # are read by the orchestrator on the main thread. Excluded when isSidechain is
-        # true (local transcripts) or parent_tool_use_id is a non-empty string (the cloud
-        # execution file's subagent marker) — issue #120 AC5.
-        if not _is_main_thread_record(record):
+        # issue #714: classify every accepted assistant record into exactly one context
+        # bucket BEFORE the attribution filter, so main_thread + subagent record counts
+        # sum to the accepted-assistant total (AC4). A dispatched-subagent record never
+        # touches the main-thread axes (the phase files are read by the orchestrator on the
+        # main thread — issue #120 AC5); it accumulates in its own context instead of being
+        # discarded, keyed by _context_identity (isSidechain/agentId, else the cloud
+        # parent_tool_use_id marker).
+        key, is_subagent = _context_identity(record, self.source)
+        if is_subagent:
+            self.subagent_record_count += 1
+            acc = self.subagent_contexts.get(key)
+            if acc is None:
+                acc = SubagentContextAccumulator(key)
+                self.subagent_contexts[key] = acc
+            acc.observe_assistant(record)
             return
+        self.main_thread_record_count += 1
         # A None attribution accepts every main-thread record (the cloud execution file
         # carries no attributionSkill; the whole file is one run — AC6). Otherwise bound
         # the run to a matching attributionSkill.
@@ -507,9 +599,21 @@ class RunAccumulator:
         # text output is byte-stable across runs.
         phase_reads = {label: self.phase_reads[label] for label in PHASE_READ_LABELS}
         tool_calls = {label: self.tool_calls[label] for label in TOOL_CATEGORY_LABELS}
+        # issue #714: subagent contexts in sorted-key order so the output is byte-stable;
+        # an empty run reports {} (an empty set, never a zero-valued entry — AC5).
+        subagent_contexts = {
+            k: self.subagent_contexts[k].result()
+            for k in sorted(self.subagent_contexts)}
         return {
             "source": self.source,
             "turn_count": self.turn_count,
+            # issue #714 record accounting (AC4): the two buckets partition every accepted
+            # assistant record, so their sum is the accepted-assistant total.
+            "main_thread_record_count": self.main_thread_record_count,
+            "subagent_record_count": self.subagent_record_count,
+            # issue #714: each dispatched-subagent context's own residency + phase-read
+            # metrics, keyed by _context_identity. {} when the run had none.
+            "subagent_contexts": subagent_contexts,
             # Residency axis (issue #1209 axis 1).
             "peak_context": peak,
             "final_context": final,
@@ -635,7 +739,11 @@ def eval_corpus(corpus_root):
                     f"warning: skipping malformed {rtype} record {index} in {session_file}: {type(exc).__name__}: {exc}\n"
                 )
                 continue
-        if acc.attributed:
+        # A run is reported when it had an attributed main-thread turn OR any dispatched
+        # subagent context (issue #714): a subagent-only file — every record marked, no
+        # attributed main-thread turn — is reported with its subagent entries established
+        # and an UNESTABLISHED main-thread peak, never dropped.
+        if acc.attributed or acc.subagent_contexts:
             runs.append(acc.result())
     runs.sort(key=lambda r: r["source"])
     return runs, skipped
@@ -762,6 +870,17 @@ def _render_run_line(r):
     )
 
 
+def _render_subagent_line(c):
+    """One dispatched-subagent context's line, nested under its run (issue #714)."""
+    phase = " ".join(
+        "{}={}".format(label, c["phase_reads"][label]) for label in PHASE_READ_LABELS)
+    return (
+        "  - subagent {context}: turns={turn_count} peak={peak_context} "
+        "usage_missing={usage_missing_turns} unresolvable_read_paths="
+        "{unresolvable_read_paths} phase_reads=[{phase}] "
+        "total_phase_reads={total_phase_reads}".format(phase=phase, **c))
+
+
 def render_text(runs, summary, skipped):
     lines = []
     lines.append("# implement runtime main-thread context eval")
@@ -771,6 +890,11 @@ def render_text(runs, summary, skipped):
         lines.append("(no implement runs found in the supplied corpus)")
     for r in runs:
         lines.append(_render_run_line(r))
+        # Subagent contexts render one line each, nested under their run (sorted-key order
+        # by construction in result()), so the review-fix worker and its engines are
+        # readable in the text report, not only the JSON.
+        for key in r["subagent_contexts"]:
+            lines.append(_render_subagent_line(r["subagent_contexts"][key]))
     lines.append("")
     lines.append("## Aggregate summary")
     # aggregate() builds this dict in the canonical field order, so iterating it renders

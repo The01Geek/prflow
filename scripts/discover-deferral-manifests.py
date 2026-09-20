@@ -55,8 +55,8 @@ Exit codes (discovery mode):
     0  no root classified `failed` (all ok/absent, including zero total matches)
     2  invoked with zero root arguments (usage message; NO discovery marker)
     3  partial — at least one `failed` AND at least one `ok`/`absent`
-       (discovered paths are still printed); stderr carries `devflow: discovery partial:`
-    4  every root classified `failed` (empty stdout); stderr carries `devflow: discovery failed:`
+       (discovered paths are still printed); stderr carries `prflow: discovery partial:`
+    4  every root classified `failed` (empty stdout); stderr carries `prflow: discovery failed:`
 An uncaught exception exits non-zero (interpreter default) with neither marker on
 stderr, which the §4.0.5 reader's unrecognised-shape arm records as a failure.
 
@@ -106,6 +106,9 @@ MANIFEST_NAME = "deferrals.json"
 # in any later position stays a root path, preserving positional discovery mode.
 PRESENCE_FLAG = "--presence-for-pr"
 AGGREGATE_FLAG = "--aggregate"
+HELP_FLAGS = ("--help", "-h")
+# The invocation forms `--help` prints, one per line.
+USAGE_FORMS = (f"{PRESENCE_FLAG} N", f"{AGGREGATE_FLAG} --pr N", "ROOT [ROOT ...]")
 
 # The review scratch root is cwd-relative, matching the review producer and the
 # consumers that read the persisted PR aggregate.
@@ -130,8 +133,8 @@ REASON_INTERNAL_ERROR = "internal-error"
 
 # Aggregate discrimination markers remain part of positional discovery mode's
 # compatibility contract.
-MARKER_PARTIAL = "devflow: discovery partial:"
-MARKER_FAILED = "devflow: discovery failed:"
+MARKER_PARTIAL = "prflow: discovery partial:"
+MARKER_FAILED = "prflow: discovery failed:"
 
 
 def _force_utf8_streams():
@@ -188,7 +191,7 @@ def classify_root(root):
         # raises no OSError, so without its own write it would be the one failure the
         # operator cannot attribute to a root.
         sys.stderr.write(
-            f"devflow: discovery: root {os.path.abspath(root)} failed traversal (not a directory)\n"
+            f"prflow: discovery: root {os.path.abspath(root)} failed traversal (not a directory)\n"
         )
         return "failed", []
     matches = []
@@ -211,7 +214,7 @@ def classify_root(root):
                     matches.append(_posix(candidate))
     except OSError as exc:
         sys.stderr.write(
-            f"devflow: discovery: root {os.path.abspath(root)} failed traversal ({exc})\n"
+            f"prflow: discovery: root {os.path.abspath(root)} failed traversal ({exc})\n"
         )
         return "failed", []
     return "ok", matches
@@ -284,12 +287,12 @@ def _resolve_current_branch():
         )
     except (OSError, subprocess.SubprocessError) as exc:
         sys.stderr.write(
-            f"devflow: presence: could not run git to resolve the current branch ({exc})\n"
+            f"prflow: presence: could not run git to resolve the current branch ({exc})\n"
         )
         return BRANCH_UNRESOLVABLE
     if proc.returncode != 0:
         sys.stderr.write(
-            f"devflow: presence: git branch --show-current exited {proc.returncode}:"
+            f"prflow: presence: git branch --show-current exited {proc.returncode}:"
             f" {(proc.stderr or '').strip()}\n"
         )
         return BRANCH_UNRESOLVABLE
@@ -311,13 +314,13 @@ def _probe_review_root():
         return "missing"
     except OSError as exc:
         sys.stderr.write(
-            f"devflow: presence: review root {os.path.abspath(REVIEW_ROOT)} could not be inspected ({exc})\n"
+            f"prflow: presence: review root {os.path.abspath(REVIEW_ROOT)} could not be inspected ({exc})\n"
         )
         return "failed"
     import stat as _stat
     if not _stat.S_ISDIR(st.st_mode):
         sys.stderr.write(
-            f"devflow: presence: review root {os.path.abspath(REVIEW_ROOT)} exists but is not a directory\n"
+            f"prflow: presence: review root {os.path.abspath(REVIEW_ROOT)} exists but is not a directory\n"
         )
         return "failed"
     return "ok"
@@ -345,7 +348,7 @@ def _probe_aggregate(agg_path):
         return "absent"
     except OSError as exc:
         sys.stderr.write(
-            f"devflow: presence: aggregate {os.path.abspath(agg_path)} could not be inspected ({exc})\n"
+            f"prflow: presence: aggregate {os.path.abspath(agg_path)} could not be inspected ({exc})\n"
         )
         return "failed"
     import stat as _stat
@@ -354,7 +357,7 @@ def _probe_aggregate(agg_path):
         # convention classify_root states), so the operator sees the reason and not only
         # the path the `root:` line names.
         sys.stderr.write(
-            f"devflow: presence: aggregate {os.path.abspath(agg_path)} exists but is not a regular file\n"
+            f"prflow: presence: aggregate {os.path.abspath(agg_path)} exists but is not a regular file\n"
         )
         return "failed"
     return "ok" if st.st_size > 0 else "absent"
@@ -387,7 +390,7 @@ def cmd_presence(rest):
     # reach by accident.
     if len(rest) != 1 or not (rest[0].isascii() and rest[0].isdigit()):
         sys.stderr.write(
-            f"devflow: presence: usage: discover-deferral-manifests.py {PRESENCE_FLAG} N\n"
+            f"prflow: presence: usage: discover-deferral-manifests.py {PRESENCE_FLAG} N\n"
         )
         return _print_presence_unestablished(REASON_MALFORMED_INVOCATION)
     pr_number = rest[0]
@@ -423,7 +426,7 @@ def cmd_presence(rest):
             # an unsearchable sole-source candidate is an answer it could not establish,
             # not an absence.
             sys.stderr.write(
-                f"devflow: presence: branch {branch!r} derives an empty slug (every character is "
+                f"prflow: presence: branch {branch!r} derives an empty slug (every character is "
                 "outside [a-z0-9._-]); the branch candidate cannot be formed\n"
             )
             return _print_presence_unestablished(REASON_BRANCH_SLUG_EMPTY)
@@ -433,7 +436,7 @@ def cmd_presence(rest):
                 # a normal one; dropping its evidence silently would be the absent-shaped
                 # answer this mode must not reach by accident.
                 sys.stderr.write(
-                    f"devflow: presence: branch slug {branch_slug!r} would resolve outside {os.path.abspath(REVIEW_ROOT)}\n"
+                    f"prflow: presence: branch slug {branch_slug!r} would resolve outside {os.path.abspath(REVIEW_ROOT)}\n"
                 )
                 return _print_presence_unestablished(
                     REASON_BRANCH_SLUG_ESCAPES, REVIEW_ROOT
@@ -458,7 +461,7 @@ def cmd_presence(rest):
             pass
         except OSError as exc:
             sys.stderr.write(
-                f"devflow: presence: candidate {os.path.abspath(root)} could not be inspected ({exc})\n"
+                f"prflow: presence: candidate {os.path.abspath(root)} could not be inspected ({exc})\n"
             )
             return _print_presence_unestablished(REASON_UNREADABLE_DIRECTORY, root)
         status, matches = classify_root(root)
@@ -472,7 +475,7 @@ def cmd_presence(rest):
     agg_state = _probe_aggregate(agg_path)
 
     sys.stderr.write(
-        "devflow: presence roots: {} aggregate {}={}\n".format(" ".join(f"{os.path.abspath(r)}={s}" for r, s in results),
+        "prflow: presence roots: {} aggregate {}={}\n".format(" ".join(f"{os.path.abspath(r)}={s}" for r, s in results),
            os.path.abspath(agg_path), agg_state)
     )
 
@@ -659,6 +662,12 @@ def cmd_aggregate(rest):
 def main(argv=None):
     _force_utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
+    if any(arg in HELP_FLAGS for arg in args):
+        # A help flag anywhere in argv prints usage and does nothing else — no root
+        # scan, no discovery marker, no git call. rc 0.
+        for form in USAGE_FORMS:
+            print(f"usage: discover-deferral-manifests.py {form}")
+        return 0
     if args and args[0] == PRESENCE_FLAG:
         return _run_presence(args[1:])
     if args and args[0] == AGGREGATE_FLAG:
@@ -674,7 +683,7 @@ def main(argv=None):
         # Emit NO discovery marker here: a usage error is not a discovery outcome, and a marker
         # would make the fence's after-fence classification read it as a real partial run.
         sys.stderr.write(
-            "devflow: discovery: usage: discover-deferral-manifests.py ROOT [ROOT ...]\n"
+            "prflow: discovery: usage: discover-deferral-manifests.py ROOT [ROOT ...]\n"
         )
         return 2
 
@@ -693,7 +702,7 @@ def main(argv=None):
     echo = " ".join(
         f"{os.path.abspath(root)}={status}" for root, status in results
     )
-    sys.stderr.write(f"devflow: discovery roots: {echo}\n")
+    sys.stderr.write(f"prflow: discovery roots: {echo}\n")
 
     # stdout: sorted, de-duplicated, POSIX-form. Printed even on a partial run —
     # output production must NOT be able to alter the exit status below.

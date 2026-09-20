@@ -52,7 +52,7 @@ Confirm all of the following:
     It looks like this, abridged:
 
     ```markdown
-    # PRFlow Workpad — Issue #123
+    # PRFlow Workpad
 
     **Status:** 🚀 Reviewing
     **Branch:** `issue-123-add-an-option-to-retain-completed-run-logs-for-30`
@@ -61,13 +61,13 @@ Confirm all of the following:
     **Last updated:** 2026-08-26 14:07 UTC
 
     ## Progress
-    - [x] **Setup** — branch & workpad
+    - [x] **Setup**
       - 13:42:11 — /prflow:implement run started
     - [x] **Implement**
-      - [x] code + sweeps
+      - [x] Code + sweeps
     - [ ] **Review**
-      - [ ] `review-and-fix`
-      - [ ] acceptance-criteria gate
+      - [ ] Review-and-fix loop
+      - [ ] Acceptance-criteria gate
     - [ ] **Documentation**
     - [ ] **PR marked ready**
 

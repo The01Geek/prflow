@@ -30,7 +30,7 @@ set -euo pipefail
 # `jq` with a breadcrumb rather than aborting under set -e.
 # shellcheck source=resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # gh binary: resolved once via the single-source resolver (execution-verified);
@@ -50,7 +50,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # strip lives inline here.
 # shellcheck source=login-match.sh
 . "$HERE/login-match.sh" 2>/dev/null \
-  || echo "devflow: login-match.sh could not be sourced beside ${BASH_SOURCE[0]} — watched-author matching will fail closed" >&2
+  || echo "prflow: login-match.sh could not be sourced beside ${BASH_SOURCE[0]} — watched-author matching will fail closed" >&2
 
 EXPLICIT_PRS=""
 while [[ $# -gt 0 ]]; do

@@ -3,35 +3,41 @@
 
 Output: `Phase 1/4: Generating verification checklist...`
 
-Skip this entire phase (and Phase 2) when Phase 0.5 set `checklist_skipped = "intentional"` (small_diff AND config_only). Proceed directly to Phase 3. The verdict rule in 4.2 distinguishes this intentional skip from a checklist-gen failure.
+Skip this entire phase (and Phase 2) when Phase 0.5 set `checklist_skipped = "intentional"` (small_diff AND config_only). Dispatch the prepared Phase 3.1 reviewers alone, then resume §3.1.5/§3.2. The verdict rule in 4.2 distinguishes this intentional skip from a checklist-gen failure.
+
+### Work directory and assembly helper
+
+Phase 1's intermediates live in `<work-dir>` = `.prflow/tmp/review/<slug>/<run-id>/phase1-<token>`. Generate `<token>` — 8 or more unpredictable alphanumeric characters (the helper refuses fewer) — fresh at this phase entry and never reuse another entry's: a re-entrant entry shares `<run-id>` and `<N>`, and the token is what keeps it from reading this entry's files.
+
+Checklist JSON is assembled by `scripts/normalize-verdicts.py checklist <op> …`, not re-typed by you — the refused-Write arm (§1.3) and **Helper unavailable** below are the two exceptions: generators Write their own batch files, the deduper names merge groups by id, and the helper carries, concatenates, merges, renumbers, caps, tags and writes the artifact. Emit the vendored literal `.prflow/vendor/prflow/scripts/normalize-verdicts.py checklist <op> …` as a single leading-token statement first; on a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/normalize-verdicts.py checklist <op> …`; on a local-tier denial of the path-invoked form, `python3 <resolved helper path> checklist <op> …`. Substitute every operand literally (no `$VAR`, no redirect) and read the printed JSON object from the tool result — `ok` carries the outcome.
+
+**Helper unavailable.** Only when the helper cannot run — every rung is refused, or it prints no JSON object — assemble by hand instead: Read the batch files, apply the §1.0, §1.5 and §1.1.5 rules yourself, and Write both §1.6 artifacts with the Write tool.
+
+**Integrity stop.** A helper that ran and returned `ok: false` is never hand-assembled around. `bad_batch` retries its generator (§1.3), `bad_groups` its deduper (§1.5.2), and `usage` means an operand is wrong — correct it and re-run. Any other `error` (`merge_invariant_violation`, `conservation_violation`, `bad_carried`, `artifact_write_unverified`, `helper_internal_error`) means the checklist's integrity is unestablished: log the `error` and its `detail` and take §1.3's double-failure arm.
 
 ### 1.0 Carry prior items forward (fix-loop callers only)
 
 Skip this step unless `/prflow:review-and-fix` supplied both the iter-(N-1) checklist (`prior_checklist`) and that iteration's reviewed head (`prior_diff_head`). A standalone run, iteration 1, the Step 2.6 shadow, and an iteration whose predecessor was promoted or skipped Phase 1+2 each receive neither: they carry nothing forward and reuse no verdict.
 
-Establish the changed-file set first — what moved between the prior iteration's reviewed head and this one:
+Run `checklist carry <work-dir> <N> <prior_diff_head>` (the commit id as a literal). It reads the `checklist` array of `iter-<N-1>.json` in the run directory — pass `--prior <path>` when `prior_checklist` lives in another file — applies the rule and tags below, and writes `<work-dir>/carried.json`.
 
-```bash
-git diff --name-only --no-renames <prior_diff_head> HEAD
-```
-
-Substitute `<prior_diff_head>` as a literal commit id, never a `$VAR` (denied on the cloud matcher). Fail closed when that set cannot be established — `prior_diff_head` does not resolve (`git rev-parse --verify <prior_diff_head>^{commit}` fails, as in a shallow cloud checkout), or the `git diff` exits non-zero (read that exit status; empty output alone does not establish it): carry nothing and log the breadcrumb `carry-forward: none (<cause>)` naming which of the two applied. An exit-0 empty output is a genuinely empty changed set, not a failure. An absent `prior_diff_head` never reaches here — this step is skipped and the loop logs that cause itself.
+The helper establishes the changed-file set — what moved between the prior iteration's reviewed head and this one — with `git diff --name-only --no-renames <prior_diff_head> HEAD`, and fails closed when it cannot: `prior_diff_head` does not resolve (as in a shallow cloud checkout), or the `git diff` exits non-zero. It then carries nothing and prints the breadcrumb `carry-forward: none (<cause>)` — log it. An exit-0 empty output is a genuinely empty changed set, not a failure. An absent `prior_diff_head` never reaches here — this step is skipped and the loop logs that cause itself.
 
 **Carry a prior item** iff all three hold: its `category` is not `issue_acceptance`; its `source_file` is in this run's Phase 0.3 changed-file list; and its `source_file` is not in the changed-file set above. A carried item keeps its prior `id` and `claim_signature`. Reuse is keyed on `source_file` alone, so a carried PASS can rest on an unchanged file whose cross-file dependency moved; Phase 3 over the whole diff is the check on that.
 
-The carried items — never the full prior array — are the `prior_checklist` §1.2 hands the generator, so its signature drop reaches only carried claims and a claim about a changed file is emitted fresh.
+The carried items — never the full prior array — are the `prior_checklist` §1.2 hands the generator, by the `carried.json` path, so its signature drop reaches only carried claims and a claim about a changed file is emitted fresh.
 
-Merge them back after §1.1.5: append every carried item to the capped new-item array, and give each new item an `id` distinct from every carried `id`. Carried items are exempt from the 100-item cap, the `issue_acceptance` sub-cap and the coverage-shortfall record, which apply to the generator's new items alone.
+§1.6 merges them back after §1.1.5: every carried item is appended to the capped new-item array, and each new item gets an `id` distinct from every carried `id`. Carried items are exempt from the 100-item cap, the `issue_acceptance` sub-cap and the coverage-shortfall record, which apply to the generator's new items alone.
 
-Then tag every item, before §1.6 writes the artifact:
+Every item is tagged:
 
 | Item | Fields it carries |
 |---|---|
 | Carried, prior `verdict` is `PASS` | `reused_from_iter_prev: true`; `reused_from_iter` — the prior item's own `reused_from_iter` when it had one, else N-1; plus the prior `verdict`, `evidence`, `file_checked` and, when present, `raw_verdict` and `normalized` |
-| Carried, any other prior verdict | `reused_from_iter_prev: false`, no `reused_from_iter` — Phase 2 verifies it fresh |
+| Carried, any other prior verdict | `reused_from_iter_prev: false`, no `reused_from_iter` and no prior verdict fields — Phase 2 verifies it fresh |
 | Generator's new item | `reused_from_iter_prev: false`, no `reused_from_iter` |
 
-Output: `Carried {C} of {P} prior items forward ({R} reusing a prior PASS); generating the rest fresh.`
+Output the helper's `announce` line: `Carried {C} of {P} prior items forward ({R} reusing a prior PASS); generating the rest fresh.`
 
 ### 1.1 Determine batching
 
@@ -56,15 +62,11 @@ Fail-closed fallback. `awk` is not a preflight-guaranteed tool, so a batch's sli
 
 Tell each batch which files sibling batches handle.
 
-Merge the resulting checklists by concatenating all items. If batching ran (>1 batch), proceed to Phase 1.5: Dedup before renumbering. If only one batch ran, renumber IDs sequentially (`VC-1`, `VC-2`, ...) and skip Phase 1.5.
-
-In-batch sanity dedup still applies before Phase 1.5 hands the array off:
-1. Same-claim dedup: drop items that make the same claim about the same `source_file`. "Same claim" = same defect/contract under scrutiny, not identical wording (e.g., the same path/format assertion in both batches → keep one).
-2. Cross-cutting theme dedup: repo-wide checks — e.g. license/SPDX header conventions, naming or branding rules, `.gitignore` anchoring — should appear at most once each in the merged list, not per batch. Their category is "api_contract" by convention.
+If batching ran (>1 batch), Phase 1.5 dedups across batches before §1.6 renumbers. If only one batch ran, skip Phase 1.5 — §1.6 renumbers IDs sequentially (`VC-1`, `VC-2`, ...). Same-claim and cross-cutting-theme duplicates are the generator's to avoid within a batch and the deduper's to merge across batches.
 
 ### 1.1.5 Cap and prioritize
 
-The population this step caps is the generator's new items; §1.0's carried items are exempt and are appended after it. If that population exceeds **100** items, sort by priority and keep the top 100:
+§1.6's `finalize` applies this step. The population it caps is the generator's new items; §1.0's carried items are exempt and are appended after it. If that population exceeds **100** items, it keeps the top 100 by priority (a category outside the list ranks last):
 1. `issue_acceptance` items — items whose claim cites an issue acceptance criterion.
 2. `absolute_claim` items (a diff-added universal the reviewer must *falsify* by constructing the offending input; see `agents/checklist-generator.md`).
 3. `dependency_interaction` items (cross-boundary contracts).
@@ -74,11 +76,11 @@ The population this step caps is the generator's new items; §1.0's carried item
 
 Sub-cap on rank 1: `issue_acceptance` items occupy **at most 25** of the 100 kept items, and the remaining 75 are filled from ranks 2 through 6 in the order above. An `issue_acceptance` item dropped by this sub-cap is counted in the drop summary's `by_category` map under the `issue_acceptance` key like any other drop, **and** — because a decided acceptance criterion must never be silently dropped from the merge gate — its criterion is additionally recorded as a *coverage shortfall* (below), so the verdict step accounts for it rather than approving on the covered subset alone.
 
-**Coverage shortfall (decided criteria the sub-cap dropped).** Record the sub-cap's `issue_acceptance` drop count (the `by_category` count) as `dropped_count`, and collect that many criterion texts — recovered from the Phase 0.4 resolved acceptance-criteria set those items were generated from (these are decided criteria; that set is already `(post-merge)`-filtered at Phase 0.4), not from the checklist item's own paraphrased claim. Phase 1.6 writes both to the run-scoped durable artifact `.prflow/tmp/review/<slug>/<run-id>/coverage-shortfall-iter-<N>.json`, and Phase 4.2 REJECTs when `dropped_count` and the recovered `criteria` agree on a non-empty shortfall (uncovered acceptance criteria — manual verification needed). Recover one criterion per dropped item; when a dropped item cannot be mapped back to a Phase 0.4 criterion, leave `criteria` shorter than `dropped_count` rather than padding it — Phase 4.2 then reads the shortfall as unrecovered and fails closed, so an under-mapping never reads as a smaller-or-clean shortfall.
+**Coverage shortfall (decided criteria the sub-cap dropped).** The sub-cap's `issue_acceptance` drop count is `dropped_count` (the helper's `issue_acceptance.dropped`, with the dropped items' claims beside it). When it is non-zero, collect that many criterion texts — recovered from the Phase 0.4 resolved acceptance-criteria set those items were generated from (these are decided criteria; that set is already `(post-merge)`-filtered at Phase 0.4), not from the checklist item's own paraphrased claim. Phase 1.6 writes both to the run-scoped durable artifact `.prflow/tmp/review/<slug>/<run-id>/coverage-shortfall-iter-<N>.json`, and Phase 4.2 REJECTs when `dropped_count` and the recovered `criteria` agree on a non-empty shortfall (uncovered acceptance criteria — manual verification needed). Recover one criterion per dropped item; when a dropped item cannot be mapped back to a Phase 0.4 criterion, leave `criteria` shorter than `dropped_count` rather than padding it — Phase 4.2 then reads the shortfall as unrecovered and fails closed, so an under-mapping never reads as a smaller-or-clean shortfall.
 
-Drop items below the cap. Announce the cap in chat: `Capped checklist at 100 of {N} items (dropped {M} items by category: dependency_interaction: K1, api_contract: K2, ...; issue_acceptance kept: {A} of 25; priority kept: issue-acceptance, dependency_interaction, ...).`. That announcement reports the `issue_acceptance kept: {A} of 25` count alongside the per-category drops. (In `/prflow:review-and-fix` mode this data also lands in the workpad's `cap_drops` block and the report's `## Coverage` section; in standalone `/prflow:review` runs the chat announcement is the only surface.)
+Items below the cap are dropped. Announce the cap in chat (the helper's `announce` carries the line): `Capped checklist at 100 of {N} items (dropped {M} items by category: dependency_interaction: K1, api_contract: K2, ...; issue_acceptance kept: {A} of 25; priority kept: issue-acceptance, dependency_interaction, ...).`. That announcement reports the `issue_acceptance kept: {A} of 25` count alongside the per-category drops. (In `/prflow:review-and-fix` mode this data also lands in the workpad's `cap_drops` block and the report's `## Coverage` section; in standalone `/prflow:review` runs the chat announcement is the only surface.)
 
-Record what was dropped. When the cap fires, return a per-category summary of dropped items (the fix-loop wrapper also records it in the workpad — see `cap_drops` in `/prflow:review-and-fix`'s workpad schema). Compute and return alongside the truncated checklist:
+Record what was dropped. When the cap fires, return a per-category summary of dropped items (the fix-loop wrapper also records it in the workpad — see `cap_drops` in `/prflow:review-and-fix`'s workpad schema) — the helper's `cap_drops` object, returned alongside the truncated checklist:
 
 ```json
 {
@@ -99,7 +101,7 @@ where `M` is the total dropped count (`N - 100`) and per-category counts sum to 
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
-Use the Agent tool with `subagent_type: "prflow:checklist-generator"`. First resolve overrides for `prflow:checklist-generator` per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override.
+Use the Agent tool with `subagent_type: "prflow:checklist-generator"`. Resolve its overrides per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override. Compose the generator calls and Phase 3.1's prepared selected reviewer calls before dispatch; emit them in the same message before any blocking collection. Keep the reviewer handles for §3.2; generator retries do not repeat that initial reviewer dispatch.
 
 Pass the following prompt — carrying the slice's file path (from Phase 1.1), never inline diff content:
 ```
@@ -108,12 +110,14 @@ The diff you must analyze is cached on disk. Read it directly with your Read too
 Diff path: {SLICE_PATH}
   (In a >1-batch run this is your batch's slice — only your batch's files. On the fail-closed fallback, or in a single-batch run, it is the full cached diff `.prflow/tmp/review/<slug>/<run-id>/diff.patch`.)
 
+Output path: {OUT_PATH}
+
 Changed files to analyze:
 {paste the file list here}
 
-Generate the verification checklist ONLY for the changed files listed above — even if the diff at that path contains other files (a fallback slice is the full diff). Return the JSON array in a ```json code fence.
+Generate the verification checklist ONLY for the changed files listed above — even if the diff at that path contains other files (a fallback slice is the full diff). Write the JSON array to the output path with your Write tool and reply with the item count only.
 ```
-Substitute `{SLICE_PATH}` with the batch's slice path (`.prflow/tmp/review/<slug>/<run-id>/batch-<k>.patch`), or the full `diff.patch` path on a single-batch run or the Phase 1.1 fail-closed fallback. In a >1-batch run, also name the sibling batches' files (per Phase 1.1).
+Substitute `{SLICE_PATH}` with the batch's slice path (`.prflow/tmp/review/<slug>/<run-id>/batch-<k>.patch`), or the full `diff.patch` path on a single-batch run or the Phase 1.1 fail-closed fallback, and `{OUT_PATH}` with `<work-dir>/batch-<k>.json` (`batch-1.json` on a single-batch run). In a >1-batch run, also name the sibling batches' files (per Phase 1.1).
 
 If `issue_context` is not empty, append this to the prompt:
 
@@ -137,31 +141,28 @@ The block below is this PR's specification — not background, and not the narra
 </acceptance_criteria>
 ```
 
-If the caller is `/prflow:review-and-fix` on iteration N≥2 and §1.0 carried at least one item, append this to the prompt — the block carries §1.0's carried items, not the full iter-(N-1) array:
+If the caller is `/prflow:review-and-fix` on iteration N≥2 and §1.0 carried at least one item, append this to the prompt — it names §1.0's carried items by path, never the full iter-(N-1) array and never pasted:
 
 ```
-This is iteration N (N≥2) of an auto-fix loop. The items carried forward from the previous iteration are supplied below. Operate in variance-recovery mode per your agent contract (Step 2b):
+This is iteration N (N≥2) of an auto-fix loop. The items carried forward from the previous iteration are in the JSON file named below — Read it. Operate in variance-recovery mode per your agent contract (Step 2b):
 
 - Generate claims NOT already present in the prior checklist (dedup against `claim_signature`), except an `issue_acceptance` item for a criterion in the `<acceptance_criteria>` block, which you always emit fresh.
 - Prioritize claim categories that are underrepresented in the prior iteration.
 - The goal is variance recovery — surfacing what a second-look pass would catch — NOT re-litigation of items already considered.
 
-Return an empty JSON array `[]` if a second pass surfaces nothing new.
+Write an empty JSON array `[]` if a second pass surfaces nothing new.
 
-<prior_checklist iteration="N-1">
-{paste the §1.0 carried items as JSON — id, category, claim, source_file, claim_signature, verdict}
-</prior_checklist>
+Prior checklist path: {CARRIED_PATH}
 ```
+Substitute `{CARRIED_PATH}` with `<work-dir>/carried.json`.
 
-### 1.3 Parse the checklist
+### 1.3 Collect the batches
 
-Extract the JSON array from the agent's response (look for the ```json code fence).
+Each generator Writes its array to its `{OUT_PATH}` and replies with a count, keeping the array out of your context. A generator whose Write was refused instead returns the array in a ```json code fence — Write that array verbatim to its `{OUT_PATH}`.
 
-If the agent fails or returns malformed JSON, retry once. If it fails again, log: "Verification checklist generation failed. Proceeding with existing agents only." Set `checklist_skipped = "failure"` and skip to Phase 3. On this double-failure arm append the record to the run-scoped phase log — `printf 'checklist-skip reason=failure\n' | tee -a .prflow/tmp/review/<slug>/<run-id>/phase-log` — so the workflow-side evidence gate reads this as a legitimate no-checklist arm rather than a hollow verdict.
+`checklist raw` (Phase 1.5) and `checklist finalize` (§1.6) validate every batch file and name a missing or malformed one — including one holding an item without a `claim` or `category` — in `bad_batches` with `error: "bad_batch"`. If the agent fails or its batch is reported bad, retry it once. If it fails again, log: "Verification checklist generation failed. Proceeding with existing agents only." Set `checklist_skipped = "failure"` and skip to Phase 3. On this double-failure arm append the record to the run-scoped phase log — `printf 'checklist-skip reason=failure\n' | tee -a .prflow/tmp/review/<slug>/<run-id>/phase-log` — so the workflow-side evidence gate reads this as a legitimate no-checklist arm rather than a hollow verdict.
 
-Store the parsed checklist items for Phase 1.5 (if batched) or Phase 2 (if single-batch).
-
-Output: `Generated {N} verification checklist items.`
+Output (from §1.6's `announce`): `Generated {N} verification checklist items.`
 
 ---
 
@@ -175,34 +176,35 @@ Output: `Phase 1.5/4: Deduping checklist across {B} batches...`
 
 ### 1.5.1 Launch the deduper agent
 
-Use the Agent tool with `subagent_type: "prflow:checklist-deduper"`. Resolve overrides for `prflow:checklist-deduper` per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override.
+First run `checklist raw <work-dir> <B>`: it concatenates the {B} batch files into `<work-dir>/raw.json`, giving each item the batch-tagged id `batch{K}:VC-{i}` (e.g. `batch1:VC-3`, `batch2:VC-1`).
 
-Concatenate the raw checklist items from all batches into a single JSON array. Preserve each item's original `id` and tag it with its source batch — prefix each `id` with `batch{K}:` (e.g. `batch1:VC-3`, `batch2:VC-1`) before passing to the deduper.
+Then use the Agent tool with `subagent_type: "prflow:checklist-deduper"`. Resolve overrides for `prflow:checklist-deduper` per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override.
 
-Pass the following prompt:
+Pass the following prompt — the path, never the array:
 ```
-Here is the concatenated raw checklist from {B} generator batches. Merge duplicates per your dedup rules and return the deduped JSON array. Preserve `merged_from` provenance on every surviving item.
+The concatenated raw checklist from {B} generator batches is cached on disk. Read it with your Read tool — it is NOT inlined here.
 
-<raw_checklist>
-{paste the JSON array of all items from all batches, with batch-prefixed ids}
-</raw_checklist>
+Raw checklist path: {RAW_PATH}
+
+Return the merge groups per your dedup rules.
 ```
+Substitute `{RAW_PATH}` with `<work-dir>/raw.json`.
 
-### 1.5.2 Parse the deduped checklist
+### 1.5.2 Record the merge groups
 
-Extract the JSON array from the deduper's response (look for the ```json code fence). The output array uses fresh sequential IDs (`VC-1`, `VC-2`, ...) and records `merged_from` on each item.
+Extract the JSON array of merge groups from the deduper's response (look for the ```json code fence) and Write it verbatim to `<work-dir>/groups.json`; `[]` means nothing merged. §1.6 applies the groups — representative, provenance reconciliation, `merged_from`, fresh sequential IDs. It ignores an id `raw.json` lacks, and leaves unmerged — all members kept, a breadcrumb naming them — a group whose members share no `claim_signature`, no same-file same-category nearby range and no convention slug, since a kept duplicate costs one verifier and a wrongly merged member's claim leaves the checklist.
 
-If the deduper agent fails or returns malformed JSON, retry once. If it fails again, fall back to manual cross-batch dedup using the In-batch sanity dedup rules from Phase 1.1 — do NOT block the engine on dedup failure.
+If the deduper agent fails or returns malformed JSON, or `finalize` reports `bad_groups`, re-run `checklist raw` and retry the deduper once. If it fails again, run §1.6's `finalize` with `--no-groups`, which merges identical `claim_signature` + `source_file` pairs only — do NOT block the engine on dedup failure.
 
-Output: `Deduped to {N_after} of {N_before} items.`
+Output (from §1.6's `announce`): `Deduped to {N_after} of {N_before} items.`
 
 ---
 
 ## Phase 1.6: Write the durable checklist artifact
 
-Once the final checklist array is ready to hand to Phase 2 — post-cap, post-dedup, post-§1.0 merge and tagging, the exact array Phase 2 will verify — Write it with the Write tool to `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json`, where `<slug>/<run-id>` is this run's run-scoped directory from Phase 0.2 and `<N>` is the engine iteration (`1` on a standalone `/prflow:review` run; the fix-loop-supplied iteration otherwise). Phase 2 reads this file, so a checklist-owing run that skips this write leaves Phase 2 with no checklist to verify. **The file root is the array itself, never an object wrapping it** — a `{"checklist": [...]}` wrapper copies the coverage-shortfall shape below and grades `review-artifact-malformed`, since the evidence gate reads the root and never unwraps. An empty array `[]` is a valid artifact — a generator that legitimately returns nothing still writes the file. Substitute the `<slug>/<run-id>/checklist-iter-<N>.json` path literally, never as a `$VAR` expansion (a `$VAR` in a write command is denied on the cloud matcher). This write happens on the single-batch, multi-batch, and all-lite paths alike. The `checklist_skipped = "failure"` double-failure arm (§1.3) writes NO artifact and keeps its existing `checklist-skip reason=failure` phase-log record instead.
+Run `checklist finalize <work-dir> <N> <B>` (`<B>` the batch count). It assembles the final checklist array — post-dedup, post-cap, post-§1.0 merge and tagging, the exact array Phase 2 will verify — and writes it to `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json`, where `<slug>/<run-id>` is this run's run-scoped directory from Phase 0.2 and `<N>` is the engine iteration (`1` on a standalone `/prflow:review` run; the fix-loop-supplied iteration otherwise). Phase 2 reads this file, so a checklist-owing run that skips this step leaves Phase 2 with no checklist to verify. Before writing, the helper traces every generated item by id — each must sit in exactly one written or capped item's `merged_from` — checks the carried tail and `id` uniqueness, and reads the written file back; on a violation it writes no checklist and returns `ok: false` (Integrity stop above). An item missing `source_file`, `claim_signature` or a known `verification_mode` is kept and listed in `flagged_items`. **The file root is the array itself, never an object wrapping it** — a `{"checklist": [...]}` wrapper copies the coverage-shortfall shape below and grades `review-artifact-malformed`, since the evidence gate reads the root and never unwraps. An empty array `[]` is a valid artifact — a generator that legitimately returns nothing still writes the file. This write happens on the single-batch, multi-batch, and all-lite paths alike. The `checklist_skipped = "failure"` double-failure arm (§1.3) writes NO artifact and keeps its existing `checklist-skip reason=failure` phase-log record instead.
 
-Alongside the checklist artifact, Write the coverage-shortfall artifact to `.prflow/tmp/review/<slug>/<run-id>/coverage-shortfall-iter-<N>.json` — the JSON object `{"dropped_count": D, "criteria": [texts]}` where `D` is the §1.1.5 sub-cap `issue_acceptance` drop count and `criteria` are those D criteria's recovered texts (`{"dropped_count": 0, "criteria": []}` when the sub-cap dropped none). A checklist-owing run writes it unconditionally, wherever it writes a `checklist-iter` artifact (the single-batch, multi-batch, and all-lite paths); the `checklist_skipped = "failure"` arm writes neither. Carrying `dropped_count` separately from `criteria` is what lets Phase 4.2 fail closed when fewer than `D` criteria were recovered, the object is malformed, or the artifact is absent on such a run. Substitute the `<slug>/<run-id>/coverage-shortfall-iter-<N>.json` path literally, never as a `$VAR` expansion.
+Alongside the checklist artifact, `finalize` writes the coverage-shortfall artifact to `.prflow/tmp/review/<slug>/<run-id>/coverage-shortfall-iter-<N>.json` — the JSON object `{"dropped_count": D, "criteria": [texts]}` where `D` is the §1.1.5 sub-cap `issue_acceptance` drop count and `criteria` are those D criteria's recovered texts (`{"dropped_count": 0, "criteria": []}` when the sub-cap dropped none). The helper leaves `criteria` empty: when `dropped_count` is non-zero, recover the texts per §1.1.5 and re-Write the object with the Write tool. A checklist-owing run writes it unconditionally, wherever it writes a `checklist-iter` artifact (the single-batch, multi-batch, and all-lite paths); the `checklist_skipped = "failure"` arm writes neither. Carrying `dropped_count` separately from `criteria` is what lets Phase 4.2 fail closed when fewer than `D` criteria were recovered, the object is malformed, or the artifact is absent on such a run. Substitute the `<slug>/<run-id>/coverage-shortfall-iter-<N>.json` path literally, never as a `$VAR` expansion.
 
 ### 1.6.1 Update the progress comment (PR-comment surface)
 

@@ -41,7 +41,7 @@ It creates a branch, commits and pushes changes and opens a pull request. The re
 The freshly created workpad is a checklist of the whole run. For example:
 
 ```markdown
-# PRFlow Workpad — Issue #123
+# PRFlow Workpad
 
 **Status:** 🚀 Setup
 **Branch:** `issue-123-prevent-duplicate-release-comments`
@@ -50,13 +50,13 @@ The freshly created workpad is a checklist of the whole run. For example:
 **Last updated:** 2026-08-26 09:14 UTC
 
 ## Progress
-- [ ] **Setup** — branch & workpad
+- [ ] **Setup**
   - 09:14:22 — /prflow:implement run started
 - [ ] **Implement**
-  - [ ] code + sweeps
+  - [ ] Code + sweeps
 - [ ] **Review**
-  - [ ] `review-and-fix`
-  - [ ] acceptance-criteria gate
+  - [ ] Review-and-fix loop
+  - [ ] Acceptance-criteria gate
 - [ ] **Documentation**
 - [ ] **PR marked ready**
 
@@ -119,12 +119,7 @@ When a large issue deliberately defers some criteria to a later pull request, PR
 
 A Blocked result is a normal outcome, not a crash. The workpad's status becomes `👎 Blocked` and the reason is recorded in the workpad. No pull request is published, so nothing half-finished reaches your reviewers.
 
-PRFlow stops before touching existing history when:
-
-- The feature branch has commits that are not in the base branch and cannot be linked to the issue.
-- It cannot establish that the workpad belongs to this issue and pull request.
-- It cannot resolve the base reference.
-- A merge is already in progress.
+Ordinary branch and working-tree problems no longer stop the run. When the feature branch carries commits it cannot link to the issue, when the working tree is dirty, when the branch is checked out in another worktree, when a base merge conflicts, or when a push is rejected, setup recovers on its own: it either carries on with the branch it found or cuts a fresh one from the base — leaving the old branch's commits untouched — and records what it did on the workpad. A run interrupted after its work was committed but before its pull request opened resumes on its own instead of stranding. Setup itself stops for only two reasons: the setup step failed, or no working branch could be established at all.
 
 It stops early when the issue declares an open `Blocked by #N` dependency, or when it cannot establish whether that dependency is still open.
 
@@ -156,7 +151,7 @@ The `prflow_implement.implement_pr_state` setting decides the final state:
 - `ready_for_review` — the default. PRFlow marks the pull request ready after final verification.
 - `draft` — the pull request stays a draft for a human to publish.
 
-The workpad can reach Complete either way. If publication was requested and failed, the workpad records the failure and the pull request stays a draft until a human resolves it.
+The workpad can reach Complete either way, and its **PR marked ready** checklist row is ticked only when the pull request was actually published — so a draft delivery is distinguishable from a published one at a glance. If publication was requested and failed, the workpad records the failure and the pull request stays a draft until a human resolves it.
 
 Human reviewers and your branch protection rules own the merge decision. PRFlow prepares the branch and the evidence. It does not approve or merge its own work.
 

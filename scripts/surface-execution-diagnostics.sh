@@ -50,12 +50,12 @@ _SED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # DEVFLOW_JQ unbound and abort the next reference under `set -u`.
 # shellcheck source=../lib/resolve-jq.sh
 . "$_SED_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 # Outcome check, not just sourceability: a sibling that sources clean yet never
 # assigns must still leave a usable jq — never a bare `set -u` abort that breaks
 # the always-exit-0 contract.
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   DEVFLOW_JQ=jq
 fi
 
@@ -64,7 +64,7 @@ fi
 # `type devflow_probe_cli_version` guard, not abort under `set -u`.
 # shellcheck source=../lib/probe-observation.sh
 . "$_SED_DIR/../lib/probe-observation.sh" \
-  || echo "devflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2
+  || echo "prflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2
 
 # Emit BLOCK to stdout, and append it to $GITHUB_STEP_SUMMARY when that variable
 # is set and non-empty (AC2). Kept in one place so every exit path surfaces to
@@ -73,7 +73,7 @@ _emit() {
   printf '%s\n' "$1"
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY" \
-      || echo "devflow: surface-execution-diagnostics: could not append to GITHUB_STEP_SUMMARY ('$GITHUB_STEP_SUMMARY') — stdout still carries the diagnostics" >&2
+      || echo "prflow: surface-execution-diagnostics: could not append to GITHUB_STEP_SUMMARY ('$GITHUB_STEP_SUMMARY') — stdout still carries the diagnostics" >&2
   fi
 }
 
@@ -128,13 +128,13 @@ _publish_denials() {  # rendered-block
       # `n/a` is the renderer's own honest "unknown". A missing label line means the
       # renderer's contract changed — also unknown, and worth a breadcrumb, because
       # "the label is absent" is not evidence that there were no denials.
-      [ "$_saw_label" -eq 1 ] || echo "devflow: surface-execution-diagnostics: no 'permission_denials_count' line in the rendered block (renderer contract changed?) — publishing 'unavailable'; a positive denial count would NOT be reported this run" >&2
+      [ "$_saw_label" -eq 1 ] || echo "prflow: surface-execution-diagnostics: no 'permission_denials_count' line in the rendered block (renderer contract changed?) — publishing 'unavailable'; a positive denial count would NOT be reported this run" >&2
       _count=unavailable
       ;;
   esac
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
     printf 'permission_denials_count=%s\n' "$_count" >> "$GITHUB_OUTPUT" \
-      || echo "devflow: surface-execution-diagnostics: could not append permission_denials_count to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs will read the 'unavailable' default" >&2
+      || echo "prflow: surface-execution-diagnostics: could not append permission_denials_count to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs will read the 'unavailable' default" >&2
   fi
   if [ "$_count" != unavailable ] && [ "$_count" -gt 0 ]; then
     echo "::warning::DevFlow: this run recorded $_count permission denial(s) — the engine attempted commands its tool profile does not grant. See the execution-diagnostics block for which ones."
@@ -175,12 +175,12 @@ _publish_claude_code_version() {  # rendered-block
   fi
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
     printf 'claude_code_version=%s\n' "$_ccver" >> "$GITHUB_OUTPUT" \
-      || echo "devflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — no step output is published for this run" >&2
+      || echo "prflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — no step output is published for this run" >&2
   fi
   if [ "$_ccver" != unavailable ]; then
     echo "::notice::DevFlow: claude-code CLI version $_ccver (from the execution-file init record)"
   else
-    echo "devflow: surface-execution-diagnostics: claude_code_version could not be established from the execution file — publishing 'unavailable'" >&2
+    echo "prflow: surface-execution-diagnostics: claude_code_version could not be established from the execution file — publishing 'unavailable'" >&2
   fi
 }
 
@@ -212,7 +212,7 @@ _publish_cause_set() {  # rendered-block
     fi
     if [ -n "${GITHUB_OUTPUT:-}" ]; then
       printf '%s=%s\n' "$_f" "$_cval" >> "$GITHUB_OUTPUT" \
-        || echo "devflow: surface-execution-diagnostics: could not append $_f to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs read the 'unavailable' default" >&2
+        || echo "prflow: surface-execution-diagnostics: could not append $_f to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs read the 'unavailable' default" >&2
     fi
     _annotation="${_annotation}${_annotation:+; }${_f}=${_cval}"
   done
@@ -245,7 +245,7 @@ FILE="${1:-}"
 if [ -z "$FILE" ] || [ ! -f "$FILE" ] || [ ! -s "$FILE" ]; then
   # Breadcrumb + explicit line: a renamed/removed execution_file output would
   # otherwise disarm this diagnostic silently (the id-rename hazard).
-  echo "devflow: surface-execution-diagnostics: execution file absent or empty ('$FILE') — no diagnostics available" >&2
+  echo "prflow: surface-execution-diagnostics: execution file absent or empty ('$FILE') — no diagnostics available" >&2
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
   _publish_claude_code_version "$_NO_DIAG"
@@ -261,7 +261,7 @@ if type devflow_probe_cli_version >/dev/null 2>&1; then
   CCVER=$(devflow_probe_cli_version "$FILE")
 else
   CCVER=unavailable
-  echo "devflow: surface-execution-diagnostics: devflow_probe_cli_version unavailable (probe-observation.sh not sourced) — claude_code_version will publish 'unavailable'" >&2
+  echo "prflow: surface-execution-diagnostics: devflow_probe_cli_version unavailable (probe-observation.sh not sourced) — claude_code_version will publish 'unavailable'" >&2
 fi
 
 # result_excerpt (issue #158). Only when is_error is true: the last result event's
@@ -294,7 +294,7 @@ if EXCERPT_RAW=$("$DEVFLOW_JQ" -rs '
     fi
     EXCERPT_CAVEAT="(excerpt scrubbed for ${EXCERPT_SHAPES}; other credential shapes may survive)"
   else
-    echo "devflow: surface-execution-diagnostics: scrub-credentials.sh exited non-zero — result_excerpt published as 'unavailable', no raw error text emitted (fail-closed)" >&2
+    echo "prflow: surface-execution-diagnostics: scrub-credentials.sh exited non-zero — result_excerpt published as 'unavailable', no raw error text emitted (fail-closed)" >&2
   fi
 fi
 
@@ -426,7 +426,7 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" \
   # Worded to cover BOTH causes of a non-zero exit — an unparseable log AND an
   # absent/unrunnable jq (resolve-jq.sh's final fallback is a bare, unverified jq) —
   # rather than misattributing a missing binary to a parse error.
-  echo "devflow: surface-execution-diagnostics: jq ('$DEVFLOW_JQ') exited non-zero on '$FILE' (parse error or unrunnable jq) — no diagnostics available" >&2
+  echo "prflow: surface-execution-diagnostics: jq ('$DEVFLOW_JQ') exited non-zero on '$FILE' (parse error or unrunnable jq) — no diagnostics available" >&2
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
   _publish_claude_code_version "$_NO_DIAG"

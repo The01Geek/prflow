@@ -72,13 +72,13 @@ DEVFLOW_APP_ID="${DEVFLOW_APP_ID:-}"
 
 RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh
 if [ ! -f "$RGB" ]; then
-  echo "::error::devflow: render-grounding-block.sh not found at the vendored path — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+  echo "::error::prflow: render-grounding-block.sh not found at the vendored path — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
   exit 1
 fi
 
 GROUNDING=$(MODE=implement ALLOWED_TOOLS="$ALLOWED_TOOLS" bash "$RGB") || GROUNDING=""
 if [ -z "$GROUNDING" ]; then
-  echo "::error::devflow: render-grounding-block.sh produced no output — the implement prompt would carry no engine-ground-truth block (the engine would rediscover its tool boundary by trial and denial, with no headless-run discipline at all). The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+  echo "::error::prflow: render-grounding-block.sh produced no output — the implement prompt would carry no engine-ground-truth block (the engine would rediscover its tool boundary by trial and denial, with no headless-run discipline at all). The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
   exit 1
 fi
 
@@ -88,7 +88,7 @@ fi
 # GitHub Actions `run:` step, where the runner always supplies the file. The diagnostic
 # names the environment as the cause so the operator is not sent to the vendor tree.
 if [ -z "${GITHUB_OUTPUT:-}" ]; then
-  echo "::error::devflow: GITHUB_OUTPUT is unset or empty — the composed implement prompt cannot be published, so the run would launch on the bare prompt with no engine-ground-truth block. This is a runner/environment fault, not a vendor-tree one (a GitHub Actions run: step always sets it). Refusing to run." >&2
+  echo "::error::prflow: GITHUB_OUTPUT is unset or empty — the composed implement prompt cannot be published, so the run would launch on the bare prompt with no engine-ground-truth block. This is a runner/environment fault, not a vendor-tree one (a GitHub Actions run: step always sets it). Refusing to run." >&2
   exit 1
 fi
 
@@ -126,7 +126,7 @@ delim="PROMPT_EOF_$(date +%s%N)_$$"
 append_rc=0
 { printf 'prompt<<%s\n' "$delim"; printf '%s\n' "$PROMPT"; printf '%s\n' "$delim"; } >> "$GITHUB_OUTPUT" || append_rc=$?
 if [ "$append_rc" -ne 0 ]; then
-  echo "::error::devflow: could not append the composed implement prompt to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — the run would launch on the bare prompt with no engine-ground-truth block. Refusing to run." >&2
+  echo "::error::prflow: could not append the composed implement prompt to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — the run would launch on the bare prompt with no engine-ground-truth block. Refusing to run." >&2
   exit 1
 fi
 exit 0

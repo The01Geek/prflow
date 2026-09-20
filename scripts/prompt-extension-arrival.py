@@ -28,7 +28,7 @@ Three subcommands:
 
 * ``reconcile`` — the post-agent reconciliation. Given the ``classify`` token, an
   ``--arrival-marker`` (the durable-artifact substring a genuine arrival records — for
-  the implement tier the ticked ``prompt extension resolved: implement`` workpad row),
+  the implement tier the ticked ``Skill extension resolved: implement.md`` workpad row),
   and the durable body on stdin, it derives the final ``arrived`` / ``absent`` /
   ``unestablished`` state and the terminal action. ``arrived-expected`` with a ticked
   marker row is ``arrived``; ``arrived-expected`` with no positive arrival record (or a

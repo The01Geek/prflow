@@ -68,7 +68,7 @@ NUMBER="${1:-}"
 case "$NUMBER" in
     ''|*[!0-9]*)
         echo "arg-slip"
-        echo "devflow: warning: apply-labels.sh got a non-numeric issue/PR number '${NUMBER}' (args: $*); no labels applied. This is NOT a harness denial — it is a caller arg-slip, most likely a shell variable that did not survive into this command." >&2
+        echo "prflow: warning: apply-labels.sh got a non-numeric issue/PR number '${NUMBER}' (args: $*); no labels applied. This is NOT a harness denial — it is a caller arg-slip, most likely a shell variable that did not survive into this command." >&2
         exit 0 ;;
 esac
 
@@ -109,13 +109,13 @@ if [ "$_CONFIG_MODE" -eq 1 ]; then
         case "$_CFG_RAW" in
             *'[object Object]'*)
                 echo "config-unreadable"
-                echo "devflow: warning: apply-labels.sh: config key '${_CONFIG_KEY}' resolves to (or contains) a JSON object, not a label string/list; no labels applied. This is NOT a harness denial — fix the config value's shape." >&2
+                echo "prflow: warning: apply-labels.sh: config key '${_CONFIG_KEY}' resolves to (or contains) a JSON object, not a label string/list; no labels applied. This is NOT a harness denial — fix the config value's shape." >&2
                 exit 0 ;;
         esac
         set -- "$_CFG_RAW"
     else
         echo "config-unreadable"
-        echo "devflow: warning: apply-labels.sh could not read config key '${_CONFIG_KEY}' (config-get exited non-zero — corrupt config.json or missing python3); no labels applied. This is NOT a harness denial." >&2
+        echo "prflow: warning: apply-labels.sh could not read config key '${_CONFIG_KEY}' (config-get exited non-zero — corrupt config.json or missing python3); no labels applied. This is NOT a harness denial." >&2
         exit 0
     fi
 elif [ "${#_POSITIONAL[@]}" -gt 0 ]; then
@@ -160,9 +160,9 @@ if [ "${#LABELS[@]}" -eq 0 ]; then
         # Config mode: the same arm also fires for an absent key whose fallback was blanked by an
         # indeterminate presence probe, so the message names the KEY and says it resolved to no
         # labels — it must NOT claim a present-but-empty value nor a caller-passed list.
-        echo "devflow: warning: apply-labels.sh: config key '${_CONFIG_KEY}' resolved to no labels for #${NUMBER}; nothing applied, and no substitute label is owed. This is NOT a harness denial." >&2
+        echo "prflow: warning: apply-labels.sh: config key '${_CONFIG_KEY}' resolved to no labels for #${NUMBER}; nothing applied, and no substitute label is owed. This is NOT a harness denial." >&2
     else
-        echo "devflow: warning: apply-labels.sh got no label content for #${NUMBER} (args: $*); nothing applied. This is NOT a harness denial — the caller passed an empty/whitespace-only label list." >&2
+        echo "prflow: warning: apply-labels.sh got no label content for #${NUMBER} (args: $*); nothing applied. This is NOT a harness denial — the caller passed an empty/whitespace-only label list." >&2
     fi
     exit 0
 fi
@@ -193,13 +193,13 @@ _joined="$(IFS=,; echo "${LABELS[*]}")"
 if [ "$RC" -ne 0 ]; then
     # Best-effort: log the specific target + labels + cause, then still exit 0.
     echo "api-failure"
-    echo "devflow: warning: could not apply label(s) '${_joined}' to #${NUMBER} (best-effort, continuing): ${ERR_OUT}" >&2
+    echo "prflow: warning: could not apply label(s) '${_joined}' to #${NUMBER} (best-effort, continuing): ${ERR_OUT}" >&2
 else
     # SUCCESS breadcrumb — load-bearing, not chatter (issue #455). With the stdout token
     # above, the caller no longer needs it to tell applied from refused, but it is kept
     # byte-identical because assertions elsewhere match it by fixed string.
     echo "applied"
-    echo "devflow: applied label(s) '${_joined}' to #${NUMBER}" >&2
+    echo "prflow: applied label(s) '${_joined}' to #${NUMBER}" >&2
 fi
 
 exit 0

@@ -9,6 +9,7 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 | --- | --- | --- | --- | --- |
 | `prflow.execution_diagnostics_enabled` | Boolean | `true` | Cloud model jobs. Prints summary and denial detail to logs and the job summary. It uploads no artifact and does not change pass or fail. | `"execution_diagnostics_enabled": true` |
 | `prflow.execution_transcript_artifact_enabled` | Boolean | Runtime and scaffold: `false` | Cloud model jobs. When true, uploads a scrubbed transcript artifact with seven-day retention. Treat it as sensitive. | `"execution_transcript_artifact_enabled": false` |
+| `prflow.execution_transcript_job_log_enabled` | Boolean | Runtime and scaffold: `false` | Cloud implement jobs. When true, every agent message is written into the job log as it happens, **unscrubbed**, so a run whose runner dies abruptly can still yield a transcript. The log can include credentials, such as refreshed GitHub App tokens, which are not masked, and anyone who can read the run logs can read them. PRFlow therefore applies this setting only when GitHub reports the repository as private: in a public repository, or when the visibility is not reported, the run leaves streaming off and logs a warning that says why. The log grows to the transcript’s size. The rebuilt transcript artifact also needs `execution_transcript_artifact_enabled`: with only this key on, content is streamed to the log and no artifact is produced. | `"execution_transcript_job_log_enabled": false` |
 | `prflow.execution_denial_commands_enabled` | Boolean | `true` | Cloud model jobs. Controls durable scrubbed command text only. Denial count and tool names remain available when a record can be built. | `"execution_denial_commands_enabled": false` |
 | `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `true` | Local and cloud review-and-fix. False also prevents denied-command records from being persisted on the telemetry branch. | `"efficiency_telemetry_enabled": true` |
 | `telemetry.enabled` | Boolean | `true` | Master quiet switch. Set to the JSON boolean `false` to turn off the five enrolled telemetry mechanisms at once, plus the workpad-copy push to the telemetry branch; `execution_transcript_artifact_enabled` is not enrolled. Only the boolean `false` disables; every other value leaves telemetry on. A key you have set to a real value wins over this master for those five, while the branch push reads the master alone. | `"enabled": false` |
@@ -17,17 +18,28 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 ## Know What Persists
 
 - Execution diagnostics are enabled by default. They remain in Actions logs and the job summary.
-- Full transcript artifacts are disabled by default.
+- Full transcript artifacts are disabled by default, and so is streaming the transcript into the
+  job log. The artifact is scrubbed and expires; the job log is neither.
 - When a run is cancelled or interrupted before the model step writes its execution file, the transcript artifact instead holds the CLI's own session files for that run. Those files carry more than the action's message stream — tool results, attachments and file-history snapshots — so the artifact is larger and the incomplete-blocklist caveat below applies to it in full; treat it as sensitive.
 - Scrubbed denied-command text is enabled by default and can persist on the telemetry branch.
 - Denial count and tool identifiers are not controlled by the command-text toggle.
 - Effectiveness records are enabled by default.
 
-The transcript and command scrubber is an incomplete blocklist. It covers common GitHub tokens, Anthropic keys and Bearer or basic Authorization headers, whose scheme keyword is matched whatever its casing. An Authorization value shorter than four characters is left alone, so a literal command such as `sed 's/AUTHORIZATION: basic //'` is not mistaken for a credential. Other credential shapes can remain. A scrub failure prevents the affected text from being uploaded or persisted.
+The transcript and command scrubber is an incomplete blocklist. It redacts these credential families: GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, basic Authorization headers, AWS access key IDs, npm tokens, Slack tokens, GitLab tokens, connection-string passwords, `Password=`/`Pwd=` values, and PEM private keys. The Authorization scheme keyword is matched whatever its casing, and an Authorization value shorter than four characters is left alone, so a literal command such as `sed 's/AUTHORIZATION: basic //'` is not mistaken for a credential.
+
+Some credential shapes are not recognized. Unprefixed secrets have no distinguishing prefix to match — an AWS secret access key and an Azure DevOps personal access token are examples that pass through. Private-key body lines that follow the header line in raw multi-line text are not recognized either: only the `-----BEGIN … PRIVATE KEY-----` header line is redacted there. A `Password=`/`Pwd=` value ends at an escaped quote, so when the password itself contains one only the part before it is redacted and the rest of the value stays in the text. Other credential shapes can remain.
+
+The scrub replaces each matched credential span in place with a `[REDACTED-…]` marker and leaves the surrounding non-credential text untouched — a private key is redacted only through its matching `-----END … PRIVATE KEY-----` marker, so anything after it survives; the scrub never empties a thinking block. A scrub failure prevents the affected text from being uploaded or persisted.
 
 <Warning>
   A successful scrub does not prove that output is secret-free. Transcript artifacts and denied-command records go through the scrubber, but Actions diagnostics can still contain truncated tool input. Treat those logs as sensitive.
 </Warning>
+
+## Who Can Download a Transcript, and For How Long
+
+Downloading a transcript artifact needs read access to the repository: "Read access to the repository is required" ([Downloading workflow artifacts](https://docs.github.com/en/actions/managing-workflow-runs-and-deployments/managing-workflow-runs/downloading-workflow-artifacts), checked 2026-09-16). A public repository is accessible to everyone on the internet: "Public repositories are accessible to everyone on the internet." ([About repositories](https://docs.github.com/en/repositories/creating-and-managing-repositories/about-repositories), checked 2026-09-16).
+
+The engine workflows request seven-day retention for the transcript artifact. "The `retention-days` value cannot exceed the retention limit set by the repository, organization, or enterprise." ([Storing and sharing data from a workflow](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/storing-and-sharing-data-from-a-workflow), checked 2026-09-16).
 
 ## What a Run Record Contains
 
@@ -62,7 +74,7 @@ If you want a private, low-noise setup without hunting down each individual key,
 
 With `telemetry.enabled` set to the JSON boolean `false`, the enrolled telemetry mechanisms turn off in one place: the efficiency trace, execution diagnostics, durable scrubbed denied-command text, the live review progress comment and the created-issue investigation record all resolve to disabled wherever their own key does not resolve to a value — you have not set it, or you set it to `null` or an empty string, and the workpad-copy push to the `prflow-telemetry` branch is skipped — so quiet runs write nothing to that branch.
 
-`execution_transcript_artifact_enabled` is not enrolled, because it already defaults to `false`; if you turned it on, it stays on until you turn it off yourself.
+Neither `execution_transcript_artifact_enabled` nor `execution_transcript_job_log_enabled` is enrolled, because both already default to `false`; if you turned one on, it stays on until you turn it off yourself.
 
 A few things to know:
 
@@ -80,6 +92,7 @@ Use repository access controls and artifact retention as part of the privacy dec
   "prflow": {
     "execution_diagnostics_enabled": true,
     "execution_transcript_artifact_enabled": false,
+    "execution_transcript_job_log_enabled": false,
     "execution_denial_commands_enabled": false
   },
   "prflow_review_and_fix": {

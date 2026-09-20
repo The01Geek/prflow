@@ -128,10 +128,16 @@ try:
     # (the #343 gate exercise does exactly that), so the path insert degrades with the
     # import instead of raising ahead of a gate that must fail fast.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    # Nested-repository detection (issue #12): a resolved root with no .prflow/ under
+    # an ancestor that has one reads built-in defaults while looking configured.
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
     from state_dir import resolve_state_dir as _resolve_state_dir
 except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _resolve_state_dir(repo_root, stream=None):
         return str(Path(repo_root) / ".prflow")
+
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
 
 STATUS_PREFIX = "render-status:"
 END_MARKER = "render-end:"
@@ -303,6 +309,7 @@ def _resolve_extension_path(
 def _default_extension_path() -> Path:
     root = _repo_root()
     if root is not None:
+        _warn_ancestor_config(root, "render-audit-prompt.py", "pass --extension-file <path>")
         return _resolve_extension_path(_resolve_state_dir(root), "spec.md", "create-issue.md")
     cwd = Path.cwd()
     # Breadcrumb only when NEITHER a git root NOR a .prflow/ dir can be located —

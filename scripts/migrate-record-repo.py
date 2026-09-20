@@ -36,6 +36,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Nested-repository detection (issue #12): a resolved git root with no .prflow/ under
+# an ancestor that has one reads built-in defaults while looking configured. lib/ sits
+# beside scripts/ in both the source repo and a vendored .prflow/vendor/prflow/ tree; a
+# partial copy without the sibling degrades to a no-op rather than failing the read.
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
+except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
+
+
 RETROSPECTIVES_SCHEMA = 4
 EXPERIMENT_RECORDS_SCHEMA = 2
 OVERRIDES_SCHEMA = 4
@@ -60,6 +72,7 @@ def _repo_toplevel() -> Path:
         return Path.cwd()
     root = r.stdout.strip() if r.returncode == 0 else ""
     if root:
+        _warn_ancestor_config(root, "migrate-record-repo.py", "pass --learnings-dir <path>")
         return Path(root)
     _breadcrumb_no_root((r.stderr or "").strip())
     return Path.cwd()

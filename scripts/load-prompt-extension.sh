@@ -72,9 +72,10 @@
 #     when unset and when set to the empty string, per the DEVFLOW_GH / DEVFLOW_JQ /
 #     DEVFLOW_BASH convention. This branch writes a stderr breadcrumb naming the
 #     directory it resolved. The repo-root branch adds no stderr of its OWN beyond the
-#     pre-existing could-not-resolve-a-repo-root diagnostic below, unchanged by this
-#     branch's arrival — so a caller that leaves the variable unset observes
-#     byte-identical output. (Scoped to the BRANCH: the present-but-undeliverable and
+#     pre-existing could-not-resolve-a-repo-root diagnostic and the issue-#12
+#     nested-repository breadcrumb below, neither changed by this branch's arrival — so
+#     a caller that leaves the variable unset observes the output it observed before
+#     each of those landed. (Scoped to the BRANCH: the present-but-undeliverable and
 #     argument-validation diagnostics further down are shared by both branches and are
 #     likewise unchanged.)
 #   * otherwise, .prflow/skill-extensions/ anchored to the git repo root (with a
@@ -84,8 +85,12 @@
 #     skill invoked from any subdirectory of the repo still loads the consumer's
 #     committed extension, instead of silently missing it. (Limitation:
 #     --show-toplevel returns the NEAREST git root, so a nested submodule/inner repo
-#     or a monorepo whose .prflow/ is not at the git root is not covered —
-#     consistent with config-source.sh.) This is the ONLY branch that anchors on the
+#     or a monorepo whose .prflow/ is not at the git root resolves a root carrying no
+#     extension — consistent with config-source.sh. Resolution is unchanged, but that
+#     shape is DETECTED since issue #12: an ancestor carrying a .prflow/ earns a
+#     lib/detect-ancestor-config.sh stderr breadcrumb naming the resolved root, that
+#     ancestor, and DEVFLOW_PROMPT_EXTENSION_ROOT as the remedy.)
+#     This is the ONLY branch that anchors on the
 #     repo root, which the issue-#295 repo-root-reader enumerations in
 #     .prflow/config.schema.json and scripts/emit-git-env.sh record.
 #
@@ -177,6 +182,17 @@ if [ -f "$_LPE_SELF_DIR/../lib/resolve-state-dir.sh" ] \
 else
   echo "prflow: resolve-state-dir.sh not found in ../lib relative to ${BASH_SOURCE[0]} — using the canonical .prflow/ with no transitional fallback" >&2
   prflow_state_dir() { printf '%s' "${1:-}/.prflow"; }
+fi
+
+# Nested-repository detection (issue #12); see the repo-root branch below. A partial
+# copy without the sibling degrades to a no-op, as the state-dir source above does.
+# shellcheck source=../lib/detect-ancestor-config.sh
+if [ -f "$_LPE_SELF_DIR/../lib/detect-ancestor-config.sh" ] \
+   && . "$_LPE_SELF_DIR/../lib/detect-ancestor-config.sh" \
+   && type prflow_warn_ancestor_config >/dev/null 2>&1; then
+  :
+else
+  prflow_warn_ancestor_config() { :; }
 fi
 
 # Resolve whether an HTML comment block is OPEN at the end of a line, by walking the
@@ -392,6 +408,12 @@ else
             _git_err="$(git rev-parse --show-toplevel 2>&1 >/dev/null)" || true
             echo "load-prompt-extension.sh: could not resolve a git repo root${_git_err:+ (git: ${_git_err})} and no .prflow/ at '${_devflow_root}'; no extension loaded" >&2
         fi
+    else
+        # A git root WAS resolved: the nested-repository shape is the one silent
+        # wrong-default the arm above cannot see (issue #12). Scoped to this arm so
+        # the no-git-root breadcrumb above keeps its exact output.
+        prflow_warn_ancestor_config "$_devflow_root" "load-prompt-extension.sh" \
+            "set DEVFLOW_PROMPT_EXTENSION_ROOT to the extension directory"
     fi
 
     _lpe_state="$(prflow_state_dir "${_devflow_root}")"

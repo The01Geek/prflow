@@ -51,7 +51,7 @@ _MRSL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # explicit DEVFLOW_GH still wins, so test stubs are untouched.
 # shellcheck source=../lib/resolve-gh.sh
 . "$_MRSL_DIR/../lib/resolve-gh.sh" \
-  || echo "devflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
+  || echo "prflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
 if type devflow_resolve_gh >/dev/null 2>&1; then
   : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 else
@@ -73,14 +73,14 @@ case "$STATE" in
     review-failed)     TARGET="PRFlow:ReviewStuck";     TARGET_COLOR="c8201c" ;;
     *)
         echo "arg-slip"
-        echo "devflow: warning: mirror-review-status-label.sh got an unknown state '${STATE}' (args: $*); expected one of reviewing|approved|changes-requested|review-failed. No label written. This is NOT a harness denial — it is a caller arg-slip." >&2
+        echo "prflow: warning: mirror-review-status-label.sh got an unknown state '${STATE}' (args: $*); expected one of reviewing|approved|changes-requested|review-failed. No label written. This is NOT a harness denial — it is a caller arg-slip." >&2
         exit 0 ;;
 esac
 
 case "$PR_NUMBER" in
     ''|*[!0-9]*)
         echo "arg-slip"
-        echo "devflow: warning: mirror-review-status-label.sh got a non-numeric PR number '${PR_NUMBER}' (args: $*); no label written. This is NOT a harness denial — it is a caller arg-slip, most likely a shell variable that did not survive into this command." >&2
+        echo "prflow: warning: mirror-review-status-label.sh got a non-numeric PR number '${PR_NUMBER}' (args: $*); no label written. This is NOT a harness denial — it is a caller arg-slip, most likely a shell variable that did not survive into this command." >&2
         exit 0 ;;
 esac
 
@@ -117,7 +117,7 @@ case "$ENABLED" in
     true) : ;;
     *)
         echo "disabled"
-        echo "devflow: mirror-review-status-label.sh: review_status_labels.enabled is not 'true' (resolved '${ENABLED}'); no label request made." >&2
+        echo "prflow: mirror-review-status-label.sh: review_status_labels.enabled is not 'true' (resolved '${ENABLED}'); no label request made." >&2
         exit 0 ;;
 esac
 
@@ -138,16 +138,16 @@ if CLOSING_RAW="$("$DEVFLOW_GH" pr view "$PR_NUMBER" --json closingIssuesReferen
         CLOSING_COUNT=$((CLOSING_COUNT + 1))
     done <<< "$CLOSING_RAW"
     if [ "$CLOSING_COUNT" -eq 0 ]; then
-        echo "devflow: mirror-review-status-label.sh: no-target for the issue side — PR #${PR_NUMBER} closes no issue; labeling the PR alone." >&2
+        echo "prflow: mirror-review-status-label.sh: no-target for the issue side — PR #${PR_NUMBER} closes no issue; labeling the PR alone." >&2
     fi
 else
-    echo "devflow: warning: mirror-review-status-label.sh: could not resolve closing issues for PR #${PR_NUMBER} (gh pr view failed); labeling the PR alone (best-effort)." >&2
+    echo "prflow: warning: mirror-review-status-label.sh: could not resolve closing issues for PR #${PR_NUMBER} (gh pr view failed); labeling the PR alone (best-effort)." >&2
 fi
 
 # Defensive: no target at all (should not happen — the PR is always a target).
 if [ "${#TARGETS[@]}" -eq 0 ]; then
     echo "no-target"
-    echo "devflow: mirror-review-status-label.sh: no PR or closing-issue target to label; nothing written." >&2
+    echo "prflow: mirror-review-status-label.sh: no PR or closing-issue target to label; nothing written." >&2
     exit 0
 fi
 
@@ -171,7 +171,7 @@ _mrsl_add() {  # <number> — add TARGET, creating+retrying once when undefined
     if [ "$LABEL_DEFINED" -eq 0 ]; then
         if ! "$DEVFLOW_GH" api -X POST "repos/{owner}/{repo}/labels" \
                 -f "name=${TARGET}" -f "color=${TARGET_COLOR}" -f "description=${_MRSL_DESC}" >/dev/null 2>&1; then
-            echo "devflow: mirror-review-status-label.sh: could not create label definition '${TARGET}' (best-effort; retrying the add)." >&2
+            echo "prflow: mirror-review-status-label.sh: could not create label definition '${TARGET}' (best-effort; retrying the add)." >&2
         fi
         LABEL_DEFINED=1
     fi
@@ -181,7 +181,7 @@ _mrsl_add() {  # <number> — add TARGET, creating+retrying once when undefined
         return 0
     fi
     ANY_FAIL=1
-    echo "devflow: warning: mirror-review-status-label.sh: could not add label '${TARGET}' to #${number} (POST repos/{owner}/{repo}/issues/${number}/labels)." >&2
+    echo "prflow: warning: mirror-review-status-label.sh: could not add label '${TARGET}' to #${number} (POST repos/{owner}/{repo}/issues/${number}/labels)." >&2
     return 1
 }
 
@@ -189,7 +189,7 @@ _mrsl_reconcile() {  # <number> — reconcile #number's review labels to exactly
     local number="$1" current lbl found_target=0
     if ! current="$("$DEVFLOW_GH" api --paginate "repos/{owner}/{repo}/issues/${number}/labels?per_page=100" --jq '.[].name' 2>/dev/null)"; then
         ANY_FAIL=1
-        echo "devflow: warning: mirror-review-status-label.sh: could not list labels on #${number} (GET repos/{owner}/{repo}/issues/${number}/labels); not reconciled there." >&2
+        echo "prflow: warning: mirror-review-status-label.sh: could not list labels on #${number} (GET repos/{owner}/{repo}/issues/${number}/labels); not reconciled there." >&2
         return 0
     fi
     # Collect the managed review labels present, and whether the target is already there.
@@ -213,7 +213,7 @@ _mrsl_reconcile() {  # <number> — reconcile #number's review labels to exactly
             ANY_WRITE=1
         else
             ANY_FAIL=1
-            echo "devflow: warning: mirror-review-status-label.sh: could not remove stale label '${lbl}' from #${number} (DELETE repos/{owner}/{repo}/issues/${number}/labels/${lbl}); continuing." >&2
+            echo "prflow: warning: mirror-review-status-label.sh: could not remove stale label '${lbl}' from #${number} (DELETE repos/{owner}/{repo}/issues/${number}/labels/${lbl}); continuing." >&2
         fi
     done
     # Add the target when missing.

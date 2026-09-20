@@ -86,7 +86,7 @@ The widened shape is: a spelled-out numeral word (``two`` … ``twelve``, case-i
 or a digit run; up to two intervening modifier words (each optionally wrapped in ``**…**`` /
 ``*…*`` / backticks); and a noun from the *widened* set — every noun in the gating
 ``_COUNT_NOUNS`` constant (interpolated in its ``s?`` form) plus the plural-only additions ``tags`` / ``members`` / ``fields`` / ``rows`` / ``columns`` /
-``arms`` / ``files`` / ``rules`` / ``sites``. This tier is **non-gating by construction**: it
+``arms`` / ``files`` / ``rules`` / ``sites`` / ``modules`` / ``questions`` / ``grants``. This tier is **non-gating by construction**: it
 runs **no** referent resolution (no adjacency walk, no table parsing), never emits STALE, and
 never affects the exit code (``UNRESOLVABLE`` never gates). Its only job is to surface the
 ``count-locked`` literal the pin-or-don't-write policy keys on, so an unpinned counted claim
@@ -506,10 +506,15 @@ _WORD_NUM = {
     "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
 }
 # The widened noun set: the gating _COUNT_NOUNS (in their ``s?`` forms, interpolated so the
-# gating surface stays byte-identical and cannot drift) plus the nine new nouns, matched
-# PLURAL-ONLY so a singular ("tag", "rule") never trips the recognition.
+# gating surface stays byte-identical and cannot drift) plus the plural-only additions
+# listed here, matched PLURAL-ONLY so a singular ("tag", "rule") never trips the
+# recognition. An addition belongs HERE and never in _COUNT_NOUNS: the gating tier would
+# resolve it against an adjacent assertion block these populations do not have, turning
+# long-correct prose STALE (issue #377 added ``modules`` / ``questions`` / ``grants``).
 _RECOG_NOUN = (
-    r"(?:" + _COUNT_NOUNS + r"|tags|members|fields|rows|columns|arms|files|rules|sites)"
+    r"(?:" + _COUNT_NOUNS
+    + r"|tags|members|fields|rows|columns|arms|files|rules|sites"
+    + r"|modules|questions|grants)"
 )
 # A single intervening modifier token: a bare word, optionally wrapped in ``**…**`` / ``*…*`` /
 # backticks, followed by whitespace. Because the word body is ``[A-Za-z][\w'-]*`` (no sentence

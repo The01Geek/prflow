@@ -51,7 +51,7 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # DEVFLOW_GH still wins with no probe, so the test suite's stubbing contract is preserved.
 # shellcheck source=../lib/resolve-gh.sh
 . "$_DIR/../lib/resolve-gh.sh" \
-  || echo "devflow: resolve-existing-pr.sh could not source ../lib/resolve-gh.sh (a partial deployment carrying scripts/ without lib/?)" >&2
+  || echo "prflow: resolve-existing-pr.sh could not source ../lib/resolve-gh.sh (a partial deployment carrying scripts/ without lib/?)" >&2
 # Outcome check, not just sourceability — the same treatment the jq source below gets, and for
 # the same reason: a missing sibling leaves `devflow_resolve_gh` undefined, `DEVFLOW_GH` empty,
 # and the query then fails with a breadcrumb blaming GitHub for a broken install. Name the real
@@ -67,13 +67,13 @@ if [ -z "${DEVFLOW_GH:-}" ]; then
     if type devflow_resolve_gh >/dev/null 2>&1; then
         DEVFLOW_GH="$(devflow_resolve_gh)"
     else
-        echo "devflow: resolve-existing-pr.sh: devflow_resolve_gh is not defined after sourcing ../lib/resolve-gh.sh (a partial deployment carrying scripts/ without lib/); gh could not be resolved, so whether an open PR exists cannot be established" >&2
+        echo "prflow: resolve-existing-pr.sh: devflow_resolve_gh is not defined after sourcing ../lib/resolve-gh.sh (a partial deployment carrying scripts/ without lib/); gh could not be resolved, so whether an open PR exists cannot be established" >&2
         printf '%s\n' REFUSED
         exit 3
     fi
 fi
 if [ -z "${DEVFLOW_GH:-}" ]; then
-    echo "devflow: resolve-existing-pr.sh: gh resolution produced an empty value; whether an open PR exists cannot be established (set DEVFLOW_GH to override)" >&2
+    echo "prflow: resolve-existing-pr.sh: gh resolution produced an empty value; whether an open PR exists cannot be established (set DEVFLOW_GH to override)" >&2
     printf '%s\n' REFUSED
     exit 3
 fi
@@ -84,11 +84,11 @@ fi
 # and costs no extra bash spawn.
 # shellcheck source=../lib/resolve-jq.sh
 . "$_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-existing-pr.sh could not source ../lib/resolve-jq.sh — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-existing-pr.sh could not source ../lib/resolve-jq.sh — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 # Outcome check, not just sourceability: a sibling that sources clean yet never assigns must
 # still leave a usable jq, never a bare `set -u` abort that breaks the one-token contract.
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: resolve-existing-pr.sh: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-existing-pr.sh: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   DEVFLOW_JQ=jq
 fi
 
@@ -110,7 +110,7 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --issue|--branch|--base|--title-file|--body-file)
             if [ "$#" -lt 2 ]; then
-                echo "devflow: resolve-existing-pr.sh: '$1' requires a value but none was given; refusing rather than looping on an unconsumable argument" >&2
+                echo "prflow: resolve-existing-pr.sh: '$1' requires a value but none was given; refusing rather than looping on an unconsumable argument" >&2
                 printf '%s\n' REFUSED
                 exit 3
             fi
@@ -125,7 +125,7 @@ while [ "$#" -gt 0 ]; do
         --open) OPEN=1; shift ;;
         --force-create) FORCE_CREATE=1; shift ;;
         *)
-            echo "devflow: resolve-existing-pr.sh: unrecognized argument '$1'; refusing to guess" >&2
+            echo "prflow: resolve-existing-pr.sh: unrecognized argument '$1'; refusing to guess" >&2
             printf '%s\n' REFUSED
             exit 3 ;;
     esac
@@ -136,7 +136,7 @@ done
 # adopting with a validation silently downgraded to "passed".
 case "$ISSUE" in
     ''|*[!0-9]*)
-        echo "devflow: resolve-existing-pr.sh: --issue must be a number (got '$ISSUE'); the closes-issue validation cannot be established" >&2
+        echo "prflow: resolve-existing-pr.sh: --issue must be a number (got '$ISSUE'); the closes-issue validation cannot be established" >&2
         printf '%s\n' REFUSED
         exit 3 ;;
 esac
@@ -160,7 +160,7 @@ fi
 # that let an empty branch through would adopt an arbitrary unrelated PR on some other branch.
 # The query must never be reached with an empty branch name.
 if [ -z "$BRANCH" ]; then
-    echo "devflow: resolve-existing-pr.sh: the branch name is empty (detached HEAD, a broken worktree, or git < 2.22); NOT querying — an empty --head degrades to an unfiltered repo-wide listing" >&2
+    echo "prflow: resolve-existing-pr.sh: the branch name is empty (detached HEAD, a broken worktree, or git < 2.22); NOT querying — an empty --head degrades to an unfiltered repo-wide listing" >&2
     printf '%s\n' REFUSED
     exit 3
 fi
@@ -177,7 +177,7 @@ _pr_open_record() {
 
 _open_mode() {
     if [ -z "$TITLE_FILE" ] || [ -z "$BODY_FILE" ] || [ ! -r "$TITLE_FILE" ] || [ ! -r "$BODY_FILE" ]; then
-        echo "devflow: resolve-existing-pr.sh --open: the PR title/body files are unset or unreadable (TITLE_FILE=${TITLE_FILE:-<unset>}, BODY_FILE=${BODY_FILE:-<unset>}); refusing to open a PR" >&2
+        echo "prflow: resolve-existing-pr.sh --open: the PR title/body files are unset or unreadable (TITLE_FILE=${TITLE_FILE:-<unset>}, BODY_FILE=${BODY_FILE:-<unset>}); refusing to open a PR" >&2
         _pr_open_record refused cause title-or-body-file-unreadable
         exit 3
     fi
@@ -205,7 +205,7 @@ _open_mode() {
         CREATE\|2)
             _mode=created ;;
         *)
-            echo "devflow: resolve-existing-pr.sh --open: the adopt-or-create resolver returned an unclassifiable result (resolution='${_resolution}', rc=${_resolve_rc}); refusing to open a PR" >&2
+            echo "prflow: resolve-existing-pr.sh --open: the adopt-or-create resolver returned an unclassifiable result (resolution='${_resolution}', rc=${_resolve_rc}); refusing to open a PR" >&2
             _pr_open_record refused cause "unresolved-adopt-or-create-rc-${_resolve_rc}"
             exit 3 ;;
     esac
@@ -214,7 +214,7 @@ _open_mode() {
         if [ -z "$BASE" ]; then
             BASE="$("$_DIR/config-get.sh" .base_branch main)" || BASE=""
             if [ -z "$BASE" ]; then
-                echo "devflow: resolve-existing-pr.sh: base_branch read failed (a malformed config, a missing python3, or config-get.sh itself absent/non-executable beside this helper); falling back to 'main' as the created PR's base" >&2
+                echo "prflow: resolve-existing-pr.sh: base_branch read failed (a malformed config, a missing python3, or config-get.sh itself absent/non-executable beside this helper); falling back to 'main' as the created PR's base" >&2
                 BASE=main
             fi
         fi
@@ -256,7 +256,7 @@ _open_mode() {
             case "$_view_out" in http*) _url="$_view_out" ;; esac
         fi
         if [ -z "$_url" ]; then
-            echo "devflow: resolve-existing-pr.sh --open: could not resolve the adopted PR #${_number} URL (gh pr view rc=${_view_rc}): ${_view_out:-<no output>}" >&2
+            echo "prflow: resolve-existing-pr.sh --open: could not resolve the adopted PR #${_number} URL (gh pr view rc=${_view_rc}): ${_view_out:-<no output>}" >&2
             _pr_open_record refused cause "adopted-pr-url-unresolved-rc-${_view_rc}"
             exit 3
         fi
@@ -280,7 +280,7 @@ _open_mode() {
 }
 
 if [ -n "$FORCE_CREATE" ] && [ -z "$OPEN" ]; then
-    echo "devflow: resolve-existing-pr.sh: --force-create requires --open" >&2
+    echo "prflow: resolve-existing-pr.sh: --force-create requires --open" >&2
     printf '%s\n' REFUSED
     exit 3
 fi
@@ -318,14 +318,14 @@ if ! PR_JSON="$("$DEVFLOW_GH" pr list --head "$BRANCH" --state open --json numbe
     else
         _gh_why="gh printed no error output"
     fi
-    echo "devflow: resolve-existing-pr.sh: 'gh pr list' exited non-zero for branch '$BRANCH'; could not establish whether an open PR exists: $_gh_why" >&2
+    echo "prflow: resolve-existing-pr.sh: 'gh pr list' exited non-zero for branch '$BRANCH'; could not establish whether an open PR exists: $_gh_why" >&2
     [ "$GH_ERR" = /dev/null ] || rm -f "$GH_ERR"
     printf '%s\n' REFUSED
     exit 3
 fi
 [ "$GH_ERR" = /dev/null ] || rm -f "$GH_ERR"
 if [ -z "$PR_JSON" ]; then
-    echo "devflow: resolve-existing-pr.sh: 'gh pr list' exited 0 but printed nothing for branch '$BRANCH' (an empty listing is spelled '[]', never empty output); could not establish whether an open PR exists" >&2
+    echo "prflow: resolve-existing-pr.sh: 'gh pr list' exited 0 but printed nothing for branch '$BRANCH' (an empty listing is spelled '[]', never empty output); could not establish whether an open PR exists" >&2
     printf '%s\n' REFUSED
     exit 3
 fi
@@ -373,14 +373,14 @@ if [ -z "$PR_LINE" ]; then
     else
         _jq_why="jq exited 0 but produced no line"
     fi
-    echo "devflow: resolve-existing-pr.sh: the open-PR listing for branch '$BRANCH' could not be parsed; could not establish whether an open PR exists: $_jq_why" >&2
+    echo "prflow: resolve-existing-pr.sh: the open-PR listing for branch '$BRANCH' could not be parsed; could not establish whether an open PR exists: $_jq_why" >&2
     [ "$JQ_ERR" = /dev/null ] || rm -f "$JQ_ERR"
     printf '%s\n' REFUSED
     exit 3
 fi
 [ "$JQ_ERR" = /dev/null ] || rm -f "$JQ_ERR"
 if [ "$PR_LINE" = NONE ]; then
-    echo "devflow: resolve-existing-pr.sh: no open PR on branch '$BRANCH' (queried cleanly); the caller should create one" >&2
+    echo "prflow: resolve-existing-pr.sh: no open PR on branch '$BRANCH' (queried cleanly); the caller should create one" >&2
     printf '%s\n' CREATE
     exit 2
 fi
@@ -393,7 +393,7 @@ fi
 read -r PR_NUMBER PR_CLOSES PR_BASE <<<"$PR_LINE"
 case "$PR_NUMBER" in
     ''|*[!0-9]*)
-        echo "devflow: resolve-existing-pr.sh: the selected PR's number is not numeric ('$PR_NUMBER' from '$PR_LINE'); refusing to adopt an unidentified PR" >&2
+        echo "prflow: resolve-existing-pr.sh: the selected PR's number is not numeric ('$PR_NUMBER' from '$PR_LINE'); refusing to adopt an unidentified PR" >&2
         printf '%s\n' REFUSED
         exit 3 ;;
 esac
@@ -416,7 +416,7 @@ esac
 if [ -z "$BASE" ]; then
     BASE="$("$_DIR/config-get.sh" .base_branch main)" || BASE=""
     if [ -z "$BASE" ]; then
-        echo "devflow: resolve-existing-pr.sh: base_branch read failed (a malformed config, a missing python3, or config-get.sh itself absent/non-executable beside this helper); falling back to 'main' for the base-ref validation" >&2
+        echo "prflow: resolve-existing-pr.sh: base_branch read failed (a malformed config, a missing python3, or config-get.sh itself absent/non-executable beside this helper); falling back to 'main' for the base-ref validation" >&2
         BASE=main
     fi
 fi
@@ -444,10 +444,10 @@ if [ -n "$FAILED" ]; then
     _why=""
     case ",$FAILED," in *,closes-issue,*) _why="it does not list issue #$ISSUE in closingIssuesReferences" ;; esac
     case ",$FAILED," in *,base-ref,*) _why="${_why:+$_why; }$_base_clause" ;; esac
-    echo "devflow: resolve-existing-pr.sh: adopting open PR #$PR_NUMBER on branch '$BRANCH', but validation failed ($FAILED): $_why" >&2
+    echo "prflow: resolve-existing-pr.sh: adopting open PR #$PR_NUMBER on branch '$BRANCH', but validation failed ($FAILED): $_why" >&2
     printf '%s\n' "ADOPT $PR_NUMBER WARN:$FAILED"
     exit 0
 fi
-echo "devflow: resolve-existing-pr.sh: adopting open PR #$PR_NUMBER on branch '$BRANCH' (closes issue #$ISSUE, targets base '$BASE')" >&2
+echo "prflow: resolve-existing-pr.sh: adopting open PR #$PR_NUMBER on branch '$BRANCH' (closes issue #$ISSUE, targets base '$BASE')" >&2
 printf '%s\n' "ADOPT $PR_NUMBER OK"
 exit 0

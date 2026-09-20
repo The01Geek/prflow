@@ -107,7 +107,7 @@ Replace `123` with your issue number.
 PRFlow creates a branch named `issue-123-<title-slug>`, then posts a single progress comment to the issue and keeps it updated for the whole run. That comment is the workpad. Abridged, it looks like this:
 
 ```markdown
-# PRFlow Workpad — Issue #123
+# PRFlow Workpad
 
 **Status:** 🚀 Implementing
 **Branch:** `issue-123-add-retain-days-option`
@@ -116,12 +116,12 @@ PRFlow creates a branch named `issue-123-<title-slug>`, then posts a single prog
 **Last updated:** 2026-08-26 09:41 UTC
 
 ## Progress
-- [x] **Setup** — branch & workpad
+- [x] **Setup**
 - [ ] **Implement**
-  - [x] code + sweeps
+  - [x] Code + sweeps
 - [ ] **Review**
-  - [ ] `review-and-fix`
-  - [ ] acceptance-criteria gate
+  - [ ] Review-and-fix loop
+  - [ ] Acceptance-criteria gate
 - [ ] **Documentation**
 - [ ] **PR marked ready**
 ```

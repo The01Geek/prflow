@@ -47,7 +47,7 @@ if [ -f "$_RESOLVE_GH_DIR/resolve-bin.sh" ] \
     devflow_resolve_bin gh
   }
 else
-  echo "devflow: resolve-bin.sh not found or not sourceable beside resolve-gh.sh — gh resolution degraded to DEVFLOW_GH-or-bare-gh" >&2
+  echo "prflow: resolve-bin.sh not found or not sourceable beside resolve-gh.sh — gh resolution degraded to DEVFLOW_GH-or-bare-gh" >&2
   devflow_resolve_gh() {
     printf '%s\n' "${DEVFLOW_GH:-gh}"
   }

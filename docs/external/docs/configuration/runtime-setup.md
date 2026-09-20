@@ -30,7 +30,7 @@ Each `setup.services` object requires string `name` and `image`. Optional `ports
   | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
   | --- | --- | --- | --- | --- |
   | `setup.claude_code_executable` | Single-line nonblank string path | Scaffold: empty; uses action auto-install | Cloud model jobs. Primarily for a preinstalled Windows executable. Trigger-time and post-merge-only. | `"claude_code_executable": "C:\\Users\\runner\\.local\\bin\\claude.exe"` |
-  | `setup.git_dir_pin` | Boolean | `false` | Cloud jobs except implementation. Can misdirect repository-root config reads; leave off unless validated. Post-merge-only. | `"git_dir_pin": false` |
+  | `setup.git_dir_pin` | Boolean | `false` | Cloud jobs except implementation. Can misdirect repository-root config reads; leave off unless validated. When enabled, an implement run ignores it and surfaces a `::warning::` on the run summary. Post-merge-only. | `"git_dir_pin": false` |
   | `setup.git_work_tree_pin` | Boolean | `false` | Cloud jobs. Breaks remote marketplace cloning; use only with local-only marketplaces. Post-merge-only. | `"git_work_tree_pin": false` |
 
   Leave all three at their defaults unless a self-hosted runner needs them. Each takes effect only after the change merges, because cloud jobs read them at trigger time from the default branch. See [Runners](/docs/runs/cloud/runners).

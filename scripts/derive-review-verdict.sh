@@ -124,7 +124,7 @@ _DRV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # devflow_resolve_gh (which would misdirect the failure to the reviews query).
 # shellcheck source=../lib/resolve-gh.sh
 . "$_DRV_DIR/../lib/resolve-gh.sh" \
-  || echo "devflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
+  || echo "prflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
 # Sourceability is not function-availability (a sibling can source clean yet not
 # define the resolver) — verify the function itself before calling it.
 if type devflow_resolve_gh >/dev/null 2>&1; then
@@ -141,12 +141,12 @@ fi
 # reference under `set -u`.
 # shellcheck source=../lib/resolve-jq.sh
 . "$_DRV_DIR/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 # Outcome check, not just sourceability (mirrors the gh guard above): a sibling
 # that sources clean yet never assigns must still leave a usable jq — never a
 # bare `set -u` abort that breaks the always-exit-0 / two-line stdout contract.
 if [ -z "${DEVFLOW_JQ:-}" ]; then
-  echo "devflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  echo "prflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
   DEVFLOW_JQ=jq
 fi
 

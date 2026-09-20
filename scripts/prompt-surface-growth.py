@@ -318,6 +318,11 @@ def render(head_sha, base_sha, ref, rows, surface_delta, surface_total):
 
 def main():
     _force_utf8_streams()
+    if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
+        # A help flag anywhere in argv prints usage and does nothing else — no git
+        # call, no table. rc 0. Other arguments are ignored.
+        print("usage: prompt-surface-growth.py")
+        return 0
     rc, head_out, head_err = _git(["rev-parse", "HEAD"])
     if rc != 0 or not head_out.strip():
         return _emit([

@@ -52,7 +52,7 @@ _CSPR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # aborting under set -u.
 # shellcheck source=../lib/resolve-gh.sh
 . "$_CSPR_DIR/../lib/resolve-gh.sh" \
-  || echo "devflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
+  || echo "prflow: resolve-gh.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'gh' (set DEVFLOW_GH to override)" >&2
 if type devflow_resolve_gh >/dev/null 2>&1; then
   : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 else
@@ -60,7 +60,7 @@ else
 fi
 # shellcheck source=../lib/resolve-jq.sh
 . "$_CSPR_DIR/../lib/resolve-jq.sh" \
-  || echo "devflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  || echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
 : "${DEVFLOW_JQ:=jq}"
 
 PR="${PR:-}"

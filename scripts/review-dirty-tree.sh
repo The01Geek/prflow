@@ -43,6 +43,13 @@
 #     ??->staged transition is in-scope dirt, not already-dirty). Short-circuits on the disabled
 #     sentinel, emitting a DISABLED/SKIPPED breadcrumb.
 #     Emits the same `::warning::` breadcrumbs the inline fence did. Exit 0.
+#   engine-setup ARGS… / engine-return ARGS… / view-materialize ARGS…
+#     The review engine's one-call setup, return-file assembly, and commit-bound source-view
+#     materialization (issue #851), hosted here because this head is granted on every tier;
+#     the work and the argument contract live in the sibling review-engine-io.py. engine-setup
+#     takes the `snapshot` LAST — after the diff cache is published, before the engine dispatches
+#     any child — and its object ID reaches stdout only. Exit: the sibling's (0 ok/empty, 1 stop,
+#     2 usage).
 #
 # Portability: bash 3.2 / BSD userland, no GNU-only flags (indexed-array linear scan,
 # never `declare -A`; NUL-safe `read -r -d ''`).
@@ -52,6 +59,7 @@ set -u
 SNAP_BEFORE="${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}"
 SNAP_AFTER="${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}"
 DISABLED_SENTINEL=".prflow/tmp/review-dirty-tree-disabled"
+ENGINE_IO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/review-engine-io.py"
 
 cmd_snapshot() {
   if ! mkdir -p .prflow/tmp 2>/dev/null; then
@@ -234,6 +242,21 @@ cmd_compare_and_restore() {
   return 0
 }
 
+cmd_engine_setup() {
+  local record oid rc=0
+  record="$(python3 "$ENGINE_IO" setup-prepare "$@")" || rc=$?
+  case "$record" in
+    record:*) ;;
+    *)
+      # `empty`, a fail-closed stop, or a usage error: the sibling already said which.
+      [ -n "$record" ] && printf '%s\n' "$record"
+      return "$rc"
+      ;;
+  esac
+  oid="$(cmd_snapshot)"
+  python3 "$ENGINE_IO" setup-emit --record "${record#record:}" --snapshot-oid "$oid"
+}
+
 main() {
   if [ "$#" -lt 1 ]; then
     echo "usage: review-dirty-tree.sh snapshot [BEFORE AFTER DISABLED] | compare-and-restore OID [BEFORE AFTER DISABLED]" >&2
@@ -267,8 +290,21 @@ main() {
       fi
       cmd_compare_and_restore "$2"
       ;;
+    engine-setup)
+      shift
+      cmd_engine_setup "$@"
+      ;;
+    engine-return)
+      shift
+      python3 "$ENGINE_IO" return "$@"
+      ;;
+    view-materialize)
+      # issue #851 source-view producer (placement rationale in the header block above).
+      shift
+      python3 "$ENGINE_IO" view-materialize "$@"
+      ;;
     *)
-      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore)" >&2
+      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-return | view-materialize)" >&2
       return 2
       ;;
   esac

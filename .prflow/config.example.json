@@ -12,6 +12,7 @@
     "allowed_tools": [],
     "execution_diagnostics_enabled": true,
     "execution_transcript_artifact_enabled": false,
+    "execution_transcript_job_log_enabled": false,
     "execution_denial_commands_enabled": true,
     "attribute_commits_to_triggerer": false,
     "publish_model_effort": true

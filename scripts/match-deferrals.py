@@ -80,7 +80,7 @@ from pathlib import Path, PurePosixPath
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
     sys.stderr.write(
-        "devflow: Python 3.11+ required (found {}.{}.{}). This helper requires"
+        "prflow: Python 3.11+ required (found {}.{}.{}). This helper requires"
         " features of Python 3.11+. Install Python 3.11+; on Windows/Git-Bash"
         " run scripts/provision-python3-shim.sh --apply.\n".format(*sys.version_info[:3])
     )
@@ -97,10 +97,16 @@ try:
     # (the #343 gate exercise does exactly that), so the path insert degrades with the
     # import instead of raising ahead of a gate that must fail fast.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    # Nested-repository detection (issue #12): a resolved root with no .prflow/ under
+    # an ancestor that has one reads built-in defaults while looking configured.
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
     from state_dir import resolve_state_dir as _resolve_state_dir
 except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _resolve_state_dir(repo_root, stream=None):
         return str(Path(repo_root) / ".prflow")
+
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
 
 # Refreshed-token env for gh calls on native Windows (see gh_fresh_env.py).
 # Guarded like the lib/ imports around it (partial copy / exec'd source): a copy
@@ -294,6 +300,7 @@ def _default_config_path() -> str:
     # root anchoring — so this reader must root-anchor its default itself (issue #295).
     root = _repo_root()
     if root is not None:
+        _warn_ancestor_config(root, "match-deferrals.py", "pass --config <path>")
         return str(Path(_resolve_state_dir(root)) / "config.json")
     cwd = Path.cwd()
     # Breadcrumb only when NEITHER a git root NOR a .prflow/ dir can be located —

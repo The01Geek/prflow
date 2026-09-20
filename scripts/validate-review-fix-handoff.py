@@ -30,7 +30,8 @@ Permitted review-fix valid-falsy / null shapes (AC3): a null `final_commit` or
 `review_coverage_recorded` false; and a null `loop_run.iter_dir`. `blockers` must be non-empty
 only when `outcome` is `blocked` or `error`.
 
-Finalization schema (`--schema finalization`, issue #539) — the field contract's single home:
+Finalization schema (`--schema finalization`, issue #539) — validated here, and restated for
+the worker in `agents/implement-finalization.md`:
 
 - Identity (required, non-null on EVERY outcome — dispatch literals the worker echoes back, never
   observations): `schema_version` (must be 1), `dispatch_id` (== `--dispatch-id`), `repo_root`
@@ -85,7 +86,9 @@ _OUTCOMES_FINALIZATION = ("proceed", "blocked", "needs-recovery", "needs-repair"
 #: The Phase 4 steps a `proceed` finalization handoff must account for in `steps`.
 _FINALIZATION_STEP_IDS = ("§4.0", "§4.0.5", "§4.0.6", "§4.1", "§4.2", "§4.3")
 _DRAFT_PR_DISPOSITIONS = ("numbered", "empty-brackets", "absent")
-_VERDICT_BUCKETS = ("clean-full", "clean-not-verified", "awusf", "reject", "unestablished")
+#: `clean-shadow-skipped` is the loop's clean-iteration-1 exit: no shadow was owed.
+_VERDICT_BUCKETS = ("clean-full", "clean-shadow-skipped", "clean-not-verified", "awusf", "reject",
+                    "unestablished")
 _PERSISTENCE_CLASSES = ("ok", "lost", "unestablished")
 #: Finalization `extension` object (issue #622): the intake worker's field set, closed.
 _EXTENSION_KEYS = ("parent_state", "worker_state", "parent_digest", "worker_digest",

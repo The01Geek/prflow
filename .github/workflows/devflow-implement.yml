@@ -320,6 +320,12 @@ jobs:
       should_run: ${{ steps.resolve.outputs.should_run }}
       number: ${{ steps.resolve.outputs.number }}
       duplicate: ${{ steps.dedupe.outputs.duplicate }}
+      # The run's origin identity (issue #512): the human a resume chain started
+      # from, decoded by the resolver from the resume comment, or the actor when
+      # this is not an automatic resume. EMPTY when a resume lost its origin —
+      # the resume producers then write no origin line, and the assignment helper
+      # skips rather than requesting a bot assignee GitHub would 403.
+      triggering_user: ${{ steps.resolve.outputs.triggering_user }}
       # Workpad provenance for this run (issue #537, AC1): exactly one of
       # created-current-run / adopted-existing / unknown, decided by the
       # early-workpad step below. The claude job normalizes it into the
@@ -514,7 +520,7 @@ jobs:
             if ! python3 "$WP" update "$NUMBER" --run-link "[View run]($RUN_URL)"; then
               echo "::warning::early workpad Run-link refresh failed for #$NUMBER; the claude job will refresh it in Phase 1.3 instead." >&2
             fi
-            if ! python3 "$WP" update "$NUMBER" --checkpoint "gha:${RUN_ID}:${RUN_ATTEMPT}:gate-adopted" "trigger accepted; existing workpad adopted"; then
+            if ! python3 "$WP" update "$NUMBER" --checkpoint "gha:${RUN_ID}:${RUN_ATTEMPT}:gate-adopted" "Trigger accepted; existing workpad adopted"; then
               echo "::warning::gate-adopted checkpoint failed for #$NUMBER (a duplicated ## Progress, an empty body, or a transient error — a merely absent ## Progress is repaired since issue #1347, so it is no longer a cause); the Run-link refresh above still landed." >&2
             fi
             # PR-body maintenance on resume (issue #2060): the gate is the single owner of the PR body's
@@ -889,19 +895,6 @@ jobs:
         run: |
           set -euo pipefail
           bash .prflow/vendor/prflow/scripts/install-gh-wrapper.sh
-      # Without this the #1621 Python-lint gate self-skips (blocking-gate) on every
-      # cloud implement run — the tier whose completion gate IS the in-env suite.
-      # Keep it conditional and non-fatal: this workflow ships to consumer repos that
-      # may track no Python at all, and a failed install must not abort the run.
-      - name: Install ruff (arms the #1621 Python-lint gate for in-env verification)
-        run: |
-          set -uo pipefail
-          if [ -z "$(git ls-files '*.py' | head -n 1)" ]; then
-            echo "no tracked *.py — skipping ruff install"
-            exit 0
-          fi
-          python3 -m pip install --quiet 'ruff==0.16.*' \
-            || echo "::warning::ruff install failed; the Python lint gate will self-skip in this run"
       # ── Third-party model provider resolution (issue #313) ─────────────────
       # Resolve this section's (prflow_implement) provider decision from
       # .prflow/config.json via the single-sourced inline jq RESOLVER below.
@@ -1443,7 +1436,7 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=implement manifest_version=40 sha256=3d0436784ce7d782b53174e9bbde5c44f626506697efadc4851b06d8652e0659
+          # devflow-capability-manifest: region=implement manifest_version=41 sha256=3d0436784ce7d782b53174e9bbde5c44f626506697efadc4851b06d8652e0659
           TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh run download:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
           # Union the vendored plugin's own helper grants into the baked list (issue #352).
           # Capture as RESOLVED, never a second TOOLS= (breaks the #1170 single-TOOLS pin and
@@ -1601,6 +1594,39 @@ jobs:
           : > "$STAMP"
           echo "transcript store stamped at $STAMP"
 
+      # ── Execution-transcript streaming gate (issue #799) ────────────────────
+      # The job log is the ONLY channel an ABRUPT runner death preserves. A host-level
+      # termination (`exit code 143` then `The runner has received a shutdown signal`) runs
+      # NONE of this job's own always() post-steps — every one reports `skipped`, not failed —
+      # so the transcript steps below never fire, and #342's native-session fallback cannot
+      # save the run either: that fallback lives INSIDE the step the death skips. The engine
+      # writes its execution file once, after its message loop ends, so the on-disk copy dies
+      # with the host too. What survives is the log the runner already uploaded chunk by chunk.
+      # With show_full_output on, the engine logs every message as it arrives, so that log
+      # carries the transcript and the spot_recovery job below can rebuild it off-host.
+      #
+      # Opt-in and DEFAULT-OFF, and a SEPARATE key from execution_transcript_artifact_enabled:
+      # that key gates a credential-SCRUBBED, 7-day, artifact-scoped copy, while this one puts
+      # the transcript UNSCRUBBED into a job log that a public repository publishes and GitHub
+      # keeps far longer. The two carry different exposure — do not harmonize them.
+      #
+      # The key alone does not open it: scripts/job-log-transcript.sh also needs the
+      # triggering event to report the repository private, and answers false with a
+      # ::warning:: for a public repository or an unstated visibility. The decision lives in
+      # that script so the suite runs the shipped bytes.
+      - name: Resolve execution-transcript streaming gate
+        id: stream_transcript
+        env:
+          PRFLOW_REPO_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          set -uo pipefail
+          JT=.prflow/vendor/prflow/scripts/job-log-transcript.sh
+          if [ -f "$JT" ]; then
+            bash "$JT" stream-gate || true
+          else
+            echo "::notice::transcript streaming gate inert: $JT missing (an older vendored tree); show_full_output=false."
+          fi
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1.0.217 (CLI 2.1.263); @v1's 2.1.265 build breaks plugin install — anthropics/claude-code-action#1290
@@ -1616,15 +1642,17 @@ jobs:
           # pass reads a definite signal rather than an absent one. Coupled to Pass 5's
           # keying in skills/implement/phases/phase-1-setup.md and its lib/test/run.sh pins.
           DEVFLOW_APP_ID: ${{ vars.DEVFLOW_APP_ID }}
-          # Propagate the authorized issue-comment sender to the writer so Phase 3.1.1
-          # can assign the newly-created draft PR to the developer who triggered the run
-          # (issue #1165). This is the SAME trusted login the commit-attribution step and
-          # authorization already use (github.event.sender.login). apply-pr-triggerer.sh
-          # is FAIL-CLOSED on identity: an empty value (an older workflow paired with a
-          # newer skill, or a non-issue-comment trigger) makes it skip assignment rather
-          # than substitute the token owner / App identity / GITHUB_ACTOR. Kept under the
-          # frozen DEVFLOW_ env prefix (the rename contract freezes env identifiers).
-          DEVFLOW_TRIGGERING_USER: ${{ github.event.sender.login }}
+          # Propagate the run's origin identity to the writer so Phase 3.1.1 can assign
+          # the newly-created draft PR to the developer who triggered the run (issue
+          # #1165). The gate resolver decides it: the actor on a direct trigger (the same
+          # trusted login authorization and commit attribution use), or the human the
+          # resume chain started from on an automatic resume, whose sender is the App
+          # (issue #512). The sender fallback keeps a workflow newer than its vendored
+          # plugin assigning direct human triggers. apply-pr-triggerer.sh is FAIL-CLOSED
+          # on identity: an empty value, or a `[bot]` login, makes it skip assignment
+          # rather than substitute the token owner / App identity / GITHUB_ACTOR. Kept
+          # under the frozen DEVFLOW_ prefix (the rename contract freezes env identifiers).
+          DEVFLOW_TRIGGERING_USER: ${{ needs.gate.outputs.triggering_user || github.event.sender.login }}
           # Harness floor for the dispatch barrier (issue #801) — full rationale in
           # devflow-runner.yml's copy of this entry. On this tier it binds the Phase 2
           # code-explorer/code-architect dispatches, the Phase 3 inline review pass,
@@ -1788,6 +1816,10 @@ jobs:
           # the action auto-installs, unchanged for Linux. Full rationale + the
           # self-hosted-Windows use case are on the config-job extraction above.
           path_to_claude_code_executable: ${{ needs.config.outputs.claude_code_executable }}
+          # Stream every engine message into THIS job's log so an abrupt runner death still
+          # leaves a rebuildable transcript (issue #799). The comparison renders a literal
+          # true/false, so a gate step that wrote no output passes false.
+          show_full_output: ${{ steps.stream_transcript.outputs.show_full_output == 'true' }}
           # claude_args head is a COMPUTED string (steps.cargs): --model always,
           # --effort conditional on effort_supported (issue #313). The --allowed-tools
           # tail consumes the `Resolve allowed-tools` step's output (issue #1170) —
@@ -1998,7 +2030,7 @@ jobs:
 
       - name: Upload execution transcript artifact
         if: always() && steps.scrub_transcript.outputs.path != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: claude-execution-transcript-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ steps.scrub_transcript.outputs.path }}
@@ -2182,6 +2214,11 @@ jobs:
           # not a stall). Deliberately the documented job-context string, not a
           # status-check function (the docs scope those to `if:` conditionals).
           JOB_STATUS: ${{ job.status }}
+          # The origin identity this resume chain must carry forward (issue #512).
+          # The BARE gate output, with no sender fallback: a bot login must never be
+          # written into the origin line, so an unreadable origin writes no line and
+          # the resumed run's assignment skips instead.
+          RESUME_ORIGIN: ${{ needs.gate.outputs.triggering_user }}
           # The cause set (issue #158), so each failure comment's cause line names
           # the engine's reason. ENGINE_ERROR comes from the new engine-parse step
           # (which does NOT feed the resume-or-fail decision). result_excerpt is not
@@ -2379,6 +2416,14 @@ jobs:
           # extra resume runs. `grep -cxF -e A -e B` counts LINES matching either,
           # so this is a union over comment lines, not a sum over spellings.
           MARKER_SUPERSEDED='<!-- devflow:stall-backstop-audit -->'
+          # Resume-origin line (issue #512), composed once and written on its OWN line
+          # after the marker — never appended to it, or the exact-line attempt count
+          # above stops matching. Empty RESUME_ORIGIN writes no line, so a resume that
+          # lost its origin carries none rather than a bot login. Coupled literal:
+          # spot_recovery's copy below and the decoder in
+          # scripts/resolve-implement-trigger.sh.
+          ORIGIN_LINE=""
+          [ -n "${RESUME_ORIGIN:-}" ] && ORIGIN_LINE="<!-- prflow:resume-origin login=${RESUME_ORIGIN} -->"
           # Every comment this step posts goes through this one funnel variable; a
           # second literal path here would escape the single-funnel pin.
           PIC="$V/post-issue-comment.sh"
@@ -2491,7 +2536,9 @@ jobs:
               # discipline through scripts/render-grounding-block.sh's injected
               # engine-ground-truth block, so the resumed run does not need them here.
               {
-                printf '%s\n\n' "$MARKER"
+                printf '%s\n' "$MARKER"
+                [ -n "$ORIGIN_LINE" ] && printf '%s\n' "$ORIGIN_LINE"
+                printf '\n'
                 printf '**PRFlow stall backstop** — in-progress (`%s`); auto-resume attempt %s of %s\n' "$STATUS_OUT" "$K" "$MAX"
                 printf '%s\n' "$CAUSE"
                 printf '%s\n' "$RUN_URL"
@@ -2717,6 +2764,45 @@ jobs:
           ref: ${{ needs.config.outputs.prflow_version }}
           repo: ${{ needs.config.outputs.prflow_repo }}
           token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
+      # ── Rebuild the transcript the dead runner could not upload (issue #799) ──
+      # Both steps are continue-on-error: a failed rebuild or upload (an API 5xx, a 409 name
+      # conflict, a timeout) must never skip the reconcile step below, which re-triggers a
+      # reclaimed run. The rebuild reads the claude job's log — uploaded chunk by chunk while
+      # the agent was alive — and publishes under the SAME artifact name the in-job channel
+      # uses, so a reader keyed on that name finds it. The step's shell is
+      # scripts/job-log-transcript.sh, which the suite runs directly.
+      #
+      # Gated on execution_transcript_artifact_enabled, the same key as that channel: the
+      # artifact carries the same content with the same scrub, so it must carry the same
+      # consent. Skipped when the artifact already exists — a GRACEFUL cancel DOES run the
+      # in-job steps, and actions/upload-artifact refuses a duplicate name — and skipped when
+      # the artifact listing cannot be read, because an unknown listing is not an absent one.
+      - name: Rebuild the execution transcript from the claude job log
+        id: rebuild_transcript
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          JT=.prflow/vendor/prflow/scripts/job-log-transcript.sh
+          if [ -f "$JT" ]; then
+            bash "$JT" rebuild || true
+          else
+            echo "::warning::transcript rebuild inert: $JT missing (an older vendored tree); nothing uploaded (fail-closed)."
+          fi
+
+      - name: Upload rebuilt execution transcript artifact
+        if: ${{ steps.rebuild_transcript.outputs.path != '' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-execution-transcript-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.rebuild_transcript.outputs.path }}
+          retention-days: 7
+          if-no-files-found: ignore
+
       # Best-effort fresh App-token mint (issue #287 pattern) — a resume comment
       # must be App-authored to re-trigger the workflow (a GITHUB_TOKEN-authored
       # comment never does). continue-on-error: a broken App degrades to
@@ -2738,6 +2824,10 @@ jobs:
           APP_TOKEN_PRESENT: ${{ steps.recovery-token.outputs.token != '' }}
           ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
           JOB_RESULT: ${{ needs.claude.result }}
+          # The origin identity this resume chain carries forward (issue #512) — the
+          # BARE gate output, read from the gate job rather than the reclaimed claude
+          # job, with no sender fallback so a bot login is never written into the line.
+          RESUME_ORIGIN: ${{ needs.gate.outputs.triggering_user }}
         run: |
           set +e
           V=.prflow/vendor/prflow/scripts
@@ -2778,12 +2868,13 @@ jobs:
             ${FACTS_FILE:+--facts-file "$FACTS_FILE"})"
           # Seven lines, fixed order; a short read fails toward unclassifiable.
           mapfile -t F <<< "$EVID"
+          SHORT_READ=false
           if [ "${#F[@]}" -lt 7 ]; then
             echo "::warning::spot-recovery: evidence gatherer returned ${#F[@]} flags (<7); treating as unclassifiable"
             F=(false false false false false false false)
+            SHORT_READ=true
           fi
           OUTCOME="$(bash "$V/recovery-classify.sh" "${F[0]}" "${F[1]}" "${F[2]}" "${F[3]}" "${F[4]}" "${F[5]}" "${F[6]}")"
-          echo "spot-recovery: job_result=${JOB_RESULT} classify=${OUTCOME} flags=[${F[*]}]"
 
           # ── One bounded cause line (issue #600) ───────────────────────────
           # Read the cause facts back; a missing/empty facts file (an older vendored
@@ -2793,11 +2884,22 @@ jobs:
             RUNNER_NAME="$(jq -r '.runner_name // empty' "$FACTS_FILE" 2>/dev/null)"
             ANNOTATION_MESSAGE="$(jq -r '.annotation_message // empty' "$FACTS_FILE" 2>/dev/null)"
             NEVER_STARTED="$(jq -r '.never_started // "unknown"' "$FACTS_FILE" 2>/dev/null)"
+            EVIDENCE_READ="$(jq -r '.evidence_read // empty' "$FACTS_FILE" 2>/dev/null)"
           else
-            CAPACITY_TOKEN="unknown"; RUNNER_NAME=""; ANNOTATION_MESSAGE=""
+            CAPACITY_TOKEN="unknown"; RUNNER_NAME=""; ANNOTATION_MESSAGE=""; EVIDENCE_READ=""
           fi
           [ -n "${NEVER_STARTED:-}" ] || NEVER_STARTED="unknown"
           [ -n "$FACTS_FILE" ] && rm -f "$FACTS_FILE"
+          # Issue #798: EVIDENCE=none only when every query succeeded and every flag is
+          # false; a short read or a failed/unrecorded read is `unavailable`, never none.
+          EVIDENCE=none
+          for _f in "${F[@]}"; do
+            if [ "$_f" = "true" ]; then EVIDENCE=present; fi
+          done
+          if [ "$EVIDENCE" = "none" ] && { [ "$SHORT_READ" = "true" ] || [ "$EVIDENCE_READ" != "ok" ]; }; then
+            EVIDENCE=unavailable
+          fi
+          echo "spot-recovery: job_result=${JOB_RESULT} classify=${OUTCOME} evidence=${EVIDENCE} evidence_read=${EVIDENCE_READ:-unavailable} flags=[${F[*]}]"
           # Build the cause line once. A vendored describe-dead-run-cause.sh that
           # predates the recovery arm ignores RECOVERY_JOB_CONCLUSION and prints its
           # legacy two-operand clause ("claude step …"); the recovery arm always opens
@@ -2841,6 +2943,12 @@ jobs:
           MARKER='<!-- prflow:stall-backstop-audit -->'
           MARKER_SUPERSEDED='<!-- devflow:stall-backstop-audit -->'
           ATTEMPT_MARK="<!-- prflow:spot-recovery-attempt run_id=${GITHUB_RUN_ID} run_attempt=${GITHUB_RUN_ATTEMPT} -->"
+          # Resume-origin line (issue #512): byte-identical to the in-job backstop's
+          # copy above, written on its own line after the markers so neither the
+          # exact-line attempt count nor recovery-resume-already.sh's first-line match
+          # changes. Empty RESUME_ORIGIN writes no line.
+          ORIGIN_LINE=""
+          [ -n "${RESUME_ORIGIN:-}" ] && ORIGIN_LINE="<!-- prflow:resume-origin login=${RESUME_ORIGIN} -->"
           # Fetch the issue comments ONCE (full objects) and derive both the lifetime
           # attempt count and the this-run idempotency check from the one buffer (no
           # repeated pagination). A failed read leaves COMMENTS_OK false, which fails
@@ -2919,7 +3027,9 @@ jobs:
             body="$(mktemp)" || { echo "::warning::spot-recovery: mktemp failed; no resume posted"; return 0; }
             {
               printf '%s\n' "$MARKER"
-              printf '%s\n\n' "$ATTEMPT_MARK"
+              printf '%s\n' "$ATTEMPT_MARK"
+              [ -n "$ORIGIN_LINE" ] && printf '%s\n' "$ORIGIN_LINE"
+              printf '\n'
               printf '%s\n' "$sentence"
               [ -n "$CAUSE" ] && printf '%s\n' "$CAUSE"
               printf '%s\n' "$RUN_URL"
@@ -2996,7 +3106,7 @@ jobs:
 
           # Route the classify outcome × job status × workpad class through the pure
           # recovery-resume-decide.sh (AC47/AC48/AC49/AC54), then act on its token.
-          ACTION="$(bash "$V/recovery-resume-decide.sh" "$OUTCOME" "$JOB_RESULT" "$CLASS" "$NEVER_STARTED")"
+          ACTION="$(bash "$V/recovery-resume-decide.sh" "$OUTCOME" "$JOB_RESULT" "$CLASS" "$NEVER_STARTED" "$EVIDENCE")"
           echo "spot-recovery: action=${ACTION} never_started=${NEVER_STARTED}"
           case "$ACTION" in
             resume-reclaim)
@@ -3004,15 +3114,24 @@ jobs:
               # gets no runner retry, so dropping its resume would strand the run.
               if [ "$DEFER_OUTCOME" = "failure" ]; then post_deferred_notice; else post_capped_resume; fi
               ;;
-            flip-cancelled)
+            flip-cancelled|flip-cancelled-unattributed)
               # AC48/AC54: flip the interim workpad to Cancelled through the existing
               # writer (issue labels + PR labels via issues:write land; the stopped-run
               # PR-body note degrades best-effort under the AC46 pull-requests:read
               # least-privilege grant — a documented, accepted degradation). The note
               # carries the cause line (issue #600 AC8), and the flip records the
               # empty-branch fact.
+              FLIP_NOTE="run cancelled: ${CAUSE:-cause unavailable} — ${RUN_URL}"
+              if [ "$ACTION" = "flip-cancelled-unattributed" ]; then
+                # Issue #798: every read succeeded and found neither a reclaim marker nor
+                # a human-cancellation annotation, so the cause is unknown and may be
+                # deterministic (#670's was issue-specific). Decline to auto-resume, and
+                # say so in the note and a run warning.
+                echo "::warning::spot-recovery: recovery DECLINED for issue #${ISSUE_NUMBER} — the claude job ended ${JOB_RESULT} with no reclaim marker and no explicit human-cancellation annotation, so the cause is unknown. Nothing was auto-resumed; any committed work is still on the feature branch. Investigate the cause before re-running the implement command."
+                FLIP_NOTE="run cancelled, unattributed: ${CAUSE:-cause unavailable} — recovery found no reclaim marker and no explicit human-cancellation annotation, so it declined to auto-resume; any committed work is still on the feature branch — investigate the cause before re-running the implement command — ${RUN_URL}"
+              fi
               python3 "$V/workpad.py" update "$ISSUE_NUMBER" --status Cancelled \
-                --note "run cancelled: ${CAUSE:-cause unavailable} — ${RUN_URL}" \
+                --note "$FLIP_NOTE" \
                 || echo "::warning::spot-recovery: could not flip workpad to Cancelled"
               record_empty_branch_recovery
               ;;

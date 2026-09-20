@@ -68,6 +68,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from context_eval_shared import (  # noqa: F401
     UNESTABLISHED,
+    _context_identity,
     _context_tokens,
     _iter_session_files,
     _median,
@@ -99,24 +100,6 @@ def _engine_file_key(file_path):
         if idx != -1:
             return norm[idx + 1:]
     return None
-
-
-def _context_identity(record, source):
-    """The (context key, is_subagent) a record belongs to.
-
-    A sidechain record is a subagent thread, keyed by `agentId`; everything else is a
-    main-thread thread, keyed by `sessionId`. Falls back to the source-file path when the
-    identifying field is absent, so a transcript missing one still separates contexts
-    (each real subagent is its own file). The `main:`/`sub:` prefix keeps a sessionId and
-    an agentId from ever colliding on one key.
-    """
-    if record.get("isSidechain") is True:
-        agent = record.get("agentId")
-        ident = agent if isinstance(agent, str) and agent else "file:" + source
-        return "sub:" + ident, True
-    sid = record.get("sessionId")
-    ident = sid if isinstance(sid, str) and sid else "file:" + source
-    return "main:" + ident, False
 
 
 def _median_or_unestablished(values):

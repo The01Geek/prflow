@@ -39,10 +39,16 @@ try:
     # rather than hand-rolling a divergent fallback. Degrades to .prflow/ if the
     # module cannot be imported (a partial vendored copy).
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    # Nested-repository detection (issue #12): a resolved root with no .prflow/ under
+    # an ancestor that has one reads built-in defaults while looking configured.
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
     from state_dir import state_config_path as _state_config_path
 except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _state_config_path(repo_root, filename="config.json", stream=None):
         return str(Path(repo_root) / ".prflow" / filename)
+
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
 
 
 def _force_utf8_streams():
@@ -69,7 +75,10 @@ def _repo_root():
 
 
 def _default_config_path():
-    base = _repo_root() or str(Path.cwd())
+    root = _repo_root()
+    if root is not None:
+        _warn_ancestor_config(root, "watcher-config-enabled.py", "pass --config <path>")
+    base = root or str(Path.cwd())
     return Path(_state_config_path(base))
 
 

@@ -33,13 +33,24 @@
 #                   other value (including unset/empty) is treated as not-a-PR.
 #   GH_TOKEN        token for `gh api` (collaborator check), set by the caller.
 #
-# Output: two `key=value` lines on stdout (the caller appends them to
-# $GITHUB_OUTPUT; tests assert them directly):
+# Output: three `key=value` lines on stdout, in this order (the caller appends
+# them to $GITHUB_OUTPUT; tests assert them directly):
 #   should_run=true|false
 #   number=<n>|""
+#   triggering_user=<login>|""     the run's origin identity (issue #512)
 #
 # should_run is true ONLY when the actor is authorized AND a number resolves.
 # Fails CLOSED on any ambiguity. Diagnostics go to stderr as ::warning:: lines.
+#
+# triggering_user is the login the workflow propagates as DEVFLOW_TRIGGERING_USER,
+# which becomes the created PR's assignee. An automatic resume's sender is the App,
+# not a human, so the chain's originating human travels in the resume comment as a
+# `<!-- prflow:resume-origin login=<login> -->` line and is decoded here. It is
+# honored ONLY when the actor matches ALLOWED_BOTS and the body carries the
+# stall-backstop audit marker on a line of its own — together, "a resume an allowed
+# bot posted". Otherwise, and on any unusable origin, the actor is the origin (a
+# human is always their own), and an unusable one emits EMPTY with a ::warning::
+# naming the cause, so the assignment helper skips rather than requesting a bot.
 
 set -euo pipefail
 
@@ -82,6 +93,7 @@ if [ -n "$marker" ]; then
       echo "::warning::/devflow:implement trigger came from a Devflow-authored comment (workpad marker present); skipping (self-trigger guard)." >&2
       emit should_run false
       emit number ""
+      emit triggering_user ""
       exit 0
       ;;
   esac
@@ -101,6 +113,7 @@ if [ "$is_pull_request" = "true" ]; then
   echo "::warning::/devflow:implement triggered from a pull-request comment; it runs on issues only — skipping (pull-request-context guard)." >&2
   emit should_run false
   emit number ""
+  emit triggering_user ""
   exit 0
 fi
 
@@ -126,6 +139,7 @@ if ! det_out="$(printf '%s' "$text" | bash "$detector")"; then
   echo "::warning::standalone-command detector ('$detector') failed to run (missing/unrunnable, or awk unavailable); declining (fail-closed) — this is a BROKEN INSTALL, not a missing command." >&2
   emit should_run false
   emit number ""
+  emit triggering_user ""
   exit 0
 fi
 # Parse the detector's two `key=value` lines with BASH BUILTINS ONLY — a
@@ -162,6 +176,7 @@ if [ "$det_saw_command" != true ]; then
   echo "::warning::standalone-command detector ('$detector') emitted no 'command=' line (output-contract violation); declining (fail-closed) — this is a BROKEN INSTALL, not a missing command." >&2
   emit should_run false
   emit number ""
+  emit triggering_user ""
   exit 0
 fi
 
@@ -174,6 +189,7 @@ if [ "$cmd" != "/prflow:implement" ]; then
   echo "::warning::No STANDALONE /devflow:implement command in trigger text (a token merely quoted in prose, blockquoted, indented, or fenced does not trigger); skipping." >&2
   emit should_run false
   emit number ""
+  emit triggering_user ""
   exit 0
 fi
 
@@ -188,6 +204,7 @@ if [ "$authorized" != "true" ]; then
   echo "::warning::/devflow:implement requested by '$actor' $deny_reason; skipping (cost control)." >&2
   emit should_run false
   emit number ""
+  emit triggering_user ""
   exit 0
 fi
 
@@ -202,8 +219,79 @@ if ! [[ "$number" =~ ^[0-9]+$ ]]; then
   echo "::warning::Could not resolve an issue number for /devflow:implement; skipping." >&2
   emit should_run false
   emit number ""
+  emit triggering_user ""
   exit 0
+fi
+
+# --- Resume-origin decode (issue #512) --------------------------------------
+# Trust rule: honor the origin line only when the actor matches ALLOWED_BOTS
+# through the SAME comparator authorize-actor.sh uses AND the body carries the
+# resume audit marker on a line of its own — together, a resume an allowed bot
+# posted. The workflow reads the body from the issue_comment.created payload, so
+# a later edit cannot alter the value this run used, and GitHub refuses an
+# unassignable login (the helper reports that `unconfirmed`), so the assignee
+# field never becomes a privilege.
+#
+# The markers are matched in both spellings (issue #1003), exact-line like the
+# attempt counter's `grep -cxF`, so a quoted or blockquoted copy never qualifies.
+# Coupled site: the origin-line literal below is written by the stall-backstop
+# step and the spot_recovery job in .github/workflows/devflow-implement.yml.
+audit_marker='<!-- prflow:stall-backstop-audit -->'
+audit_marker_superseded='<!-- devflow:stall-backstop-audit -->'
+origin_prefix='<!-- prflow:resume-origin login='
+origin_suffix=' -->'
+
+# Scanned with BASH BUILTINS ONLY — the decoded login is an EMITTED result, and
+# lib/preflight.sh guarantees no `grep`/`sed` (CLAUDE.md guard-class 2). One
+# trailing CR per line is stripped so a CRLF body decodes identically.
+marker_seen=false
+origin_count=0
+origin_value=""
+while IFS= read -r line || [ -n "$line" ]; do
+  line="${line%$'\r'}"
+  case "$line" in
+    "$audit_marker"|"$audit_marker_superseded") marker_seen=true ;;
+    "$origin_prefix"*"$origin_suffix")
+      origin_count=$((origin_count + 1))
+      origin_value="${line#"$origin_prefix"}"
+      origin_value="${origin_value%"$origin_suffix"}"
+      ;;
+  esac
+done <<< "$text"
+
+# A human actor is always their own origin; so is an allowed bot triggering
+# directly (no marker) — that login then lands on the helper's bot-login skip.
+triggering_user="$actor"
+if [ "$marker_seen" = true ]; then
+  # rc 0 = allowed bot; rc 1 = not; anything else = the comparator could not run,
+  # which keeps the actor as the origin (authorize_actor already breadcrumbed it).
+  devflow_login_matches "$actor" "${ALLOWED_BOTS:-}" && lm_rc=0 || lm_rc=$?
+  if [ "$lm_rc" = 0 ]; then
+    triggering_user=""
+    origin_cause=""
+    if [ "$origin_count" -eq 0 ]; then
+      origin_cause="no resume-origin line"
+    elif [ "$origin_count" -gt 1 ]; then
+      origin_cause="$origin_count resume-origin lines"
+    else
+      case "$origin_value" in
+        *'[bot]') origin_cause="the origin line names a bot login '$origin_value'" ;;
+        *)
+          # GitHub login shape: 1–39 of [A-Za-z0-9-], no leading hyphen.
+          if [[ "$origin_value" =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}$ ]]; then
+            triggering_user="$origin_value"
+          else
+            origin_cause="malformed origin login '$origin_value'"
+          fi
+          ;;
+      esac
+    fi
+    if [ -n "$origin_cause" ]; then
+      echo "::warning::/devflow:implement resume comment from allowed bot '$actor' carries an unreadable resume origin ($origin_cause); emitting an empty triggering_user so the created PR is left unassigned rather than assigned to a bot." >&2
+    fi
+  fi
 fi
 
 emit should_run true
 emit number "$number"
+emit triggering_user "$triggering_user"

@@ -39,7 +39,7 @@ set -uo pipefail
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 # shellcheck source=../lib/resolve-jq.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh" \
-  || { echo "devflow: resolve-jq.sh could not be sourced — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+  || { echo "prflow: resolve-jq.sh could not be sourced — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 DAYS=14
 REPO=""

@@ -73,6 +73,17 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import reception_identity as ri
 
+# Nested-repository detection (issue #12): a resolved git root with no .prflow/ under
+# an ancestor that has one reads built-in defaults while looking configured. lib/ sits
+# beside scripts/ in both the source repo and a vendored .prflow/vendor/prflow/ tree; a
+# partial copy without the sibling degrades to a no-op rather than failing the read.
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
+except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
+    def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
+        return None
+
 
 def _force_utf8_streams():
     """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
@@ -316,6 +327,9 @@ def _repo_root(args) -> str:
             except UnicodeDecodeError:
                 root = _fallback("git_output_not_utf8:rev-parse")
             else:
+                if top:
+                    _warn_ancestor_config(top, "reception-record.py",
+                                          "pass --repo-root <path>")
                 root = top or _fallback("git_empty_toplevel")
     args._resolved_repo_root = root
     return root

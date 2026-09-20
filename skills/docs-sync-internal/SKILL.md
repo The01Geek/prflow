@@ -4,7 +4,7 @@ description: Use when code changes on the current branch need matching internal 
 ---
 > Configuration: Read the internal documentation path from `.prflow/config.json` using: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent. Use the result as `[[INTERNAL_DOC_LOCATION]]` throughout this skill.
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. Otherwise locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — by replacing the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) and accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill spell the skill directory as `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. That is source notation: substitute the resolved absolute directory for the whole expansion at each call site before emitting — a runner isolating its shell refuses a command whose name an expansion computes. Take `$CLAUDE_SKILL_DIR`'s value when the runner reports one, else locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — from the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line), accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Substitute inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
 Consumer prompt extension (load first). Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, emit the granted vendored-literal leading token first:
 
@@ -60,12 +60,32 @@ Both actions are mandatory. If you only provide analysis without making file edi
 
 The documentation tree has a stated shape; every write this skill makes preserves it.
 
-- **`index.md` at the root of `[[INTERNAL_DOC_LOCATION]]` is the routing map.** Read it FIRST, before any other documentation file — it tells you which page owns which topic, so a write routed without it lands in the wrong file and the map silently falls behind the corpus. If it does not exist, create it: one line per page — relative path, what the page covers, who should read it. When this run adds, renames, or deletes a page, update `index.md` in the same pass.
+- **`index.md` at the root of `[[INTERNAL_DOC_LOCATION]]` is the routing map.** Read it FIRST, before any other documentation file — it tells you which page owns which topic, so a write routed without it lands in the wrong file and the map silently falls behind the corpus. If it does not exist in a tree the Bootstrap boundary below admitted, create it: one line per page — relative path, what the page covers, who should read it. When this run adds, renames, or deletes a page, update `index.md` in the same pass.
 - **Taxonomy:** one level of subdirectories under `[[INTERNAL_DOC_LOCATION]]`; directories are business-domain names (`orders/`, `authentication/`), never code layers (`backend/`, `api/` as a layer) and never a catch-all (`misc/`, `guides/`); lowercase-with-hyphens; 3-15 categories total. `.gitkeep` files are never removed, including from directories that gain documents — other tooling reads them as the emptiness sentinel.
 - **`glossary.md` at the root defines repo-private vocabulary.** When your prose uses a coined or repo-private term not already defined there, add a one-line definition row in the same pass (create the file and link it from `index.md` if absent) — an undefined term costs every future reader a search.
 - **One canonical page per fact.** Each fact lives on exactly one page; every other mention is a one-line pointer to that page carrying the marker `<!-- canonical: <relative path> -->` so a later pass can verify the pointer instead of re-verifying a copy. When you find the same fact stated in full on two pages, keep the owning page's copy and reduce the other to a pointer.
 - **Pinned-path guard.** Before renaming, moving, or deleting ANY file under `[[INTERNAL_DOC_LOCATION]]`, search the rest of the repository (source, scripts, CI, and test directories — using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`) for its exact path. A path that code or tests reference is load-bearing: do not rename or delete it — report the pin in your analysis output instead, because a silent rename breaks the referencing tool with no doc-side signal.
 - **Size ceiling.** A page you touch that exceeds ~60 KB cannot be read by an agent in one pass and has stopped serving the mission: do not keep appending to it — flag it in your analysis output with a concrete split proposal (which sections move to which new pages). Do not perform the split in this run unless the branch's changes require it.
+
+---
+
+## Bootstrap boundary (before any file write)
+
+This skill maintains an existing internal documentation tree; it never starts one. Before Step 1, list that tree's tracked Markdown pages, substituting the resolved `[[INTERNAL_DOC_LOCATION]]` — any trailing `/` removed — for `<root>`:
+
+```bash
+git ls-files -- '<root>/*.md'
+```
+
+Read the printed lines and exit status from the tool result, never a captured variable, and route before writing anything:
+
+- **Exit 0 with at least one line** — the tree exists; those lines are this run's page inventory. Continue. An inventory with no `index.md` is incremental repair, not bootstrap: create it per the Structure Contract.
+- **Exit 0 with no line** — the root is absent, or holds no tracked Markdown page (a `.gitkeep` sentinel alone takes this arm). Create no file, edit nothing, and end the run having emitted exactly this one line, with the resolved root substituted:
+
+  `prflow-docs-outcome: {"schema_version":1,"step":"internal","outcome":"bootstrap-required","root":"<root>"}`
+
+  Seeding a tree here would leave a partial structure where the caller owes an explicit `prflow:docs-bootstrap-internal` run. Emit that line once and no other `prflow-docs-outcome:` line, and claim no completed synchronization.
+- **Unestablished root** — the configuration read failed, was refused, or printed nothing, more than one line, an absolute path, a value beginning with `-`, or one containing a `..` segment; or `git ls-files` exited non-zero. This is not `bootstrap-required`: report the failure and the value observed, write no file, and emit no `prflow-docs-outcome:` line. Unknown is not an empty tree.
 
 ---
 
@@ -152,7 +172,7 @@ Make output scannable using bullet points, numbered lists, and clear headings.
 
 ## Workflow Steps
 
-⚠️ ALWAYS perform all five steps. Step 5 (verify-against-code) is non-negotiable — skipping it is the single most common cause of inaccurate doc updates.
+⚠️ Clear the Bootstrap boundary above first, then ALWAYS perform all five steps. Step 5 (verify-against-code) is non-negotiable — skipping it is the single most common cause of inaccurate doc updates.
 
 Step 1: Run Git Diff
 Resolve the configured base branch by printing it, then substituting the printed value as a literal:
@@ -219,6 +239,7 @@ In the Step 3 analysis output, add a short "Claims verified" list: each non-triv
 
 Before completing, verify you have:
 
+- [ ] Cleared the Bootstrap boundary: the root holds a tracked Markdown page, or the run stopped with the single `bootstrap-required` outcome line and wrote nothing
 - [ ] Ran the three-dot `git diff` against the configured base branch (Step 1) to see ONLY this branch's changes
 - [ ] Read `[[INTERNAL_DOC_LOCATION]]/index.md` first and routed every write through it (creating it if absent)
 - [ ] Examined EVERY code change and decided whether it changes behavior

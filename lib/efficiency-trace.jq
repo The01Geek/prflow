@@ -140,16 +140,19 @@ def diff_profile_label($dp):
 # low verifier count reads as a deliberate cheap-path choice, not "nothing ran".
 def posture_line($it):
   $it.checklist_lite_count as $l | $it.checklist_agent_count as $a
+  | ($it.checklist_reused_count // 0) as $r
   | if   $it.verification_posture == "skipped-intentional" then
       "- Checklist: skipped by Phase 0.5 (\(diff_profile_label($it.diff_profile))) — verifier subagents intentionally not dispatched for a low-risk diff."
     elif $it.verification_posture == "skipped-failure" then
       "- Checklist: generation failed — proceeded with review agents only."
+    elif $it.verification_posture == "reused-only" then
+      "- Checklist verifiers: 0 lite, 0 agent, \($r) reused — every checklist item carried a PASS forward from a prior iteration; no verifier dispatched (cost-saving, by design)."
     elif $it.verification_posture == "none-recorded" then
       "- Checklist verifiers: none recorded for this iteration."
     elif $it.verification_posture == "lite-only" then
       "- Checklist verifiers: \($l) lite (orchestrator-direct), 0 agent — verifiable items resolved without dispatching verifier subagents (cost-saving, by design)."
     else
-      "- Checklist verifiers: \($l) lite, \($a) agent."
+      "- Checklist verifiers: \($l) lite, \($a) agent." + (if $r > 0 then " (\($r) reused from a prior iteration)" else "" end)
     end;
 
 # Classify one agent's findings (an array of phase3_findings rows for that
@@ -230,14 +233,24 @@ def iter_view:
   | (($it.convergence_inputs.fixes_applied) // 0) as $fixes_applied
   | (($it.diff_profile) // null) as $diff_profile
   | ([$checklist[] | select(.verification_mode == "lite")]  | length) as $lite_count
-  | ([$checklist[] | select(.verification_mode == "agent")] | length) as $agent_count
+  # An agent-mode item is a dispatched verification only when it did NOT carry a
+  # PASS forward from a prior iteration; a reused item (reused_from_iter_prev ==
+  # true, the strict boolean the phase-1-checklist.md §1.0 producer writes) ran no
+  # verifier this iteration. The `== true` gate mirrors the file's other
+  # boolean-establishment idioms: absent/null/false/0/""/"true"/object/array all
+  # read as not-reused, so pre-#644 records (no such key) count as dispatched.
+  | ([$checklist[] | select(.verification_mode == "agent" and (.reused_from_iter_prev != true))] | length) as $agent_count
+  | ([$checklist[] | select(.verification_mode == "agent" and (.reused_from_iter_prev == true))]  | length) as $reused_count
   | ($diff_profile.checklist_skipped // null) as $checklist_skipped
   # Verification posture makes the orchestrator's cost decision LEGIBLE: a low
-  # verifier count is a deliberate cheap-path choice (lite-only / Phase-0.5 skip),
-  # not "nothing happened". Distinguishes the healthy no-subagent paths from a
-  # genuine instrumentation gap (none-recorded with no skip reason).
+  # verifier count is a deliberate cheap-path choice (lite-only / Phase-0.5 skip /
+  # reuse), not "nothing happened". Distinguishes the healthy no-subagent paths
+  # from a genuine instrumentation gap (none-recorded with no skip reason).
+  # reused-only precedes none-recorded because a fully-reused iteration has
+  # $lite_count + $agent_count == 0 yet did carry checklist work forward.
   | (if   $checklist_skipped == "intentional" then "skipped-intentional"
      elif $checklist_skipped == "failure"     then "skipped-failure"
+     elif ($lite_count == 0 and $agent_count == 0 and $reused_count > 0) then "reused-only"
      elif ($lite_count + $agent_count) == 0   then "none-recorded"
      elif $agent_count == 0                    then "lite-only"
      elif $lite_count == 0                     then "agent-only"
@@ -315,6 +328,10 @@ def iter_view:
       phase3_dispatched_count: ($dispatched | length),
       checklist_lite_count:  $lite_count,
       checklist_agent_count: $agent_count,
+      # Agent-mode items that carried a PASS forward instead of dispatching a
+      # verifier (issue #670): kept beside checklist_agent_count so a reader can
+      # tell a reuse-saved iteration from one that ran zero agents.
+      checklist_reused_count: $reused_count,
       # Phase 0.5 classification (small_diff / config_only / has_new_types /
       # checklist_skipped). Carried into the record so the cross-run analyzer can
       # segment by diff shape — a `null` agent on a config-only diff is correctly
@@ -564,6 +581,9 @@ def iter_view:
         verification_posture: .verification_posture,
         checklist_lite_count: .checklist_lite_count,
         checklist_agent_count: .checklist_agent_count,
+        # Reused agent-mode items (issue #670), projected so the cross-run
+        # analyzer can attribute what carry-forward saved.
+        checklist_reused_count: .checklist_reused_count,
         fixes_applied: .fixes_applied,
         added_nothing: .added_nothing,
         agent_verdicts: .agent_verdicts,

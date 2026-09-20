@@ -191,7 +191,7 @@ _enabled '.setup.git_work_tree_pin' && _work_tree_on=1
 # The implement tier ignores GIT_DIR (see the header). Record that it did, so the
 # suppression is an observable event and not a silent divergence from the config.
 if [ "$_git_dir_on" -eq 1 ] && [ "$_tier" = 'implement' ]; then
-    echo "emit-git-env.sh: setup.git_dir_pin is enabled but the implement tier IGNORES it — that tier stages and pushes commits, and ambient GIT_DIR makes a stage issued from a non-root working directory record deletions across the rest of the tree (issue #645). No GIT_DIR assignment emitted." >&2
+    echo "::warning::emit-git-env.sh: setup.git_dir_pin is enabled but the implement tier IGNORES it — that tier stages and pushes commits, and ambient GIT_DIR makes a stage issued from a non-root working directory record deletions across the rest of the tree (issue #645). No GIT_DIR assignment emitted." >&2
     _git_dir_on=0
 fi
 
