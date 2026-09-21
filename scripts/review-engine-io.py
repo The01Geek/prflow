@@ -10,8 +10,13 @@ hand-typed mechanical half of the engine return file.
 Subcommands (the wrapper drives the first two as a pair):
     setup-prepare  produce the local-diff cache fail-closed, derive the changed-file
                    table, counts and mechanical flags, write the root-identity manifest,
-                   and persist `engine-setup.json` in the run directory. Prints
-                   `record:<path>` on success; on `empty` or a stop, the result JSON.
+                   mint Phase 1's work directory (`phase1_work_dir`) and, on more than
+                   BATCH_SIZE changed files, write each batch's slice of the published
+                   diff (`batches`: `k`, `first`/`last` into `files`, `slice` path; a
+                   slice that cannot be written or re-counts wrong is `unavailable`
+                   with a warning, never a stop), and persist `engine-setup.json` in
+                   the run directory. Prints `record:<path>` on success; on `empty` or
+                   a stop, the result JSON.
     setup-emit     print the persisted record as one compact JSON line, adding the
                    dirty-tree snapshot object ID — stdout only, never written to
                    agent-writable scratch.
@@ -39,12 +44,15 @@ import argparse
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 CONFIG_ONLY_EXTS = {'.yml', '.yaml', '.json', '.md', '.toml', '.ini', '.lock', '.txt'}
+# Phase 1.1's batching rule: at most this many changed files per checklist-generator batch.
+BATCH_SIZE = 10
 NEW_TYPE_RE = re.compile(
     rb'^\+\s*(?:(?:final|abstract|readonly|export(?:\s+default)?|public|pub)\s+)*'
     rb'(class|interface|type|enum|struct|trait)\s+\w+')
@@ -335,6 +343,85 @@ def _write_atomic(path, text):
         raise Stop('filesystem', f'could not write {path}: {exc}') from exc
 
 
+def _sections_of(row):
+    # A typechange row emits two `diff --git` sections; every other status one — the same
+    # rule the file-table equation in _prepare applies.
+    return 2 if row['s'].startswith('T') else 1
+
+
+def _slice_batches(published, run_dir, rel, files, warnings):
+    """Phase 1.1's batches over the published diff, each slice written once.
+
+    Batch k (1-based) owns rows `first`..`last` of the file table, at most BATCH_SIZE, and
+    its slice holds exactly those rows' `diff --git` sections in document order. The mapping
+    is positional: the table and the patch come from the same diff queue in the same order,
+    and _prepare has already stopped unless the table's section total equals the published
+    count. Each slice is written to a `.tmp` sibling, re-counted, then moved into place; a
+    slice that cannot be written or re-counts wrong is reported `unavailable` with a warning
+    (the prose keeps its own fence for that batch), and the published diff is never touched.
+    """
+    if len(files) <= BATCH_SIZE:
+        return [{'k': 1, 'first': 1, 'last': len(files), 'slice': f'{rel}/diff.patch'}]
+    batches, bounds, section = [], [], 0
+    for k, start in enumerate(range(0, len(files), BATCH_SIZE), start=1):
+        rows = files[start:start + BATCH_SIZE]
+        count = sum(_sections_of(row) for row in rows)
+        bounds.append((section + count - 1, count))  # last section index owned, expected count
+        section += count
+        batches.append({'k': k, 'first': start + 1, 'last': start + len(rows),
+                        'slice': f'{rel}/batch-{k}.patch'})
+    failed, handle, index, n = {}, None, -1, -1
+
+    def fail(k, reason):
+        failed[k] = reason
+        warnings.append(f'batch {k} slice unavailable: {reason}')
+
+    with open(published, 'rb') as src:
+        for line in src:
+            if line.startswith(b'diff --git'):
+                n += 1
+                while index < len(bounds) and (index < 0 or n > bounds[index][0]):
+                    # Entering the next batch: close the previous slice, open this one.
+                    if handle is not None:
+                        handle.close()
+                        handle = None
+                    index += 1
+                    if index < len(bounds) and index + 1 not in failed:
+                        try:
+                            handle = open(run_dir / f'batch-{index + 1}.patch.tmp', 'wb')
+                        except OSError as exc:
+                            fail(index + 1, f'open: {exc}')
+            if handle is None:
+                continue
+            try:
+                handle.write(line)
+            except OSError as exc:
+                fail(index + 1, f'write: {exc}')
+                handle.close()
+                handle = None
+    if handle is not None:
+        handle.close()
+    for batch, (_, count) in zip(batches, bounds):
+        k = batch['k']
+        tmp, final = run_dir / f'batch-{k}.patch.tmp', run_dir / f'batch-{k}.patch'
+        if k not in failed:
+            try:
+                got, _ = _count_sections(tmp)
+                if got != count:
+                    fail(k, f'slice holds {got} sections, batch expects {count}')
+                else:
+                    os.replace(tmp, final)
+            except OSError as exc:
+                fail(k, f'verify: {exc}')
+        if k in failed:
+            batch['slice'] = 'unavailable'
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return batches
+
+
 def _prepare(args):
     root = _repo_root()
     run_id = _component(args.run_id, 'run-id')
@@ -396,6 +483,17 @@ def _prepare(args):
         if identity in ('underived', 'mismatch'):
             raise Stop('root-identity', f'identity: {identity}')
         rel = run_dir.relative_to(root).as_posix()
+        # Phase 1's work directory: a fresh unpredictable token per entry keeps a re-entrant
+        # entry (same run-id, same iteration) from reading this entry's intermediates; the
+        # checklist helper refuses a token shorter than its floor, so mint well above it.
+        work_dir = run_dir / f'phase1-{secrets.token_hex(8)}'
+        try:
+            work_dir.mkdir()
+        except OSError as exc:
+            # A token collision or an unwritable run directory is a fail-closed stop, never
+            # a traceback: the enclosing handler removes both caches on a Stop.
+            raise Stop('filesystem', f'could not create {work_dir}: {exc}') from exc
+        batches = _slice_batches(published, run_dir, rel, files, warnings)
         result = {
             'status': 'ok', 'slug': slug, 'run_id': run_id, 'run_dir': rel,
             'diff_path': f'{rel}/diff.patch', 'mode': args.mode, 'base': base,
@@ -403,6 +501,7 @@ def _prepare(args):
             'sections': {'rows': len(rows), 'typechange': typechange, 'raw': raw_sections,
                          'logs': logs_sections, 'published': kept},
             'files': files, 'file_count': len(files), 'changed_lines': changed_lines,
+            'phase1_work_dir': f'{rel}/{work_dir.name}', 'batches': batches,
             'flags': {'small_diff': changed_lines < 100 and len(files) <= 3,
                       'config_only': all(_is_config(f['p']) for f in files),
                       'has_new_types': has_new_types,

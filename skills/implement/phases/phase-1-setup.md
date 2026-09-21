@@ -23,21 +23,25 @@ Pass literals:
 - `DISPATCH_ID` — a fresh unique opaque identifier for this intake dispatch, including on a local run; retain it for result validation. `run_id` / `run_attempt` — literal dispatch fields from the run facts, or `unestablished`; never shell variables or a guessed local Actions run.
 - `IMPLEMENT_EXTENSION_LOAD` — the root's observed load state (`observed-content`, `observed-empty`, or `unestablished`), observed digest from this phase-entry check when available, exact load-failure/pending notes, and the trusted `DEVFLOW_PROMPT_EXTENSION_ROOT` value when set. The worker loads the full extension itself through the same sanctioned loader ladder/root and reports its digest; when both digests were observed they must match. Do not paste the full extension into the dispatch: that would add it again to the parent's tool-call context. A worker load cannot establish what the parent did not observe. Pass any pending phase-reference read note for delivery after §1.3 too.
 
-The normal completed return is only `INTAKE HANDOFF`, `outcome`, `handoff_path`, and `dispatch_id`. Read the named JSON file once; this compact record, not the full conversation or a tool-output archive, is the return channel. If an early stop could not establish writable scratch, the worker returns only those identity fields, `handoff_path: null`, and a concise `blocked_reason`; this is a stop, never proceed.
+The normal completed return is only `INTAKE HANDOFF`, `outcome`, `handoff_path`, and `dispatch_id`. Do not Read the handoff file; the granted reader validates it and prints the carry-forward fields. If an early stop could not establish writable scratch, the worker returns only those identity fields, `handoff_path: null`, and a concise `blocked_reason`; this is a stop, never proceed.
 
 #### Validate and route the intake handoff
 
-The expected handoff is `<run-scratch>/intake-handoff-$ARGUMENTS.json`; `<run-scratch>` must be this checkout's `.prflow/tmp/implement/$ARGUMENTS` on `IGNORED`, or flat `.prflow/tmp` on `NOT_IGNORED`. Reject a path outside those exact homes or one whose resolution escapes the checkout (including through a symlink). The JSON must have `schema_version: 1`, the exact dispatched issue number, `dispatch_id`, `repo_root`, `run_id`, and `run_attempt`, and this consumer field set:
+Run the reader over the returned `handoff_path`, the vendored literal first:
 
-- `issue`: `title`, `labels` (array), `classification` (`bug-report`/`non-bug`), and `classification_rationale`.
-- `scratch`: `arm`, `scratch_dir`, `run_scratch`, `issue_body_path`, and `resolved_ac_path`; `workpad`: `id`, `observed_status`, `snapshot_path`, `handoff_provenance`, `resume_kind`, and the `snapshot` export receipt `{result, cause, comment_id, updated_at, bytes, sha256}`; `phase2_resume`: `resume_kind`, ordered `plan_rows`, and boolean `code_sweeps_complete`.
-- `outcome`, `blocked_reason`, `completed_steps` (the six step IDs below), and `dependency` with observed `result` and `held_note`.
-- `extension`: `parent_state`, `worker_state`, `parent_digest`, `worker_digest`, `trusted_root`, and `pending_notes`; `prior_decisions`, `corrections`, and `blockers` arrays of `{action, source, authority, evidence}`; and a `warnings` array. Check parent identity/load observations against what you dispatched, including the trusted root and digests when observed. Do not read the worker's role/procedure to validate these fields.
+```bash
+.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py --schema intake --handoff-file <handoff_path> --checkout-root <repo-root> --dispatch-id <dispatch-id> --issue-number $ARGUMENTS --run-id <run-id> --run-attempt <run-attempt>
+```
 
-A stale file, malformed/missing field, unreadable referenced required artifact, or disagreement with the returned identity/outcome is unusable. Check the concise record's contents; never infer successful work from a filename.
+On a `command not found` / `No such file` / rc-127 reading, fall back to the portable anchor form:
 
-- `outcome: proceed` requires `completed_steps` to map each of `1.0`, `1.1`, `1.1.5`, `1.2`, `1.3`, `1.3.5` to `complete`, except `best-effort-warning` is allowed for `1.0` and `not-applicable` for `1.1.5` only on `NOT_IGNORED`; dependency result `PROCEED`; non-empty issue-body and exact resolved-AC files (the existing absent-section sentinel is valid); a current workpad ID/status and a verified snapshot — `snapshot.result == exported`, a non-null `snapshot_path`, `snapshot.comment_id == workpad.id`, and non-null `snapshot.bytes`/`snapshot.sha256` (an absent, malformed, incomplete, or issue/comment-mismatched receipt is an unusable handoff, never `proceed`); a well-typed `phase2_resume` derived from that snapshot; and no unresolved blocking decision. The reset's original best-effort warning is represented, not laundered into reset success. Read live workpad status with the helper before advancing; an unestablished/disappeared/mismatched workpad uses the root's existing failure routing, never a second create.
-- Carry the title, labels, classification, `handoff_provenance` (`HANDOFF`), `resume_kind`, scratch/cache state, authoritative paths, held dependency note, the earlier Blocked cause intake recorded on a `terminal-re-trigger` resume, and every actionable prior decision/correction — including any review-evidence obligation intake retained — into later phases and the remaining-work report. Pass the workpad snapshot **path**, not its body, to branch setup, reopening no raw comment history or worker transcript to do so. An actionable item has its actual instruction or correction and a source reference; a path alone is not a replacement for a decision. `outcome: proceed` permits setup to continue; it never certifies review or final verification complete — a retained obligation still reaches its normal phase.
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/validate-review-fix-handoff.py --schema intake --handoff-file <handoff_path> --checkout-root <repo-root> --dispatch-id <dispatch-id> --issue-number $ARGUMENTS --run-id <run-id> --run-attempt <run-attempt>
+```
+
+Read the exit code from the tool result, as `skills/implement/phases/phase-3-fix-loop.md` does. Only exit 0 is usable: the reader validated the handoff's shape, identity, path/home containment, the snapshot receipt's bytes/sha256 against the snapshot file, and the `proceed` conditions — among them a dependency result `PROCEED` — and printed one compact JSON line of carry-forward fields. Exit 2, exit 3, and no reader output at all (a matcher refusal) each mean the handoff is unusable — take the existing Blocked arm below. Route on the printed `outcome`:
+
+- `outcome: proceed` → parse the printed JSON and carry only its printed fields — `outcome`, `blocked_reason`, `issue` (`title`, `labels`, `classification`), `scratch`, `workpad`, `phase2_resume`, `dependency`, `extension`, `warnings`, and `actionable_counts` (the `prior_decisions`/`corrections`/`blockers` array sizes, not their content) — into later phases and the remaining-work report; the actionable arrays themselves reach later phases through the §1.6 audit reader's output, not here. Pass the workpad snapshot **path** (`workpad.snapshot_path`), not its body, to branch setup, reopening no raw comment history or worker transcript to do so. `outcome: proceed` permits setup to continue; it never certifies review or final verification complete — a retained obligation still reaches its normal phase.
 - `outcome: blocked` / `error`, a failed dispatch, or an unusable handoff → no branch operation and no Phase 2. A returned extension-incompletion stop is retained as a blocker, never auto-re-dispatched to reset the worker's retry limit. Record Blocked and the cause through the reachable canonical workpad helper, without creating another workpad; when a workpad cannot be established, report the stop and recording failure directly. Complete the root's terminal reaction/cache-cleanup ritual when applicable, including the narrow intake-file cleanup below for validated owned paths on `NOT_IGNORED`. **No inline intake fallback:** do not load the worker procedure or transcript to salvage a failed isolation boundary.
 
 The handoff indexes requirements; it never replaces them. The exact AC and issue-body artifact paths remain authoritative for the issue-claim auditor and later discovery. On `NOT_IGNORED`, the body path names intake's transient run-owned snapshot rather than the disabled cross-phase cache. Keep setup execution details, raw comments, old workpad history, and worker deliberation out of this context.
@@ -69,7 +73,7 @@ If the branch-setup dispatch fails or returns no usable record (**terminal stop 
 
 #### 1.4.1 Base-branch update checkpoint 1 (every §1.4 arm)
 
-Immediately before invoking this checkpoint, Read `<skill-dir>/references/base-update-checkpoint.md` and validate its shared-reference markers under the root contract. Apply that common outcome contract as implement-driven checkpoint 1. Do not gate the call on recorded behind-by; the helper derives it internally. `$BASE` is the validated branch-setup record's base.
+Route on the token the helper prints and the `route:` line it prints on stderr immediately before that token, as implement-driven checkpoint 1. Do not gate the call on recorded behind-by; the helper derives it internally. `$BASE` is the validated branch-setup record's base.
 
 #### Base-branch update checkpoint 1 — invocation (the last thing §1.4 does, on every arm)
 
@@ -122,7 +126,7 @@ Tier-refusal arm. When the tick invocation is refused outright by the tier — a
 A resumed run adopts a prior attempt's clean audit instead of re-paying the dispatch. The gate fires only when all four conjuncts hold; **every other state dispatches `prflow:issue-claim-auditor` below**, and the direction is fail-closed — an unestablished conjunct re-runs the audit:
 
 - (a) the validated intake handoff's `resume_kind` is the bare token `in-flight` or `terminal-re-trigger` (a null value does not fire);
-- (b) the intake handoff's `prior_decisions`, `corrections` and `blockers` arrays are all empty (a correction arriving in a comment changes no issue-body digest, so this array is the channel that catches it);
+- (b) the printed intake `actionable_counts` for `prior_decisions`, `corrections` and `blockers` are all zero (a correction arriving in a comment changes no issue-body digest, so these counts are the channel that catches it);
 - (c) a recorded `audit-inputs` row is present (its existence asserts the recorded audit was clean and complete);
 - (d) after writing the `VERSIONING_POLICY` value with the Write tool to `RUN_SCRATCH/audit-versioning-policy-$ISSUE_NUMBER.md`, `workpad.py reuse-check $ISSUE_NUMBER audit --ac-file RESOLVED_AC_PATH --capability <TIER>.<DEVFLOW_APP_ID> --versioning-policy-file RUN_SCRATCH/audit-versioning-policy-$ISSUE_NUMBER.md` exits 0 — it also refuses a base that moved too far past the recorded audit's merge-base. Exit 1, exit 2, a refusal, or no output each do not fire.
 
@@ -132,9 +136,21 @@ Dispatch `prflow:issue-claim-auditor` serially after branch preparation complete
 
 Pass literal `ISSUE_NUMBER`, a fresh `DISPATCH_ID`, `WORKPAD`, `SCRIPTS`, `SKILL_DIR`, `REPO_ROOT`, the validated `RUN_SCRATCH`, `ISSUE_BODY_PATH`, `RESOLVED_AC_PATH`, `INTAKE_HANDOFF_PATH`, `BASE`, `FRESHNESS`, `TIER`, `DEVFLOW_APP_ID`, issue title/labels, and `VERSIONING_POLICY`. The three content operands are paths to exact authoritative artifacts on every scratch arm; the worker never re-fetches the issue or receives an inline copy.
 
-Collect the completed return through the runner's result channel. The only normal return is `ISSUE-CLAIM-AUDIT HANDOFF`, `outcome`, `handoff_path`, and `dispatch_id`. Read the named JSON file once. Require its path to be the exact `RUN_SCRATCH/issue-claim-audit-handoff-$ISSUE_NUMBER.json` without escaping the checkout; `schema_version: 1`; exact dispatch identity, issue, repository, base, and freshness; well-typed outcome/routing arrays; run-owned record/projection paths; all seven pass dispositions; and observed record/projection validation. For `proceed`, both validations and the non-terminal workpad write must be established successful, the projection must be `represented` with an empty unmatched array, and no unresolved blocker may remain. A stale, malformed, mismatched, unreadable, or path-escaping handoff is unusable.
+Collect the completed return through the runner's result channel. The only normal return is `ISSUE-CLAIM-AUDIT HANDOFF`, `outcome`, `handoff_path`, and `dispatch_id`. Do not Read the handoff file; run the reader over the returned `handoff_path`, the vendored literal first:
 
-Retain the exact resolved AC artifact plus every actionable prior decision, correction, superseding assumption, external-fact result, deferred workflow criterion, wrongly excluded surface, and unresolved blocker with its evidence reference. These compact handoff fields cross into Phase 2 without loading the full audit record into this context.
+```bash
+.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py --schema issue-claim-audit --handoff-file <handoff_path> --checkout-root <repo-root> --run-scratch RUN_SCRATCH --dispatch-id <dispatch-id> --issue-number $ISSUE_NUMBER --base BASE --freshness FRESHNESS
+```
+
+On a `command not found` / `No such file` / rc-127 reading, fall back to the portable anchor form:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/validate-review-fix-handoff.py --schema issue-claim-audit --handoff-file <handoff_path> --checkout-root <repo-root> --run-scratch RUN_SCRATCH --dispatch-id <dispatch-id> --issue-number $ISSUE_NUMBER --base BASE --freshness FRESHNESS
+```
+
+Read the exit code from the tool result, as `skills/implement/phases/phase-3-fix-loop.md` does. Only exit 0 is usable: the reader confirmed the handoff's path resolves to `RUN_SCRATCH/issue-claim-audit-handoff-$ISSUE_NUMBER.json` inside the checkout, its dispatch identity, base and freshness, and its outcome-specific conditions, and printed one compact JSON line of carry-forward fields. Exit 2, exit 3, and no reader output at all each mean the handoff is unusable — take the Blocked arm below. Route on the printed `outcome`.
+
+Retain the audit reader's printed fields — `outcome`, `blocked_reason`, `record_path`, `projection_path`, `unmatched_desired_behavior`, `pass5_workflow_resident_acs`, `pass2_wrongly_excluded_surfaces`, `superseding_assumptions`, `external_facts`, `prior_decisions`, `prior_corrections`, and `unresolved_blockers` — plus the exact resolved AC artifact path. These printed fields cross into Phase 2 without loading the full audit record into this context.
 
 Route only on the validated handoff:
 

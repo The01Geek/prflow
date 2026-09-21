@@ -46,11 +46,15 @@ other phrase (any `shadow agreement not verified …` variant, an empty phrase, 
 unrecognized one) normalizes to `not-verified`. This direction is deliberate and
 fail-safe: the marker never over-claims full coverage or a skip.
 
-Four subcommands, all stdlib-only and needing no config / gh / network. Only two reach git:
+Six subcommands, all stdlib-only and needing no config / gh. Four reach git:
 `compose --run-root` (issue #193) and `check-evidence` (issue #426) each grade the run root
 through review-evidence-gate (grade_run_root_offline / grade_active_entry_offline), which shells
-out to `git apply --numstat` on that read-only path. `write-active-entry-binding` (issue #516)
-only writes its own binding file, and it — like `read` — reaches no git
+out to `git apply --numstat` on that read-only path; `continue-run` (issue #893) runs
+`git rev-parse HEAD`, may reach origin twice (`git ls-remote`, then `git fetch` of the
+telemetry branch), and writes `iter-<k>.json` copies into the run root;
+`eval-extension-shadow-trigger` (issue #580) runs `git rev-parse --show-toplevel` to locate
+the path-set file and writes one stamp into the run root. `write-active-entry-binding`
+(issue #516) only writes its own binding file, and it — like `read` — reaches no git
 at all:
 
   compose --result "<human result>" --coverage "<shadow-status phrase>" --run-root DIR
@@ -130,6 +134,63 @@ at all:
       snapshot is what lets a primary and a shadow entry sharing one run root's
       iteration-scoped filenames be graded separately. Prints `WROTE <path>` (exit
       0); a bad entry/iteration/head refuses (stderr breadcrumb, exit 3, no binding).
+
+  continue-run --run-root DIR --max-iterations N --telemetry-branch NAME
+      Mid-loop continuation for a resumed implement run (issue #893). Resolves HEAD
+      itself, derives the slug from DIR's parent, and looks for a prior run of that slug
+      whose highest well-formed `iter-<N>.json` binds to HEAD — `fix_commit_sha` when it
+      is a 40-hex string, else (absent or null) `diff_produced_at_head` under the same
+      test; any other shape excludes the record. On-disk siblings under DIR's parent are
+      consulted first (never DIR itself); only when none binds is `.prflow/logs/review/
+      <slug>/` on NAME read, fetched from origin into `refs/remotes/origin/NAME`. A tie at
+      the same N takes the run id that sorts last. It copies `iter-1.json`..`iter-<N>.json`
+      from that run into DIR, each stamped `restored_from: "<run id>"`, never overwriting
+      a file already present and never a record above N or any other artifact. Prints
+      exactly one line:
+
+        continue-run: restored iteration=<N> source=<run-id> head=<sha>   0
+        continue-run: none reason=<token>                                 1
+        continue-run: unestablished reason=<token>                        2
+
+      `none` is an established absence (no prior run, no binding or well-formed record,
+      N+1 above --max-iterations, no such branch on origin); `unestablished` is an
+      unanswered question (git failed, HEAD unresolved, a telemetry query/fetch failure
+      with no on-disk record binding, an unwritable run root). An argparse error also
+      exits 2 with no `continue-run:` line. The loop continues at N+1 only on `restored`.
+
+  eval-extension-shadow-trigger --run-root DIR [--iteration N] [--path-set FILE]
+      Iteration Start's early-shadow question (issue #580): does a consumer-declared path
+      set owe an extra Step 2.6 shadow pass before iteration N's (default 2) engine? Reads
+      the path-set file — `<repo root>/.prflow/skill-extensions/early-shadow-path-set.json`
+      (or the superseded `.devflow/` spelling; repo root from `git rev-parse
+      --show-toplevel`, else the cwd) unless --path-set names it — and iteration N-1's
+      changed files, parsed from the `diff --git` headers of DIR/diff.patch (the run-root
+      diff Phase 0.2 cached; never a fresh `git diff`). Writes DIR/early-shadow-eval.json
+      `{dispatch, owed, pass_ran, reason, iteration, matched_paths, changed_paths,
+      path_set, diff_patch, prior_shadow, evaluated_at}` and prints exactly one line whose
+      FIRST token is the closed outcome — exit 0 on both:
+
+        OWED <run-root> reason=<token> matched=<n>     run Step 2.6 now, before the engine
+        NOT_OWED <run-root> reason=<token>             proceed to the engine
+
+      NOT_OWED: `iteration-below-2` (no predecessor to owe for), `path-set-absent` (no file
+      — a consumer without the declaration keeps the shipped convergence-only shadow),
+      `shadow-already-recorded:<where>` (a `shadow`
+      active-entry binding or an `iter-<k>.json` `shadow` block already exists at N-1 or
+      N — the pass, or a promoting convergence-time shadow of the same pair, ran; the stamp
+      records `pass_ran: true`), `no-match` (no changed path is in the set). OWED: `match`,
+      or the unestablished arms `path-set-malformed:<detail>` (a present file the helper
+      cannot apply) and `changed-files-unestablished:<detail>` (diff.patch missing,
+      unreadable, or holding no parseable header) — unknown is never read as not owed.
+      The path-set file is a JSON object `{"arms": [...]}` with typed arms:
+      `{"kind": "dir", "dirs": ["skills", "agents"]}` (a path under a repo-root
+      directory), `{"kind": "prompt-extension", "state_dirs": [".prflow", ".devflow"]}`
+      (an `.md` file below a `skill-extensions/` or `prompt-extensions/` directory of a
+      named state directory, at any depth) and `{"kind": "basename", "names":
+      ["CLAUDE.md"]}` (a basename at any depth). A stamp that cannot be written prints a
+      stderr breadcrumb beside the same line. Argparse errors keep exit 2 with no line; an
+      older vendored helper answers an unknown-subcommand error the same way, which the
+      caller reads as NOT_OWED — only a literal first token `OWED` dispatches the pass.
 """
 
 from __future__ import annotations
@@ -142,7 +203,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+from datetime import datetime, timezone
 
 
 def _force_utf8_streams():
@@ -963,6 +1026,516 @@ def _cmd_check_evidence(args: argparse.Namespace) -> int:
     return 0 if outcome == "pass" else 3
 
 
+# ── continue-run (issue #893): the mid-loop continuation reader; contract in the module docstring ──
+
+_ITER_FILE_RE = re.compile(r"\Aiter-([1-9][0-9]*)\.json\Z")
+_SHA40_RE = _HEAD_RE   # a 40-hex sha in either case; compared lowercased
+_TELEMETRY_REVIEW_PREFIX = ".prflow/logs/review/"
+_MISSING = object()
+
+
+def _git(args: list[str], raw: bool = False) -> tuple[int | None, str | bytes, str]:
+    """(rc, stdout, stderr) of a git call in the caller's cwd; rc None when git could not run.
+    `raw` returns stdout as bytes (a blob read); stderr is always text."""
+    try:
+        proc = subprocess.run(["git", *args], capture_output=True,
+                              env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    except OSError as e:
+        return None, b"" if raw else "", str(e)
+    out = proc.stdout if raw else proc.stdout.decode("utf-8", "replace")
+    return proc.returncode, out, proc.stderr.decode("utf-8", "replace")
+
+
+def _field_shape(value) -> str:
+    """The breadcrumb word for a value that is not a 40-hex sha (the CLAUDE.md matrix:
+    object/array/scalar/valid-falsy/missing/wrong-type)."""
+    if value is _MISSING:
+        return "missing"
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, str):
+        if value == "":
+            return "empty-string"
+        if re.fullmatch(r"[0-9a-fA-F]+", value):
+            return "short-sha" if len(value) < 40 else "not-a-40-hex-sha"
+        return "not-a-40-hex-sha"
+    return "wrong-type"
+
+
+def _bound_head(obj: dict) -> tuple[str | None, str]:
+    """The head an iteration record binds to, or (None, reason). `fix_commit_sha` binds when
+    it is a 40-hex string; when it is absent or JSON null (a no-fix iteration, written in both
+    shapes) `diff_produced_at_head` binds under the same test. Every other shape of either
+    field excludes the record — a short sha, `0`, `""`, an array, an object — because the
+    continuation would otherwise carry a prior attempt's state onto a head it never reviewed."""
+    fcs = obj.get("fix_commit_sha", _MISSING)
+    if fcs is _MISSING or fcs is None:
+        dph = obj.get("diff_produced_at_head", _MISSING)
+        if isinstance(dph, str) and _SHA40_RE.match(dph):
+            return dph.lower(), ""
+        return None, f"fix_commit_sha {_field_shape(fcs)} and diff_produced_at_head {_field_shape(dph)}"
+    if isinstance(fcs, str) and _SHA40_RE.match(fcs):
+        return fcs.lower(), ""
+    return None, f"fix_commit_sha {_field_shape(fcs)}"
+
+
+def _parse_iter_record(raw: bytes, iteration: int) -> tuple[dict | None, str]:
+    """(record, '') for a JSON object whose `iter` equals the filename's number, else
+    (None, reason) — every non-object shape refuses rather than being read."""
+    try:
+        obj = json.loads(raw)
+    except (ValueError, UnicodeError):
+        return None, "not valid JSON"
+    except RecursionError:
+        return None, "nested too deeply to parse"
+    if not isinstance(obj, dict):
+        return None, f"is not a JSON object ({'string' if isinstance(obj, str) else _field_shape(obj)})"
+    it = obj.get("iter")
+    if isinstance(it, bool) or not isinstance(it, int) or it != iteration:
+        return None, f"iter field {it!r} does not equal the filename's {iteration}"
+    return obj, ""
+
+
+class _Source:
+    """One prior-run source: the on-disk siblings or the telemetry branch. `records` maps
+    run id -> {iteration -> raw bytes}; `seen` counts every iter-<k>.json offered, readable or
+    not; `well_formed` those that parsed and bound to some head; `candidates` holds
+    (iteration, run_id) pairs bound to the current head."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.records: dict[str, dict[int, bytes]] = {}
+        self.seen = 0
+        self.well_formed = 0
+        self.candidates: list[tuple[int, str]] = []
+
+    def consider(self, run_id: str, iteration: int, raw: bytes | None, head: str,
+                 read_err: str = "") -> None:
+        label = f"{self.name} {run_id}/iter-{iteration}.json"
+        self.seen += 1
+        if raw is None:
+            sys.stderr.write(f"continue-run: {label} excluded: unreadable ({read_err})\n")
+            return
+        self.records.setdefault(run_id, {})[iteration] = raw
+        obj, reason = _parse_iter_record(raw, iteration)
+        if obj is None:
+            sys.stderr.write(f"continue-run: {label} excluded: {reason}\n")
+            return
+        bound, reason = _bound_head(obj)
+        if bound is None:
+            sys.stderr.write(f"continue-run: {label} excluded: {reason}\n")
+            return
+        self.well_formed += 1
+        if bound == head:
+            self.candidates.append((iteration, run_id))
+        else:
+            sys.stderr.write(f"continue-run: {label} binds {bound[:12]}, not HEAD\n")
+
+    def best(self) -> tuple[int, str] | None:
+        """The highest bound iteration; on a tie the run id that sorts last."""
+        return max(self.candidates) if self.candidates else None
+
+
+def _scan_disk(review_dir: str, own_run_id: str, head: str) -> _Source | None:
+    """Every sibling run directory under `review_dir` except this run's own; None when the
+    slug directory itself cannot be listed (an unestablished answer, never an empty one)."""
+    source = _Source("on-disk")
+    try:
+        entries = sorted(os.listdir(review_dir))
+    except FileNotFoundError:
+        return source
+    except OSError as e:
+        sys.stderr.write(f"continue-run: cannot list {review_dir}: {e}\n")
+        return None
+    for run_id in entries:
+        run_dir = os.path.join(review_dir, run_id)
+        if run_id == own_run_id or not os.path.isdir(run_dir):
+            continue
+        try:
+            names = sorted(os.listdir(run_dir))
+        except OSError as e:
+            sys.stderr.write(f"continue-run: cannot list on-disk {run_id}: {e}\n")
+            continue
+        source.records.setdefault(run_id, {})
+        for name in names:
+            m = _ITER_FILE_RE.match(name)
+            if not m:
+                continue
+            k = int(m.group(1))
+            try:
+                with open(os.path.join(run_dir, name), "rb") as fh:
+                    raw = fh.read()
+            except OSError as e:
+                source.consider(run_id, k, None, head, str(e))
+                continue
+            source.consider(run_id, k, raw, head)
+    return source
+
+
+def _scan_telemetry(branch: str, slug: str, own_run_id: str, head: str) -> tuple[_Source | None, str]:
+    """The prior-run records under `.prflow/logs/review/<slug>/` on the telemetry branch,
+    fetched from origin. Returns (source, '') or (None, token): `none:<reason>` for an
+    established absence (no such branch on origin), `unestablished:<reason>` for a query or
+    fetch that did not answer — a fetch failure is never reported as an absence."""
+    if not branch:
+        return None, "unestablished:telemetry-branch-empty"
+    rc, _, _ = _git(["check-ref-format", "--branch", branch])
+    if rc is None:
+        return None, "unestablished:git-failed"
+    if rc != 0:
+        return None, "unestablished:telemetry-branch-invalid"
+    rc, _, _ = _git(["remote", "get-url", "origin"])
+    if rc is None:
+        return None, "unestablished:git-failed"
+    if rc != 0:
+        return None, "none:no-origin"        # nowhere to fetch from: the on-disk answer is complete
+    rc, out, err = _git(["ls-remote", "--heads", "origin", branch])
+    if rc is None:
+        return None, "unestablished:git-failed"
+    if rc != 0:
+        sys.stderr.write(f"continue-run: git ls-remote origin {branch} failed: {err.strip()}\n")
+        return None, "unestablished:telemetry-query-failed"
+    if not out.strip():
+        return None, "none:no-telemetry-branch"
+    tracking = f"refs/remotes/origin/{branch}"
+    rc, _, err = _git(["fetch", "-q", "--no-tags", "origin", f"+{branch}:{tracking}"])
+    if rc != 0:
+        sys.stderr.write(f"continue-run: git fetch origin {branch} failed: {(err or '').strip()}\n")
+        return None, "unestablished:telemetry-fetch-failed"
+    rc, out, _ = _git(["rev-parse", "--verify", "--quiet", f"{tracking}^{{commit}}"])
+    commit = out.strip().lower()
+    if rc != 0 or not _SHA40_RE.match(commit):
+        return None, "unestablished:telemetry-ref-unresolved"
+    prefix = f"{_TELEMETRY_REVIEW_PREFIX}{slug}/"
+    rc, out, err = _git(["-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", commit,
+                         "--", prefix])
+    if rc != 0:
+        sys.stderr.write(f"continue-run: git ls-tree {tracking} failed: {(err or '').strip()}\n")
+        return None, "unestablished:telemetry-tree-unreadable"
+    source = _Source("telemetry")
+    for path in out.splitlines():
+        if not path.startswith(prefix):
+            continue
+        parts = path[len(prefix):].split("/")
+        if len(parts) != 2:
+            continue                      # `.corrections/` archives and deeper paths
+        run_id, name = parts
+        if run_id == own_run_id:
+            continue
+        source.records.setdefault(run_id, {})
+        m = _ITER_FILE_RE.match(name)
+        if not m:
+            continue
+        k = int(m.group(1))
+        rc, blob, err = _git(["show", f"{commit}:{path}"], raw=True)
+        if rc != 0:
+            source.consider(run_id, k, None, head, err.strip())
+            continue
+        source.consider(run_id, k, blob, head)
+    return source, ""
+
+
+def _restore(source: _Source, anchor: tuple[int, str], run_root: str) -> str | None:
+    """Copy iter-1..N from the anchor run into `run_root`, each stamped `restored_from`,
+    never overwriting a file already there. Returns an error string when the run root
+    itself cannot be written; a lower record that is absent or malformed is skipped with a
+    breadcrumb and named again in one summary line, so a non-contiguous restore is legible
+    on stderr while the stdout line keeps its closed shape."""
+    n, prior = anchor
+    try:
+        os.makedirs(run_root, exist_ok=True)
+    except OSError as e:
+        return f"cannot create {run_root}: {e}"
+    skipped: list[int] = []
+    for k in range(1, n + 1):
+        raw = source.records.get(prior, {}).get(k)
+        dst = os.path.join(run_root, f"iter-{k}.json")
+        if raw is None:
+            sys.stderr.write(f"continue-run: {source.name} {prior}/iter-{k}.json absent; not restored\n")
+            skipped.append(k)
+            continue
+        if os.path.exists(dst):
+            sys.stderr.write(f"continue-run: {dst} already present; not overwritten\n")
+            continue
+        try:
+            obj = json.loads(raw)
+        except (ValueError, UnicodeError, RecursionError):
+            obj = None
+        if not isinstance(obj, dict):
+            sys.stderr.write(f"continue-run: {source.name} {prior}/iter-{k}.json is not a JSON object; not restored\n")
+            skipped.append(k)
+            continue
+        obj["restored_from"] = prior
+        try:
+            with open(dst, "wb") as fh:
+                fh.write((json.dumps(obj, indent=2) + "\n").encode("utf-8"))
+        except OSError as e:
+            return f"cannot write {dst}: {e}"
+    if skipped:
+        sys.stderr.write(f"continue-run: restored range 1..{n} from {prior} is non-contiguous: "
+                         f"iteration(s) {','.join(map(str, skipped))} not restored\n")
+    return None
+
+
+def _cmd_continue_run(args: argparse.Namespace) -> int:
+    """Print exactly one `continue-run:` line (issue #893): `restored iteration=<N>
+    source=<run-id> head=<sha>` (exit 0), `none reason=<token>` (exit 1) or `unestablished
+    reason=<token>` (exit 2). The loop continues at N+1 only on `restored`."""
+    def none(reason: str) -> int:
+        sys.stdout.write(f"continue-run: none reason={reason}\n")
+        return 1
+
+    def unestablished(reason: str) -> int:
+        sys.stdout.write(f"continue-run: unestablished reason={reason}\n")
+        return 2
+
+    run_root = os.path.normpath(args.run_root)
+    own_run_id = os.path.basename(run_root)
+    review_dir = os.path.dirname(run_root)
+    slug = os.path.basename(review_dir)
+    if not own_run_id or not slug or run_root in (".", "/"):
+        return unestablished("run-root-shape")
+    rc, out, err = _git(["rev-parse", "HEAD"])
+    if rc is None:
+        return unestablished("git-failed")
+    head = out.strip().lower()
+    if rc != 0 or not _SHA40_RE.match(head):
+        sys.stderr.write(f"continue-run: git rev-parse HEAD rc={rc}: {(err or '').strip()}\n")
+        return unestablished("head-unresolved")
+
+    disk = _scan_disk(review_dir, own_run_id, head)
+    if disk is None:
+        return unestablished("on-disk-unlistable")
+    source, anchor = disk, disk.best()
+    telemetry_token = ""
+    if anchor is None:
+        tele, telemetry_token = _scan_telemetry(args.telemetry_branch, slug, own_run_id, head)
+        if tele is not None:
+            source, anchor = tele, tele.best()
+    if anchor is None:
+        if telemetry_token.startswith("unestablished:"):
+            return unestablished(telemetry_token.split(":", 1)[1])
+        sources = [disk] if source is disk else [disk, source]
+        if not any(s.seen for s in sources):
+            # No iteration record anywhere: an established telemetry absence names itself.
+            return none(telemetry_token.split(":", 1)[1] if telemetry_token else "no-prior-run")
+        if not any(s.well_formed for s in sources):
+            return none("no-well-formed-record")
+        return none("no-binding-record")
+    n, prior = anchor
+    if n + 1 > args.max_iterations:
+        sys.stderr.write(f"continue-run: {source.name} {prior} binds at iteration {n}; "
+                         f"iteration {n + 1} exceeds max_iterations={args.max_iterations}\n")
+        return none("cap")
+    err = _restore(source, anchor, run_root)
+    if err is not None:
+        sys.stderr.write(f"continue-run: {err}\n")
+        return unestablished("run-root-unwritable")
+    sys.stdout.write(f"continue-run: restored iteration={n} source={prior} head={head}\n")
+    return 0
+
+
+# ── eval-extension-shadow-trigger (issue #580) ────────────────────────────────────────────
+# The Iteration Start early-shadow question. Outcome set closed by construction: OWED / NOT_OWED.
+_ES_PATH_SET_REL = os.path.join("skill-extensions", "early-shadow-path-set.json")
+_ES_STATE_DIRS = (".prflow", ".devflow")          # canonical, then the superseded spelling
+_ES_EXTENSION_DIRS = frozenset({"skill-extensions", "prompt-extensions"})
+_ES_STAMP = "early-shadow-eval.json"
+# `diff --git a/<path> b/<path>`; git quotes a path carrying a special character.
+_ES_HEADER_RE = re.compile(r'^diff --git (?:"a/(?P<qa>(?:[^"\\]|\\.)*)"|a/(?P<a>\S+)) '
+                           r'(?:"b/(?P<qb>(?:[^"\\]|\\.)*)"|b/(?P<b>\S+))$')
+
+
+def _es_str_list(value) -> list[str] | None:
+    """A non-empty list of non-empty strings, else None (the arm is unusable)."""
+    if not isinstance(value, list) or not value:
+        return None
+    if not all(isinstance(v, str) and v for v in value):
+        return None
+    return value
+
+
+def _es_parse_arms(obj) -> tuple[list[tuple[str, list[str]]] | None, str]:
+    """(arms, '') for a well-typed path-set object, else (None, detail). Every shape the helper
+    cannot apply is a detail, never an empty set (CLAUDE.md matrix: object/array/scalar/
+    valid-falsy/missing/wrong-type)."""
+    if not isinstance(obj, dict):
+        return None, "not-object"
+    arms = obj.get("arms")
+    if not isinstance(arms, list) or not arms:
+        return None, "arms-missing"
+    parsed: list[tuple[str, list[str]]] = []
+    for i, arm in enumerate(arms):
+        if not isinstance(arm, dict):
+            return None, f"arm-{i}-not-object"
+        kind = arm.get("kind")
+        key = {"dir": "dirs", "prompt-extension": "state_dirs", "basename": "names"}.get(kind)
+        if key is None:
+            return None, f"arm-{i}-kind-unknown"
+        values = _es_str_list(arm.get(key))
+        if values is None:
+            return None, f"arm-{i}-{key}-invalid"
+        parsed.append((kind, [v.strip("/") for v in values]))
+    return parsed, ""
+
+
+def _es_path_matches(path: str, arms: list[tuple[str, list[str]]]) -> bool:
+    parts = [p for p in path.replace("\\", "/").split("/") if p and p != "."]
+    if not parts:
+        return False
+    for kind, values in arms:
+        if kind == "dir":
+            if len(parts) > 1 and parts[0] in values:
+                return True
+        elif kind == "basename":
+            if parts[-1] in values:
+                return True
+        elif kind == "prompt-extension":
+            if not parts[-1].endswith(".md"):
+                continue
+            for i in range(len(parts) - 2):
+                if parts[i] in values and parts[i + 1] in _ES_EXTENSION_DIRS:
+                    return True
+    return False
+
+
+def _es_changed_paths(diff_path: str) -> tuple[list[str] | None, str]:
+    """(paths, '') parsed from the diff's `diff --git` headers (the post-image `b/` side, so a
+    rename reports its new name), else (None, detail) — missing, unreadable, or no header."""
+    try:
+        with open(diff_path, "rb") as fh:
+            raw = fh.read()
+    except FileNotFoundError:
+        return None, "diff-missing"
+    except OSError:
+        return None, "diff-unreadable"
+    paths: list[str] = []
+    for line in raw.decode("utf-8", "replace").splitlines():
+        m = _ES_HEADER_RE.match(line)
+        if m is None:
+            continue
+        path = m.group("qb") if m.group("qb") is not None else m.group("b")
+        if path:
+            paths.append(path)
+    if not paths:
+        return None, "no-header"
+    return paths, ""
+
+
+def _es_prior_shadow(run_root: str, iteration: int) -> str | None:
+    """Where a shadow for this iteration pair is already recorded — `binding:iter-<k>` (the
+    helper-written active-entry binding) or `record:iter-<k>` (the loop's `shadow` block) at
+    k in (N-1, N) — else None. A convergence-time shadow of iteration N-1 that promoted into N
+    binds at N-1 too, so it counts: the pair already had its blinded pass."""
+    for k in (iteration - 1, iteration):
+        if k < 1:
+            continue
+        if _binding_file_exists(run_root, "shadow", k):
+            return f"binding:iter-{k}"
+        obj, _reason = _load_iter_object(run_root, k)
+        if obj is not None and isinstance(obj.get("shadow"), dict):
+            return f"record:iter-{k}"
+    return None
+
+
+def _es_resolve_path_set(explicit: str | None) -> tuple[str, str] | None:
+    """(path to read, path to stamp) of the path-set file, or None when none exists. An
+    explicit --path-set is used as given; otherwise the first existing candidate under the
+    repo root (`git rev-parse --show-toplevel`, else the cwd) wins, canonical spelling first,
+    and the stamp carries its repo-relative name."""
+    if explicit is not None:
+        return (explicit, explicit) if os.path.exists(explicit) else None
+    rc, out, _err = _git(["rev-parse", "--show-toplevel"])
+    root = out.strip() if rc == 0 and out.strip() else os.getcwd()
+    for state_dir in _ES_STATE_DIRS:
+        rel = os.path.join(state_dir, _ES_PATH_SET_REL)
+        if os.path.exists(os.path.join(root, rel)):
+            return os.path.join(root, rel), rel
+    return None
+
+
+def _cmd_eval_extension_shadow_trigger(args: argparse.Namespace) -> int:
+    """Print `OWED …` or `NOT_OWED …` (exit 0 either way) and stamp the run root."""
+    run_root = args.run_root
+    iteration = args.iteration
+    stamp = {
+        "dispatch": None, "owed": None, "pass_ran": False, "reason": None,
+        "iteration": iteration, "matched_paths": [], "changed_paths": None,
+        "path_set": None, "diff_patch": os.path.join(run_root, "diff.patch"),
+        "prior_shadow": None, "evaluated_at": None,
+    }
+
+    def finish(dispatch: str, reason: str) -> int:
+        stamp["dispatch"] = dispatch
+        stamp["reason"] = reason
+        stamp["evaluated_at"] = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        path = os.path.join(run_root, _ES_STAMP)
+        try:
+            os.makedirs(run_root, exist_ok=True)
+            with open(path + ".tmp", "w", encoding="utf-8") as fh:
+                json.dump(stamp, fh, indent=2, sort_keys=True)
+                fh.write("\n")
+            os.replace(path + ".tmp", path)
+        except OSError as e:
+            sys.stderr.write(f"eval-extension-shadow-trigger: stamp not written at {path}: {e}\n")
+        suffix = f" matched={len(stamp['matched_paths'])}" if dispatch == "OWED" else ""
+        sys.stdout.write(f"{dispatch} {run_root} reason={reason}{suffix}\n")
+        return 0
+
+    if iteration < 2:
+        return finish("NOT_OWED", "iteration-below-2")
+    resolved = _es_resolve_path_set(args.path_set)
+    if resolved is None:
+        return finish("NOT_OWED", "path-set-absent")
+    path_set, stamp["path_set"] = resolved
+
+    prior = _es_prior_shadow(run_root, iteration)
+    if prior is not None:
+        stamp["prior_shadow"] = prior
+        stamp["pass_ran"] = True
+        stamp["owed"] = True
+        return finish("NOT_OWED", f"shadow-already-recorded:{prior}")
+
+    try:
+        with open(path_set, "rb") as fh:
+            raw = fh.read()
+    except OSError:
+        stamp["owed"] = True
+        return finish("OWED", "path-set-malformed:unreadable")
+    try:
+        obj = json.loads(raw)
+    except (ValueError, UnicodeError):
+        stamp["owed"] = True
+        return finish("OWED", "path-set-malformed:not-json")
+    except RecursionError:
+        stamp["owed"] = True
+        return finish("OWED", "path-set-malformed:too-deep")
+    arms, detail = _es_parse_arms(obj)
+    if arms is None:
+        stamp["owed"] = True
+        return finish("OWED", f"path-set-malformed:{detail}")
+
+    paths, detail = _es_changed_paths(stamp["diff_patch"])
+    if paths is None:
+        stamp["owed"] = True
+        return finish("OWED", f"changed-files-unestablished:{detail}")
+    stamp["changed_paths"] = len(paths)
+    matched = [p for p in paths if _es_path_matches(p, arms)]
+    stamp["matched_paths"] = matched
+    stamp["owed"] = bool(matched)
+    if matched:
+        return finish("OWED", "match")
+    return finish("NOT_OWED", "no-match")
+
+
 def _add_active_entry_args(sub_parser: argparse.ArgumentParser) -> None:
     """Add the optional active-entry operands (issue #516) to a compose/check-evidence parser.
     All three together select the entry-bound grade; none selects the legacy run-wide grade;
@@ -1037,6 +1610,34 @@ def main(argv: list[str] | None = None) -> int:
     p_bind.add_argument("--head", required=True,
                         help="the reviewed head (40-char hex) this entry's diff was produced at")
     p_bind.set_defaults(func=_cmd_write_active_entry_binding)
+
+    p_cont = sub.add_parser(
+        "continue-run",
+        help="restore a killed prior attempt's iteration records bound to HEAD into this "
+        "run root (issue #893) and print one continue-run: line",
+    )
+    p_cont.add_argument("--run-root", required=True,
+                        help="this run's held review run root (.prflow/tmp/review/<slug>/<run-id>)")
+    p_cont.add_argument("--max-iterations", required=True, type=int,
+                        help="the loop's resolved iteration cap; a record whose N+1 exceeds it reads none")
+    p_cont.add_argument("--telemetry-branch", required=True,
+                        help="the telemetry branch name the loop read from config (.telemetry.branch)")
+    p_cont.set_defaults(func=_cmd_continue_run)
+
+    p_eval = sub.add_parser(
+        "eval-extension-shadow-trigger",
+        help="answer Iteration Start's early-shadow question (issue #580) from the consumer "
+        "path-set file and the run root's cached diff; print OWED or NOT_OWED and stamp DIR",
+    )
+    p_eval.add_argument("--run-root", required=True,
+                        help="this run's held review run root (.prflow/tmp/review/<slug>/<run-id>)")
+    p_eval.add_argument("--iteration", default=2, type=int,
+                        help="the iteration being started (default 2); its predecessor's diff "
+                        "is evaluated")
+    p_eval.add_argument("--path-set", default=None,
+                        help="the path-set file to read instead of the repo-root default "
+                        "<state dir>/skill-extensions/early-shadow-path-set.json")
+    p_eval.set_defaults(func=_cmd_eval_extension_shadow_trigger)
 
     args = parser.parse_args(argv)
     return args.func(args)

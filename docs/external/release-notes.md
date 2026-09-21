@@ -11,6 +11,39 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## September 21, 2026
+
+- **The review-and-fix loop brackets each review-engine run with two helper calls, and the review-fix worker's post-loop telemetry backstop runs one persist and one self-check.** `review-dirty-tree.sh entry-open` clears the run's diff cache, snapshots the working tree and records the snapshot's object ID before an engine dispatch; `entry-close` runs the branch guard, the compare-and-restore and the entry's evidence grade after it, each printing one JSON line the loop routes on. The same checks run as before with fewer turns; the loop's fallback fences stay in the prose, so a consumer whose vendored helper predates this change keeps working unchanged. Inside `/prflow:implement`, the worker's backstop after the loop no longer repeats the discovery persist the cloud workflow's own backstop step runs, and it gates the dispatch-corroboration self-check on the persist call's own outcome line instead of a separate config read. (#898, #899)
+- **The review-and-fix loop's second and later iterations reuse prior PASS verdicts instead of
+  re-verifying every checklist item.** `checklist carry` now reads the prior iteration's
+  metadata-intact Step 1.8 snapshot pair (`checklist-step1-iter-<N-1>.json` joined by `id` with
+  `verification-step1-iter-<N-1>.json`) instead of the verdict-only `checklist` projection in
+  `iter-<N-1>.json`, which lacked the `source_file` and `category` the carry rule needs and so
+  carried nothing on every multi-iteration run. A carried item reuses its PASS only when its
+  verification row's `file_checked`, line anchors removed, is a single path tracked at HEAD and
+  outside the changed-file set; every other carried item verifies fresh, and the collector's
+  commit-binding gate still demotes a reused PASS whose cited path is absent from the head-view
+  inventory. An unusable snapshot carries nothing with a breadcrumb naming the file and the
+  cause. About 1.2 minutes saved per second-iteration pass at measured checklist sizes. (#890)
+- **Faster review-and-fix loop entry.** The review-and-fix loop now resolves its run key,
+  configuration values (iteration cap, fix-severity threshold, below-threshold window and
+  telemetry flag) and run directory in one helper call, and proves the PR-head branch check in
+  one more, instead of a run of separate shell steps. A `/prflow:review-and-fix` run — and the
+  review-and-fix pass inside `/prflow:implement` — reaches its first review in fewer turns, with
+  no change to what is reviewed: the same gates, the same iteration count, the same evidence. A
+  consumer whose vendored helpers predate this change degrades transparently to the previous
+  steps. (#894)
+- **The review-and-fix parked-class sweep no longer starts a fix iteration for comment rewordings alone.** A sibling the sweep discovers promotes only when the destination iteration's own fix admission would route it — at or above `fix_severity_threshold`, inside the `fix_below_threshold_iterations` window or beside a Critical/Important sibling — and a sibling whose only impact is behavior-inert prose never drives a promotion by itself (it rides along when another sibling drives). Every sibling not promoted is parked with the existing `parked-sibling: class-sweep` marker and a `parking_evidence.basis` naming the reason. At the default `important` threshold nothing changes. (#857)
+- **A clean PR is no longer rejected when a verifier cites two files with a comma or
+  checks what the PR changed against a moved base branch.** The review collector now
+  resolves a `file_checked` value that joins two repository paths with a comma (each with
+  its own line anchors) to both paths, so a proven PASS on a cross-file claim keeps its
+  verdict instead of being demoted to INCONCLUSIVE; a path outside the reviewed commit,
+  a blank citation, and the view directory alone are still demoted. The checklist verifier
+  settles a claim about what the PR changes or leaves untouched against the merge-base
+  (three-dot) diff between its base and head revisions, so commits the base branch gained
+  after the fork point are no longer recorded as PR changes. (#932)
+
 ## September 20, 2026
 
 - `/prflow:spec` now files issues with `## Technical Context` and `## Implementation Notes` collapsed by default, so the acceptance criteria are visible without scrolling past the implementer reference material. Every other section renders open, and agents read the body text unchanged.
@@ -43,6 +76,49 @@ Align review phase routing so checklist generation and independent reviewers are
   commit, failed read, partial materialization or unsafe path. A wording-only contradiction
   now reliably draws its one-shot auxiliary re-ask, and reports distinguish wrong-source
   evidence, unsupported generated requirements and confirmed source defects. (#851)
+- **Reshaped the Phase 3.4 acceptance-criteria dispositions record into an exception-shaped, collapsed workpad bullet.** `ac-verifier-artifacts.py` now writes `ac-dispositions.md` as a `<details>` block whose summary states the criterion and tick tallies; a criterion that ticked cleanly carries only four keys, and a criterion that blocked carries the fields that explain it (`reason`, `sides`, `missing_sides`, `undischarged_slots`, `stated_terms`, `observed_value`, and each expected side's reported status and dispositions). The reflection parser in `lib/fetch-pr-context.sh` now recognises a bullet whose own text embeds an inline `<details>…</details>`, so a following friction bullet is no longer silently uncounted. The record shrinks the workpad and points a maintainer at why each criterion blocked. (#681)
+- **Review Phase 2 launches every verifier in one wave instead of batches of 8.** The review
+  engine now dispatches the verifier of every fresh checklist item from a single message and
+  waits only for its slowest verifier rather than for eight-at-a-time batches, so a review, a
+  review-and-fix loop, or an implement run reaches its verdict sooner at the same token cost and
+  with every launched item verified by its own agent. A launch the harness refuses (`agent thread
+  limit reached`) is re-issued with the other refused items once the wave returns, so a harness
+  that caps concurrency verifies the pass in ceiling-sized waves and drops no item; an item whose
+  re-issue launches nothing ends INCONCLUSIVE. Peak concurrent verifier agents rise from 8 to the
+  pass's fresh-item count. (#885)
+- **Phase 1 intake writes the issue-body cache and the acceptance-criteria file through the
+  bundled helpers instead of retyping them.** `preflight.py` gains an `issue-body` subcommand that
+  fetches the body once and writes it byte-exact to `--out`, and `parse-acs.py` gains `--out` that
+  writes the rendered criteria to a file; the intake reference now routes both through those helpers
+  on both the `IGNORED` and `NOT_IGNORED` arms and reads the files back. A cloud implement run no
+  longer spends output tokens re-emitting the body it already fetched, and the cached body is the
+  exact bytes `gh` printed rather than a model-authored copy that could pick up the tool-result
+  envelope's trailing tags. (#891)
+- **A resumed implement run continues its review-and-fix loop at the next iteration instead of
+  restarting from iteration 1.** When a cloud implement run is killed mid-loop (a rate cap, a
+  runner reclaim, an expired credential) and the stall backstop re-triggers it, the loop now asks
+  the new `loop-verdict-marker.py continue-run` subcommand whether a prior attempt of the same
+  slug left iteration records bound to the current head — on-disk siblings first, the telemetry
+  branch's durable copy second — and, when one binds, restores `iter-1.json` through
+  `iter-<N>.json` into its run root (each stamped `restored_from`) and starts at iteration N+1,
+  carrying the prior head, checklist and findings forward and running the convergence-time shadow
+  as on any later iteration. Every other outcome, including an older vendored helper that lacks the
+  subcommand, starts fresh exactly as before; a standalone `/prflow:review-and-fix` run never asks.
+  Restored records are excluded from the resumed run's efficiency-record iteration count and cost
+  sums so a killed attempt is never double-counted. (#893)
+- **Review-engine passes take their batch slices and verifier dispatch plan from the helpers.** In the local-diff modes `review-dirty-tree.sh engine-setup` now mints Phase 1's work directory (`phase1_work_dir`) and, on a diff of more than 10 changed files, writes each batch's slice of the cached diff and reports the batches in its record; a slice it cannot write is `unavailable` and that batch keeps the existing shell fence. `normalize-verdicts.py prepare` wipes the iteration's verdicts directory, partitions the checklist exactly as the collector does and prints one nonce per agent item, so Phase 2 dispatches without reading the checklist artifact into the engine's context. No tool grant, workflow, config key or artifact shape changes; an older vendored helper keeps coverage through the retained fence and the hand partition. (#887)
+- **The review's checklist generators now read the pull request's commit.** The checklist-generator dispatch names the run's head source view, the same way the verifier and reviewer dispatches already do, so the checklist is enumerated from the reviewed commit rather than the branch the runner checked out — on the cloud tier, the default branch. (#896)
+- **A proven PASS is no longer demoted when the verifier cites several line anchors, two files, or the view-directory path.** The review collector's view-provenance gate now resolves `file_checked` to the bare repository path(s) it cites before the inventory lookup: a comma-separated anchor list (`path:18,158,318-321`), two citations joined by `;` or ` and `, a path under the bound view's own directory (relative, absolute or symlink-resolved), a `\`-separated path, and a harness-instruction file's `.src` stored name all match. Every cited path must still be in that view's inventory, so a path genuinely outside the reviewed commit is demoted exactly as before. The verifier contract states the canonical `file_checked` shape once. Since the gate landed, a clean review whose verifier cited two places was labeled REJECT. (#901)
+- **`loop-verdict-marker.py continue-run` reports a resume's prior-run state more precisely.**
+  A sibling run directory that holds no iteration record (only `deferrals.json`, say) no longer
+  counts as a prior run, so the helper's `none` line reads `no-prior-run` or
+  `no-telemetry-branch` instead of `no-well-formed-record`; a restore whose lower records are
+  absent or malformed adds one stderr summary naming the iterations it could not restore, while
+  the stdout line keeps its closed shape; and the telemetry blob read shares the helper's one
+  git environment (`GIT_TERMINAL_PROMPT=0`) with its other git calls. The module docstring now
+  states the two origin reaches (`ls-remote`, then `fetch`). (#919)
+- **A resumed implement run can reuse a review it already completed at the same head.** On an in-flight resume, the intake worker filed the run's own unfinished work (an unchecked acceptance-criteria gate, an unrecorded final verification) as a review-related correction, and Phase 3 §3.1 read any such correction as a reason to skip its review-reuse check, so a review completed just before the run was killed was always re-run. Intake now files a correction only where there is a claim to correct — a completion claim the workpad makes that later evidence contradicts, or an obligation a comment raises — and leaves a head-bound clean review record to §3.1's `reuse-check`, which verifies head, merge-base, issue digest and Review rows itself. A corrective comment asking for a fresh review still gets one; unreadable resume evidence still yields a sourced unestablished obligation. The handoff schema is unchanged. (#897)
+- **Review Phase 2 dispatch plan and setup hardening.** `normalize-verdicts.py prepare` no longer reports a lite checklist item in `missing_fields`, so the field-completion re-ask names agent items only; and `engine-setup` fails closed with a `filesystem` stop, removing its caches, when Phase 1's work directory cannot be created, instead of exiting with a traceback. Follow-up to the #887 helpers. (#928)
 
 ## September 19, 2026
 

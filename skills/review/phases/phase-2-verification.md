@@ -5,16 +5,19 @@ Output: `Phase 2/4: Verifying {N} checklist items...`
 
 ### 2.0 Partition by verification_mode
 
-Read the checklist Phase 2 partitions from Phase 1's durable artifact `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json` (§1.6). That file is the checklist Phase 2 verifies — without it Phase 2 has no checklist to partition.
+Phase 2 verifies Phase 1's durable artifact `.prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json` (§1.6) — without it Phase 2 has no checklist. Run `prepare` once per engine entry, before the first verifier dispatch — the Phase 1 assembly-helper ladder (vendored literal, then the anchor, then `python3 <path>` on a local denial), every operand a literal:
 
-Split the checklist into two groups by each item's `verification_mode` field (set by the generator in Phase 1):
+```bash
+.prflow/vendor/prflow/scripts/normalize-verdicts.py prepare .prflow/tmp/review/<slug>/<run-id>/checklist-iter-<N>.json --verdicts-dir .prflow/tmp/review/<slug>/<run-id>/verdicts/iter-<N>
+```
 
-- Lite items (`verification_mode: "lite"`) — the orchestrator runs `grep -n` / `rg` directly. No agent dispatch. See 2.1a.
-- Agent items (`verification_mode: "agent"`, or missing/unrecognized) — dispatch the `prflow:checklist-verifier` agent. See 2.1b.
+It wipes the regular files in `verdicts/iter-<N>/` (a stale prior-iteration file can't be read as a fresh verdict), partitions as §2.2's helper will, and prints the plan to stdout, never to a file: `reused` (§2.0.5), `lite` (id and `lite_probe`, §2.1a), `agent` (id and `nonce`, §2.1b), `missing_fields` and `counts`. Dispatch from the plan; the checklist artifact stays out of this context. A later single-item dispatch inside this entry (§2.2's one-repair loop and re-asks, dispatch-coverage re-entry, the fix loop's bounded recovery) mints its own fresh nonce and never re-runs `prepare` — a re-run wipes the wave's verdict files.
+
+No plan (nothing printed, or no object carrying an `agent` array): Read the artifact and partition it yourself — `verification_mode: "lite"` with a well-formed `lite_probe` is lite (2.1a); everything else, missing/unrecognized included, is agent (2.1b) — mint each agent item's nonce, and wipe `verdicts/iter-<N>/` before the wave.
 
 The lite path is bounded to claims reducing to substring presence/absence — see `checklist-generator.md` for eligibility rules.
 
-Item-side field-completion re-ask (pre-dispatch). A generator miss of a load-bearing normalizer field must degrade to a measurement, not a silent stall. At partition, collect any agent items missing `claim_provenance` (and any `source_authored` items missing `source_excerpt`) into **one field-completion re-ask** to the `checklist-generator`: pass the offenders back by `claim_signature`, have it return only the completed fields, accept no new items. This re-ask runs exactly once; items still missing the field stay normalization-ineligible downstream; those whose raw verdict later comes back FAIL are counted in `{field_defect_fail_count}` (item 6's membership — the label counts only FAILs; a PASS/INCONCLUSIVE survivor carries the marker uncounted).
+Item-side field-completion re-ask (pre-dispatch). A generator miss of a load-bearing normalizer field must degrade to a measurement, not a silent stall. Collect the plan's `missing_fields` — agent items missing `claim_provenance`, and `source_authored` items missing `source_excerpt` — into **one field-completion re-ask** to the `checklist-generator`: pass the offenders back by `claim_signature`, have it return only the completed fields, accept no new items. This re-ask runs exactly once; items still missing the field stay normalization-ineligible downstream; those whose raw verdict later comes back FAIL are counted in `{field_defect_fail_count}` (item 6's membership — the label counts only FAILs; a PASS/INCONCLUSIVE survivor carries the marker uncounted).
 
 ### 2.0.5 Skip dispatch for reused items
 
@@ -43,23 +46,21 @@ Record the result in the same JSON shape as agent verdicts:
 {"id": "VC-N", "verdict": "PASS|FAIL|INCONCLUSIVE", "evidence": "lite probe: 2 hits in lines 113, 117", "file_checked": "path/to/file.py", "view_revision": "<the view's 40-hex revision, omitted when no view was materialized>"}
 ```
 
-Examples:
-- *Lite-eligible:* `claim`: "License header `<expected literal>` appears in `path/to/new_source_file`". `lite_probe`: `{kind: "string_present", string: "<expected literal>", file: "path/to/new_source_file"}`. The orchestrator greps; no agent needed.
-- *Agent-required (NOT lite):* `claim`: "Mock return value of `<symbol>` in `path/to/test_file` matches the real signature in `path/to/impl_file`". Two files, semantic shape comparison — must dispatch the verifier.
-
-### 2.1b Launch verifier agents in batches
+### 2.1b Launch verifier agents
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
-Split the *agent* items into batches of up to 8; launch each batch's agents in parallel via multiple Agent tool calls in one message.
+Launch the verifier of every fresh agent item from one message, via multiple Agent tool calls, and proceed to §2.2 only once every dispatch of the wave has returned (the dispatch-barrier sentence above is the binding collection rule).
 
-A self-assessed budget or context state may not lower the number of items dispatched here. A run cannot establish its own remaining context on any tier, so that belief is an unestablished measurement, never a reason to verify fewer items than the checklist holds: dispatch every agent item. A run that believes it is out of budget performs the dispatch, or stops at a non-terminal/`Blocked` status naming the step it did not perform — never a narrowed pass. This binds the local and cloud tiers identically.
+A dispatch the harness refuses at launch — an error result in place of a launched agent, of which `agent thread limit reached` is the known text — is not yet a failed verifier: after the wave returns, re-issue every refused item together in one message, and repeat while each round launches at least one verifier. A round that launches nothing ends its still-refused items as failed verifiers under §2.2, carrying the refusal text as their `response_text` reply, so the pass ends INCONCLUSIVE with evidence quoting it. A launched agent that later fails, times out, or returns a malformed reply is not a launch refusal and takes §2.2's existing paths unchanged.
 
-Reading source in this context never completes an agent item: the no-suite-launch rule a caller carries in is the *dispatched verifier's* method (read source, launch no suite), never a licence to settle the claim here instead of dispatching. An agent item completes only when its verifier Wrote the nonce file (§2.2).
+A self-assessed budget or context state never lowers the dispatch count: a run cannot establish its own remaining context on any tier, so that belief is an unestablished measurement. Dispatch every agent item, or stop at a non-terminal/`Blocked` status naming the step not performed — never a narrowed pass, on any tier.
+
+Reading source in this context never completes an agent item: a caller's no-suite-launch rule is the *dispatched verifier's* method, never a licence to settle the claim here. An agent item completes only when its verifier Wrote the nonce file (§2.2).
 
 Use the Agent tool with `subagent_type: "prflow:checklist-verifier"` for each item. Resolve overrides for `prflow:checklist-verifier` once per Phase 2 per Per-Subagent Model/Effort Overrides above, applying any resolved `model` to the dispatch's Agent-tool `model` override.
 
-Pass each item this prompt and nothing more — the verifier's own agent definition carries the whole verification contract (method, source-view routing, grading, the structured fields, delivery), so re-typing any of it costs dispatch time and adds nothing:
+Pass each item this prompt and nothing more — the verifier's agent definition carries the whole contract, so re-typing it adds only dispatch time:
 ```
 Item {item id} of {this iteration's checklist-iter-<N>.json path}
 Verdict file: {VERDICT_FILE}
@@ -72,9 +73,9 @@ The verifier Reads its item from that checklist artifact by `id`; never paste th
 
 Each verifier replies with one line, `<item id> <VERDICT> <verdict-file path>` — its verdict and evidence live in the file. A verifier whose Write failed replies with its fenced verdict JSON instead; one that timed out or failed replies with neither, and the helper below stores that item INCONCLUSIVE unless a verdict file exists at its nonce path (a verifier that Wrote its file then timed out has delivered a verdict).
 
-**Nonce-bound verdict files (agent path).** At dispatch, generate for **each** agent item an unpredictable `<nonce>` and substitute the verdict-file path `.prflow/tmp/review/<slug>/<run-id>/verdicts/iter-<N>/<item-id>-<nonce>.json` for that item's `{VERDICT_FILE}` placeholder (2.1b). Carry each nonce **only** inside that one item's dispatch prompt and, once the batches have returned, the inputs file below — never a sibling's prompt, never a file a running verifier could read. The review runs on PR-author-controlled source, so this binding is the forgery guard: a compromised verifier sees only its own nonce, so only its own item. **Before** dispatching the iteration's batches, wipe the `verdicts/iter-<N>/` directory so a stale prior-iteration file can't be read as a fresh verdict.
+**Nonce-bound verdict files (agent path).** Each agent item's `<nonce>` is the plan's (§2.0; a later single-item dispatch mints its own); substitute the verdict-file path `.prflow/tmp/review/<slug>/<run-id>/verdicts/iter-<N>/<item-id>-<nonce>.json` for that item's `{VERDICT_FILE}` placeholder (2.1b). Carry each nonce **only** inside that one item's dispatch prompt and, once the wave has returned, the inputs file below (its `nonces` map) — never a sibling's prompt, never a file a running verifier could read. The review runs on PR-author-controlled source, so this binding is the forgery guard: a compromised verifier sees only its own nonce, so only its own item.
 
-**Normalization and the verification artifact are owned by an executable helper — never applied or hand-written in this prose.** After the batches return, Write one **inputs file** into the run-scoped `.prflow/tmp/` tree carrying only what the helper cannot derive:
+**Normalization and the verification artifact are owned by an executable helper — never applied or hand-written in this prose.** After the wave returns, Write one **inputs file** into the run-scoped `.prflow/tmp/` tree carrying only what the helper cannot derive:
 ```json
 {"nonces": {"<item id>": "<nonce>"}, "lite": [<each 2.1a result>], "response_text": {"<item id>": "<reply of a verifier that wrote no file>"}, "views": {"head": {"revision": "<VIEW_HEAD_REV>", "inventory": "<VIEW_HEAD>/inventory.json"}, "base": {"revision": "<VIEW_BASE_REV>", "inventory": "<VIEW_BASE>/inventory.json"}}}
 ```

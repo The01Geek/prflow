@@ -68,13 +68,16 @@ through on a blocking record, so the orchestrator routes the denied-command case
 to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free text.
 
 Output: one JSON object on stdout —
-    {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
+    {"criteria": [ {"criterion", "sides", "evidence_status", "claim_status", "status",
                     "blocks", "reason", "remedy", "evidence", "evidence_source",
                     "stated_terms", "observed_value",
                     "evidence_status_reported", "claim_status_reported",
                     "evidence_dispositions", "claim_dispositions",
                     "missing_sides", "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
+`sides` is the criterion's expected verifier roster — `["evidence"]` for non-command,
+`["evidence", "claim"]` for command, `[]` when absent from the criteria file or poisoned;
+the dispositions projection reads it to decide which side's fields to emit (issue #681).
 The optional `stated_terms`/`observed_value` pair (issue #387) carries the evidence
 verifier's recorded criterion terms and the value it observed in the shipped artifact; a
 criterion that names a quantifier, scope, or literal value/set is `satisfied` only when they
@@ -641,6 +644,7 @@ def reconcile(evidence_records, claim_records, criteria=None):
         criteria_out.append(
             {
                 "criterion": num,
+                "sides": list(expected),
                 "evidence_status": _normalize_status(e_status),
                 "claim_status": _normalize_status(c_status),
                 "status": status,

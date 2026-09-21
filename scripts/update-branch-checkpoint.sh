@@ -69,6 +69,17 @@ set -u
 exec 3>&1 1>&2
 emit() { printf '%s\n' "$1" >&3; }
 
+# Print the caller's next action on stderr immediately before the token (issue #703):
+# the caller routes on the token AND this `route:` line, so a call site no longer reads a
+# separate reference to look up the arm. Guard-class 2 still holds: this is a fixed string,
+# not a selection input, and its wording avoids the tr/sed/wc/cut/head tokens the suite greps
+# the file for.
+_route() { echo "route: $1" >&2; }
+# Shared next-action text for the UNVERIFIED arms.
+_ROUTE_UNVERIFIED='record the breadcrumb above; continue with base freshness unverified'
+# Shared route line for the two UPDATED push-success arms; interpolates $BASE/$BEHIND at call time.
+_route_updated() { _route "record that origin/$BASE was merged and pushed, behind by $BEHIND; base-sensitive read-target rules no longer bind this run"; }
+
 # Resolve the sibling config-get.sh inline via bash parameter expansion (never a
 # non-preflight PATH tool). When BASH_SOURCE carries no slash (bare-name exec),
 # `%/*` leaves it unchanged, so fall back to the current directory.
@@ -89,6 +100,7 @@ CONFIG_GET="$_self_dir/config-get.sh"
 # below fails the same way and stops the run (UNVERIFIED) before any fetch or merge.
 enabled="$("$CONFIG_GET" .prflow_implement.update_branch_checkpoints "" 2>/dev/null || true)"
 if [ "$enabled" = "false" ]; then
+  _route "continue; record nothing; the consumer disabled update checkpoints"
   emit "DISABLED"
   exit 0
 fi
@@ -98,6 +110,7 @@ fi
 # commit; hard-stop so the caller resolves it deliberately.
 if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
   echo "update-branch-checkpoint: a merge is already in progress (MERGE_HEAD present) — resolve or abort it deliberately (git merge --abort), never absorb it into an ordinary commit" >&2
+  _route "hard-stop; never absorb the prior merge into an ordinary commit"
   emit "MERGE_IN_PROGRESS"
   exit 5
 fi
@@ -119,6 +132,7 @@ fi
 # BRANCH on untracked-collision as a distinct outcome rather than record UNVERIFIED.
 if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
   echo "update-branch-checkpoint: working tree has uncommitted tracked changes — refusing to fetch or merge over a dirty tree; commit or stash first" >&2
+  _route "$_ROUTE_UNVERIFIED"
   emit "UNVERIFIED"
   exit 3
 fi
@@ -132,6 +146,7 @@ fi
 # returns empty falls back to main (the Phase 3.1 fail-closed empty-read pattern).
 if ! BASE="$("$CONFIG_GET" .base_branch main)"; then
   echo "update-branch-checkpoint: could not read base_branch (config-get.sh failed; see its error above) — nothing merged" >&2
+  _route "$_ROUTE_UNVERIFIED"
   emit "UNVERIFIED"
   exit 3
 fi
@@ -142,6 +157,7 @@ PRE_SHA="$(git rev-parse HEAD 2>/dev/null || true)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 if [ -z "$PRE_SHA" ] || [ -z "$BRANCH" ] || [ "$BRANCH" = "HEAD" ]; then
   echo "update-branch-checkpoint: could not resolve HEAD SHA or a branch name (detached HEAD or corrupt repo) — nothing merged" >&2
+  _route "$_ROUTE_UNVERIFIED"
   emit "UNVERIFIED"
   exit 3
 fi
@@ -155,6 +171,7 @@ fi
 # (defense-in-depth; identical behavior on an ordinary wildcard-refspec clone).
 if ! git fetch origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"; then
   echo "update-branch-checkpoint: could not fetch origin/$BASE (network/auth or wrong base_branch) — nothing merged" >&2
+  _route "$_ROUTE_UNVERIFIED"
   emit "UNVERIFIED"
   exit 3
 fi
@@ -165,6 +182,7 @@ BEHIND="$(git rev-list --count "HEAD..origin/$BASE" 2>/dev/null || true)"
 case "$BEHIND" in
   '' | *[!0-9]*)
     echo "update-branch-checkpoint: could not derive behind-by count from HEAD..origin/$BASE — nothing merged" >&2
+    _route "$_ROUTE_UNVERIFIED"
     emit "UNVERIFIED"
     exit 3
     ;;
@@ -172,6 +190,7 @@ esac
 
 # (6) Already current.
 if [ "$BEHIND" -eq 0 ]; then
+  _route "continue; record nothing"
   emit "UP_TO_DATE"
   exit 0
 fi
@@ -187,8 +206,10 @@ _reject_restore() {  # message
   # is honest about the tree's actual state.
   if git reset --hard "$PRE_SHA" >/dev/null 2>&1; then
     echo "$1" >&2
+    _route "record a dropped-failed breadcrumb; continue without a third push"
   else
     echo "update-branch-checkpoint: WARNING push rejected AND the restore to pre-checkpoint SHA $PRE_SHA failed — the tree may still carry the base-merge commit; resolve manually before the next push. ($1)" >&2
+    _route "hard-stop; the branch may carry an unpushed merge commit"
   fi
   emit "PUSH_REJECTED"
   exit 4
@@ -265,6 +286,7 @@ _do_push() {
 # push-race recovery arm exactly once. Emits the final token and exits. ---
 _push_or_recover() {
   if _do_push; then
+    _route_updated
     emit "UPDATED $BEHIND"
     exit 0
   fi
@@ -288,6 +310,7 @@ _push_or_recover() {
     _reject_restore "update-branch-checkpoint: integrating $PUSH_REMOTE/$PUSH_REF conflicted (remote divergence); merge aborted and branch restored to pre-checkpoint SHA"
   fi
   if _do_push; then
+    _route_updated
     emit "UPDATED $BEHIND"
     exit 0
   fi
@@ -299,7 +322,7 @@ _emit_conflict() {
   {
     echo "update-branch-checkpoint: base merge of origin/$BASE conflicted. Conflicted paths:"
     git diff --name-only --diff-filter=U
-    echo "Resolution contract: resolve the conflicts, run the project test suite, git add + git commit to conclude the merge, push, and re-run the changed-contract sweep. If the suite fails, git merge --abort and hard-stop."
+    echo "route: resolve the conflicts, run the project test suite, git add + git commit to conclude the merge, push, and re-run the changed-contract sweep. Regenerate known generated artifacts instead of hand-merging them; if you cannot establish whether the conflicted file is generated, stop and mark it needs-human-reconciliation rather than hand-merging. Preserve base additions in append-only records; abort and retry when a moving base produced an implausibly broad merge. Record the conflicted files. When the suite is unavailable, commit and push with a locally-unverified note. When the suite fails, git merge --abort and hard-stop."
   } >&2
   emit "CONFLICT"
   exit 2
@@ -425,5 +448,6 @@ fi
 # (fd 1 is rebound to stderr), so this breadcrumb stays cause-neutral rather than asserting
 # "shallow history" as the sole cause of a failure that may be unrelated-histories.
 echo "update-branch-checkpoint: could not complete a base merge with origin/$BASE — the merge could not start or found no merge base (unrelated histories, a shallow history that could not be extended, or untracked files the merge would overwrite; see the git error above) — nothing merged" >&2
+_route "$_ROUTE_UNVERIFIED"
 emit "UNVERIFIED"
 exit 3

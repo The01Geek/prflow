@@ -22,7 +22,9 @@
 #
 # The object ID that AUTHORISES a restore is held by the orchestrator (printed by
 # `snapshot`) and passed back to `compare-and-restore` as a literal argument — never
-# read from agent-writable scratch (issue #2082 AC4).
+# read from agent-writable scratch (issue #2082 AC4). The `entry-close` arm (issue #898)
+# is the one exception by design: it reads the OID file the loop already persists and
+# re-reads for compaction resilience, adding no trust boundary the loop does not carry.
 #
 # CONTRACT — subcommands (each takes OPTIONAL trailing literal path operands BEFORE AFTER DISABLED,
 # issue #513 — precedence arg > GIT_SNAP_* env seam > default for BEFORE/AFTER; DISABLED has no env
@@ -50,6 +52,41 @@
 #     takes the `snapshot` LAST — after the diff cache is published, before the engine dispatches
 #     any child — and its object ID reaches stdout only. Exit: the sibling's (0 ok/empty, 1 stop,
 #     2 usage).
+#   loop-setup [--pr N] / branch-sync --pr N
+#     The review-and-fix loop's one-call setup and PR-head branch-sync (issue #894), hosted
+#     here for the same granted-head reason; the work lives in the sibling review-loop-io.py.
+#     loop-setup: this host runs compose-run-key.sh and the four config-get.sh reads (so the
+#     producer executes no .sh, AC5) and hands the values and exit codes to the producer, which
+#     applies the loop's clamps/breadcrumbs, resolves slug and run_dir by the same rule
+#     engine-setup uses, creates the run dir, persists loop-setup.json and prints one JSON line;
+#     it runs no gh. branch-sync: the producer runs the git/gh reads and prints the comparison —
+#     no checkout, no git-state change. Exit: the sibling's (0 ok, 1 error, 2 usage).
+#   entry-open --run-root DIR --entry step1|shadow --iteration N
+#   entry-close --run-root DIR --entry step1|shadow --iteration N --head SHA --branch NAME
+#     The review-and-fix loop's per-engine-entry bracket (issue #898), one call each side of a
+#     dispatch, printing one JSON line on stdout. entry-open deletes DIR/diff.patch and every
+#     DIR/batch-*.patch (the re-entrant freshness deletion), takes the `snapshot` to
+#     .prflow/tmp/review/dt-<s1|shadow>-N-{before,after,disabled} and writes the object ID to
+#     .prflow/tmp/review/dt-<s1|shadow>-N-oid.txt — the same files the loop's fallback fences
+#     use, so either side of the bracket interoperates with the fence form of the other.
+#     Line: {status:"ok", entry, iteration, cache_deleted:[…], snapshot:"taken"|"disabled", oid,
+#     oid_file}. entry-close runs the post-return branch guard (`git rev-parse --abbrev-ref HEAD`
+#     against --branch; on inequality the line is {status:"branch-mismatch", branch, expected},
+#     on a failed or empty read {status:"branch-unestablished", expected} — nothing else runs on
+#     either), then reads the OID file the open arm wrote (the loop's own persisted copy of the
+#     ID `snapshot` printed — this arm, unlike a direct compare-and-restore, takes no OID
+#     operand), checks the outer disabled sentinel and
+#     runs `compare-and-restore` for the entry's files, classifying its breadcrumbs into
+#     restore: "clean" | "restored" | "not-restored" | "blocked" (an OID file missing or empty,
+#     a missing/forged before file, a SKIPPED/DISABLED/still-dirty breadcrumb, the outer
+#     sentinel present, or an unrecognized breadcrumb — fail closed), then runs the sibling
+#     loop-verdict-marker.py `write-active-entry-binding` and `check-evidence` with the same
+#     operands and relays check-evidence's line-1 first token, exit code and line as
+#     evidence:{token, exit, line} ("" / the observed code when the marker is absent). Line:
+#     {status:"ok", branch, restore, restore_detail:[…], evidence:{…}}. Errors print
+#     {status:"error", step, reason}: `arguments`/`run-root` exit 2; `cache` (a survivor after
+#     deletion) exit 1. `iteration` and `evidence.exit` are JSON numbers, `cache_deleted` and
+#     `restore_detail` arrays, every other field a string.
 #
 # Portability: bash 3.2 / BSD userland, no GNU-only flags (indexed-array linear scan,
 # never `declare -A`; NUL-safe `read -r -d ''`).
@@ -59,7 +96,20 @@ set -u
 SNAP_BEFORE="${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}"
 SNAP_AFTER="${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}"
 DISABLED_SENTINEL=".prflow/tmp/review-dirty-tree-disabled"
+OUTER_DISABLED_SENTINEL="$DISABLED_SENTINEL"
 ENGINE_IO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/review-engine-io.py"
+LOOP_IO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/review-loop-io.py"
+# The loop-setup host runs compose-run-key.sh and config-get.sh itself (issue #894); the
+# producer never executes a .sh (AC5). Both resolve script-relative by default; the
+# LOOP_COMPOSE_RUN_KEY / LOOP_CONFIG_GET env seam is retained INTERNALLY so the project's
+# own suite can point them at per-test stubs, exactly like the GIT_SNAP_* seam above — the
+# emitted skill command names neither.
+LOOP_COMPOSE_RUN_KEY="${LOOP_COMPOSE_RUN_KEY:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/compose-run-key.sh}"
+LOOP_CONFIG_GET="${LOOP_CONFIG_GET:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/config-get.sh}"
+# The entry bracket's evidence half (issue #898) runs the sibling marker script; the
+# LOOP_VERDICT_MARKER env seam is retained INTERNALLY so the suite can point it at a stub,
+# exactly like GIT_SNAP_*; the emitted skill command never names it.
+LOOP_VERDICT_MARKER="${LOOP_VERDICT_MARKER:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/loop-verdict-marker.py}"
 
 cmd_snapshot() {
   if ! mkdir -p .prflow/tmp 2>/dev/null; then
@@ -257,6 +307,189 @@ cmd_engine_setup() {
   python3 "$ENGINE_IO" setup-emit --record "${record#record:}" --snapshot-oid "$oid"
 }
 
+cmd_loop_setup() {
+  # Shell-only work here (issue #894 AC5): the run key from compose-run-key.sh (passed
+  # through verbatim, empty when it printed nothing) and the four config reads. Each config
+  # read is --scalar (so an array/object resolves as unset, never coerced to a scalar). The
+  # three int/enum reads carry NO default, so the producer distinguishes a resolver failure
+  # (rc 2) from an absent key (rc 1) from a present value (rc 0) and applies each key's own
+  # clamp/default. The telemetry read DOES pass the `true` default, mirroring the pre-#894
+  # loop-exit.md `config-get.sh ... true` read: config-get.sh owns the schema default (true)
+  # and the #2035 telemetry.enabled master inheritance on the miss path, so a default-config
+  # repo (key unset) resolves to true, not the producer's fail-closed false — keeping
+  # telemetry (the effectiveness trace and permission-denial forensics) ON by default. Read
+  # each rc on its own line: `local x=$(…)` would mask the substitution's status behind
+  # `local`'s own.
+  local run_key mi mi_rc ft ft_rc fb fb_rc et et_rc
+  run_key="$("$LOOP_COMPOSE_RUN_KEY")" || run_key=""
+  mi="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.max_iterations)"; mi_rc=$?
+  ft="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.fix_severity_threshold)"; ft_rc=$?
+  fb="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.fix_below_threshold_iterations)"; fb_rc=$?
+  et="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.efficiency_telemetry_enabled true)"; et_rc=$?
+  python3 "$LOOP_IO" loop-setup \
+    --run-key "$run_key" \
+    --cfg-max-iterations "$mi" --cfg-max-iterations-rc "$mi_rc" \
+    --cfg-fix-severity-threshold "$ft" --cfg-fix-severity-threshold-rc "$ft_rc" \
+    --cfg-fix-below-threshold-iterations "$fb" --cfg-fix-below-threshold-iterations-rc "$fb_rc" \
+    --cfg-efficiency-telemetry-enabled "$et" --cfg-efficiency-telemetry-enabled-rc "$et_rc" \
+    "$@"
+}
+
+# ── entry-open / entry-close (issue #898): the fix loop's per-entry bracket ──────────────
+# One JSON line per call. Every value reaches python3 as an argv token (`key=value`; an `@key=`
+# value is a newline-joined list, a `#key=` value an integer), so no bash-side escaping exists.
+emit_json() {
+  python3 -c '
+import json, sys
+sys.stdout.reconfigure(newline="\n")
+out = {}
+for tok in sys.argv[1:]:
+    key, _, val = tok.partition("=")
+    if key.startswith("@"):
+        out[key[1:]] = [] if val == "" else val.split("\n")
+    elif key.startswith("#"):
+        out[key[1:]] = int(val)
+    elif key.startswith("%"):
+        out[key[1:]] = json.loads(val)
+    else:
+        out[key] = val
+print(json.dumps(out))
+' "$@"
+}
+
+entry_error() {  # STEP REASON EXIT
+  emit_json status=error "step=$1" "reason=$2"
+  return "$3"
+}
+
+# Parse the bracket's named operands into ENTRY_RUN_ROOT / ENTRY_KIND / ENTRY_ITER / ENTRY_HEAD /
+# ENTRY_BRANCH and derive the entry's scratch paths. `$1` names the arm (open|close) so the
+# close-only operands are required only there. Prints the error line itself; returns 2 on a
+# usage error so the caller can `return` it.
+parse_entry_args() {
+  local arm="$1"; shift
+  ENTRY_RUN_ROOT=""; ENTRY_KIND=""; ENTRY_ITER=""; ENTRY_HEAD=""; ENTRY_BRANCH=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --run-root)  [ "$#" -ge 2 ] || { entry_error arguments "--run-root needs a value" 2; return 2; }; ENTRY_RUN_ROOT="$2"; shift 2 ;;
+      --entry)     [ "$#" -ge 2 ] || { entry_error arguments "--entry needs a value" 2; return 2; }; ENTRY_KIND="$2"; shift 2 ;;
+      --iteration) [ "$#" -ge 2 ] || { entry_error arguments "--iteration needs a value" 2; return 2; }; ENTRY_ITER="$2"; shift 2 ;;
+      --head)      [ "$#" -ge 2 ] || { entry_error arguments "--head needs a value" 2; return 2; }; ENTRY_HEAD="$2"; shift 2 ;;
+      --branch)    [ "$#" -ge 2 ] || { entry_error arguments "--branch needs a value" 2; return 2; }; ENTRY_BRANCH="$2"; shift 2 ;;
+      *) entry_error arguments "unknown operand '$1'" 2; return 2 ;;
+    esac
+  done
+  # An unsubstituted `<placeholder>` in any operand is a prose slot the caller never filled.
+  case "${ENTRY_RUN_ROOT}${ENTRY_KIND}${ENTRY_ITER}${ENTRY_HEAD}${ENTRY_BRANCH}" in
+    *'<'*|*'>'*) entry_error arguments "an operand carries an unsubstituted <placeholder>" 2; return 2 ;;
+  esac
+  case "$ENTRY_KIND" in
+    step1)  ENTRY_TAG=s1 ;;
+    shadow) ENTRY_TAG=shadow ;;
+    *) entry_error arguments "--entry must be step1 or shadow (got '${ENTRY_KIND}')" 2; return 2 ;;
+  esac
+  case "$ENTRY_ITER" in
+    ''|*[!0-9]*|0*) entry_error arguments "--iteration must be a positive integer (got '${ENTRY_ITER}')" 2; return 2 ;;
+  esac
+  if [ "$arm" = close ]; then
+    case "$ENTRY_HEAD" in
+      *[!0-9a-f]*|'') entry_error arguments "--head must be a 40-hex commit id" 2; return 2 ;;
+    esac
+    [ "${#ENTRY_HEAD}" -eq 40 ] || { entry_error arguments "--head must be a 40-hex commit id" 2; return 2; }
+    [ -n "$ENTRY_BRANCH" ] || { entry_error arguments "--branch needs a non-empty value" 2; return 2; }
+  fi
+  [ -n "$ENTRY_RUN_ROOT" ] || { entry_error run-root "--run-root is required" 2; return 2; }
+  [ -d "$ENTRY_RUN_ROOT" ] || { entry_error run-root "run root '${ENTRY_RUN_ROOT}' is not a directory" 2; return 2; }
+  SNAP_BEFORE=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-before"
+  SNAP_AFTER=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-after"
+  DISABLED_SENTINEL=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-disabled"
+  ENTRY_OID_FILE=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-oid.txt"
+  return 0
+}
+
+cmd_entry_open() {
+  parse_entry_args open "$@" || return $?
+  local f deleted="" survivor="" oid snapshot nl=$'\n'
+  # Re-entrant freshness: the entry's Phase 0.2 rebuilds the cache at HEAD. Deleting an absent
+  # cache is a no-op, so the first entry needs no special arm. Deletion only — never a rebuild.
+  for f in "$ENTRY_RUN_ROOT/diff.patch" "$ENTRY_RUN_ROOT"/batch-*.patch; do
+    [ -e "$f" ] || continue
+    rm -f "$f"
+    deleted="${deleted}${deleted:+$nl}${f#"$ENTRY_RUN_ROOT"/}"
+  done
+  for f in "$ENTRY_RUN_ROOT/diff.patch" "$ENTRY_RUN_ROOT"/batch-*.patch; do
+    [ -e "$f" ] && survivor="${f#"$ENTRY_RUN_ROOT"/}"
+  done
+  if [ -n "$survivor" ]; then
+    entry_error cache "cache file '${survivor}' survived deletion" 1
+    return 1
+  fi
+  # The entry's scratch lives under .prflow/tmp/review/ (cmd_snapshot creates only .prflow/tmp).
+  mkdir -p .prflow/tmp/review 2>/dev/null || :
+  oid="$(cmd_snapshot)"
+  if [ -n "$oid" ]; then snapshot=taken; else snapshot=disabled; fi
+  # The OID file is what entry-close (and the fallback compare fence) reads back after the
+  # dispatch — written empty on a disabled snapshot so the close arm fails closed on it.
+  if ! printf '%s' "$oid" > "$ENTRY_OID_FILE"; then
+    echo "::warning::devflow review: could not write ${ENTRY_OID_FILE}; the close arm will read it as missing and block" >&2
+  fi
+  emit_json status=ok "entry=$ENTRY_KIND" "#iteration=$ENTRY_ITER" "@cache_deleted=$deleted" \
+    "snapshot=$snapshot" "oid=$oid" "oid_file=$ENTRY_OID_FILE"
+}
+
+cmd_entry_close() {
+  parse_entry_args close "$@" || return $?
+  local branch oid restore="" detail="" token="" mexit=0 line="" rc nl=$'\n'
+  # 1. Post-return branch guard: nothing else runs on a mismatch (the loop takes the guard's
+  #    mismatch arms and re-runs this call once on its restored arm).
+  if ! branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || [ -z "$branch" ]; then
+    # An unreadable checkout is neither a match nor a mismatch (error-handling.md's
+    # *unestablished* reading): the loop stops, never checks anything out.
+    emit_json status=branch-unestablished "expected=$ENTRY_BRANCH"
+    return 0
+  fi
+  if [ "$branch" != "$ENTRY_BRANCH" ]; then
+    emit_json status=branch-mismatch "branch=$branch" "expected=$ENTRY_BRANCH"
+    return 0
+  fi
+  # 2. Compare-and-restore against the persisted OID, fail closed on every missing operand.
+  #    The compare prints nothing on stdout, so its stderr breadcrumbs are captured in a
+  #    variable — no scratch file is created between the before and after snapshots.
+  if [ ! -f "$ENTRY_OID_FILE" ] || [ -L "$ENTRY_OID_FILE" ]; then
+    restore=blocked; detail="OID file ${ENTRY_OID_FILE} is missing"
+  elif ! oid="$(cat "$ENTRY_OID_FILE" 2>/dev/null)" || [ -z "$oid" ]; then
+    restore=blocked; detail="OID file ${ENTRY_OID_FILE} is empty or unreadable"
+  elif [ -e "$OUTER_DISABLED_SENTINEL" ]; then
+    restore=blocked; detail="outer sentinel ${OUTER_DISABLED_SENTINEL} present at compare start"
+  else
+    detail="$(cmd_compare_and_restore "$oid" 2>&1)"
+    case "$detail" in
+      '') restore=clean ;;
+      *SKIPPED*|*DISABLED*|*'still dirty after restore attempt'*) restore=blocked ;;
+      *'nothing auto-restored'*|*'not auto-restored'*) restore=not-restored ;;
+      *'modified the working tree'*) restore=restored ;;
+      *) restore=blocked ;;   # an unrecognized breadcrumb never reads as clean
+    esac
+  fi
+  # 3. Evidence: bind, then grade, relaying check-evidence's line 1 and exit code verbatim.
+  rc=0
+  line="$(python3 "$LOOP_VERDICT_MARKER" write-active-entry-binding --run-root "$ENTRY_RUN_ROOT" \
+    --entry "$ENTRY_KIND" --iteration "$ENTRY_ITER" --head "$ENTRY_HEAD" 2>&1)" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    line="$(python3 "$LOOP_VERDICT_MARKER" check-evidence --run-root "$ENTRY_RUN_ROOT" \
+      --entry "$ENTRY_KIND" --iteration "$ENTRY_ITER" --head "$ENTRY_HEAD" 2>/dev/null)" || mexit=$?
+    line="${line%%"$nl"*}"
+    token="${line%% *}"
+  else
+    # The binding refused (an unrecovered other-entry grade, a missing marker, argparse): relay
+    # its first output line so the loop's recovery narrative names the cause; no token.
+    mexit="$rc"
+    line="write-active-entry-binding exited ${rc}: ${line%%"$nl"*}"
+  fi
+  emit_json status=ok "branch=$branch" "restore=$restore" "@restore_detail=$detail" \
+    "%evidence=$(emit_json "token=$token" "#exit=$mexit" "line=$line")"
+}
+
 main() {
   if [ "$#" -lt 1 ]; then
     echo "usage: review-dirty-tree.sh snapshot [BEFORE AFTER DISABLED] | compare-and-restore OID [BEFORE AFTER DISABLED]" >&2
@@ -303,8 +536,27 @@ main() {
       shift
       python3 "$ENGINE_IO" view-materialize "$@"
       ;;
+    loop-setup)
+      # issue #894 fix-loop one-call setup (host/sibling split in cmd_loop_setup below).
+      shift
+      cmd_loop_setup "$@"
+      ;;
+    branch-sync)
+      # issue #894 Step 0.5 PR-head comparand read: no checkout, no git-state change.
+      shift
+      python3 "$LOOP_IO" branch-sync "$@"
+      ;;
+    entry-open)
+      # issue #898 fix-loop entry bracket (contract in the header block above).
+      shift
+      cmd_entry_open "$@"
+      ;;
+    entry-close)
+      shift
+      cmd_entry_close "$@"
+      ;;
     *)
-      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-return | view-materialize)" >&2
+      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-return | view-materialize | loop-setup | branch-sync | entry-open | entry-close)" >&2
       return 2
       ;;
   esac

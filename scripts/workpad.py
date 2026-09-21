@@ -6535,8 +6535,9 @@ def _normalize_roster_member(member: str) -> str:
 
 _REVIEW_ROSTER_KEY_PREFIX = 'review-roster:'
 # Composed from `_MARKER_NS_RE` like the coverage grammars, so the confirmation-gated
-# retirement of the superseded namespace reaches it too. The capture holds
-# `<member>:<status>`; neither token carries a colon, so one split on ':' is unambiguous.
+# retirement of the superseded namespace reaches it too. The capture holds the combined
+# `_encode_reuse_roster` payload (`<member>.<status>` pairs joined by '_'), decoded by
+# `_decode_roster_payload`.
 _REVIEW_ROSTER_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint review-roster:([^\s]+?) -->'
 )
@@ -6544,6 +6545,21 @@ _REVIEW_ROSTER_MARKER_RE = re.compile(
 # `_review_roster_incoherence` refuses it — the fail-closed posture
 # `_review_coverage_dispositions` takes for a duplicated gap.
 _REVIEW_ROSTER_DUPLICATE = object()
+# A `review-roster:` row is present but its payload does not decode — a truncated or
+# garbled payload, or the superseded per-member `<member>:<status>` shape. Distinct from
+# the empty map (no row at all): the map is grandfathered, this state is refused as
+# UNESTABLISHED, so a damaged record stops a run instead of finalizing it.
+_REVIEW_ROSTER_UNDECODABLE = object()
+# The shared refusal tail both undecodable-roster sites raise (the Complete gate and a
+# --review-coverage-disposition write) — one source so the breadcrumb, token and re-stamp
+# remedy cannot drift between them; each site prepends only its own leading clause.
+_REVIEW_ROSTER_UNDECODABLE_TAIL = (
+    "a review-roster enumeration row is present but its payload does not decode "
+    "(truncated, garbled, or the superseded per-member shape), so the run's review "
+    "coverage is UNESTABLISHED [review-coverage-unestablished]. Re-stamp "
+    "`--record-review-coverage` with `--record-roster-member` at the Phase 3.3 review "
+    "exit, which strips the bad row. No PATCH was made."
+)
 # issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
 # appended after the axes. Both are colon-free because the payload is re-split on `:`, so a
 # colon-bearing ISO time here would be re-read as an axis field and break the record.
@@ -6696,23 +6712,34 @@ def _review_coverage_incoherence(record: dict) -> str | None:
     return None
 
 
-def _review_roster_members(progress_content: str) -> dict:
-    """The enumerated shadow roster as `{member: status}`, read from the `## Progress`
-    content — one `review-roster:<member>:<status>` marker row per member. A member with
-    more than one row maps to `_REVIEW_ROSTER_DUPLICATE` (separately refused as a duplicate);
-    a malformed payload (not `<member>:<status>`) is skipped, so that member reads as absent
-    and a `complete` claim that needed it is refused. Read back
-    here rather than trusted from the writing call, so an enumeration recorded at the
-    Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
+def _review_roster_members(progress_content: str):
+    """The enumerated shadow roster read from the `## Progress` content, as a three-state
+    result — one combined `review-roster:<encoded-roster>` marker row carries every member
+    (the `_encode_reuse_roster` payload the reusable-review record already stores):
+
+    - no `review-roster:` row present → `{}` (empty map; a legacy rosterless record is
+      grandfathered on this state exactly as before);
+    - the row(s) present all decode → the `{member: status}` map, with
+      `_REVIEW_ROSTER_DUPLICATE` for a member enumerated twice — within one payload or
+      across two roster rows (separately refused as a duplicate);
+    - any present row's payload does not decode — truncated or garbled, or the superseded
+      per-member `<member>:<status>` shape → `_REVIEW_ROSTER_UNDECODABLE`, never an empty
+      map, so a damaged record is refused as UNESTABLISHED rather than grandfathered.
+
+    Read back here rather than trusted from the writing call, so an enumeration recorded at
+    the Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
     coverage flags."""
+    payloads = list(_review_coverage_marker_rows(
+        progress_content, _REVIEW_ROSTER_MARKER_RE))
+    if not payloads:
+        return {}
     out: dict = {}
-    for payload in _review_coverage_marker_rows(
-            progress_content, _REVIEW_ROSTER_MARKER_RE):
-        fields = payload.split(':')
-        if len(fields) != 2:
-            continue
-        member, status = fields
-        out[member] = _REVIEW_ROSTER_DUPLICATE if member in out else status
+    for payload in payloads:
+        pairs = _decode_roster_payload(payload)
+        if pairs is None:
+            return _REVIEW_ROSTER_UNDECODABLE
+        for member, status in pairs:
+            out[member] = _REVIEW_ROSTER_DUPLICATE if member in out else status
     return out
 
 
@@ -6756,7 +6783,7 @@ def _review_roster_incoherence(record: dict, members: dict) -> str | None:
     measured = roster in ('complete', 'short')
     if members and not measured:
         return (f"roster={roster} measured no roster, so it must carry no per-member "
-                f"enumeration, but {len(members)} review-roster row(s) are present")
+                f"enumeration, but the review-roster row enumerates {len(members)} member(s)")
     if measured and not members:
         return (f"roster={roster} is a measured value, so it must enumerate the shadow's "
                 "per-member dispatch outcomes, but no review-roster row is present")
@@ -6782,15 +6809,27 @@ def _review_roster_incoherence(record: dict, members: dict) -> str | None:
     return None
 
 
-def _review_roster_marker(member: str, status: str) -> str:
-    """The hidden marker a review-roster enumeration row carries."""
-    return _checkpoint_marker(f'{_REVIEW_ROSTER_KEY_PREFIX}{member}:{status}')
+def _review_roster_marker(members: dict) -> str:
+    """The hidden marker the single combined review-roster enumeration row carries — one
+    `_encode_reuse_roster` payload over the whole map, decoded back by
+    `_review_roster_members`."""
+    return _checkpoint_marker(
+        f'{_REVIEW_ROSTER_KEY_PREFIX}{_encode_reuse_roster(members)}')
 
 
-def _render_review_roster_member(member: str, status: str) -> str:
-    """The roster-member row's visible text, coupled to `_review_roster_members`'
-    read-back."""
-    return f'review roster member {member}={status}'
+def _render_review_roster(members: dict) -> str:
+    """The combined roster row's visible text: the count of `dispatched` members, then
+    each `gated-off` and each `missing` member by name — e.g. `review roster: 5
+    dispatched, gated-off: type-design-analyzer`."""
+    dispatched = sum(1 for s in members.values() if s == 'dispatched')
+    parts = [f'review roster: {dispatched} dispatched']
+    gated = sorted(m for m, s in members.items() if s == 'gated-off')
+    missing = sorted(m for m, s in members.items() if s == 'missing')
+    if gated:
+        parts.append(f'gated-off: {", ".join(gated)}')
+    if missing:
+        parts.append(f'missing: {", ".join(missing)}')
+    return ', '.join(parts)
 
 
 # issue #1509: the diff-profile row that authorizes a `skipped-intentional` checklist
@@ -7023,8 +7062,8 @@ def _review_coverage_reason_rejection(reason):
 
 def _review_coverage_dispatch_uncorroborated(record: dict, roster_members: dict) -> bool:
     """True when a `dispatch=attempted` record with a measured roster is not
-    corroborated by per-member rows covering all four always-on reviewers with at least
-    one reading `dispatched` (issue #1984). Shared by the write-time
+    corroborated by the combined roster row's per-member entries covering all four
+    always-on reviewers with at least one reading `dispatched` (issue #1984). Shared by the write-time
     `--record-review-coverage` validator and the read-time Complete-gate verdict so the
     corroboration cannot hold at write time yet lapse at finalize over a legacy record.
     A non-measured roster (the lost-write `unestablished` shape) is never uncorroborated
@@ -7255,6 +7294,23 @@ def _encode_reuse_roster(members: dict) -> str:
     return '_'.join(f'{m}.{members[m]}' for m in sorted(members))
 
 
+def _decode_roster_payload(payload: str):
+    """The ordered `(member, status)` pairs a `_encode_reuse_roster` payload encodes, or
+    None when any pair is malformed — no `.` separator, an unknown member, or an unknown
+    status. Duplicate members are NOT judged here (the pairs are returned as-is); each
+    caller decides — the reusable-review record refuses a duplicate, the roster row maps
+    it to `_REVIEW_ROSTER_DUPLICATE`. The inverse of `_encode_reuse_roster`, and nothing
+    more."""
+    pairs = []
+    for pair in payload.split('_') if payload else []:
+        member, sep, status = pair.partition('.')
+        if (not sep or member not in _SHADOW_ROSTER_MEMBERS
+                or status not in _ROSTER_MEMBER_STATUSES):
+            return None
+        pairs.append((member, status))
+    return pairs
+
+
 def _parse_reusable_review_payload(payload: str):
     """The stored record as a dict, or None when any field is malformed."""
     fields = (payload or '').split(':')
@@ -7268,11 +7324,12 @@ def _parse_reusable_review_payload(payload: str):
         return None
     if checklist not in _REUSABLE_REVIEW_CHECKLISTS:
         return None
+    pairs = _decode_roster_payload(roster)
+    if pairs is None:
+        return None
     members: dict = {}
-    for pair in roster.split('_') if roster else []:
-        member, sep, status = pair.partition('.')
-        if (not sep or member not in _SHADOW_ROSTER_MEMBERS
-                or status not in _ROSTER_MEMBER_STATUSES or member in members):
+    for member, status in pairs:
+        if member in members:
             return None
         members[member] = status
     if (any(members.get(m) != 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
@@ -7731,6 +7788,10 @@ def _review_coverage_verdict(progress_content: str) -> None:
     # an enumeration is present, so a legacy `complete` record still finalizes while a
     # record whose enumeration IS present stays cross-checked as defense-in-depth.
     roster_members = _review_roster_members(progress_content)
+    if roster_members is _REVIEW_ROSTER_UNDECODABLE:
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — "
+            + _REVIEW_ROSTER_UNDECODABLE_TAIL)
     roster_incoherent = (_review_roster_incoherence(record, roster_members)
                          if roster_members else None)
     if roster_incoherent:
@@ -8945,7 +9006,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         roster_members[member] = status
     if review_coverage_payload:
         # #1984: corroborate a claimed shadow fan-out — a dispatch=attempted record
-        # with a measured roster needs per-member rows proving members were dispatched.
+        # with a measured roster needs the combined roster row's per-member entries
+        # proving members were dispatched.
         # Runs BEFORE the incoherence cross-check so a `short` roster whose rows name no
         # dispatched member (which incoherence, needing only one `missing`, would admit)
         # is refused here. The same predicate re-runs at the Complete gate.
@@ -9086,9 +9148,21 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     _disp_has_missing = False
     _disp_has_dispatched = False
     if review_dispositions:
-        _disp_roster = dict(
-            _review_roster_members(_progress_content_or_none(body) or ''))
-        _disp_roster.update(roster_members)
+        if review_coverage_payload:
+            # This call re-stamps coverage, which strips the prior roster rows before the
+            # append below, so the durable state is exactly this call's own enumeration;
+            # reading the pre-strip body (which may not decode) would refuse the re-stamp
+            # that fixes it.
+            _disp_roster = dict(roster_members)
+        else:
+            _disp_existing = _review_roster_members(
+                _progress_content_or_none(body) or '')
+            if _disp_existing is _REVIEW_ROSTER_UNDECODABLE:
+                raise _UpdateError(
+                    "--review-coverage-disposition: "
+                    + _REVIEW_ROSTER_UNDECODABLE_TAIL)
+            _disp_roster = dict(_disp_existing)
+            _disp_roster.update(roster_members)
         _disp_has_missing = any(s == 'missing' for s in _disp_roster.values())
         # #181/13e: a `dispatched-but-lost` disposition requires a recorded dispatch —
         # an always-on reviewer's row reading `dispatched` (roster-global, like the
@@ -9586,10 +9660,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'at {_anchor_asof}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
         )
-    for _member, _status in roster_members.items():
+    if roster_members:
         _review_coverage_rows.add(
-            f'{_render_review_roster_member(_member, _status)} '
-            f'{_review_roster_marker(_member, _status)}'
+            f'{_render_review_roster(roster_members)} '
+            f'{_review_roster_marker(roster_members)}'
         )
     for _gap, _cause, _reason in review_dispositions:
         _review_coverage_rows.add(
@@ -10594,8 +10668,9 @@ def main():
     u.add_argument('--record-roster-member', nargs=2, action='append', default=None,
                    metavar=('MEMBER', 'STATUS'),
                    help='Enumerate one shadow-review roster member and its dispatch '
-                        'outcome (issue #1512), as a "<!-- prflow:checkpoint '
-                        'review-roster:<member>:<status> -->" ## Progress row beside the '
+                        'outcome (issue #1512). All members recorded in one call are '
+                        'written as a single combined "<!-- prflow:checkpoint '
+                        'review-roster:<encoded-roster> -->" ## Progress row beside the '
                         '--record-review-coverage record. MEMBER is the bare name or its '
                         '`prflow:`-prefixed spelling (issue #345: the shadow record spells '
                         'reviewers prflow:<name>; one leading prflow: is stripped to the '

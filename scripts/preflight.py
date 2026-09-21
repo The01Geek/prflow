@@ -1960,6 +1960,157 @@ def scratch_issue(args: argparse.Namespace) -> int:
     return PROCEED_EXIT
 
 
+# ── issue-body (issue #891) ──────────────────────────────────────────────────
+# Fetches the issue body ONCE and writes it byte-exact to --out, so the Phase 1
+# §1.1 cache is authored by the helper that holds the bytes rather than re-typed
+# through the model's Write tool (which can corrupt the cached body). Byte capture
+# is deliberate: capture_output with no encoding= keeps `\r\n` and non-ASCII
+# untranslated, unlike _gh_issue_view's text-mode decode, so the cache round-trips exactly.
+def _issue_body_out_offender(top: str, out: str) -> "str | None":
+    """A refusal reason for an --out that escapes .prflow/tmp, or None when safe.
+
+    `out` is already absolute and normalized. Three ways it is refused, each the
+    `path` cause: it resolves outside <top>/.prflow/tmp (component-wise, so a sibling
+    like .prflow/tmpx never passes); it passes through a symlinked intermediate
+    directory below .prflow/tmp (reusing scratch-issue's own guard, which would let a
+    write act outside the intended scope); or the leaf itself is a symlink (refused,
+    never followed, exactly as _scratch_remove_file refuses a symlinked target).
+    """
+    scratch = _scratch_dir(top)
+    try:
+        if os.path.commonpath([scratch, out]) != scratch:
+            return f"--out {out!r} resolves outside {scratch}"
+    except ValueError:
+        # Different drives / a mix argparse cannot produce here, but fail closed.
+        return f"--out {out!r} is not comparable to {scratch}"
+    offender = _scratch_symlink_offender(top, out)
+    if offender is not None:
+        return f"--out passes through the symlinked directory {offender}"
+    if os.path.islink(out):
+        return f"--out {out!r} is a symlink; not following the referent"
+    return None
+
+
+def _write_bytes_atomic(out: str, data: bytes) -> None:
+    """Write `data` to `out` via a same-directory temp file and os.replace, so a
+    failed write never leaves a partial file at --out and a stale file is replaced
+    atomically. Raises OSError on any failure (the caller routes it to `write`)."""
+    parent = os.path.dirname(out)
+    fd, tmp = tempfile.mkstemp(dir=parent, prefix=".issue-body-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp, out)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _fetch_issue_body_bytes(issue: str) -> "tuple[bytes | None, str]":
+    """The issue body as raw bytes (or None when gh could not answer) and gh's last
+    stderr as a diagnostic string for the caller's failure breadcrumb. No encoding= on
+    stdout, so the bytes gh printed reach --out untranslated (the byte-exactness contract)."""
+    try:
+        result = subprocess.run(
+            [GH, "issue", "view", issue, "--json", "body", "-q", ".body"],
+            capture_output=True, env=fresh_gh_env(),
+        )
+    except OSError as exc:
+        return None, str(exc)
+    if result.returncode != 0:
+        return None, result.stderr.decode("utf-8", "replace").strip()
+    return result.stdout, ""
+
+
+def issue_body_cmd(args: argparse.Namespace) -> int:
+    issue = _validate_scratch_issue(args.issue)
+    if issue is None:
+        print(
+            "preflight.py: issue-body requires --issue to be a run of digits "
+            f"(got {args.issue!r})",
+            file=sys.stderr,
+        )
+        print("REFUSED", flush=True)
+        return UNAVAILABLE_EXIT
+    top = _repo_toplevel()
+    if top is None:
+        print(
+            "preflight.py: issue-body could not resolve the repository root; "
+            "not writing --out relative to the process working directory",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE path", flush=True)
+        return UNAVAILABLE_EXIT
+    if not os.path.isabs(args.out):
+        print(
+            f"preflight.py: issue-body requires an absolute --out (got {args.out!r})",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE path", flush=True)
+        return UNAVAILABLE_EXIT
+    out = os.path.normpath(args.out)
+    offender = _issue_body_out_offender(top, out)
+    if offender is not None:
+        # Checked BEFORE any fetch, so an out-of-scope --out never launches gh.
+        print(f"preflight.py: issue-body refuses {offender}", file=sys.stderr)
+        print("UNAVAILABLE path", flush=True)
+        return UNAVAILABLE_EXIT
+    # Remove a stale file first, so a later failed/empty/envelope fetch leaves no file
+    # at --out. A directory or unremovable target routes to `write`.
+    if os.path.lexists(out):
+        try:
+            os.remove(out)
+        except OSError as exc:
+            print(
+                f"preflight.py: issue-body could not clear a stale {out} ({exc})",
+                file=sys.stderr,
+            )
+            print("UNAVAILABLE write", flush=True)
+            return UNAVAILABLE_EXIT
+    body, fetch_diag = _fetch_issue_body_bytes(issue)
+    if body is None:
+        # Retry whenever the first fetch returned None — a non-zero gh exit or an
+        # OSError (gh unlaunchable) alike.
+        body, fetch_diag = _fetch_issue_body_bytes(issue)
+    if body is None:
+        detail = f" ({fetch_diag})" if fetch_diag else ""
+        print(
+            f"preflight.py: issue-body: gh issue view failed twice{detail}",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE fetch", flush=True)
+        return UNAVAILABLE_EXIT
+    if not body.strip():
+        # No retry on an exit-0 empty body — gh answered, the issue body is empty.
+        print("preflight.py: issue-body: gh returned an empty body", file=sys.stderr)
+        print("UNAVAILABLE empty", flush=True)
+        return UNAVAILABLE_EXIT
+    if body[:1] == b"{":
+        # First byte only: a leading space then `{` is a real body, not an envelope.
+        print(
+            "preflight.py: issue-body: the fetched body begins with '{' (a JSON "
+            "envelope, not the bare body)",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE envelope", flush=True)
+        return UNAVAILABLE_EXIT
+    try:
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        _write_bytes_atomic(out, body)
+    except OSError as exc:
+        print(
+            f"preflight.py: issue-body could not write {out} ({exc})",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE write", flush=True)
+        return UNAVAILABLE_EXIT
+    print(f"CACHED {out} bytes={len(body)}", flush=True)
+    return PROCEED_EXIT
+
+
 def lint_changed(args: argparse.Namespace) -> int:
     # Delegated to the lint_changed sibling module (issue #1389): the changed-file
     # advisory lint layer, kept out of this file so its git-enumeration, base64url,
@@ -2043,6 +2194,15 @@ def main(argv=None) -> int:
         required=True,
     )
     scratch_parser.set_defaults(func=scratch_issue)
+
+    # ── issue-body (issue #891) ─────────────────────────────────────────────
+    # --issue stays a bare optional string (NOT type=int) for the same reason as
+    # scratch-issue: a non-digit/absent operand reaches the REFUSED stdout token via
+    # _validate_scratch_issue, not _Parser.error's stderr-only usage path.
+    issue_body_parser = subparsers.add_parser("issue-body")
+    issue_body_parser.add_argument("--issue")
+    issue_body_parser.add_argument("--out", required=True)
+    issue_body_parser.set_defaults(func=issue_body_cmd)
 
     # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
     # Advisory changed-file and repository-wide lint, selected through the

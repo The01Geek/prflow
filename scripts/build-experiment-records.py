@@ -478,24 +478,55 @@ def _accumulate_cost(node, acc):
     return seen
 
 
+def _restored_iters(record):
+    """The `iter` values of `per_iteration` entries carrying `restored_from` (issue #893):
+    records the loop's continuation copied from a killed attempt, already counted and
+    costed under that attempt's own run id. Presence of the key is the signal."""
+    per_iteration = record.get("per_iteration")
+    if not isinstance(per_iteration, list):
+        return set()
+    return {e.get("iter") for e in per_iteration
+            if isinstance(e, dict) and e.get("restored_from") is not None}
+
+
+def _own_telemetry(record):
+    """The record's telemetry entries minus the restored iterations, or None when the
+    field is absent or not a list."""
+    tel = record.get("telemetry")
+    if not isinstance(tel, list):
+        return None
+    restored = _restored_iters(record)
+    return [e for e in tel if not (isinstance(e, dict) and e.get("iter") in restored)]
+
+
+def _own_iterations(record):
+    """The run's own iteration count: `per_iteration` entries not restored from a killed
+    attempt when that array is present, else the recorded `iterations` scalar."""
+    per_iteration = record.get("per_iteration")
+    if not isinstance(per_iteration, list) or not per_iteration:
+        return record.get("iterations")
+    return sum(1 for e in per_iteration
+               if not (isinstance(e, dict) and e.get("restored_from") is not None))
+
+
 def _run_cost(record):
-    """Per-run cost summary summed across the record's telemetry, or None when the
+    """Per-run cost summary summed across the record's own telemetry, or None when the
     run carries no numeric token telemetry."""
     acc = {}
-    seen = _accumulate_cost(record.get("telemetry") or [], acc)
+    seen = _accumulate_cost(_own_telemetry(record) or [], acc)
     if not seen:
         return None
     return {k: acc.get(k, 0) for k in _COST_KEYS}
 
 
 def _telemetry_complete(record):
-    """True only when the record is not synthesized, every iteration carries non-null
+    """True only when the record is not synthesized, every own iteration carries non-null
     token telemetry, and no degradation breadcrumb is present. The synthesized flag is
     the degradation breadcrumb; a null-token iteration disqualifies."""
     if record.get("synthesized"):
         return False
-    tel = record.get("telemetry")
-    if not tel or not isinstance(tel, list):
+    tel = _own_telemetry(record)
+    if not tel:
         return False
     for entry in tel:
         phases = (entry or {}).get("phases") if isinstance(entry, dict) else None
@@ -645,7 +676,7 @@ def _efficiency_entry(record, run_id):
         "slug": slug,
         "run_id": run_id,
         "source": record.get("source"),
-        "iterations": record.get("iterations"),
+        "iterations": _own_iterations(record),
         "synthesized": bool(record.get("synthesized")),
         "cost": _run_cost(record),
         "telemetry_complete": _telemetry_complete(record),
