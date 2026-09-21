@@ -28,6 +28,11 @@ carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
     raw      <work-dir> <B>
     finalize <work-dir> <N> <B> [--no-groups]
 
+``carry`` reads the prior iteration's Step 1.8 snapshot pair at the run root —
+``checklist-step1-iter-<N-1>.json`` joined by ``id`` with the verdict rows of
+``verification-step1-iter-<N-1>.json`` (the row wins) — or, with ``--prior FILE``,
+that file as already-joined items; an unusable snapshot carries nothing.
+
 ``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array) and
 ``<run-dir>/coverage-shortfall-iter-<N>.json``. It fails closed — ``ok: false``,
 no checklist written — on:
@@ -74,7 +79,10 @@ _REQUIRED_FIELDS = ("claim", "category")
 _EXPECTED_FIELDS = ("source_file", "claim_signature")
 # Categories a repo-wide convention check is emitted under (the cross-cutting theme rule).
 _THEME_CATEGORIES = ("api_contract", "string_presence")
-_PRIOR_VERDICT_FIELDS = ("verdict", "evidence", "file_checked", "raw_verdict", "normalized")
+# The verdict fields a carried PASS keeps, joined from its verification row. Must equal the
+# engine-return join's key set (review-engine-io.py VERDICT_KEYS) or a carried item drops a field.
+_PRIOR_VERDICT_FIELDS = ("verdict", "raw_verdict", "normalized", "evidence", "file_checked",
+                         "normalization_ineligible", "view_revision")
 
 
 def _shape(value):
@@ -191,7 +199,58 @@ def _changed_since(prior_head):
     return {n for n in names if n}, None
 
 
-def carry_items(prior_items, diff_paths, changed, iteration):
+def _strip_line_anchor(fc):
+    """``file_checked`` with its trailing line-anchor list removed — after the last ``:``, one
+    or more comma-separated ``N`` / ``N-M`` items, spaces and a trailing ``-`` tolerated; any
+    other tail, or a non-string, is returned unchanged. Coupled site: a copy of
+    normalize-verdicts.py's ``_strip_line_anchor`` (that helper's build mode must not import
+    this module); a divergence reuses a citation the collector's gate then demotes."""
+    if not isinstance(fc, str):
+        return fc
+    idx = fc.rfind(":")
+    if idx <= 0:
+        return fc
+    items = [item.strip() for item in fc[idx + 1:].split(",")]
+    items = [item for item in items if item]
+    if not items:
+        return fc
+    for item in items:
+        parts = item.split("-")
+        if not (1 <= len(parts) <= 2) or not parts[0].isdigit() or (
+                len(parts) == 2 and parts[1] and not parts[1].isdigit()):
+            return fc
+    return fc[:idx].rstrip()
+
+
+def tracked_at_head():
+    """A memoized probe: whether `path` names a blob at HEAD (`git cat-file -t HEAD:<path>`;
+    a tree — a directory, or the root for `""` — is not a file the collector can re-bind). A
+    probe that cannot run or exits non-zero reads as not tracked, so the item verifies fresh."""
+    seen = {}
+
+    def probe(path):
+        if path not in seen:
+            try:
+                run = subprocess.run(["git", "cat-file", "-t", f"HEAD:{path}"], capture_output=True)
+                seen[path] = run.returncode == 0 and run.stdout.strip() == b"blob"
+            except OSError:
+                seen[path] = False
+        return seen[path]
+    return probe
+
+
+def _reusable(item, changed, tracked):
+    """Whether a carried PASS is reused: its ``file_checked``, anchor list stripped, is one
+    path tracked at HEAD and outside the changed-file set — evidence the collector can re-bind
+    to the current head. A multi-file citation, free text, ``null``, ``""`` or a changed path
+    verifies fresh instead of being reused and then demoted to INCONCLUSIVE."""
+    if item.get("verdict") != "PASS":
+        return False
+    path = _strip_line_anchor(item.get("file_checked"))
+    return isinstance(path, str) and bool(path) and path not in changed and tracked(path)
+
+
+def carry_items(prior_items, diff_paths, changed, iteration, tracked):
     """Apply the carry rule and the tag table. Returns (carried, skipped_malformed)."""
     carried, malformed = [], 0
     for item in prior_items:
@@ -206,7 +265,7 @@ def carry_items(prior_items, diff_paths, changed, iteration):
         if cat == "issue_acceptance" or src not in diff_paths or src in changed:
             continue
         out = dict(item)
-        if item.get("verdict") == "PASS":
+        if _reusable(item, changed, tracked):
             origin = item.get("reused_from_iter")
             if isinstance(origin, bool) or not isinstance(origin, int) or origin < 1:
                 origin = iteration - 1
@@ -218,6 +277,47 @@ def carry_items(prior_items, diff_paths, changed, iteration):
             out["reused_from_iter_prev"] = False
         carried.append(out)
     return carried, malformed
+
+
+def _read_items(path, label):
+    """(items, cause): the checklist array at `path` — the root, or an object's `checklist`."""
+    status, doc = _read_json(path)
+    if status != "ok":
+        return None, f"{label} {status}"
+    items = doc.get("checklist") if isinstance(doc, dict) else doc
+    if not isinstance(items, list):
+        where = "checklist key" if isinstance(doc, dict) else "root"
+        return None, f"{label} {where} is {_shape(items)}, not an array"
+    return items, None
+
+
+def _join_snapshot_pair(run_dir, iteration):
+    """(items, cause): the Step 1.8 snapshot pair joined by id. Every verdict field comes from
+    the item's verification row (a field the row lacks is dropped) — the row may carry a
+    demotion the item's copied ``verdict: "PASS"`` predates — and an item with no row keeps
+    none, so it verifies fresh."""
+    items, cause = _read_items(os.path.join(run_dir, f"checklist-step1-iter-{iteration - 1}.json"),
+                               "checklist snapshot")
+    if cause:
+        return None, cause
+    status, rows = _read_json(os.path.join(run_dir, f"verification-step1-iter-{iteration - 1}.json"))
+    if status != "ok":
+        return None, f"verification snapshot {status}"
+    if not isinstance(rows, list):
+        return None, f"verification snapshot root is {_shape(rows)}, not an array"
+    by_id = {r["id"]: r for r in rows if isinstance(r, dict) and isinstance(r.get("id"), str)}
+    joined = []
+    for item in items:
+        if isinstance(item, dict):
+            row = by_id.get(item.get("id"), {})
+            item = dict(item)
+            for key in _PRIOR_VERDICT_FIELDS:
+                if key in row:
+                    item[key] = row[key]
+                else:
+                    item.pop(key, None)
+        joined.append(item)
+    return joined, None
 
 
 def op_carry(work, run_dir, iteration, prior_head, prior_path):
@@ -238,17 +338,16 @@ def op_carry(work, run_dir, iteration, prior_head, prior_path):
 
     if iteration < 2:
         return none("iteration 1 has no predecessor")
-    prior_path = prior_path or os.path.join(run_dir, f"iter-{iteration - 1}.json")
-    status, doc = _read_json(prior_path)
-    if status != "ok":
-        return none(f"prior checklist file {status}")
-    items = doc.get("checklist") if isinstance(doc, dict) else doc
-    if not isinstance(items, list):
-        where = "checklist key" if isinstance(doc, dict) else "root"
-        return none(f"prior checklist {where} is {_shape(items)}, not an array")
+    source = "prior checklist file" if prior_path else "checklist snapshot"
+    if prior_path:
+        items, cause = _read_items(prior_path, source)
+    else:
+        items, cause = _join_snapshot_pair(run_dir, iteration)
+    if cause:
+        return none(cause)
     result["prior"] = len(items)
     if not items:
-        return none("prior checklist is empty")
+        return none(f"{source} is empty")
     try:
         with open(os.path.join(run_dir, "diff.patch"), encoding="utf-8", errors="surrogateescape") as fh:
             diff_paths = _diff_paths(fh.read())
@@ -257,7 +356,7 @@ def op_carry(work, run_dir, iteration, prior_head, prior_path):
     changed, cause = _changed_since(prior_head)
     if changed is None:
         return none(cause)
-    carried, malformed = carry_items(items, diff_paths, changed, iteration)
+    carried, malformed = carry_items(items, diff_paths, changed, iteration, tracked_at_head())
     os.makedirs(work, exist_ok=True)
     _write_json(out_path, carried)
     result["carried"] = len(carried)

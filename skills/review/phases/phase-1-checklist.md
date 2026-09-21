@@ -7,7 +7,7 @@ Skip this entire phase (and Phase 2) when Phase 0.5 set `checklist_skipped = "in
 
 ### Work directory and assembly helper
 
-Phase 1's intermediates live in `<work-dir>` = `.prflow/tmp/review/<slug>/<run-id>/phase1-<token>`. Generate `<token>` — 8 or more unpredictable alphanumeric characters (the helper refuses fewer) — fresh at this phase entry and never reuse another entry's: a re-entrant entry shares `<run-id>` and `<N>`, and the token is what keeps it from reading this entry's files.
+Phase 1's intermediates live in `<work-dir>` = `.prflow/tmp/review/<slug>/<run-id>/phase1-<token>` — the setup record's `phase1_work_dir`, already created. Without a record, generate `<token>` — 8 or more unpredictable alphanumeric characters (the helper refuses fewer) — fresh at this phase entry and never reuse another entry's: a re-entrant entry shares `<run-id>` and `<N>`, and the token is what keeps it from reading this entry's files.
 
 Checklist JSON is assembled by `scripts/normalize-verdicts.py checklist <op> …`, not re-typed by you — the refused-Write arm (§1.3) and **Helper unavailable** below are the two exceptions: generators Write their own batch files, the deduper names merge groups by id, and the helper carries, concatenates, merges, renumbers, caps, tags and writes the artifact. Emit the vendored literal `.prflow/vendor/prflow/scripts/normalize-verdicts.py checklist <op> …` as a single leading-token statement first; on a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/normalize-verdicts.py checklist <op> …`; on a local-tier denial of the path-invoked form, `python3 <resolved helper path> checklist <op> …`. Substitute every operand literally (no `$VAR`, no redirect) and read the printed JSON object from the tool result — `ok` carries the outcome.
 
@@ -19,11 +19,11 @@ Checklist JSON is assembled by `scripts/normalize-verdicts.py checklist <op> …
 
 Skip this step unless `/prflow:review-and-fix` supplied both the iter-(N-1) checklist (`prior_checklist`) and that iteration's reviewed head (`prior_diff_head`). A standalone run, iteration 1, the Step 2.6 shadow, and an iteration whose predecessor was promoted or skipped Phase 1+2 each receive neither: they carry nothing forward and reuse no verdict.
 
-Run `checklist carry <work-dir> <N> <prior_diff_head>` (the commit id as a literal). It reads the `checklist` array of `iter-<N-1>.json` in the run directory — pass `--prior <path>` when `prior_checklist` lives in another file — applies the rule and tags below, and writes `<work-dir>/carried.json`.
+Run `checklist carry <work-dir> <N> <prior_diff_head>` (the commit id as a literal). It reads the prior entry's snapshot pair in the run directory — `checklist-step1-iter-<N-1>.json` joined by `id` with the verdict rows of `verification-step1-iter-<N-1>.json` — or, with `--prior <path>`, that file's already-joined items; applies the rule and tags below; and writes `<work-dir>/carried.json`. An unusable snapshot carries nothing and prints `carry-forward: none (<file> <shape>)` — log it.
 
 The helper establishes the changed-file set — what moved between the prior iteration's reviewed head and this one — with `git diff --name-only --no-renames <prior_diff_head> HEAD`, and fails closed when it cannot: `prior_diff_head` does not resolve (as in a shallow cloud checkout), or the `git diff` exits non-zero. It then carries nothing and prints the breadcrumb `carry-forward: none (<cause>)` — log it. An exit-0 empty output is a genuinely empty changed set, not a failure. An absent `prior_diff_head` never reaches here — this step is skipped and the loop logs that cause itself.
 
-**Carry a prior item** iff all three hold: its `category` is not `issue_acceptance`; its `source_file` is in this run's Phase 0.3 changed-file list; and its `source_file` is not in the changed-file set above. A carried item keeps its prior `id` and `claim_signature`. Reuse is keyed on `source_file` alone, so a carried PASS can rest on an unchanged file whose cross-file dependency moved; Phase 3 over the whole diff is the check on that.
+**Carry a prior item** iff all three hold: its `category` is not `issue_acceptance`; its `source_file` is in this run's Phase 0.3 changed-file list; and its `source_file` is not in the changed-file set above. A carried item keeps its prior `id` and `claim_signature`. It reuses its prior PASS only when its verification row's `verdict` is `PASS` and its `file_checked`, trailing line-anchor list removed, is a single path tracked at HEAD and outside the changed-file set — evidence the collector's provenance gate can re-bind to this head; any other citation (`null`, multi-file, free text, a changed path) verifies fresh. A reused PASS can still rest on an unchanged file whose cross-file dependency moved; Phase 3 over the whole diff is the check on that.
 
 The carried items — never the full prior array — are the `prior_checklist` §1.2 hands the generator, by the `carried.json` path, so its signature drop reaches only carried claims and a claim about a changed file is emitted fresh.
 
@@ -33,8 +33,8 @@ Every item is tagged:
 
 | Item | Fields it carries |
 |---|---|
-| Carried, prior `verdict` is `PASS` | `reused_from_iter_prev: true`; `reused_from_iter` — the prior item's own `reused_from_iter` when it had one, else N-1; plus the prior `verdict`, `evidence`, `file_checked` and, when present, `raw_verdict` and `normalized` |
-| Carried, any other prior verdict | `reused_from_iter_prev: false`, no `reused_from_iter` and no prior verdict fields — Phase 2 verifies it fresh |
+| Carried, reusing its PASS | `reused_from_iter_prev: true`; `reused_from_iter` — the prior item's own `reused_from_iter` when it had one, else N-1; plus the row's `verdict`, `evidence`, `file_checked` and, when present, `raw_verdict`, `normalized`, `normalization_ineligible` and `view_revision` |
+| Carried, not reusing | `reused_from_iter_prev: false`, no `reused_from_iter` and no prior verdict fields — Phase 2 verifies it fresh |
 | Generator's new item | `reused_from_iter_prev: false`, no `reused_from_iter` |
 
 Output the helper's `announce` line: `Carried {C} of {P} prior items forward ({R} reusing a prior PASS); generating the rest fresh.`
@@ -43,10 +43,12 @@ Output the helper's `announce` line: `Carried {C} of {P} prior items forward ({R
 
 Count the changed files. If 10 or fewer, launch one checklist-generator agent. If more than 10, split into batches of 10 (in Phase 0.3 document order), one agent per batch.
 
-Hand off each batch's slice by file reference, not inline content — the `{DIFF_PATH}` pattern Phase 3 uses, extended to Phase 1. The slice content must never transit the orchestrator's context. Author each slice as a file on disk, passing the generator its *path*:
+Hand off each batch's slice by file reference, not inline content — the `{DIFF_PATH}` pattern Phase 3 uses, extended to Phase 1. The slice content must never transit the orchestrator's context. Each slice is a file on disk; the generator gets its *path*:
 
-- Single batch (≤10 files): pass the cached full diff path `.prflow/tmp/review/<slug>/<run-id>/diff.patch` (from Phase 0.2) directly — **write no slice file.**
-- Multiple batches (>10 files): author each batch's slice from the already-cached `diff.patch` (never a fresh `git`/`gh` fetch). Phase 0.3 derived the file list from `diff.patch`'s `^diff --git` headers in document order, so batch _k_ (1-based) is exactly the _k_-th run of 10 `diff --git` sections — a numeric range taking no per-file filename arguments: its only operand is the fixed run-scoped `diff.patch` path, so no changed-file path is ever passed and spaces cannot break quoting. For batch _k_, with `s=(k-1)*10+1` and `e=k*10`, stream sections _s_ through _e_ through `tee` into the slice and read the printed section count from that invocation's own tool result:
+- Record arm (setup record present): its `batches` is the split — each entry's `first`..`last` are 1-based inclusive positions into the record's `files` (that batch's file list) and `slice` is `{SLICE_PATH}`; a single batch's `slice` is `diff.patch` itself. Author nothing. A batch whose `slice` is `unavailable` takes the fence arm below for that batch alone.
+- Fence arm (no record): count the files yourself and author each slice:
+  - Single batch (≤10 files): pass the cached full diff path `.prflow/tmp/review/<slug>/<run-id>/diff.patch` (from Phase 0.2) directly — **write no slice file.**
+  - Multiple batches (>10 files): author each batch's slice from the already-cached `diff.patch` (never a fresh `git`/`gh` fetch). Phase 0.3 derived the file list from `diff.patch`'s `^diff --git` headers in document order, so batch _k_ (1-based) is exactly the _k_-th run of 10 `diff --git` sections — a numeric range taking no per-file filename arguments: its only operand is the fixed run-scoped `diff.patch` path, so no changed-file path is ever passed and spaces cannot break quoting. For batch _k_, with `s=(k-1)*10+1` and `e=k*10`, stream sections _s_ through _e_ through `tee` into the slice and read the printed section count from that invocation's own tool result:
 
   ```bash
   awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/<slug>/<run-id>/diff.patch | tee .prflow/tmp/review/<slug>/<run-id>/batch-1.patch | grep -c '^diff --git'
@@ -112,12 +114,14 @@ Diff path: {SLICE_PATH}
 
 Output path: {OUT_PATH}
 
+Head view: {§0.2.8 {VIEW_HEAD} directory and {VIEW_HEAD_REV} 40-hex revision; else "none (read the working tree)"}
+
 Changed files to analyze:
 {paste the file list here}
 
 Generate the verification checklist ONLY for the changed files listed above — even if the diff at that path contains other files (a fallback slice is the full diff). Write the JSON array to the output path with your Write tool and reply with the item count only.
 ```
-Substitute `{SLICE_PATH}` with the batch's slice path (`.prflow/tmp/review/<slug>/<run-id>/batch-<k>.patch`), or the full `diff.patch` path on a single-batch run or the Phase 1.1 fail-closed fallback, and `{OUT_PATH}` with `<work-dir>/batch-<k>.json` (`batch-1.json` on a single-batch run). In a >1-batch run, also name the sibling batches' files (per Phase 1.1).
+Substitute `{SLICE_PATH}` with the batch's slice path (`.prflow/tmp/review/<slug>/<run-id>/batch-<k>.patch`), or the full `diff.patch` path on a single-batch run or the Phase 1.1 fail-closed fallback, `{OUT_PATH}` with `<work-dir>/batch-<k>.json` (`batch-1.json` on a single-batch run), and the `Head view` operands with §0.2.8's `{VIEW_HEAD}` and `{VIEW_HEAD_REV}` as literals — the generator reads the changed files from that view, not the checkout. In a >1-batch run, also name the sibling batches' files (per Phase 1.1).
 
 If `issue_context` is not empty, append this to the prompt:
 

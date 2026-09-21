@@ -105,7 +105,7 @@ If the reproduction was not a failing test, PRFlow writes one before it writes t
 
 ## Acceptance Criteria Decide What Gets Checked
 
-Before the documentation stage, every in-scope acceptance criterion must be supported by a passing test, a documented manual check or a code reference. Two independent checkers run in a fresh context and have to agree; if they disagree, the criterion counts as unestablished and blocks, exactly as a failing one would.
+Before finalization, every in-scope acceptance criterion must be supported by a passing test, a documented manual check or a code reference. Two independent checkers run in a fresh context and have to agree; if they disagree, the criterion counts as unestablished and blocks, exactly as a failing one would.
 
 A criterion that can only be confirmed in a real deployed environment stays unticked and moves to the pull request's Post-Merge Verification section.
 

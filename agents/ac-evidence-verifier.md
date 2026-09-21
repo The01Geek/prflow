@@ -86,10 +86,10 @@ A criterion satisfied by "the project's test suite passes", "`shellcheck`/`ruff`
    - **In-env pass** — establish the pass from what the command *reported* (its terminal
      summary line wherever the runner writes it, read from the saved capture file; a command
      silent on success from its exit status). A saved file a command you launched in this attempt
-     produced counts as that command's observed output. `satisfied`, with `evidence` naming — for
-     a captured command — the saved capture file's path and the summary line you read from it, or
-     — for a command run bare (silent on success, or the bare-command fallback), which writes no
-     capture file — the command and its observed result, on `$(git rev-parse HEAD)`.
+     produced counts as that command's observed output. `satisfied`, with `evidence` naming the
+     command, the summary line you read from it (a command silent on success: its observed
+     result), and `$(git rev-parse HEAD)` — captured and bare commands alike. The capture file's
+     path is recorded in the `command-run` slot, never in `evidence`.
    - **In-env failure** — the command ran and failed. `unmet`, with `evidence` naming the
      failing detail. Never `(post-merge)` a real failure.
    - **Captured run with no summary line** — a captured run whose saved file holds no terminal
@@ -248,7 +248,7 @@ records:
 ```json
 {
   "criteria": [
-    {"criterion": 1, "status": "satisfied", "quantified": false, "evidence": "ran <TEST_COMMAND> in-env; summary line '<clean aggregate>' in <ATTEMPT_DIR>/<name>.log on <sha>",
+    {"criterion": 1, "status": "satisfied", "quantified": false, "evidence": "ran <TEST_COMMAND> in-env; summary line '<clean aggregate>' on <sha>",
      "dispositions": {
        "type-decided": "yes (verification-command, from the criterion naming the suite)",
        "command-run": "yes (ran <TEST_COMMAND> in-env once, captured to <ATTEMPT_DIR>/<name>.log; it reported a clean aggregate)",

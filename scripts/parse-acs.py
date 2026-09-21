@@ -75,6 +75,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # Shared section/checkbox parsing rules (issue #781), imported IN-PROCESS from
@@ -321,6 +322,64 @@ def _render_md_line(item: dict) -> str:
     return render_line({'text': text, 'ticked': item['ticked']})
 
 
+def _resolve_repo_root() -> "tuple[int, str]":
+    """(returncode, stripped stdout) of `git rev-parse --show-toplevel`.
+
+    An absent/unlaunchable git is the same unresolved-root condition as a non-zero
+    exit — return (1, '') so the caller fails closed rather than anchoring to cwd.
+    Shared by the --body-file anchor branch and the --out resolution (issue #891).
+    """
+    try:
+        top = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
+                             capture_output=True, text=True, encoding="utf-8")
+    except OSError:
+        return 1, ''
+    return top.returncode, top.stdout.strip()
+
+
+def _resolve_out(out: str) -> "str | int":
+    """The absolute --out path to write, or an int exit code after printing a
+    diagnostic (issue #891). A relative --out anchors on the repository root exactly
+    as --body-file does; the resolved target must sit below <top>/.prflow/tmp, else
+    the run writes nothing and fails with a non-zero exit naming the path."""
+    rc, root = _resolve_repo_root()
+    if rc != 0 or not root:
+        print(f"parse-acs.py: --out: could not resolve the repository root to "
+              f"validate {out!r}", file=sys.stderr)
+        return 1
+    resolved = out if os.path.isabs(out) else os.path.join(root, out)
+    resolved = os.path.normpath(resolved)
+    scratch = os.path.join(root, ".prflow", "tmp")
+    try:
+        contained = os.path.commonpath([scratch, resolved]) == scratch
+    except ValueError:
+        contained = False
+    if not contained:
+        print(f"parse-acs.py: --out {out!r} resolves outside {scratch}; writing "
+              f"nothing", file=sys.stderr)
+        return 1
+    return resolved
+
+
+def _write_out(out: str, data: bytes) -> None:
+    """Write `data` to `out` via a same-directory temp file and os.replace, creating
+    a missing parent directory below .prflow/tmp. Raises OSError on failure."""
+    parent = os.path.dirname(out)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=parent or ".", prefix=".acs-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp, out)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def main():
     _force_utf8_streams()
     p = argparse.ArgumentParser(prog='parse-acs.py')
@@ -333,7 +392,21 @@ def main():
         help='Resolve --body-file against the checkout root (issue #1633 anchoring '
              'mode), so the enrolled fence passes a repository-relative path and '
              'need not compute the repository root itself.')
+    p.add_argument(
+        '--out',
+        help='Write the rendered output byte-for-byte to this path (below '
+             '<top>/.prflow/tmp) and print WROTE <abs> bytes=<n> instead of the '
+             'rendered text (issue #891). A relative --out anchors on the repository '
+             'root as --body-file does.')
     args = p.parse_args()
+
+    # Validate --out before any body read, so an out-of-bounds target writes nothing.
+    out_path = None
+    if args.out is not None:
+        resolved = _resolve_out(args.out)
+        if isinstance(resolved, int):
+            return resolved
+        out_path = resolved
 
     if args.issue is not None:
         body = _fetch_body(args.issue)
@@ -345,12 +418,7 @@ def main():
             # An absent/unlaunchable git is the same unresolved-root condition as a
             # non-zero exit; letting OSError escape would replace the fail-closed
             # breadcrumb below with a traceback (preflight.py's _run_git contract).
-            try:
-                top = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
-                                     capture_output=True, text=True, encoding="utf-8")
-                rc, root = top.returncode, top.stdout.strip()
-            except OSError:
-                rc, root = 1, ''
+            rc, root = _resolve_repo_root()
             if rc != 0 or not root:
                 # Fail closed on a non-zero exit rather than silently anchoring to cwd;
                 # the §1.2 fence routes any non-zero parse exit to the run's stop path.
@@ -387,12 +455,27 @@ def main():
         # fields: the present-but-unreadable signal (issue #1198) for a consumer
         # reading JSON rather than stderr. Absent-section and parsed-section
         # cases both report false.
-        print(json.dumps({'acceptance_criteria': criteria, 'test_plan': test_plan,
-                          'acceptance_criteria_unreadable': ac_unreadable,
-                          'test_plan_unreadable': tp_unreadable},
-                         indent=2))
+        output = json.dumps({'acceptance_criteria': criteria, 'test_plan': test_plan,
+                            'acceptance_criteria_unreadable': ac_unreadable,
+                            'test_plan_unreadable': tp_unreadable},
+                           indent=2)
     else:
-        print(_render_md(criteria, test_plan))
+        output = _render_md(criteria, test_plan)
+
+    if out_path is not None:
+        # The file carries exactly the bytes print(output) would put on stdout — the
+        # trailing newline print appends included — so a consumer reads an identical
+        # artifact whether the helper wrote it or the caller redirected stdout.
+        data = (output + "\n").encode("utf-8")
+        try:
+            _write_out(out_path, data)
+        except OSError as exc:
+            print(f"parse-acs.py: --out: could not write {out_path!r}: {exc}",
+                  file=sys.stderr)
+            return 1
+        print(f"WROTE {out_path} bytes={len(data)}")
+    else:
+        print(output)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 ---
 name: implement-finalization
-description: 'Use when implement reaches its pre-gate documentation stage or Phase 4, or resumes unfinished finalization.'
+description: 'Use when implement reaches Phase 4 or resumes unfinished finalization.'
 tools: Read, Grep, Glob, Bash, Write, Edit, Agent, Skill
 model: inherit
 color: green
@@ -8,7 +8,7 @@ color: green
 
 # Implementation Finalization
 
-You own the implement finalization procedure from §4.0 through the tip-landed gate. Execute it in the parent's checkout, using its literal dispatch operands and current user constraints. Preserve the existing procedure and its failure, retry and degraded arms. Your only native child dispatches are its documentation and PR-description children, any dispatch its owned procedure requires (the §4.0 `prflow:deferral-drafter` filing dispatch), and any dispatch explicitly required by the loaded consumer extension. Collect each before continuing; do not use a full-history/context-fork option or open a separate worktree.
+You own the implement finalization procedure, in its file order, from §4.1 through the tip-landed gate. Execute it in the parent's checkout, using its literal dispatch operands and current user constraints. Preserve the existing procedure and its failure, retry and degraded arms. Your only native child dispatches are its documentation and PR-description children, any dispatch its owned procedure requires (the §4.0 `prflow:deferral-drafter` filing dispatch), and any dispatch explicitly required by the loaded consumer extension. Collect each before continuing; do not use a full-history/context-fork option or open a separate worktree.
 
 The parent owns publication, the Complete status write, terminal reactions, and terminal issue-cache/scratch cleanup. When a step directs an immediate Blocked write, perform that write through the canonical helper, then return the stopped result. Do not run `gh pr ready` or merge any PR. Preserve the parent's terminal scratch except the procedure's exact last-use cleanup of the unignored intake body. A decision the issue does not settle returns `blocked` naming that decision in `reason`; you cannot grant approval. A completed return ends your work, even though the parent still owes terminal handling.
 
@@ -32,8 +32,6 @@ After a refusal, never retry the command respelled, chained, split, or with `dan
 ## Execute the owned procedure
 
 Read `SKILL_DIR/references/phase-4-finalization.md` completely in this worker. Recover every offered page before acting. Its first and last lines must be the unique ordered `prflow:implement-finalization-ref` start/end pair naming `skills/implement/references/phase-4-finalization.md`. A refused, incomplete, empty, duplicate or wrong boundary returns `error`; the parent does not salvage it inline.
-
-Documentation stage. A dispatch carrying `STAGE: documentation` precedes the acceptance-criteria gate: execute only the procedure's §4.1 — without the `Documenting` status write or the 3.4-deferred doc-AC discharge — then its *Early verification request*, and no §4.0, §4.2 or §4.3 step. Remove your transient payloads as before the clean-tree boundary, skip the handoff file, and make your whole hand-back the one line `documentation-stage: <done|stopped> head=<sha> request=<handle|none>`; a step that stops keeps its workpad write and returns `stopped`.
 
 Execute the owned steps in order. On a targeted resume, first reconcile the supplied completed-step references with the live workpad and artifacts; reuse only established work and continue at the first unmet obligation. Do not duplicate a landed follow-up issue or completed child merely because a previous result was lost. An unestablished resume state returns `needs-recovery` to the parent.
 

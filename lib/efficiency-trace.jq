@@ -407,6 +407,16 @@ def iter_view:
       # in the record so downstream analysis never mistakes a reconstructed record
       # for an agent-written one.
       synthesized: (($it.synthesized) == true),
+      # The killed attempt's run id when the loop's continuation restored this record
+      # (issue #893), else null. A restored iteration was already recorded — and its
+      # cost already summed — under that attempt's own run id, so the record-mode
+      # `iterations` count and `telemetry` cost below exclude it; `per_iteration` keeps
+      # it, annotated, so the resumed loop's full history stays legible. Presence of the
+      # key is the exclusion — a present but malformed value reads "unestablished", never
+      # null, so a restored record is never re-counted as this run's own.
+      restored_from: ($it | if has("restored_from")
+                            then (.restored_from | if (type == "string" and (length > 0)) then . else "unestablished" end)
+                            else null end),
       # Carried for the loop_role derivation resolved in the top-level pass below
       # (where the full sorted array is in scope). loop_role_persisted is the
       # workpad's own value when present and non-empty — it wins over derivation.
@@ -551,7 +561,9 @@ def iter_view:
       # #1903) — or the "unestablished" sentinel when no iteration carried a
       # defect_signature to read. A kind that never repeated that often is absent.
       recurring_defect_kinds: $recurring_defect_kinds,
-      iterations: ($iters | length),
+      # Iterations this run itself ran: a record the continuation restored from a
+      # killed attempt (issue #893) is counted under that attempt's run id, not here.
+      iterations: ([$iters[] | select(.restored_from == null)] | length),
       per_iteration: ($iters | map({
         iter: .iter,
         # Each iteration's role in the fix loop (fix | promoted), derived above
@@ -559,6 +571,8 @@ def iter_view:
         loop_role: .loop_role,
         # Whether this iteration was reconstructed by the issue #381 synthesis floor.
         synthesized: .synthesized,
+        # The killed attempt this record was restored from (issue #893), else null.
+        restored_from: .restored_from,
         phase3_dispatched: .phase3_dispatched,
         phase3_dispatched_count: .phase3_dispatched_count,
         # Carried into the durable record so the cross-run analyzer can tell a
@@ -594,8 +608,10 @@ def iter_view:
       })),
       # Cost telemetry carried forward from each workpad so it is no longer lost
       # when .prflow/tmp/ is destroyed at GH-runner teardown. `phases` mirrors
-      # established workpad value verbatim, or the explicit unavailable marker.
-      telemetry: ($iters | map({iter: .iter, phases: .telemetry}))
+      # established workpad value verbatim, or the explicit unavailable marker. A
+      # restored iteration's cost is excluded (issue #893): it was summed under the
+      # killed attempt's own record.
+      telemetry: ([$iters[] | select(.restored_from == null)] | map({iter: .iter, phases: .telemetry}))
     }
     end
 
@@ -625,6 +641,7 @@ def iter_view:
                   # Per-entry engine dispatch mode + corroboration (issue #115).
                   "- Dispatch: step1 \(.dispatch.step1.dispatch_mode // "null")/\(.dispatch.step1.dispatch_corroboration), shadow \(.dispatch.shadow.dispatch_mode // "null")/\(.dispatch.shadow.dispatch_corroboration)"
                 ]
+              + (if .restored_from != null then ["- Restored from run \(.restored_from) (issue #893): counted and costed under that run's record"] else [] end)
               + (.agent_verdicts | map("  - \(.agent) — \(.verdict)") | (if length == 0 then ["- Agent verdicts: (none dispatched)"] else ["- Agent verdicts:"] + . end))
               + (if $review_mode
                  then (if ($contributed == 0 and (.agent_verdicts | length) > 0) then ["- ⚠ Marginal yield: no dispatched agent contributed to the verdict this run."] else [] end)

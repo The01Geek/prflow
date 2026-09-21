@@ -165,7 +165,7 @@ gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !i
 
 It prints one JSON line; route on `status`:
 
-- `ok` — hold `slug`, `run_dir`, `diff_path` (`{DIFF_PATH}`), `base` and `base_sha` (the selected `$HEAD_OVERRIDE_BASE` and its pinned commit), `head_sha` (`$PR_HEAD_SHA` under head override, and the commit the diff was produced at), `files` (Phase 0.3's list — status `s`, path `p`, added `a`, deleted `d`), `file_count`, `changed_lines`, `flags`, `audit_hints` and `snapshot_oid` (Phase 3.1's `{GIT_SNAP_BEFORE_OID}`; `unavailable` is a failed snapshot). Report each `warnings` entry. All but `snapshot_oid` persists at `<run_dir>/engine-setup.json` for a compacted context.
+- `ok` — hold `slug`, `run_dir`, `diff_path` (`{DIFF_PATH}`), `base` and `base_sha` (the selected `$HEAD_OVERRIDE_BASE` and its pinned commit), `head_sha` (`$PR_HEAD_SHA` under head override, and the commit the diff was produced at), `files` (Phase 0.3's list — status `s`, path `p`, added `a`, deleted `d`), `file_count`, `changed_lines`, `flags`, `audit_hints`, `phase1_work_dir` and `batches` (Phase 1's work directory and batch slices, §1.1) and `snapshot_oid` (Phase 3.1's `{GIT_SNAP_BEFORE_OID}`; `unavailable` is a failed snapshot). Report each `warnings` entry. All but `snapshot_oid` persists at `<run_dir>/engine-setup.json` for a compacted context.
 - `empty` — take the "No changes to review" stop above.
 - `error` — stop, quoting `step` and `reason`, exactly as the failure routing below stops; once the run directory resolved, the helper has already removed both caches.
 - No JSON at all (refused, or not found on both arms) — fall back to the base-resolution fence above and the ordered steps below.

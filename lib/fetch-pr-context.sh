@@ -439,17 +439,21 @@ for raw in body.split('\n'):
         continue
     if not in_section:
         continue
-    # End of the reflection region: the closing </details>, or the next
-    # `## ` heading (degrade gracefully when </details> is missing — malformed
+    # End of the reflection region: a line that IS the closing </details>, or the
+    # next `## ` heading (degrade gracefully when </details> is missing — malformed
     # block must not detonate the parse or swallow the rest of the comment).
-    # NOTE: a `### ` sub-heading is `##`+`#`, so it never matches `^##\s+\S` and
-    # is not a region terminator — it is captured as the current sub-section below.
-    if '</details>' in line:
+    # NOTE: match the section's own scaffold on the STRIPPED WHOLE line, never a
+    # substring (issue #681): a reflection bullet whose own text embeds an inline
+    # `<details>…</details>` — the shape the 3.4 dispositions record renders as —
+    # must be captured as a bullet, not mistaken for a scaffold line and dropped.
+    # A `### ` sub-heading is `##`+`#`, so it never matches `^##\s+\S` and is not a
+    # region terminator — it is captured as the current sub-section below.
+    if line.strip() == '</details>':
         break
     if re.match(r'^##\s+\S', line):
         break
-    # Skip the <details>/<summary> scaffold lines.
-    if '<details' in line or '<summary' in line or '</summary>' in line:
+    # Skip the <details>/<summary> scaffold lines (a line that STARTS with the tag).
+    if line.strip().startswith(('<details', '<summary', '</summary>')):
         continue
     # Track the current `### ` sub-section heading (drives the friction split).
     h = re.match(r'^\s*(###\s+.*\S)\s*$', line)

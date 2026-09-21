@@ -19,7 +19,7 @@ Idempotent, best-effort: read its outcome token but do not act on it; a failure 
 
 Cache the issue body ONCE per run attempt. The first body read writes the body to a single in-tree cache file, `.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md`, and the Phase 1–2 consumers below read it by explicit hand-off (shell helpers via their `--body-file` arms; subagents via an `Issue body path:` line) instead of re-fetching. Every verdict-bearing reader (the §4.1 Documentation-Needed gate, the Phase 3.3 inline review, `/pr-description`, `fix`) keeps fetching live, since a human can amend the issue mid-run.
 
-The in-tree write is preconditioned on an ignore rule already covering `.prflow/tmp/` — the run never creates one. Resolve the precondition through the already-granted `preflight.py`. Anchor the cache to the repo-or-worktree root, run the precondition, then — only on the satisfied arm — delete any stale cache and fetch the body fresh, so a resumed / re-triggered / stall-backstop-auto-resumed run never reads a prior attempt's file. The agent fetches with the extracting form `--json body --jq '.body'` and authors the cache by tier (fence follow-up below). Retry only when the first fetch exits non-zero.
+The in-tree write is preconditioned on an ignore rule already covering `.prflow/tmp/` — the run never creates one. Resolve the precondition through the already-granted `preflight.py`, then hand the resolved `--out` to `preflight.py issue-body`: the helper fetches the body once (extracting form, one retry only on a non-zero `gh` exit), removes any stale file at `--out` first — so a resumed / re-triggered / stall-backstop-auto-resumed run never reads a prior attempt's file — writes the fetched bytes byte-exact, and refuses an empty body, a JSON-envelope body, or a failed write itself. The model never authors the copy.
 
 Run the precondition as its own single statement; the helper resolves the repo root itself, so pass the cache path **repo-relative** under `--repo-relative`:
 
@@ -29,23 +29,25 @@ Run the precondition as its own single statement; the helper resolves the repo r
 
 Read the exit code and printed token from the tool result — never a captured shell variable — and route agent-side on the exit code:
 
-- `IGNORED <absolute-cache-path>` / exit 0 — precondition satisfied; the token is followed by the absolute cache path the helper resolved and checked. Substitute it for `<absolute-cache-path>` below and its parent for `<absolute-cache-directory>`. Run these as separate statements, inspecting each tool result:
+- `IGNORED <absolute-cache-path>` / exit 0 — precondition satisfied; the token is followed by the absolute cache path the helper resolved and checked. Substitute it for `<absolute-cache-path>` and author the cache with one `issue-body` fence — the helper owns the fetch, the stale-file removal, and the byte-exact write:
   ```bash
-  mkdir -p <absolute-cache-directory>
-  rm -f <absolute-cache-path>
-  gh issue view $ARGUMENTS --json body --jq '.body'
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py issue-body --issue $ARGUMENTS --out <absolute-cache-path>
   ```
-  Author by tier. Cloud tier (the run-facts block reads `tier: cloud`, or a run not positively established as local): leave the `gh issue view` line as shown, consume its stdout from the tool result, and Write those exact bare-body bytes to `<absolute-cache-path>` — an absolute-target redirect is refused on the cloud tier. Local/interactive tier: append ` > <absolute-cache-path>` to that `gh issue view` line so its stdout writes straight to the cache, no Write needed. If `gh` fails, retry once; a refused or no-output local-arm redirect fetch is an unestablished measurement routed to the stop path below, never the degraded or failed-fetch case. Do not retry an exit-0 empty body; the cloud arm requires non-empty stdout before its Write. Carry that absolute path as the cache location handed to every later consumer.
-- `NOT_IGNORED <absolute-cache-path>` / exit 2 — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the issue-body cache is not written; take the degraded arm. The resolved absolute path is printed on this arm too.
+  Carry that absolute path as the cache location handed to every later consumer.
+- `NOT_IGNORED <absolute-cache-path>` / exit 2 — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the cross-phase issue-body cache stays disabled. Author the body instead to a flat transient file with one `issue-body` fence — the same helper, targeting `<scratch-dir>/intake-issue-body-$ARGUMENTS.md` (`<scratch-dir>` is the printed cache path's grandparent, `…/.prflow/tmp`); §1.2 reads it by `--body-file` and `scratch-issue --action remove-intake-body` clears it at terminal:
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py issue-body --issue $ARGUMENTS --out <scratch-dir>/intake-issue-body-$ARGUMENTS.md
+  ```
+  The other cross-phase cache consumers (§1.3.5, the §2.1/§2.2 dispatches) keep their degraded arms; only §1.1 classification and §1.2 read this transient file.
 - `UNAVAILABLE` / exit 3, or a refused / no-output invocation — an *unestablished measurement*, never a decided "not ignored": take the run's existing STOP path. Absent output is never a decided answer, and a matcher refusal must not masquerade as the degraded arm.
 
 Hold the scratch directory as `<scratch-dir>`, substituted wherever it appears below. Both resolved arms print an absolute path ending `…/.prflow/tmp/issue-body/issue-<n>.md`; its grandparent, `…/.prflow/tmp`, is `<scratch-dir>`. `<run-scratch>` is this run's home for the issue's run-lifetime files: `<scratch-dir>/implement/$ISSUE_NUMBER` on the resolved-IGNORED arm (the folder §1.1.5 prepares below), `<scratch-dir>` on the resolved-NOT_IGNORED arm (no per-issue folder; files keep flat paths). Carry it across phases as you carry the §1.1 arm.
 
-Fail closed on the fetch's exit status AND on the written content. After authoring the cache (the cloud arm's Write, or the local arm's redirect), Read the cache file back. Treat it as valid only when it is non-empty and does not begin with `{` (a JSON envelope). A retry that also failed, an exit-0 empty fetch, a failed Write/Read, a zero-byte file, or a JSON-object body is a failed cache: route to the run's existing stop path (report "Error: Could not read GitHub issue #$ARGUMENTS body into the cache") rather than leaving a plausible-looking cache for later phases to consume.
+Route on the printed token and exit code (never a captured shell variable). `CACHED <absolute-path> bytes=<n>` / exit 0 — the file at `--out` holds the body byte-exact; Read it once for the classification below. `UNAVAILABLE <cause>` (cause one of `fetch`/`empty`/`envelope`/`path`/`write`) or `REFUSED`, each exit 3 — no file was left at `--out`; the empty-body, JSON-envelope, and failed-write checks the helper now owns all land here, so take the run's existing stop path (report "Error: Could not read GitHub issue #$ARGUMENTS body into the cache") rather than leaving a plausible-looking cache for later phases to consume.
 
-On the resolved `NOT_IGNORED` (exit 2) arm (`UNAVAILABLE`/refused is the stop path routed above): the cache is not written, and each consumer class takes its own stated degraded fallback (not a single blanket "fetch live"). This same precondition also governs the §1.2 acs parse and the Phase 4.1 docgate body/extractor-error capture — the migrated `.prflow/tmp/` run-lifetime scratch writes — which do not re-check it; they consume *this* result (the docgate capture is suppressed here). No fallback re-targets `/tmp`. On this arm §1.1.5 does not run. Record the degradation in your run context and write a workpad `--note` naming it as soon as the workpad exists (it already does on the cloud tier; otherwise immediately after §1.3): `Phase 1.1: .prflow/tmp/ not gitignored — issue-body cache disabled, migrated scratch (acs parse) stays flat, and no per-issue scratch folder is created`.
+On the resolved `NOT_IGNORED` (exit 2) arm (`UNAVAILABLE`/refused is the stop path routed above): the cross-phase cache is not written, but §1.1's `issue-body` fence wrote the transient `intake-issue-body-$ARGUMENTS.md`, which §1.2 reads by `--body-file`. Every *other* consumer class takes its own stated degraded fallback (not a single blanket "fetch live"): the Phase 4.1 docgate body/extractor-error capture — a migrated `.prflow/tmp/` run-lifetime scratch write — does not re-check this precondition and consumes *this* result (the docgate capture is suppressed here). No fallback re-targets `/tmp`. On this arm §1.1.5 does not run. Record the degradation in your run context and write a workpad `--note` naming it as soon as the workpad exists (it already does on the cloud tier; otherwise immediately after §1.3): `Phase 1.1: .prflow/tmp/ not gitignored — cross-phase issue-body cache disabled, migrated scratch (acs parse) stays flat, and no per-issue scratch folder is created`.
 
-Whether the cache was written is orchestrator state that does not survive across Bash calls — carry it in context. When written, §1.2/§1.3.5/§1.6 read it and the §2.1/§2.2/§4.1 dispatches ship an `Issue body path:` line; on the degraded arm they revert to the earlier behavior. The cache is reached only by hand-off, as an explicit parameter of the orchestrator's own invocation.
+Whether the cross-phase cache was written is orchestrator state that does not survive across Bash calls — carry it in context. When written, §1.2/§1.3.5/§1.6 read it and the §2.1/§2.2/§4.1 dispatches ship an `Issue body path:` line; on the degraded arm §1.3.5/§1.6 and the dispatches revert to the earlier behavior while §1.2 reads the transient body file. The cache is reached only by hand-off, as an explicit parameter of the orchestrator's own invocation.
 
 Now fetch the remaining metadata — body dropped, so this fetch adds no further copy of the body to your context:
 ```bash
@@ -54,7 +56,7 @@ gh issue view $ARGUMENTS --json title,labels,number
 
 If this fails, stop immediately and report: "Error: Could not fetch GitHub issue #$ARGUMENTS. Verify the issue number exists."
 
-Save the issue title, labels, and number — you will use these throughout the workflow; the body lives in the cache (read it back above). On the degraded arm where no cache was written, obtain the body with the original `gh issue view $ARGUMENTS --json body` fetch for your own classification use.
+Save the issue title, labels, and number — you will use these throughout the workflow; the body lives in the file the `issue-body` fence wrote on whichever arm resolved (the cache on `IGNORED`, the transient `intake-issue-body-$ARGUMENTS.md` on `NOT_IGNORED`), Read back above for classification.
 
 **Classify the issue as a bug report from its *content*, not its label — Phase 2.1.5 depends on it.** The reproduce-first gate (2.1.5) fires on this classification, so decide it here from the issue title and body, treating an existing `bug` label as *one input signal* among them. Classify as bug-report or non-bug:
 
@@ -82,29 +84,15 @@ Read the printed token and exit code from the tool result: `PREPARED <abs>` / ex
 
 ### 1.2 Parse Acceptance Criteria from the issue body
 
-Run the bundled parser to extract `## Acceptance Criteria` and (optional) `## Test Plan` sections from the issue, pre-classifying each criterion as either code-verifiable or *post-merge*. When the §1.1 cache was written, read it via `--body-file` — no re-fetch. parse-acs.py reads `--body-file` unguarded (an unreadable path raises), so fail closed on the helper's own exit status: an unreadable cache must route to the run's existing stop path rather than leave a zero-byte `<run-scratch>/acs-$ARGUMENTS.md` that splices in as an empty Acceptance Criteria section.
+Run the bundled parser to extract `## Acceptance Criteria` and (optional) `## Test Plan` sections from the issue, pre-classifying each criterion as either code-verifiable or *post-merge*. Read the body §1.1 wrote via `--body-file` — no re-fetch — and let the parser author the acceptance-criteria file through `--out`: it creates the scratch parent directory, writes the exact bytes its stdout would have carried, and atomically replaces any stale file, so no separate `mkdir`/`rm` is needed and the model never authors the copy. parse-acs.py reads `--body-file` unguarded (an unreadable path raises), so fail closed on the helper's own exit status: an unreadable body must route to the run's existing stop path rather than leave a zero-byte `<run-scratch>/acs-$ARGUMENTS.md` that splices in as an empty Acceptance Criteria section.
 
-Ensure the scratch leaf exists — its own single statement (harmless on both arms; §1.1.5 already made the folder on the ignored arm):
-
-```bash
-mkdir -p <run-scratch>
-```
-
-Read the exit code from the tool result. A non-zero exit is a DENIED `<run-scratch>` mkdir and must fail loudly (never `|| true`): take the run's existing STOP path. On success, delete any stale acs file so a resumed / re-triggered run cannot splice a prior attempt's parse:
+Run the parser once, reading the body **repo-relative** under `--anchor-repo-root` (parse-acs.py resolves the repo root itself) and writing the acceptance-criteria file with `--out`. Substitute `<body-file>` per arm — the cache path `.prflow/tmp/issue-body/issue-$ARGUMENTS.md` on `IGNORED`, the transient `<scratch-dir>/intake-issue-body-$ARGUMENTS.md` on `NOT_IGNORED`:
 
 ```bash
-rm -f <run-scratch>/acs-$ARGUMENTS.md
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --anchor-repo-root --body-file <body-file> --out <run-scratch>/acs-$ARGUMENTS.md
 ```
 
-Then run the parser, reading the §1.1 cache **repo-relative** under `--anchor-repo-root` (parse-acs.py resolves the repo root itself), and consume its stdout from the tool result:
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --anchor-repo-root --body-file .prflow/tmp/issue-body/issue-$ARGUMENTS.md
-```
-
-Read the parser's exit code from the tool result. A non-zero exit means the cache could not be read — take the run's existing STOP path. On exit 0, author the exact stdout to `<run-scratch>/acs-$ARGUMENTS.md` with the Write tool and Read it back; a failed write/read takes the same STOP path. Do NOT proceed with an empty AC section.
-
-On the degraded arm where §1.1 wrote no cache, invoke `parse-acs.py --anchor-repo-root --issue $ARGUMENTS` without a redirect, then use the same exit-checked tool-result → Write-tool → Read validation above.
+Read the parser's exit code and printed token from the tool result. A non-zero exit means the body could not be read or `--out` was refused — take the run's existing STOP path. On `WROTE <absolute-path> bytes=<n>` / exit 0, Read the written `<run-scratch>/acs-$ARGUMENTS.md` back for the override review below; a failed Read takes the same STOP path. Do NOT proceed with an empty AC section.
 
 The output is checkbox lines ready to splice into the workpad's `## Acceptance Criteria` section, with ` (post-merge)` appended to any criterion whose text matches the bundled trigger phrases (see `parse-acs.py`'s `POST_MERGE_TRIGGERS` list for what's matched). When no AC section exists, the helper prints `_(none provided in issue body)_` and Phase 3.4 passes trivially.
 
@@ -197,7 +185,7 @@ Cloud startup checkpoint. On the cloud tier only, timestamp the hydration bounda
   A fresh create is a fresh run, so this update carries no `resume-kind:` note.
 
   The `## Reproduction` section is added later in 2.1.5 if applicable.
-- Triage exit 0 — a workpad exists (resume, or a re-run) → the triage's `body` is that live body; do not re-fetch it. Treat its `## Progress` notes and `PRFlow Reflections` as load-bearing context (see Workpad Reference), and reconcile any historical completion or review claim among them against later corrective evidence and interrupted-worker state before treating that work as done, per the resume-reconciliation contract in the worker role file — carrying an undischarged review obligation forward through the existing `corrections`/`blockers` handoff fields rather than emitting a completion assessment. Reset for this run and populate the Acceptance Criteria (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
+- Triage exit 0 — a workpad exists (resume, or a re-run) → the triage's `body` is that live body; do not re-fetch it. Treat its `## Progress` notes and `PRFlow Reflections` as load-bearing context (see Workpad Reference), and reconcile any historical completion or review claim among them against later corrective evidence and interrupted-worker state before treating that work as done, per the resume-reconciliation contract in the worker role file — carrying a contradicted or comment-raised review obligation forward through the existing `corrections`/`blockers` handoff fields rather than emitting a completion assessment. Reset for this run and populate the Acceptance Criteria (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
   Compose the run link with `.prflow/vendor/prflow/scripts/compose-run-url.sh` as in the create arm. The fence below is the cloud form; on a local run or the run-facts fallback drop `--run-link` alongside the cloud-only `--checkpoint`/`--expect-*` flags per the note below:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \

@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: MIT
 """Validate a `/prflow:implement` worker's JSON handoff before the parent honours its outcome.
 
-Two schemas share this reader, selected by `--schema {review-fix,finalization}` (default
-`review-fix`, so an existing Phase 3.3 call runs unmodified):
+Four schemas share this reader, selected by `--schema
+{review-fix,finalization,intake,issue-claim-audit}` (default `review-fix`, so an existing Phase
+3.3 call runs unmodified):
 
 - `review-fix` (issue #495): Phase 3.3 dispatches a fresh `review-fix-worker` that runs the
   review/fix loop in its own context and writes a compact JSON handoff to a scratch file. This
@@ -12,6 +13,19 @@ Two schemas share this reader, selected by `--schema {review-fix,finalization}` 
 - `finalization` (issue #539): Phase 4 dispatches a `implement-finalization` worker that writes
   `<run-scratch>/finalization-handoff-$ISSUE_NUMBER.json` and returns a three-line envelope; the
   parent runs this reader over that file before it publishes the PR and writes Complete.
+- `intake` (issue #700): Phase 1 dispatches a `implement-intake` worker whose durable handoff the
+  parent validates here — shape, identity, path/home containment, the snapshot receipt's
+  bytes/sha256 against the snapshot file, and the `proceed` conditions. Needs `--run-id` and
+  `--run-attempt` (canonical-string compared).
+- `issue-claim-audit` (issue #700): Phase 1.6 dispatches a `issue-claim-auditor` worker whose
+  durable handoff the parent validates here; the reader takes `record_validation`/
+  `projection_validation` as the worker's attestations and runs no audit gate itself. Needs
+  `--run-scratch`, `--base` and `--freshness`.
+
+The `intake` and `issue-claim-audit` schemas — and only they — print one compact JSON line of
+carry-forward fields to stdout on exit 0, so the parent keeps those fields resident instead of the
+whole handoff; the intake line reports the `prior_decisions`/`corrections`/`blockers` array sizes
+(the audit line carries the actionable arrays in full).
 
 Both accept evidence only from the current dispatch and reject an unusable return — absent,
 malformed, incomplete, stale-dispatch, or mismatched-identity — so a rejected boundary records an
@@ -55,15 +69,18 @@ the worker in `agents/implement-finalization.md`:
   object carrying each owned step `§4.0`, `§4.0.5`, `§4.0.6`, `§4.1`, `§4.2`, `§4.3` with a
   non-empty string `disposition` — presence and type only, not the disposition vocabulary).
 
-Exit codes (both schemas):
-    0 — conforming: shape and identity hold (and, for review-fix, checkout containment)
+Exit codes (all schemas):
+    0 — conforming: shape and identity hold (and, for review-fix/intake/issue-claim-audit, checkout
+        containment); the intake and issue-claim-audit schemas additionally print one compact JSON
+        line of carry-forward fields to stdout (no other schema writes to stdout on success)
     2 — non-conforming: a shape/enum/type fault, an identity mismatch (stale or duplicate
-        dispatch), or (review-fix schema) an artifact path resolving outside the checkout —
-        offenders on stderr
+        dispatch), or an artifact path resolving outside the checkout (review-fix, intake,
+        issue-claim-audit) — offenders on stderr, nothing on stdout
     3 — the handoff file was unreadable, empty, or not valid JSON (fail closed); for the
-        finalization schema a JSON value that is not an object also fails closed here (issue #539
-        AC5 — a bare array or scalar is structurally unusable, like an empty file), whereas the
-        review-fix schema treats a non-object as the exit-2 "parses but does not conform" case
+        finalization, intake and issue-claim-audit schemas a JSON value that is not an object also
+        fails closed here (a bare array or scalar is structurally unusable, like an empty file),
+        whereas the review-fix schema treats a non-object as the exit-2 "parses but does not
+        conform" case
 
 Callers branch on zero-vs-non-zero, never on 2 specifically: argparse also exits 2 for a missing
 argument, so reading 2 as "non-conforming handoff" would misreport an invocation error as a
@@ -71,6 +88,7 @@ rejected return.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -94,6 +112,22 @@ _PERSISTENCE_CLASSES = ("ok", "lost", "unestablished")
 _EXTENSION_KEYS = ("parent_state", "worker_state", "parent_digest", "worker_digest",
                    "trusted_root", "pending_notes")
 _EXTENSION_STATES = ("observed-content", "observed-empty", "unestablished")
+
+#: Intake schema (issue #700) — the Phase 1 intake worker's durable handoff.
+_INTAKE_OUTCOMES = ("proceed", "blocked", "error")
+_INTAKE_STOP_OUTCOMES = ("blocked", "error")
+_INTAKE_RESUME_KINDS = ("in-flight", "terminal-re-trigger")
+_CLASSIFICATIONS = ("bug-report", "non-bug")
+_SCRATCH_ARMS = ("IGNORED", "NOT_IGNORED")
+_COMPLETED_STEP_IDS = ("1.0", "1.1", "1.1.5", "1.2", "1.3", "1.3.5")
+#: Issue-claim-audit schema (issue #700) — the Phase 1.6 auditor's durable handoff.
+_AUDIT_OUTCOMES = ("proceed", "blocked-specification", "blocked-policy", "blocked-capability",
+                   "error")
+_AUDIT_STOP_OUTCOMES = ("blocked-specification", "blocked-policy", "blocked-capability", "error")
+_RECORD_PROJ_VALIDATION = ("passed", "failed", "not-applicable")
+_AUDIT_ARRAYS = ("unmatched_desired_behavior", "pass5_workflow_resident_acs",
+                 "pass2_wrongly_excluded_surfaces", "superseding_assumptions", "external_facts",
+                 "prior_decisions", "prior_corrections", "unresolved_blockers")
 
 
 def _force_utf8_streams():
@@ -168,7 +202,10 @@ def _check_extension(ext, offending):
 
 
 def _within_checkout(path, checkout_real, offending, field):
-    """Append an offender when `path` does not resolve inside `checkout_real`.
+    """Append an offender when `path` does not resolve inside `checkout_real`. Return True when the
+    path is contained (no offender appended) and False otherwise, so a caller can gate a subsequent
+    read on containment — never opening a path this check already refused (e.g. an escaping symlink
+    or absolute `/dev/zero`, whose read would hang the validator rather than fail closed).
 
     The path is resolved with os.path.realpath (following symlinks and normalising `..`), so a
     string that textually sits under the checkout but resolves elsewhere is rejected. The
@@ -182,12 +219,14 @@ def _within_checkout(path, checkout_real, offending, field):
         # A path carrying an embedded NUL byte makes realpath raise; refuse it as an offender
         # rather than letting the traceback break the fail-closed "refuse, never detonate" contract.
         offending.append(f"{field}: {path!r} is not a resolvable path (embedded NUL byte)")
-        return
+        return False
     root_with_sep = checkout_real.rstrip(os.sep) + os.sep
     if resolved != checkout_real and not resolved.startswith(root_with_sep):
         offending.append(
             f"{field}: {path!r} resolves to {resolved!r}, outside the checkout {checkout_real!r}"
         )
+        return False
+    return True
 
 
 def _make_req(data, offending):
@@ -449,11 +488,483 @@ def _validate_finalization(data, *, checkout_root, dispatch_id, issue_number):
     return not offending, {"offending": offending}
 
 
+def _canon_str_eq(v, operand):
+    """True when `v` (a scalar the worker never types — `workpad.id`/`run_id`/`run_attempt`) equals
+    `operand` by canonical string form. A dict/list/bool is never a scalar id, so it never matches."""
+    return v is not None and not isinstance(v, (dict, list, bool)) and str(v) == str(operand)
+
+
+def _read_secondary(path, field, offending, *, binary=False):
+    """Read a referenced secondary file, recording an offender (never a traceback) when it is a
+    directory, unreadable, carries an embedded NUL byte, or (text read) is not UTF-8. Returns the
+    file's contents, or None when a fault was recorded — the fail-closed "refuse, never detonate"
+    contract for a referenced secondary file."""
+    try:
+        if binary:
+            with open(path, "rb") as fh:
+                return fh.read()
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except IsADirectoryError:
+        offending.append(f"{field}: {path!r} is a directory, not a readable file")
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        offending.append(f"{field}: could not read {path!r} ({exc})")
+    return None
+
+
+def _intake_home(checkout_real, issue_number, arm):
+    """The absolute directory an intake handoff and its `run_scratch` must resolve to, per arm.
+    Returns None for an unrecognised arm (the caller already flagged `scratch.arm`)."""
+    if arm == "IGNORED":
+        return os.path.join(checkout_real, ".prflow", "tmp", "implement", str(issue_number))
+    if arm == "NOT_IGNORED":
+        return os.path.join(checkout_real, ".prflow", "tmp")
+    return None
+
+
+def _resolves_within(path, root_real, offending, field):
+    """Append an offender when `path` does not resolve inside `root_real`; return the resolved
+    path, or None when it could not be resolved (embedded NUL byte)."""
+    try:
+        resolved = os.path.realpath(path)
+    except ValueError:
+        offending.append(f"{field}: {path!r} is not a resolvable path (embedded NUL byte)")
+        return None
+    root_with_sep = root_real.rstrip(os.sep) + os.sep
+    if resolved != root_real and not resolved.startswith(root_with_sep):
+        offending.append(f"{field}: {path!r} resolves to {resolved!r}, outside {root_real!r}")
+    return resolved
+
+
+def _handoff_resolves_to(handoff_file, expected_hf, offending, mismatch_note):
+    """Append an offender when `handoff_file` does not resolve to `expected_hf`; a NUL byte in the
+    path refuses rather than detonates. Shared by both Phase 1 schemas' home checks."""
+    try:
+        actual_hf = os.path.realpath(handoff_file)
+    except ValueError:
+        offending.append("handoff-file: is not a resolvable path (embedded NUL byte)")
+        return
+    if actual_hf != os.path.realpath(expected_hf):
+        offending.append(mismatch_note)
+
+
+def _intake_projection(data):
+    """The carry-forward fields the orchestrator keeps resident from an intake handoff (issue
+    #700). A null object projects as null; the arrays project only as sizes, except a stop record
+    carries `blockers` in full."""
+    def _count(arr):
+        return len(arr) if isinstance(arr, list) else None
+    issue = data.get("issue")
+    scratch = data.get("scratch")
+    workpad = data.get("workpad")
+    dependency = data.get("dependency")
+    proj = {
+        "outcome": data.get("outcome"),
+        "blocked_reason": data.get("blocked_reason"),
+        "issue": None if not isinstance(issue, dict) else {
+            "title": issue.get("title"), "labels": issue.get("labels"),
+            "classification": issue.get("classification")},
+        "scratch": None if not isinstance(scratch, dict) else {
+            "arm": scratch.get("arm"), "scratch_dir": scratch.get("scratch_dir"),
+            "run_scratch": scratch.get("run_scratch"),
+            "issue_body_path": scratch.get("issue_body_path"),
+            "resolved_ac_path": scratch.get("resolved_ac_path")},
+        "workpad": None if not isinstance(workpad, dict) else {
+            "id": workpad.get("id"), "observed_status": workpad.get("observed_status"),
+            "snapshot_path": workpad.get("snapshot_path"),
+            "handoff_provenance": workpad.get("handoff_provenance"),
+            "resume_kind": workpad.get("resume_kind")},
+        "phase2_resume": data.get("phase2_resume"),
+        "dependency": None if not isinstance(dependency, dict) else {
+            "result": dependency.get("result"), "held_note": dependency.get("held_note")},
+        "extension": data.get("extension"),
+        "actionable_counts": {
+            "prior_decisions": _count(data.get("prior_decisions")),
+            "corrections": _count(data.get("corrections")),
+            "blockers": _count(data.get("blockers"))},
+        "warnings": data.get("warnings"),
+    }
+    if data.get("outcome") in _INTAKE_STOP_OUTCOMES:
+        proj["blockers"] = data.get("blockers")
+    return proj
+
+
+def _audit_projection(data):
+    """The carry-forward fields the orchestrator keeps resident from an audit handoff (issue #700):
+    the actionable arrays in full, minus the validation metadata the reader consumed."""
+    keys = ("outcome", "blocked_reason", "record_path", "projection_path") + _AUDIT_ARRAYS
+    return {k: data.get(k) for k in keys}
+
+
+def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, run_attempt,
+                     handoff_file):
+    """Classify a Phase 1 intake handoff (issue #700). `result` additionally carries
+    `result["projection"]` — the carry-forward dict `main` prints on exit 0. Identity is required
+    non-null on every outcome; observations are required non-null only on `proceed` and nullable on
+    a stop record, where a present non-null value still takes its shape rule."""
+    if not isinstance(data, dict):
+        return False, {"offending": [f"handoff must be a JSON object, not {type(data).__name__}"],
+                       "projection": None}
+    offending = []
+    req = _make_req(data, offending)
+    checkout_real = os.path.realpath(checkout_root)
+    outcome = data.get("outcome")
+    stop = outcome in _INTAKE_STOP_OUTCOMES
+
+    # Identity — dispatch literals the worker echoes, required non-null on every outcome.
+    req("schema_version", lambda v: v == SCHEMA_VERSION, f"must be {SCHEMA_VERSION}")
+    req("issue_number", lambda v: v == issue_number,
+        f"must equal the dispatched issue {issue_number}")
+    req("dispatch_id", lambda v: v == dispatch_id,
+        "must equal the current dispatch id (a mismatch is a stale or duplicate return)")
+    req("repo_root", _is_str, "must be a string")
+    req("run_id", lambda v: _canon_str_eq(v, run_id),
+        "must equal the current run id by canonical string form")
+    req("run_attempt", lambda v: _canon_str_eq(v, run_attempt),
+        "must equal the current run attempt by canonical string form")
+    _check_repo_root_identity(data, checkout_root, offending)
+    req("outcome", lambda v: v in _INTAKE_OUTCOMES, f"must be one of {_INTAKE_OUTCOMES}")
+
+    if stop and not (_is_str(data.get("blocked_reason")) and data["blocked_reason"].strip()):
+        offending.append("blocked_reason: must be a non-empty string on a stop record (incomplete)")
+
+    def sect(name):
+        """Return `data[name]` as an object. On a stop record a null/absent section is accepted; a
+        present non-null non-object is always an offender."""
+        v = data.get(name)
+        if v is None:
+            if not stop:
+                offending.append(f"{name}: must be a non-null object when outcome is proceed")
+            return None
+        if not isinstance(v, dict):
+            offending.append(f"{name}: must be an object (got {type(v).__name__})")
+            return None
+        return v
+
+    issue = sect("issue")
+    if issue is not None:
+        if not _is_str(issue.get("title")):
+            offending.append("issue.title: must be a string")
+        labels = issue.get("labels")
+        if not (isinstance(labels, list) and all(_is_str(x) for x in labels)):
+            offending.append("issue.labels: must be an array of strings")
+        if issue.get("classification") not in _CLASSIFICATIONS:
+            offending.append(f"issue.classification: must be one of {_CLASSIFICATIONS}")
+        rationale = issue.get("classification_rationale")
+        if not (rationale is None or _is_str(rationale)):
+            offending.append("issue.classification_rationale: must be a string or null")
+
+    scratch = sect("scratch")
+    arm = None
+    if scratch is not None:
+        arm = scratch.get("arm")
+        if arm not in _SCRATCH_ARMS:
+            offending.append(f"scratch.arm: must be one of {_SCRATCH_ARMS}")
+            arm = None
+        for key in ("scratch_dir", "run_scratch", "issue_body_path", "resolved_ac_path"):
+            v = scratch.get(key)
+            if not (v is None or _is_str(v)):
+                offending.append(f"scratch.{key}: must be a string or null")
+        for key in ("issue_body_path", "resolved_ac_path"):
+            v = scratch.get(key)
+            contained = _within_checkout(v, checkout_real, offending, f"scratch.{key}") \
+                if _is_str(v) else None
+            # On proceed these two paths are load-bearing carry-forward inputs: require each
+            # non-null and read it, so a missing/empty/directory/unreadable/non-UTF-8 body or AC
+            # file refuses (exit 2 naming the field) instead of flowing downstream as authoritative.
+            # Read only a contained path — a containment-refused path is never opened (an escaping
+            # symlink or absolute /dev/zero would otherwise hang the read instead of failing closed).
+            if not stop:
+                if not _is_str(v):
+                    offending.append(
+                        f"scratch.{key}: must be a non-null path when outcome is proceed")
+                elif contained:
+                    text = _read_secondary(v, f"scratch.{key}", offending)
+                    if text is not None and not text.strip():
+                        offending.append(
+                            f"scratch.{key}: the file is empty when outcome is proceed")
+
+    home = _intake_home(checkout_real, issue_number, arm) if arm else None
+    if home is not None:
+        _handoff_resolves_to(
+            handoff_file, os.path.join(home, f"intake-handoff-{issue_number}.json"), offending,
+            f"handoff-file: {handoff_file!r} does not resolve to the {arm} intake home {home!r}")
+        rs = scratch.get("run_scratch") if scratch is not None else None
+        if _is_str(rs):
+            try:
+                if os.path.realpath(rs) != os.path.realpath(home):
+                    offending.append(
+                        f"scratch.run_scratch: {rs!r} does not resolve to the {arm} intake home")
+            except ValueError:
+                offending.append("scratch.run_scratch: is not a resolvable path (embedded NUL byte)")
+
+    workpad = sect("workpad")
+    if workpad is not None:
+        wid = workpad.get("id")
+        if not (_is_str(wid) or _is_int(wid)):
+            offending.append("workpad.id: must be a string or integer")
+        if not _is_str(workpad.get("observed_status")):
+            offending.append("workpad.observed_status: must be a string")
+        snapshot_path = workpad.get("snapshot_path")
+        snapshot_path_contained = None
+        if snapshot_path is None:
+            if not stop:
+                offending.append("workpad.snapshot_path: must be non-null when outcome is proceed")
+        elif not _is_str(snapshot_path):
+            offending.append("workpad.snapshot_path: must be a string or null")
+        else:
+            snapshot_path_contained = _within_checkout(
+                snapshot_path, checkout_real, offending, "workpad.snapshot_path")
+        if not _is_str(workpad.get("handoff_provenance")):
+            offending.append("workpad.handoff_provenance: must be a string")
+        resume_kind = workpad.get("resume_kind")
+        if not (resume_kind is None or resume_kind in _INTAKE_RESUME_KINDS):
+            offending.append(
+                f"workpad.resume_kind: must be one of {_INTAKE_RESUME_KINDS} or null")
+        snapshot = workpad.get("snapshot")
+        if not isinstance(snapshot, dict):
+            offending.append("workpad.snapshot: must be an object")
+        else:
+            result = snapshot.get("result")
+            if not _is_str(result):
+                offending.append("workpad.snapshot.result: must be a string")
+            elif not stop and result != "exported":
+                offending.append(
+                    "workpad.snapshot.result: must be 'exported' when outcome is proceed")
+            cause = snapshot.get("cause")
+            if not (cause is None or _is_str(cause)):
+                offending.append("workpad.snapshot.cause: must be a string or null")
+            comment_id = snapshot.get("comment_id")
+            if comment_id is not None and wid is not None \
+                    and not _canon_str_eq(comment_id, wid):
+                offending.append(
+                    "workpad.snapshot.comment_id: must equal workpad.id by canonical string form")
+            updated_at = snapshot.get("updated_at")
+            if not (updated_at is None or _is_str(updated_at)):
+                offending.append("workpad.snapshot.updated_at: must be a string or null")
+            nbytes = snapshot.get("bytes")
+            nsha = snapshot.get("sha256")
+            if not stop:
+                if nbytes is None:
+                    offending.append(
+                        "workpad.snapshot.bytes: must be non-null when outcome is proceed")
+                if nsha is None:
+                    offending.append(
+                        "workpad.snapshot.sha256: must be non-null when outcome is proceed")
+            if _is_str(snapshot_path) and snapshot_path_contained \
+                    and (nbytes is not None or nsha is not None):
+                raw = _read_secondary(snapshot_path, "workpad.snapshot_path", offending,
+                                      binary=True)
+                if raw is not None:
+                    if nbytes is not None and nbytes != len(raw):
+                        offending.append(
+                            f"workpad.snapshot.bytes: {nbytes!r} != the snapshot file length "
+                            f"{len(raw)}")
+                    if nsha is not None and nsha != hashlib.sha256(raw).hexdigest():
+                        offending.append(
+                            "workpad.snapshot.sha256: does not match the snapshot file's lowercase "
+                            "hex digest")
+
+    p2 = sect("phase2_resume")
+    if p2 is not None:
+        resume_kind = p2.get("resume_kind")
+        if not (resume_kind is None or resume_kind in _INTAKE_RESUME_KINDS):
+            offending.append(
+                f"phase2_resume.resume_kind: must be one of {_INTAKE_RESUME_KINDS} or null")
+        plan_rows = p2.get("plan_rows")
+        if not (isinstance(plan_rows, list) and all(_is_str(x) for x in plan_rows)):
+            offending.append("phase2_resume.plan_rows: must be an array of strings")
+        if not isinstance(p2.get("code_sweeps_complete"), bool):
+            offending.append("phase2_resume.code_sweeps_complete: must be a JSON boolean")
+
+    completed = data.get("completed_steps")
+    if not stop:
+        if not isinstance(completed, dict):
+            offending.append("completed_steps: must be an object when outcome is proceed")
+        else:
+            for sid in _COMPLETED_STEP_IDS:
+                allowed = {"complete"}
+                if sid == "1.0":
+                    allowed.add("best-effort-warning")
+                if sid == "1.1.5" and arm == "NOT_IGNORED":
+                    allowed.add("not-applicable")
+                if completed.get(sid) not in allowed:
+                    offending.append(
+                        f"completed_steps[{sid}]: must be one of {sorted(allowed)}")
+    elif completed is not None and not isinstance(completed, dict):
+        offending.append("completed_steps: must be an object or null")
+
+    dependency = sect("dependency")
+    if dependency is not None:
+        result = dependency.get("result")
+        if not stop and result != "PROCEED":
+            offending.append("dependency.result: must be 'PROCEED' when outcome is proceed")
+        elif stop and not (result is None or _is_str(result)):
+            offending.append("dependency.result: must be a string or null")
+        held_note = dependency.get("held_note")
+        if not (held_note is None or _is_str(held_note)):
+            offending.append("dependency.held_note: must be a string or null")
+
+    ext = data.get("extension")
+    _check_extension(ext, offending)
+    if isinstance(ext, dict):
+        parent_digest, worker_digest = ext.get("parent_digest"), ext.get("worker_digest")
+        if parent_digest is not None and worker_digest is not None \
+                and parent_digest != worker_digest:
+            offending.append(
+                "extension: parent_digest and worker_digest must agree when both non-null")
+
+    for arr_name in ("prior_decisions", "corrections", "blockers"):
+        arr = data.get(arr_name)
+        if arr is None:
+            if not stop:
+                offending.append(f"{arr_name}: must be a non-null array when outcome is proceed")
+        elif not isinstance(arr, list):
+            offending.append(f"{arr_name}: must be an array or null")
+        else:
+            for i, item in enumerate(arr):
+                if not (isinstance(item, dict) and _is_str(item.get("action"))
+                        and _is_str(item.get("source")) and _is_str(item.get("authority"))
+                        and _is_str(item.get("evidence"))):
+                    offending.append(
+                        f"{arr_name}[{i}]: must be an object with string "
+                        "action/source/authority/evidence")
+    warnings = data.get("warnings")
+    if warnings is None:
+        if not stop:
+            offending.append("warnings: must be a non-null array when outcome is proceed")
+    elif not (isinstance(warnings, list) and all(_is_str(w) for w in warnings)):
+        offending.append("warnings: must be an array of strings or null")
+
+    return not offending, {"offending": offending, "projection": _intake_projection(data)}
+
+
+def _validate_issue_claim_audit(data, *, checkout_root, dispatch_id, issue_number, base, freshness,
+                                run_scratch, handoff_file):
+    """Classify a Phase 1.6 issue-claim-audit handoff (issue #700). `result["projection"]` is the
+    carry-forward dict `main` prints on exit 0. The reader takes `record_validation`/
+    `projection_validation` as the worker's attestations and runs no audit gate itself."""
+    if not isinstance(data, dict):
+        return False, {"offending": [f"handoff must be a JSON object, not {type(data).__name__}"],
+                       "projection": None}
+    offending = []
+    req = _make_req(data, offending)
+    checkout_real = os.path.realpath(checkout_root)
+    outcome = data.get("outcome")
+    proceed = outcome == "proceed"
+
+    req("schema_version", lambda v: v == SCHEMA_VERSION, f"must be {SCHEMA_VERSION}")
+    req("issue_number", lambda v: v == issue_number,
+        f"must equal the dispatched issue {issue_number}")
+    req("dispatch_id", lambda v: v == dispatch_id,
+        "must equal the current dispatch id (a mismatch is a stale or duplicate return)")
+    req("repo_root", _is_str, "must be a string")
+    req("base", lambda v: v == base, "must equal the dispatched base")
+    req("freshness", lambda v: v == freshness, "must equal the dispatched freshness")
+    _check_repo_root_identity(data, checkout_root, offending)
+    req("outcome", lambda v: v in _AUDIT_OUTCOMES, f"must be one of {_AUDIT_OUTCOMES}")
+
+    _before_rs = len(offending)
+    run_scratch_real = _resolves_within(run_scratch, checkout_real, offending, "run-scratch")
+    # run_scratch is contained only when it resolved AND appended no containment offender —
+    # _resolves_within returns the resolved path even for a resolvable escape, so a bare non-None
+    # check would let an escaping-yet-resolvable run_scratch anchor the record_path read below.
+    run_scratch_contained = run_scratch_real is not None and len(offending) == _before_rs
+    if run_scratch_real is not None:
+        expected_hf = os.path.join(run_scratch_real, f"issue-claim-audit-handoff-{issue_number}.json")
+        _handoff_resolves_to(
+            handoff_file, expected_hf, offending,
+            f"handoff-file: {handoff_file!r} does not resolve to {expected_hf!r} "
+            "inside the run scratch")
+
+    if outcome in ("blocked-policy", "blocked-capability", "error") \
+            and not (_is_str(data.get("blocked_reason")) and data["blocked_reason"].strip()):
+        offending.append("blocked_reason: must be a non-empty string on this stop record (incomplete)")
+
+    path_contained = {}
+    for key in ("record_path", "projection_path"):
+        v = data.get(key)
+        if v is not None and not _is_str(v):
+            offending.append(f"{key}: must be a string or null")
+        elif _is_str(v) and run_scratch_real is not None:
+            # Track whether containment passed (no offender appended) so the proceed read below
+            # never opens a containment-refused path — symmetric with the intake side, where a
+            # read of an escaping /dev/zero or FIFO would hang the validator instead of failing
+            # closed. An unresolvable run-scratch leaves the key absent → the read is skipped.
+            _before = len(offending)
+            _resolves_within(v, run_scratch_real, offending, key)
+            path_contained[key] = len(offending) == _before
+
+    for key in ("record_validation", "projection_validation"):
+        v = data.get(key)
+        if v is not None and v not in _RECORD_PROJ_VALIDATION:
+            offending.append(f"{key}: must be one of {_RECORD_PROJ_VALIDATION} or null")
+        if proceed and v != "passed":
+            offending.append(f"{key}: must be 'passed' when outcome is proceed")
+
+    disp = data.get("projection_disposition")
+    if disp is not None and not _is_str(disp):
+        offending.append("projection_disposition: must be a string or null")
+    if proceed and disp != "represented":
+        offending.append("projection_disposition: must be 'represented' when outcome is proceed")
+
+    pass_dispositions = data.get("pass_dispositions")
+    if pass_dispositions is not None and not (
+            isinstance(pass_dispositions, dict)
+            and all(_is_str(x) for x in pass_dispositions.values())):
+        offending.append("pass_dispositions: must be an object of string values or null")
+
+    workpad_write = data.get("workpad_write")
+    if workpad_write is not None and not (
+            isinstance(workpad_write, dict) and _is_str(workpad_write.get("outcome"))
+            and _is_str(workpad_write.get("remedy"))):
+        offending.append(
+            "workpad_write: must be an object with string outcome and remedy or null")
+    if proceed:
+        if not isinstance(workpad_write, dict):
+            offending.append("workpad_write: must be a non-null object when outcome is proceed")
+        elif workpad_write.get("remedy") != "none":
+            offending.append("workpad_write.remedy: must be 'none' when outcome is proceed")
+
+    for key in _AUDIT_ARRAYS:
+        v = data.get(key)
+        if v is not None and not isinstance(v, list):
+            offending.append(f"{key}: must be an array or null")
+
+    if outcome == "blocked-specification":
+        v = data.get("unmatched_desired_behavior")
+        if not (isinstance(v, list) and v):
+            offending.append(
+                "unmatched_desired_behavior: must be a non-empty array on blocked-specification")
+
+    if proceed:
+        for key in ("prior_decisions", "prior_corrections", "superseding_assumptions",
+                    "external_facts", "pass5_workflow_resident_acs",
+                    "pass2_wrongly_excluded_surfaces"):
+            if not isinstance(data.get(key), list):
+                offending.append(f"{key}: must be a non-null array when outcome is proceed")
+        for key in ("unmatched_desired_behavior", "unresolved_blockers"):
+            v = data.get(key)
+            if not isinstance(v, list) or v:
+                offending.append(f"{key}: must be an empty array when outcome is proceed")
+        record_path = data.get("record_path")
+        if not _is_str(record_path):
+            offending.append("record_path: must be a non-null path when outcome is proceed")
+        elif run_scratch_contained and path_contained.get("record_path"):
+            text = _read_secondary(record_path, "record_path", offending)
+            if text is not None and not text.strip():
+                offending.append("record_path: the record file is empty when outcome is proceed")
+
+    return not offending, {"offending": offending, "projection": _audit_projection(data)}
+
+
 def main(argv=None):
     _force_utf8_streams()
     parser = argparse.ArgumentParser(
         description="Validate an implement-worker JSON handoff before the parent honours it.")
-    parser.add_argument("--schema", choices=("review-fix", "finalization"), default="review-fix",
+    parser.add_argument("--schema",
+                        choices=("review-fix", "finalization", "intake", "issue-claim-audit"),
+                        default="review-fix",
                         help="which handoff schema to validate (default: review-fix)")
     parser.add_argument("--handoff-file", required=True,
                         help="path to the worker's JSON handoff record")
@@ -463,7 +974,26 @@ def main(argv=None):
                         help="the current dispatch id; a mismatch is a stale/duplicate return")
     parser.add_argument("--issue-number", required=True, type=int,
                         help="the dispatched issue number, cross-checked against the handoff")
+    # Per-schema operands: argparse cannot make `required` conditional on --schema, so these are
+    # optional here and enforced post-parse via parser.error (exit 2, no stdout) for their schema.
+    parser.add_argument("--run-id", help="intake schema: the current run id (canonical-string)")
+    parser.add_argument("--run-attempt",
+                        help="intake schema: the current run attempt (canonical-string)")
+    parser.add_argument("--run-scratch",
+                        help="issue-claim-audit schema: the run-scratch dir the handoff resolves in")
+    parser.add_argument("--base", help="issue-claim-audit schema: the dispatched base branch")
+    parser.add_argument("--freshness", help="issue-claim-audit schema: the dispatched freshness")
     args = parser.parse_args(argv)
+
+    if args.schema == "intake":
+        for _name, _val in (("--run-id", args.run_id), ("--run-attempt", args.run_attempt)):
+            if _val is None:
+                parser.error(f"{_name} is required for --schema intake")
+    if args.schema == "issue-claim-audit":
+        for _name, _val in (("--run-scratch", args.run_scratch), ("--base", args.base),
+                            ("--freshness", args.freshness)):
+            if _val is None:
+                parser.error(f"{_name} is required for --schema issue-claim-audit")
 
     try:
         with open(args.handoff_file, encoding="utf-8") as fh:
@@ -481,18 +1011,38 @@ def main(argv=None):
         print(f"validate-review-fix-handoff: the handoff is not valid JSON: {exc}", file=sys.stderr)
         return 3
 
-    if args.schema == "finalization" and not isinstance(data, dict):
-        # Finalization treats a non-object as structurally unusable (exit 3, AC5) — do NOT unify it
-        # with the review-fix schema's exit-2 non-conforming path; the divergence is deliberate.
-        print("validate-review-fix-handoff: the finalization handoff is not a JSON object — "
+    if args.schema in ("finalization", "intake", "issue-claim-audit") \
+            and not isinstance(data, dict):
+        # These schemas treat a non-object top level as structurally unusable (exit 3) — do NOT
+        # unify it with the review-fix schema's exit-2 non-conforming path; the divergence is
+        # deliberate (issue #539 AC5, issue #700 AC12).
+        print(f"validate-review-fix-handoff: the {args.schema} handoff is not a JSON object — "
               "failing closed", file=sys.stderr)
         return 3
 
-    checker = _validate_finalization if args.schema == "finalization" else validate_handoff
-    conforming, result = checker(
-        data, checkout_root=args.checkout_root,
-        dispatch_id=args.dispatch_id, issue_number=args.issue_number)
+    if args.schema == "intake":
+        conforming, result = _validate_intake(
+            data, checkout_root=args.checkout_root, dispatch_id=args.dispatch_id,
+            issue_number=args.issue_number, run_id=args.run_id, run_attempt=args.run_attempt,
+            handoff_file=args.handoff_file)
+    elif args.schema == "issue-claim-audit":
+        conforming, result = _validate_issue_claim_audit(
+            data, checkout_root=args.checkout_root, dispatch_id=args.dispatch_id,
+            issue_number=args.issue_number, base=args.base, freshness=args.freshness,
+            run_scratch=args.run_scratch, handoff_file=args.handoff_file)
+    elif args.schema == "finalization":
+        conforming, result = _validate_finalization(
+            data, checkout_root=args.checkout_root,
+            dispatch_id=args.dispatch_id, issue_number=args.issue_number)
+    else:
+        conforming, result = validate_handoff(
+            data, checkout_root=args.checkout_root,
+            dispatch_id=args.dispatch_id, issue_number=args.issue_number)
     if conforming:
+        # The intake and issue-claim-audit schemas print one compact JSON line of carry-forward
+        # fields on exit 0; the other two print nothing on success (issue #700).
+        if args.schema in ("intake", "issue-claim-audit"):
+            print(json.dumps(result["projection"], separators=(",", ":")))
         return 0
     print("validate-review-fix-handoff: the worker handoff is unusable — "
           + "; ".join(result["offending"]), file=sys.stderr)

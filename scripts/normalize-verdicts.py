@@ -157,15 +157,42 @@ assembly in the sibling ``checklist_finalize.py`` (its ops, files and output are
 documented there). It rides this helper because a cloud profile grants leading
 tokens per helper, and this one is granted wherever the review engine runs.
 
+Prepare mode — ``prepare <checklist-iter-N.json> --verdicts-dir <dir>`` — is Phase 2.0's
+dispatch plan, run exactly once per engine entry before the first verifier dispatch. It
+loads the checklist (the same ``bad_input`` report as build mode, deleting nothing),
+refuses with a ``usage`` object (rc 2, deleting nothing) a ``<dir>`` that does not resolve
+beneath a ``.prflow/tmp/`` pair or whose last component is not ``iter-<N>``, then creates
+``<dir>``, unlinks every regular file and symlink directly inside it (a subdirectory stays;
+nothing outside ``<dir>`` is touched), partitions the items exactly as build mode does, and
+prints — to stdout only, never to a file, since a written nonce is one a running verifier
+could read::
+
+    { "ok": true, "iteration": N, "verdicts_dir": "<dir>",
+      "reused": [ "<id>" ],                                   # carried PASS, not dispatched
+      "lite":   [ { "id", "lite_probe" } ],                   # effective-lite items
+      "agent":  [ { "id", "nonce" } ],                        # 16 lowercase hex, distinct
+      "missing_fields": [ { "id", "claim_signature", "fields": [...] } ],   # agent items only
+      "counts": { "reused", "lite", "agent", "missing_fields" },
+      "wiped": <files removed>, "warnings": [...] }
+
+An item whose id is not usable as a file-name part is skipped with a warning naming it
+and gets no nonce. A later single-item dispatch inside the same entry mints its own nonce
+and never re-runs prepare: a re-run wipes the wave's verdict files.
+
 Exit codes:
     0  Helper ran (results OR bad-input report printed).
     1  Unsupported Python (< 3.11).
     2  Bad arguments (no pairs-file or build-mode inputs-file path given; a build-mode
-       flag without its value, or build mode without all of its flags).
+       flag without its value, or build mode without all of its flags; a prepare-mode
+       usage refusal).
 """
 
+import itertools
 import json
 import os
+import posixpath
+import re
+import secrets
 import sys
 import traceback
 
@@ -680,38 +707,104 @@ def _is_hex40(value):
 
 
 def _strip_line_anchor(fc):
-    """Return ``file_checked`` with a trailing ``:<line>`` / ``:<line>-<line>`` anchor removed.
+    """Return ``file_checked`` with its trailing line-anchor list removed.
 
-    The verifier contract emits ``file_checked`` as ``path:line`` or ``path:line-range``
-    (agents/checklist-verifier.md), while the view inventory records bare paths, so the
-    membership test must compare bare paths. Only a final ``:``-segment that is a pure line
-    anchor (digits, or digits-digits) is stripped; a path whose tail is not a line anchor is
-    returned unchanged. A non-string is returned unchanged."""
+    The verifier contract emits ``file_checked`` as ``path:anchors`` (agents/checklist-verifier.md)
+    while the view inventory records bare paths, so the membership test compares bare paths. The
+    anchor list after the last ``:`` is one or more comma-separated ``N`` / ``N-M`` items, spaces
+    around items and a trailing ``-`` tolerated (``:188``, ``:259-280``, ``:18,158,318-321``,
+    ``:497-512, 682``); only that list is stripped, never a path segment, so a tail that is not
+    an anchor list (``:abc``, ``:§4``) is returned unchanged. A non-string is returned unchanged."""
     if not isinstance(fc, str):
         return fc
     idx = fc.rfind(":")
     if idx <= 0:
         return fc
-    parts = fc[idx + 1:].split("-")
-    if 1 <= len(parts) <= 2 and all(p.isdigit() for p in parts):
-        return fc[:idx]
-    return fc
+    items = [item.strip() for item in fc[idx + 1:].split(",")]
+    items = [item for item in items if item]
+    if not items:
+        return fc
+    for item in items:
+        parts = item.split("-")
+        if not (1 <= len(parts) <= 2) or not parts[0].isdigit() or (
+                len(parts) == 2 and parts[1] and not parts[1].isdigit()):
+            return fc
+    return fc[:idx].rstrip()
+
+
+def _view_prefixes(inv_path):
+    """The bound view's directory, as the prefixes a cited path may carry: the directory of
+    ``views[slot].inventory`` as given plus its absolute and symlink-resolved forms (the
+    verifier's Read tool takes absolute paths, so a verifier may cite any of them), ``\\``
+    normalized to ``/``, ``.`` segments collapsed, no trailing separator. Empty when the
+    inventory path has no directory part."""
+    head = posixpath.dirname(inv_path.replace("\\", "/").rstrip("/"))
+    if not head:
+        return ()
+    rel = posixpath.normpath(head).rstrip("/")
+    forms = {rel}
+    for form in (os.path.abspath(rel), os.path.realpath(rel)):
+        forms.add(posixpath.normpath(form.replace("\\", "/")).rstrip("/"))
+    return tuple(sorted(forms, key=len, reverse=True))
+
+
+def _bare_key(text, prefixes):
+    """One citation reduced to its inventory key: ``\\`` normalized to ``/``, the trailing
+    anchor list stripped, a leading bound-view directory removed (an absolute citation is also
+    tried symlink-resolved, as the cwd may be). May be ``""``."""
+    key = _strip_line_anchor(text.replace("\\", "/").strip())
+    forms = [key]
+    if prefixes and os.path.isabs(key):
+        forms.append(posixpath.normpath(os.path.realpath(key).replace("\\", "/")))
+    for form in forms:
+        for prefix in prefixes:
+            if form.startswith(prefix + "/"):
+                return form[len(prefix) + 1:]
+    return key
+
+
+def _cited_paths(fc, prefixes, inventory):
+    """The inventory keys a ``file_checked`` cites, for the gate to require ALL of.
+
+    Verifiers were observed citing a comma-separated anchor list, joining two citations with
+    ``;``, `` and `` or ``,`` (issues #901, #932), and citing the path they actually Read under
+    the view directory. The whole value is reduced first (``_bare_key``) and, when that key is
+    in the inventory, it is the one citation — so a real path containing `` and `` or ``,`` is
+    never split when cited alone. Otherwise the value is split on ``;`` / `` and `` / ``,`` and
+    each part reduced; a part that is only an anchor item (``682``, ``12-40``, ``12-``) belongs to
+    the path before it and is dropped; a part that reduces to nothing (the view directory alone)
+    keeps its original text, and a value that yields no part at all (anchor items only, a
+    separator alone) is returned as itself — both are non-members, so a citation that names no
+    file demotes exactly as before. Only a non-string or the empty string ``""`` returns ``[]``
+    (unchanged: those were never path-checked)."""
+    if not isinstance(fc, str) or fc == "":
+        return []
+    whole = _bare_key(fc, prefixes)
+    if whole in inventory:
+        return [whole]
+    keys = []
+    for part in fc.replace(" and ", ";").replace(",", ";").split(";"):
+        raw = part.strip()
+        if raw and _strip_line_anchor("x:" + raw) != "x":
+            keys.append(_bare_key(raw, prefixes) or raw)
+    return keys or [fc]
 
 
 def _load_view_index(views):
-    """Parse the build-mode ``views`` input into ``(index, bound_revisions, head_revision, warnings)``.
+    """Parse the build-mode ``views`` input into ``(index, bound_revisions, head_revision, warnings, dirs)``.
 
     ``index`` maps each bound revision SHA to the set of paths its inventory records (present
     entries AND ``kind: "deleted"`` records alike — a deleted record is legitimate absence, not
     an unread path). ``bound_revisions`` is the set of the run's head/base revisions and
-    ``head_revision`` is the head slot's revision (or ``None``). A malformed ``views`` block, or
+    ``head_revision`` is the head slot's revision (or ``None``); ``dirs`` maps each bound revision
+    to its view-directory prefixes (``_view_prefixes``). A malformed ``views`` block, or
     an unreadable/mis-shaped inventory, yields no bound revision for that slot and a warning; when
     the run supplied ``views`` but none are usable the caller fails closed (build()'s gate),
     never standing a raw PASS unchecked. The adversarial
     {object,array,scalar,valid-falsy,missing,wrong-type} matrix is guarded here."""
-    index, bound, warnings, head_revision = {}, set(), [], None
+    index, bound, warnings, head_revision, dirs = {}, set(), [], None, {}
     if not isinstance(views, dict) or not views:
-        return index, bound, head_revision, warnings
+        return index, bound, head_revision, warnings, dirs
     for slot in ("head", "base"):
         spec = views.get(slot)
         if slot not in views:
@@ -737,26 +830,31 @@ def _load_view_index(views):
         if not isinstance(entries, list):
             warnings.append(f"views[{slot}]: inventory has no entries array -- ignored")
             continue
-        paths = {e["path"] for e in entries
-                 if isinstance(e, dict) and isinstance(e.get("path"), str)}
+        # An entry's stored_path (a harness-instruction file under its ``.src`` suffix) is the
+        # name the verifier Reads, so it is a key of this view alongside the original path.
+        paths = {e[k] for e in entries if isinstance(e, dict)
+                 for k in ("path", "stored_path") if isinstance(e.get(k), str)}
         index[revision] = paths
+        dirs[revision] = _view_prefixes(inv_path)
         bound.add(revision)
         if slot == "head":
             head_revision = revision
-    return index, bound, head_revision, warnings
+    return index, bound, head_revision, warnings, dirs
 
 
-def _view_state(entry, index, bound):
+def _view_state(entry, index, bound, dirs):
     """Classify a verification entry's view provenance against the bound inventories.
     Returns ``"ok"`` | ``"absent"`` | ``"wrong-revision"`` | ``"path-not-in-inventory"``.
-    Cited evidence text is never inspected — only ``view_revision`` and ``file_checked``."""
+    Cited evidence text is never inspected — only ``view_revision`` and ``file_checked``;
+    every path ``file_checked`` cites (``_cited_paths``) must be in that view's inventory."""
     vr = entry.get("view_revision")
     if not _is_hex40(vr):
         return "absent"
     if vr not in bound:
         return "wrong-revision"
-    fc = _strip_line_anchor(entry.get("file_checked"))
-    if isinstance(fc, str) and fc and fc not in index.get(vr, set()):
+    inventory = index.get(vr, set())
+    if any(key not in inventory
+           for key in _cited_paths(entry.get("file_checked"), dirs.get(vr, ()), inventory)):
         return "path-not-in-inventory"
     return "ok"
 
@@ -941,7 +1039,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
     _raw_views = inputs.get("views")
     views_supplied = ((isinstance(_raw_views, dict) and bool(_raw_views))
                       or ("views" in inputs and not isinstance(_raw_views, dict)))
-    view_index, bound_revisions, head_revision, view_warnings = _load_view_index(inp["views"])
+    view_index, bound_revisions, head_revision, view_warnings, view_dirs = _load_view_index(inp["views"])
     warnings.extend(view_warnings)
     view_states = {"ok": 0, "absent": 0, "wrong-revision": 0, "path-not-in-inventory": 0,
                    "views-unusable": 0}
@@ -954,10 +1052,11 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             # view_revision to the head revision when its (anchor-stripped) path is in the head
             # inventory; a reused item whose path is absent from the head view is left to demote.
             if entry.get("reused_from_iter_prev") is True and head_revision is not None:
-                fc = _strip_line_anchor(entry.get("file_checked"))
-                if isinstance(fc, str) and fc in head_paths:
+                keys = _cited_paths(entry.get("file_checked"), view_dirs.get(head_revision, ()),
+                                    head_paths)
+                if keys and all(key in head_paths for key in keys):
                     entry["view_revision"] = head_revision
-            state = _view_state(entry, view_index, bound_revisions)
+            state = _view_state(entry, view_index, bound_revisions, view_dirs)
             entry["view_state"] = state
             view_states[state] = view_states.get(state, 0) + 1
             if state != "ok" and entry.get("verdict") == "PASS":
@@ -994,6 +1093,110 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
     return out
 
 
+_ITER_RE = re.compile(r"\Aiter-([1-9][0-9]{0,5})\Z")
+
+
+def _confined_verdicts_dir(verdicts_dir):
+    """``(iteration, None)`` or ``(None, reason)``: the directory must resolve beneath a
+    ``.prflow/tmp/`` pair and be named ``iter-<N>`` — checklist_finalize's ``_confined``
+    rule, so the wipe can never reach outside the run's scratch."""
+    if not isinstance(verdicts_dir, str) or not verdicts_dir:
+        return None, "verdicts_dir_empty"
+    if os.path.islink(verdicts_dir.rstrip("/\\") or verdicts_dir):
+        return None, "verdicts_dir_is_a_symlink"
+    parts = os.path.realpath(verdicts_dir).replace("\\", "/").split("/")
+    match = _ITER_RE.match(parts[-1] if parts else "")
+    if not match:
+        return None, "verdicts_dir_name_not_iter_n"
+    if not any(a == ".prflow" and b == "tmp" for a, b in itertools.pairwise(parts[:-1])):
+        return None, "verdicts_dir_outside_prflow_tmp"
+    return int(match.group(1)), None
+
+
+def prepare(checklist_file, verdicts_dir):
+    """Phase 2.0's dispatch plan (module docstring, *Prepare mode*)."""
+    iteration, err = _confined_verdicts_dir(verdicts_dir)
+    if err:
+        return {"ok": False, "error": "usage", "detail": err}, 2
+    checklist, bad = _load(checklist_file, "checklist", list)
+    if bad:
+        return bad, 0
+    os.makedirs(verdicts_dir, exist_ok=True)
+    wiped = 0
+    with os.scandir(verdicts_dir) as entries:
+        for entry in entries:
+            # A symlink is unlinked as a link (never followed); a directory stays.
+            if entry.is_symlink() or entry.is_file(follow_symlinks=False):
+                os.unlink(entry.path)
+                wiped += 1
+    reused, lite, agent, missing, warnings, nonces = [], [], [], [], [], set()
+    for idx, item in enumerate(checklist):
+        if not isinstance(item, dict):
+            warnings.append(f"checklist[{idx}]: not an object -- skipped")
+            continue
+        item_id = item.get("id")
+        if not _path_safe(item_id):
+            warnings.append(f"checklist[{idx}]: id {item_id!r} is not a usable file-name "
+                            "part -- skipped, no nonce minted")
+            continue
+        if item.get("reused_from_iter_prev") is True and item.get("verdict") == "PASS":
+            reused.append(item_id)
+            continue
+        fields = []
+        if effective_mode(item) == "lite":
+            lite.append({"id": item_id, "lite_probe": item["lite_probe"]})
+        else:
+            # Only an agent item is re-asked for a normalizer field: a lite item is settled
+            # by its probe and never normalizes, so it is never reported here.
+            if not isinstance(item.get("claim_provenance"), str):
+                fields.append("claim_provenance")
+            if item.get("claim_provenance") == "source_authored" and not isinstance(item.get("source_excerpt"), str):
+                fields.append("source_excerpt")
+            nonce = secrets.token_hex(8)
+            while nonce in nonces:
+                nonce = secrets.token_hex(8)
+            nonces.add(nonce)
+            agent.append({"id": item_id, "nonce": nonce})
+        if fields:
+            missing.append({"id": item_id, "claim_signature": item.get("claim_signature"),
+                            "fields": fields})
+    return {"ok": True, "iteration": iteration, "verdicts_dir": verdicts_dir,
+            "reused": reused, "lite": lite, "agent": agent, "missing_fields": missing,
+            "counts": {"reused": len(reused), "lite": len(lite), "agent": len(agent),
+                       "missing_fields": len(missing)},
+            "wiped": wiped, "warnings": warnings}, 0
+
+
+def _prepare_main(argv):
+    positional, flags = [], {}
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--verdicts-dir":
+            if i + 1 >= len(argv):
+                positional = None
+                break
+            flags[argv[i]] = argv[i + 1]
+            i += 2
+        else:
+            positional.append(argv[i])
+            i += 1
+    if positional is None or len(positional) != 1 or "--verdicts-dir" not in flags:
+        out, rc = {"ok": False, "error": "usage",
+                   "detail": "prepare takes <checklist-iter-N.json> --verdicts-dir <dir>"}, 2
+    else:
+        try:
+            out, rc = prepare(positional[0], flags["--verdicts-dir"])
+        except Exception as e:
+            sys.stderr.write(
+                "normalize-verdicts.py: internal error — this is a helper defect:\n"
+                + traceback.format_exc()
+            )
+            out, rc = {"bad_input": True, "error": "helper_internal_error",
+                       "detail": f"{type(e).__name__}: {e}"[:200]}, 0
+    print(json.dumps(out, indent=2))
+    return rc
+
+
 def _parse_build_args(argv):
     """Return ``(positional, flags)`` or ``(None, error-text)``."""
     positional, flags = [], {}
@@ -1020,10 +1223,13 @@ def main(argv=None):
         # pairs-file read, no JSON verdict. rc 0.
         print("usage: normalize-verdicts.py <pairs-file>")
         print("       normalize-verdicts.py checklist carry|raw|finalize <work-dir> ...")
+        print("       normalize-verdicts.py prepare <checklist-iter-N.json> --verdicts-dir <dir>")
         print("       normalize-verdicts.py <inputs-file> " + " ".join(f"{f} <path>" for f in BUILD_FLAGS))
         return 0
     if argv and argv[0] == "checklist":
         return _checklist_main(argv[1:])
+    if argv and argv[0] == "prepare":
+        return _prepare_main(argv[1:])
     positional, flags = _parse_build_args(argv)
     if positional is None or (flags and not positional):
         # stdout too, for the same reason as the no-argument arm below.

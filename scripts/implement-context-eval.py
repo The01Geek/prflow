@@ -35,22 +35,24 @@ axes it measures are the ones the implement skill's cost shape is dominated by
   3. **Main-thread tool calls, bucketed by category** — file reads, file edits/writes,
      shell commands, subagent dispatches, skill invocations, and an `other` catch-all so
      the buckets sum to the run's whole tool-call population. A turn count alone
-     mis-attributes the work: one assistant turn can carry several tool calls, so a run
+     mis-attributes the work: one API turn can carry several tool calls, so a run
      that batches its calls looks cheaper than one that does not while doing the same
-     work (issue #1209 AC10).
+     work (issue #1209 AC10). `tool_bearing_turns` and `multi_call_turns` count the
+     turns that carried one or more, and two or more, calls (issue #694).
 
-  4. **The distribution of wall-clock gaps between consecutive main-thread tool calls** —
-     median, maximum and total, never a mean alone, because a mean hides the tail that
-     dominates a long run. A tool-bearing main-thread turn carrying no usable timestamp
-     is counted in the `skipped` accounting under `unusable_timestamp` and NEVER
-     contributes a zero gap (issue #1209 AC11; `CLAUDE.md`'s *unknown is not zero* rule).
+  4. **The distribution of wall-clock gaps between consecutive tool-bearing main-thread
+     turns** — median, maximum and total, never a mean alone, because a mean hides the
+     tail that dominates a long run. A tool-bearing turn none of whose records carries a
+     usable timestamp is counted in the `skipped` accounting under `unusable_timestamp`
+     and NEVER contributes a zero gap (issue #1209 AC11; `CLAUDE.md`'s *unknown is not
+     zero* rule).
 
      **Disclosed proxy — the gaps are measured at TURN granularity, not per call.** A
-     transcript record carries ONE `timestamp` however many `tool_use` blocks its turn
-     holds, so a per-call gap is not observable from this data at all. What is measured
-     is the gap between consecutive main-thread turns that issued at least one tool
-     call: a turn batching four calls contributes one point, not four, and the three
-     intra-turn intervals are not in the population. Read `total_seconds /
+     transcript writes one record per content block, and every record of one API turn
+     shares one `message.id`; the gap axis takes ONE timestamp per turn — the earliest
+     usable one among its records — so neither the intra-turn streaming intervals
+     between a turn's records nor a per-call gap is in the population: a turn batching
+     four calls contributes one point, not four. Read `total_seconds /
      total_tool_calls` as meaningless for that reason. This is a disclosed proxy in the
      same sense as the cross-session bound below, not an unstated approximation.
 
@@ -67,12 +69,20 @@ that contains at least one main-thread attributed assistant record yields one ru
 that RESUMES into a separate session file is reported as its own run (cross-session merging
 is out of scope, a disclosed proxy).
 
-Per-record token usage is read from `message.usage.{input_tokens,
-cache_read_input_tokens, cache_creation_input_tokens}`. A turn establishing none of
-those (no usage object, or one carrying only absent, null, or non-finite counts) is an
-unmeasured turn: it is tallied in `usage_missing_turns` and excluded from the peak, never folded in
-as a real-looking 0 (issue #1899). Compaction is observed as `type == "system",
-subtype == "compact_boundary"` and only counted.
+**An API turn is one `message.id` (issue #694).** Consecutive main-thread assistant
+records sharing a string `message.id` are one turn: `turn_count` counts distinct ids,
+every `_turns` field counts turns, and a record carrying several content blocks
+contributes all of them to its turn. A record whose `message.id` is absent, empty or not
+a string is one turn of its own, tallied under `missing_message_id` (corpus-wide) and
+`missing_message_id_turns` (per run) — accounted, never merged into a neighbour.
+
+A turn's residency is the `message.usage.{input_tokens, cache_read_input_tokens,
+cache_creation_input_tokens}` sum of its earliest record that carries a usage object. A
+turn establishing none of those on any record (no usage object, or one carrying only
+absent, null, or non-finite counts) is an unmeasured turn: it is tallied in
+`usage_missing_turns` and excluded from the peak, never folded in as a real-looking 0
+(issue #1899). Compaction is observed as `type == "system", subtype ==
+"compact_boundary"` and only counted.
 
 A phase-file read is a `Read` tool_use block whose `input.file_path` BASENAME is one of
 the four phase file names. Matching on the basename (not a full path) is deliberate: the
@@ -446,13 +456,17 @@ class RunAccumulator:
     """Streams one session file's records and accumulates one run's metrics.
 
     Holds only small per-turn scalars — one int per attributed turn that carried a
-    `usage` object, one float per timestamped tool-bearing turn, and the fixed
-    per-phase / per-category tallies. It never retains full record bodies (the
-    streaming property).
+    `usage` object, one float per timestamped tool-bearing turn, the fixed per-phase /
+    per-category tallies, and the state of the ONE open turn (issue #694: a record whose
+    `message.id` equals the open turn's id joins it; any other id, or an unusable one,
+    closes it and opens a new turn). It never retains full record bodies (the streaming
+    property). Residency, the gap timestamp and the turn counters are attributed at turn
+    CLOSE, so `result()` closes the last turn first.
 
     `skipped` is the caller's skip-tally dict (see `new_skip_tally`); the accumulator
-    writes the `unusable_timestamp` key into it, so a turn whose timestamp cannot be
-    parsed is *accounted*, never silently dropped and never counted as a zero gap.
+    writes the `unusable_timestamp` and `missing_message_id` keys into it, so a turn
+    whose timestamp cannot be parsed, or a record with no usable id, is *accounted*,
+    never silently dropped and never counted as a zero gap.
     """
 
     def __init__(self, source, skipped=None, attribution=ATTRIBUTION):
@@ -496,10 +510,68 @@ class RunAccumulator:
         # either side of it is computed straight across the hole and reported as ONE
         # interval, so this counter is what marks a run's gaps as spanning dropped turns.
         self.unusable_timestamp_turns = 0
+        # issue #694: API-turn counters, attributed at turn close. `tool_bearing_turns`
+        # is the gap population's denominator (one point per such turn);
+        # `multi_call_turns` is how many turns batched two or more calls.
+        self.tool_bearing_turns = 0
+        self.multi_call_turns = 0
+        # Per-RUN count of turns opened by a record with no usable `message.id` — the
+        # per-run twin of skipped["missing_message_id"], for the same reason
+        # `unusable_timestamp_turns` twins `unusable_timestamp`.
+        self.missing_message_id_turns = 0
+        # The open turn, or None: {"id", "usage", "stamp", "tool_calls"}. `usage` is the
+        # residency of the earliest record carrying one; `stamp` the earliest usable
+        # timestamp among the turn's records; `tool_calls` the turn's tool_use count.
+        self._open_turn = None
 
     def observe_system(self, record):
         if record.get("subtype") == "compact_boundary":
             self.compact_boundary_count += 1
+
+    def _close_turn(self):
+        """Attribute the open turn's residency, gap timestamp and counters; idempotent."""
+        turn = self._open_turn
+        if turn is None:
+            return
+        self._open_turn = None
+        self.turn_count += 1
+        if turn["usage"] is None:
+            # Residency was never established on any record of this turn — no usage
+            # object, or only null/non-finite counts. Tally it instead of folding a 0
+            # into the peak, which would report an unmeasured turn as a real value.
+            self.usage_missing_turns += 1
+        else:
+            self.per_turn_context.append(turn["usage"])
+        if turn["tool_calls"] == 0:
+            return
+        self.tool_bearing_turns += 1
+        if turn["tool_calls"] >= 2:
+            self.multi_call_turns += 1
+        # AC11: a tool-bearing turn joins the gap population only with a usable
+        # timestamp on at least one record. None is ACCOUNTED in the skip tally — never
+        # dropped silently, and never folded in as a zero gap.
+        if turn["stamp"] is None:
+            self.skipped["unusable_timestamp"] += 1
+            self.unusable_timestamp_turns += 1
+        else:
+            self.tool_call_times.append(turn["stamp"])
+
+    def _enter_turn(self, message):
+        """Join the open turn or open a new one for a record carrying `message`."""
+        message_id = message.get("id")
+        if not isinstance(message_id, str) or not message_id:
+            # No usable id: this record is a turn of its own, accounted rather than
+            # merged into a neighbour it may not belong to (unknown is not "same turn").
+            self._close_turn()
+            self.skipped["missing_message_id"] += 1
+            self.missing_message_id_turns += 1
+            self._open_turn = {"id": None, "usage": None, "stamp": None, "tool_calls": 0}
+            return self._open_turn
+        if self._open_turn is None or self._open_turn["id"] != message_id:
+            self._close_turn()
+            self._open_turn = {"id": message_id, "usage": None, "stamp": None,
+                               "tool_calls": 0}
+        return self._open_turn
 
     def observe_assistant(self, record):
         # issue #714: classify every accepted assistant record into exactly one context
@@ -525,32 +597,34 @@ class RunAccumulator:
         if self.attribution is not None and record.get("attributionSkill") not in self.attribution:
             return
         self.attributed = True
-        self.turn_count += 1
         # A truthy non-dict `message` (a JSON array/string) would make `.get()` raise;
         # `(x or {})` only rescues a FALSY value, so guard with isinstance — a
-        # well-typed-but-wrong-shape record degrades cleanly.
+        # well-typed-but-wrong-shape record degrades cleanly (and, carrying no id, is a
+        # turn of its own).
         message = record.get("message")
         if not isinstance(message, dict):
             message = {}
-        tokens = _context_tokens(message.get("usage"))
-        if tokens is None:
-            # Residency was never established for this turn — no usage object, or one
-            # carrying only null/non-finite counts. Tally it instead of folding a 0 into the
-            # peak, which would report an unmeasured turn as a real value (issue #1899).
-            self.usage_missing_turns += 1
-        else:
-            self.per_turn_context.append(tokens)
+        turn = self._enter_turn(message)
+        # Residency: the earliest record of the turn that carries a usage object wins;
+        # a later record never overrides it (issue #1899 / #694).
+        if turn["usage"] is None:
+            turn["usage"] = _context_tokens(message.get("usage"))
+        # One gap point per turn, at its earliest usable timestamp — taken from EVERY
+        # record of the turn, not only the tool-bearing one, since the thinking block's
+        # record is the turn's first (issue #694).
+        stamp = _parse_timestamp(record.get("timestamp"))
+        if stamp is not None and (turn["stamp"] is None or stamp < turn["stamp"]):
+            turn["stamp"] = stamp
 
         content = message.get("content")
         if not isinstance(content, list):
             return
-        saw_tool_call = False
         for block in content:
             if not isinstance(block, dict):
                 continue
             if block.get("type") != "tool_use":
                 continue
-            saw_tool_call = True
+            turn["tool_calls"] += 1
             # AC10: every main-thread tool call lands in exactly one category bucket, so
             # the buckets sum to the run's whole tool-call population.
             self.tool_calls[_tool_category(block.get("name"))] += 1
@@ -573,26 +647,16 @@ class RunAccumulator:
                 label = _phase_label_for_read(file_path)
                 if label is not None:
                     self.phase_reads[label] += 1
-        if not saw_tool_call:
-            return
-        # AC11: a tool-bearing turn joins the gap population only with a usable
-        # timestamp. An unusable one is ACCOUNTED in the skip tally — never dropped
-        # silently, and never folded in as a zero gap.
-        stamp = _parse_timestamp(record.get("timestamp"))
-        if stamp is None:
-            self.skipped["unusable_timestamp"] += 1
-            self.unusable_timestamp_turns += 1
-        else:
-            self.tool_call_times.append(stamp)
 
     def result(self):
-        """The run record's own fields.
+        """The run record's own fields; closes the last open turn first.
 
         An attributed run whose every turn lacked a `usage` object has an empty
         `per_turn_context`, so its peak/final read UNESTABLISHED (never 0): the residency
         was never measured, and a real-looking 0 there is exactly the unknown-onto-zero
         collapse this instrument guards against. `usage_missing_turns` surfaces the gap.
         """
+        self._close_turn()
         peak = max(self.per_turn_context) if self.per_turn_context else UNESTABLISHED
         final = self.per_turn_context[-1] if self.per_turn_context else UNESTABLISHED
         # Emit the per-phase counts in the canonical sorted label order so the JSON /
@@ -606,7 +670,12 @@ class RunAccumulator:
             for k in sorted(self.subagent_contexts)}
         return {
             "source": self.source,
+            # issue #694: API turns (distinct `message.id` values), not records; the two
+            # sub-counts say how many carried tool calls and how many batched them.
             "turn_count": self.turn_count,
+            "tool_bearing_turns": self.tool_bearing_turns,
+            "multi_call_turns": self.multi_call_turns,
+            "missing_message_id_turns": self.missing_message_id_turns,
             # issue #714 record accounting (AC4): the two buckets partition every accepted
             # assistant record, so their sum is the accepted-assistant total.
             "main_thread_record_count": self.main_thread_record_count,
@@ -667,6 +736,10 @@ def new_skip_tally():
         # not be established, so it leaves the phase-read axis accounted here rather
         # than silently reading as "not a phase file".
         "unresolvable_read_path": 0,
+        # A main-thread assistant record whose `message.id` is absent, empty or not a
+        # string: it is one turn of its own, accounted here rather than merged into a
+        # neighbour (issue #694). Not a parse failure — the record is fully measured.
+        "missing_message_id": 0,
     }
 
 
@@ -676,8 +749,9 @@ def eval_corpus(corpus_root):
     runs: list of per-run metric dicts (only sessions with attributed turns).
     skipped: dict of {reason: count} of records AND session files the walk stepped over —
         malformed records, unreadable files, corpus-escaping symlinks, unwalkable
-        directories, and tool-bearing turns with an unusable timestamp. A non-zero total
-        is therefore not necessarily "bad transcript data"; read the per-reason keys.
+        directories, tool-bearing turns with an unusable timestamp, and records with no
+        usable `message.id`. A non-zero total is therefore not necessarily "bad
+        transcript data"; read the per-reason keys.
     """
     runs = []
     skipped = new_skip_tally()
@@ -781,6 +855,10 @@ def aggregate(runs):
         # unusable timestamp — the gap axis's sibling of the field above.
         "total_unusable_timestamp_turns": _sum_or_unestablished(
             [r["unusable_timestamp_turns"] for r in runs]),
+        # Corpus total of the turns opened by a record with no usable `message.id`
+        # (issue #694) — the turn axis's sibling of the two fields above.
+        "total_missing_message_id_turns": _sum_or_unestablished(
+            [r["missing_message_id_turns"] for r in runs]),
         # Residency axis (issue #1209 axis 1) — median AND max, so tail behaviour is
         # visible and not hidden by an average (AC3).
         "median_peak_context": _median_or_unestablished(peaks),
@@ -796,6 +874,13 @@ def aggregate(runs):
         "runs_over_400k": (sum(1 for p in peaks if p > BUCKET_400K)
                            if peaks else UNESTABLISHED),
     }
+    # Turn axis (issue #694): API turns per run, the tool-bearing subset and the
+    # batching subset — median + max + corpus total each, the phase-read axis's shape.
+    for field in ("turn_count", "tool_bearing_turns", "multi_call_turns"):
+        counts = [r[field] for r in runs]
+        summary[f"median_{field}"] = _median_or_unestablished(counts)
+        summary[f"max_{field}"] = _max_or_unestablished(counts)
+        summary[f"total_{field}"] = _sum_or_unestablished(counts)
     # Phase-file re-read axis (issue #1209 axis 2) — per phase, median + max + corpus
     # total, in the canonical sorted label order. Reported separately from the peak.
     for label in PHASE_READ_LABELS:
@@ -851,7 +936,10 @@ def _render_run_line(r):
         "{}={}".format(label, r["tool_calls"][label]) for label in TOOL_CATEGORY_LABELS)
     gaps = r["tool_call_gaps"]
     return (
-        "- {source}: turns={turn_count} peak={peak_context} final={final_context} "
+        "- {source}: turns={turn_count} tool_bearing_turns={tool_bearing_turns} "
+        "multi_call_turns={multi_call_turns} "
+        "missing_message_id_turns={missing_message_id_turns} "
+        "peak={peak_context} final={final_context} "
         "compactions={compact_boundary_count} usage_missing={usage_missing_turns} "
         "phase_reads=[{phase}] total_phase_reads={total_phase_reads} "
         "tool_calls=[{tools}] total_tool_calls={total_tool_calls} "
@@ -902,24 +990,27 @@ def render_text(runs, summary, skipped):
     for key, value in summary.items():
         lines.append(f"- {key}: {value}")
     lines.append("")
-    # The two AXIS EXCLUSIONS are reported under their own heading rather than
-    # inflating the skipped headline a maintainer reads as "bad transcript data":
-    # neither is a parse failure, and each removes a turn or a block from ONE axis. The
+    # The AXIS EXCLUSIONS and the missing-id accounting are reported under their own
+    # heading rather than inflating the skipped headline a maintainer reads as "bad
+    # transcript data": none is a parse failure — the first two remove a turn or a block
+    # from ONE axis, the third only stops a record from merging into a neighbour. The
     # remaining tally covers both records and whole session files / directories (see
     # eval_corpus's docstring), which is why the heading names both.
-    excluded = {k: skipped.get(k, 0)
-                for k in ("unusable_timestamp", "unresolvable_read_path")}
+    excluded = {k: skipped.get(k, 0) for k in
+                ("unusable_timestamp", "unresolvable_read_path", "missing_message_id")}
     record_skips = {k: v for k, v in skipped.items() if k not in excluded}
     lines.append(f"## Skipped records and files: {sum(record_skips.values())}")
     for reason in sorted(record_skips):
         if record_skips[reason]:
             lines.append(f"- {reason}: {record_skips[reason]}")
     lines.append("")
-    lines.append("## Dropped from an axis (not a parse failure)")
+    lines.append("## Accounted outside the headline (not a parse failure)")
     lines.append("- turns dropped from the gap population (unusable timestamp): "
                  "{}".format(excluded["unusable_timestamp"]))
     lines.append("- Read blocks dropped from the phase-read axis (unresolvable path): "
                  "{}".format(excluded["unresolvable_read_path"]))
+    lines.append("- turns opened by a record with no usable message.id "
+                 "(missing message id): {}".format(excluded["missing_message_id"]))
     return "\n".join(lines)
 
 

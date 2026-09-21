@@ -17,13 +17,13 @@ Invoke `preflight.py lint-changed` as a direct leading token. It selects changed
 
 Run base-branch update checkpoint 2 before opening the PR:
 
-First Read `<skill-dir>/references/base-update-checkpoint.md` and validate its shared-reference markers under the root contract. This is an on-demand shared read, not permission to reload Phase 1.
+Route on the token the helper prints and the `route:` line it prints on stderr immediately before that token, as implement-driven checkpoint 2. This is not permission to reload Phase 1.
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/update-branch-checkpoint.sh
 ```
 
-Handle the printed token per that shared implement-driven contract. `CONFLICT` remains model-owned: resolve it, verify it, complete the merge, push, and re-run the Phase 2.3.0 changed-contract sweep. `MERGE_IN_PROGRESS`, unresolved or suite-failed `CONFLICT`, and a `PUSH_REJECTED` failed-restore warning stop the run; the other documented outcomes continue. Neither PR-opening helper mode resolves or aborts a merge.
+Handle the printed token and its `route:` line per the implement-driven outcome routing. `CONFLICT` remains model-owned: resolve it, verify it, complete the merge, push, and re-run the Phase 2.3.0 changed-contract sweep. `MERGE_IN_PROGRESS`, unresolved or suite-failed `CONFLICT`, and a `PUSH_REJECTED` failed-restore warning stop the run; the other documented outcomes continue. Neither PR-opening helper mode resolves or aborts a merge.
 
 Use the Write tool to create `<run-scratch>/pr-title.txt` from the issue title and `<run-scratch>/pr-body.md` with:
 

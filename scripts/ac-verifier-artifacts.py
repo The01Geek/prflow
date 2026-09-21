@@ -355,32 +355,57 @@ def _bounded_dispositions(disp) -> dict:
             for k, v in disp.items()}
 
 
+def _bound_str(value, limit: int):
+    """Bound a string value to `limit` UTF-8 bytes; a non-string value passes through unchanged."""
+    return _truncate_to_bytes(value, limit) if isinstance(value, str) else value
+
+
 def _dispositions_line(c: dict) -> dict:
-    """Project one reconciled-criterion record into its bounded dispositions-record line."""
-    evidence = c["evidence"]
-    return {
+    """Project one reconciled-criterion record into its bounded dispositions-record line (issue
+    #681). A `tick` criterion carries only the four always-present keys — complete by
+    construction. Any other remedy also carries the fields that explain the block, plus the
+    claim-side pair exactly when the criterion's `sides` includes `claim`. `evidence` is bounded
+    to 400 bytes, `stated_terms`/`observed_value` to 200 each, and slot values keep the 60-byte
+    bound; a non-string value passes through unbounded."""
+    line = {
         "criterion": c["criterion"],
         "status": c["status"],
         "remedy": c["remedy"],
-        "evidence": _truncate_to_bytes(evidence, 200) if isinstance(evidence, str) else evidence,
-        "evidence_status_reported": c["evidence_status_reported"],
-        "claim_status_reported": c["claim_status_reported"],
-        "evidence_dispositions": _bounded_dispositions(c["evidence_dispositions"]),
-        "claim_dispositions": _bounded_dispositions(c["claim_dispositions"]),
-        "undischarged_slots": c["undischarged_slots"],
+        "evidence": _bound_str(c["evidence"], 400),
     }
+    if c["remedy"] == "tick":
+        return line
+    line.update({
+        "reason": c["reason"],
+        "sides": c["sides"],
+        "missing_sides": c["missing_sides"],
+        "undischarged_slots": c["undischarged_slots"],
+        "stated_terms": _bound_str(c["stated_terms"], 200),
+        "observed_value": _bound_str(c["observed_value"], 200),
+        "evidence_status_reported": c["evidence_status_reported"],
+        "evidence_dispositions": _bounded_dispositions(c["evidence_dispositions"]),
+    })
+    if "claim" in c["sides"]:
+        line["claim_status_reported"] = c["claim_status_reported"]
+        line["claim_dispositions"] = _bounded_dispositions(c["claim_dispositions"])
+    return line
 
 
 def _write_dispositions(path: str, criteria: list) -> None:
-    """Write the per-criterion dispositions record as UTF-8 JSON lines (`ensure_ascii=False`,
-    `\\n` endings). An empty reconciliation writes the single line `{"criteria": []}`."""
+    """Write the per-criterion dispositions record as a collapsed block (issue #681): a
+    `<details><summary>3.4 dispositions: <N> criteria, <K> tick</summary>` first line, one UTF-8
+    JSON line per criterion (`ensure_ascii=False`, `\\n` endings) — the single line
+    `{"criteria": []}` when the reconciliation had no criteria — and a `</details>` last line."""
+    tick = sum(1 for c in criteria if c["remedy"] == "tick")
+    summary = (f"<details><summary>3.4 dispositions: {len(criteria)} criteria, "
+               f"{tick} tick</summary>\n")
     if not criteria:
         body = json.dumps({"criteria": []}, ensure_ascii=False) + "\n"
     else:
         body = "".join(
             json.dumps(_dispositions_line(c), ensure_ascii=False, sort_keys=True) + "\n"
             for c in criteria)
-    _atomic_write_text(path, body)
+    _atomic_write_text(path, summary + body + "</details>\n")
 
 
 def _cmd_check(args) -> int:
