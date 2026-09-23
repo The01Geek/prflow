@@ -1,5 +1,5 @@
 {
-  "manifest_version": 41,
+  "manifest_version": 42,
   "readme": [
     "This manifest is the single source of truth for PRFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -176,6 +176,7 @@
       "Bash(gh pr checks:*)",
       "Bash(gh pr status:*)",
       "Bash(gh pr reopen:*)",
+      "Bash(gh pr checkout:*)",
       "Bash(gh issue view:*)",
       "Bash(gh issue comment:*)",
       "Bash(gh issue list:*)",
@@ -213,6 +214,7 @@
       "Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/preflight.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*)",
+      "Bash(.prflow/vendor/prflow/scripts/pr-note-block.py:*)",
       "Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*)",

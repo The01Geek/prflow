@@ -653,6 +653,19 @@ def _shadow_step1_binding(run_root_dir, iteration):
     return binding, None
 
 
+def _has_generator_item(items):
+    """Whether a checklist holds an item a generator wrote this entry — anything but a
+    finalize-built `issue_acceptance` item or a §1.0 carried item (`carried: true`, or
+    `reused_from_iter_prev: true` from a finalize that predates that marker). A non-list or a non-object item
+    counts as one, so a malformed artifact keeps the staleness check."""
+    if not isinstance(items, list):
+        return True
+    return any(not isinstance(it, dict)
+               or (it.get('category') != 'issue_acceptance' and it.get('carried') is not True
+                   and it.get('reused_from_iter_prev') is not True)
+               for it in items)
+
+
 def _shadow_artifact_grade(binding, step1_binding, checklist_value, verification_value):
     """Grade a bound shadow artifact against step1's own record of the same iteration (issue
     #621). Returns the unestablished reason, or None when both artifacts are the shadow's own.
@@ -663,10 +676,15 @@ def _shadow_artifact_grade(binding, step1_binding, checklist_value, verification
     artifacts collide by construction, not by staleness. A step1 record carrying no usable
     digest (its producer could not hash its own artifact) cannot answer the comparison at all,
     so a NON-EMPTY shadow artifact is then `active-entry-step1-digest-unestablished` rather
-    than a silent pass that skips the staleness check for that artifact."""
+    than a silent pass that skips the staleness check for that artifact. A checklist holding
+    no generator-written item (only finalize's `issue_acceptance` items and carried items) is
+    exempt too: its acceptance items derive from the same criteria file and its carried items
+    from the same prior iteration, so equal bytes are expected."""
     for value, key in ((checklist_value, 'checklist_sha256'),
                        (verification_value, 'verification_sha256')):
         if not value:
+            continue
+        if key == 'checklist_sha256' and not _has_generator_item(value):
             continue
         theirs = step1_binding.get(key)
         if not (isinstance(theirs, str) and theirs):

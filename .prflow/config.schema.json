@@ -225,6 +225,16 @@
               "type": "boolean",
               "description": "true activates CI verification mode (subject to the deployment check above). Any other value — missing key, false, 0, or empty string — leaves the mode OFF (issue #312 valid-falsy discipline).",
               "default": false
+            },
+            "pre_request_checks": {
+              "type": "array",
+              "description": "Opt-in (issue #870): commands `ci-verification-request.py request` runs, in order from the repository root, before it dispatches a new CI run; the first non-zero exit refuses the request unless the same check fails the same way at the merge-base with the base. Each entry is one argv list, run with no shell; a first token ending in .py runs under the helper's interpreter. Empty or absent runs no check.",
+              "items": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" }
+              },
+              "default": []
             }
           },
           "default": {}

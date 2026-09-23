@@ -76,7 +76,9 @@ if [ ! -f "$RGB" ]; then
   exit 1
 fi
 
-GROUNDING=$(MODE=implement ALLOWED_TOOLS="$ALLOWED_TOOLS" bash "$RGB") || GROUNDING=""
+# SHAPES_FILE: the renderer also writes the command-shapes section there for subagents
+# (best-effort; it never changes this helper's arms).
+GROUNDING=$(MODE=implement ALLOWED_TOOLS="$ALLOWED_TOOLS" SHAPES_FILE=.prflow/tmp/command-shapes.md bash "$RGB") || GROUNDING=""
 if [ -z "$GROUNDING" ]; then
   echo "::error::prflow: render-grounding-block.sh produced no output — the implement prompt would carry no engine-ground-truth block (the engine would rediscover its tool boundary by trial and denial, with no headless-run discipline at all). The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
   exit 1

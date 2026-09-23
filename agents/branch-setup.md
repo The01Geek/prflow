@@ -14,6 +14,8 @@ color: green
 
 You are dispatched by `/prflow:implement` after the workpad exists and the early dependency gate passes. You share the orchestrator's checkout, dispatch nothing, and make no commit or push.
 
+Before composing a Bash command, read `.prflow/tmp/command-shapes.md` when it exists and emit only the shapes it permits. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+
 ## Operands
 
 The dispatch prompt supplies literal values for:
@@ -70,13 +72,13 @@ The dispatch prompt supplies literal values for:
 
    This re-invocation runs once and is never retried — step 2's interpreter fallback does not apply to it. Take its result as final: `outcome=proceed` continues at step 5, and a second `outcome=stop` is terminal for the run, recorded by step 6. `stop_kind=invalid-recover-operand` means this adopt call's `--branch` was missing, malformed, or not confirmed to be the branch `HEAD` is on — its `reason` says which; it is a defect in the call above, not a branch problem, so step 6 records it as such rather than leaving the human an unexplained token.
 
-   `fork` leaves the current branch's commits untouched and cuts a new one from the base, so name the abandoned branch in step 6's note — on a consumer's local tier it outlives the run.
+   `fork` leaves the current branch's commits untouched and cuts a new one from the base, so step 6's note names each branch left behind — on a consumer's local tier they outlive the run: the branch `HEAD` was on before the fork, plus the `branch` field of the stop record this step recovered from when it full-matches `issue-<issue>(-[a-z0-9-]+)?` and differs from that branch.
 
 5. Best-effort stopped-run-note cleanup runs only when `outcome=proceed` and `selected_pr` is numeric. Substitute that number literally in an explicitly addressed `gh pr view <selected-pr> --json body --jq .body` read. If it returns a non-empty body, write it under `RUN_SCRATCH` as `<body-file>`, run `pr-note-block.py strip` with `<body-file>` as its argument (no pipe or redirect), and, only when its stdout is non-empty, write that stdout under `RUN_SCRATCH` as `<stripped-body-file>` and update the same literal PR with `gh pr edit <selected-pr> --body-file <stripped-body-file>`. A read, strip, or edit failure does not change the setup outcome and causes no extra workpad write.
 
 6. Write the workpad exactly once, using the final record — the recovery invocation's when step 4 ran one:
 
-   - `outcome=proceed` carrying in no ahead-of-base history — `arm=fresh-create` **or** `verdict_b=FRESH`: invoke `"$WORKPAD" update <issue> --branch-from-head --note "Branch-state: VALIDATED_RESUME proceed-verdict for branch <branch>"`. This is the branch-qualified proceed verdict that lets an interruption after a Phase-2 durability push resume safely before a PR exists; `ahead == 0` is what both arms vouch for. A recovery fork lands here too — it carries `arm=fresh-create` — so when the record carries `recovery=fork` add `recovery=fork` and the abandoned branch it left behind to this same note (it outlives the run on a consumer's local tier); make no second workpad mutation.
+   - `outcome=proceed` carrying in no ahead-of-base history — `arm=fresh-create` **or** `verdict_b=FRESH`: invoke `"$WORKPAD" update <issue> --branch-from-head --note "Branch-state: VALIDATED_RESUME proceed-verdict for branch <branch>"`. This is the branch-qualified proceed verdict that lets an interruption after a Phase-2 durability push resume safely before a PR exists; `ahead == 0` is what both arms vouch for. A recovery fork lands here too — it carries `arm=fresh-create` — so when the record carries `recovery=fork` append `recovery=fork left-behind=<each branch step 4 names>` to this same note; make no second workpad mutation.
    - any other `outcome=proceed`: invoke `"$WORKPAD" update <issue> --branch-from-head --note "Branch-setup: proceed — <the record's fields, omitting every field whose value is `n/a` or `not-run`>"`. When step 4 recovered, that field list carries `recovery=adopt-unvouched` (a recovery fork carries `arm=fresh-create` and is recorded by the bullet above, not here).
    - `outcome=stop` or an unusable result: invoke `"$WORKPAD" update <issue> --status Blocked --reflection-kind blocked --reflection "Branch setup stopped: <recovery invocation also stopped | no usable record returned>: <stop_kind>; <reason or unavailable-result><; payload_file=<payload-file> when present>" --note "Branch-setup record: <complete branch-setup record, or the unusable-result observation>"`. A record carrying `payload_file` must name that exact path in the reflection. Naming which of the two cases fired tells the human reading `Blocked` whether the branch or the worker boundary failed.
 
@@ -91,8 +93,6 @@ On cloud runs a permission layer silently refuses any command outside its allowl
 - The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
 - Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
 - Prefer your Read, Grep, and Glob tools for inspecting files.
-
-After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
 
 ## Merge ownership
 

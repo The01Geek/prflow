@@ -23,7 +23,8 @@
     "allowed_tools": [],
     "update_branch_checkpoints": true,
     "ci_verification": {
-      "enabled": false
+      "enabled": false,
+      "pre_request_checks": []
     },
     "merge_drivers": {},
     "stall_backstop": {

@@ -1761,7 +1761,9 @@ def _validate_scratch_issue(raw: "str | None") -> "str | None":
 
 
 def _scratch_dir(top: str) -> str:
-    return os.path.join(top, ".prflow", "tmp")
+    # normpath: git prints `C:/x` on Windows, so a bare join yields mixed separators
+    # that never equal commonpath's normalized result.
+    return os.path.normpath(os.path.join(top, ".prflow", "tmp"))
 
 
 def _scratch_issue_folder(top: str, issue: str) -> str:
@@ -2214,6 +2216,9 @@ def main(argv=None) -> int:
         _p.add_argument("--base", help="base branch for the merge-base changed set (default: config base_branch or main)")
         _p.add_argument("--run-id", help="receipt run id (default: $GITHUB_RUN_ID or 'local')")
         _p.add_argument("--run-attempt", help="receipt run attempt (default: $GITHUB_RUN_ATTEMPT or '1')")
+        if _name == "lint-changed":
+            _p.add_argument("--fail-on-findings", action="store_true",
+                            help="exit 1 when a linter reports findings, 2 when an invocation did not run")
         _p.set_defaults(func=_func)
 
     args = parser.parse_args(argv)

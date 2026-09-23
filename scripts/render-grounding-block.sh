@@ -22,6 +22,8 @@
 #   HEAD_SHA       the reviewed commit; renders as `unknown` when empty.
 #   CI_SUMMARY     `summarize-ci-checks.sh` output, or `CI status unavailable`.
 #   ALLOWED_TOOLS  the exact --allowed-tools string this run resolved.
+#   SHAPES_FILE    optional; when set, the command-shapes section is also written
+#                  there (the compose sites pass .prflow/tmp/command-shapes.md).
 #
 # Prints the block, terminated by a `---` separator, so the caller appends its own
 # prompt body directly. Always exits 0 — the block is unconditional, so there is no
@@ -248,6 +250,64 @@ N_DISP=$((N_PUB + 1))
 PUBLISHER_SECTION="${PUBLISHER_SECTION//__N_PUB__/$N_PUB}"
 DISPLACED_SECTION="${DISPLACED_SECTION//__N_DISP__/$N_DISP}"
 
+# The command-shapes section, captured once so the SHAPES_FILE copy below and the section
+# inside the block are the same bytes by construction. `read -d ''` keeps the trailing
+# newline a `$(…)` capture would strip; it returns 1 at end of input, hence `|| true`.
+IFS= read -r -d '' SHAPES_SECTION <<EOF || true
+> **${N_SHAPES}. Command shapes this run's harness accepts.** A granted command *head* is not
+> enough: the harness also denies whole command *shapes* — silently, consuming budget
+> and returning nothing, exactly like an ungranted command. When you improvise a
+> command, keep it to a PERMITTED shape:
+>
+> Each row below pairs a refused shape with the exact permitted form to emit instead:
+>
+> | Refused shape | Emit instead |
+> | --- | --- |
+> | a \`>\`/\`>>\` redirect targeting \`/tmp\` | author the file with the Write tool under \`.prflow/tmp/\` |
+> | a leading \`cd\` | the repo-relative path as the command's leading token (the working directory persists across calls) |
+> | \`git -C <path> <subcommand>\` | the bare \`git <subcommand>\` (the run starts at the repository root) |
+> | \`git -c <key>=<value> <subcommand>\` | the bare \`git <subcommand>\` |
+> | a heredoc write (a \`cat\`-headed \`<<'EOF'\` write to any target) | the Write tool, or a \`tee\` pipe |
+> | a fused \`A || B\` two-path helper fallback | two separate statements, the vendored literal first |
+> | a repo-relative \`scripts/…\` leading token | the \`.prflow/vendor/prflow/scripts/…\` vendored literal |
+> | an expansion (\`\$VAR\`, \`\${…}\`) or an absolute workspace path as the command name | the repo-relative \`.prflow/vendor/prflow/scripts/…\` vendored literal |
+> | a leading \`VAR=value\` assignment or env-prefix (\`M=x cmd\`) | capture with \`VAR=\$(cmd)\`, or pass the value as an argument |
+> | a \`\$VAR\`/\`\${VAR}\`/\`\$?\` expansion in argument position (the harness reports this as \`Contains simple_expansion\`) | substitute the literal value; for \`\$?\`, drop the parameter and read the bare statement's exit code from the tool result (a statement ending in a trailer exits with the trailer's status, so its helper is routed on its own output) |
+> | a \`2>\` redirect to a file target | drop the redirect, stderr appears in the tool result |
+> | the Write tool outside \`.prflow/tmp/\` | the Write tool under \`.prflow/tmp/\` |
+> | a \`bash <path>\` wrapper | the helper path directly as the command's leading token |
+> | process substitution (\`<(…)\` / \`>(…)\`) | a temp file authored with the Write tool under \`.prflow/tmp/\`, read back by path |
+> | an interpreter head (\`python3\`/\`python\`/\`node\`) | invoke the helper directly by its granted path as the leading token |
+>
+> Reach for a single statement whose leading token is a granted head or a resolved helper
+> path; a pipe into \`tee\`; or a \`VAR=\$(cmd)\` capture. Redirect evidence is scoped to the
+> exact tier, command head, target form, and statement that was measured.
+> - **Hard rule: after one refusal of an ungranted head, or
+>   after two denials of a shape, switch to a permitted alternative above — never retry
+>   variants.** \`dangerouslyDisableSandbox\` lifts no permission refusal. Iterating denied variants is what
+>   exhausts the run and ends it with no verdict. When the refused command is a bundled
+>   plugin helper, record the refusal on this run's durable record (the workpad, else the
+>   PR description) naming the helper, the tier, and that tier's remedy — on this cloud tier,
+>   \`install.sh --apply\` or the matching \`allowed_tools\` config token — then report the
+>   artifact it would have produced as absent; never reproduce that artifact by hand, through
+>   another tool, an interpreter, or a self-attested check.
+EOF
+
+# SHAPES_FILE (optional): also write the command-shapes section alone to this path, so
+# subagents, which never see this prompt, can read it. Best-effort: a failed write warns
+# and changes neither the printed block nor the exit status.
+SHAPES_FILE="${SHAPES_FILE:-}"
+if [ -n "$SHAPES_FILE" ]; then
+  case "$SHAPES_FILE" in
+    */*) [ -d "${SHAPES_FILE%/*}" ] || mkdir -p "${SHAPES_FILE%/*}" 2>/dev/null || true ;;
+  esac
+  _shapes_rc=0
+  printf '%s' "$SHAPES_SECTION" > "$SHAPES_FILE" || _shapes_rc=$?
+  if [ "$_shapes_rc" -ne 0 ]; then
+    echo "::warning::render-grounding-block.sh: could not write the command-shapes section to '$SHAPES_FILE'; subagents run without it" >&2
+  fi
+fi
+
 cat <<EOF
 > [!IMPORTANT]
 > **Engine ground truth for this run. Read this before planning any command.**
@@ -299,41 +359,9 @@ cat <<EOF
 ${ALLOWED_TOOLS}
 \`\`\`
 
-> **${N_SHAPES}. Command shapes this run's harness accepts.** A granted command *head* is not
-> enough: the harness also denies whole command *shapes* — silently, consuming budget
-> and returning nothing, exactly like an ungranted command. When you improvise a
-> command, keep it to a PERMITTED shape:
->
-> Each row below pairs a refused shape with the exact permitted form to emit instead:
->
-> | Refused shape | Emit instead |
-> | --- | --- |
-> | a \`>\`/\`>>\` redirect targeting \`/tmp\` | author the file with the Write tool under \`.prflow/tmp/\` |
-> | a leading \`cd\` | the repo-relative path as the command's leading token (the working directory persists across calls) |
-> | \`git -C <path> <subcommand>\` | the bare \`git <subcommand>\` (the run starts at the repository root) |
-> | a heredoc write (a \`cat\`-headed \`<<'EOF'\` write to any target) | the Write tool, or a \`tee\` pipe |
-> | a fused \`A || B\` two-path helper fallback | two separate statements, the vendored literal first |
-> | a repo-relative \`scripts/…\` leading token | the \`.prflow/vendor/prflow/scripts/…\` vendored literal |
-> | a leading \`VAR=value\` assignment or env-prefix (\`M=x cmd\`) | capture with \`VAR=\$(cmd)\`, or pass the value as an argument |
-> | a \`\$VAR\`/\`\${VAR}\`/\`\$?\` expansion in argument position (the harness reports this as \`Contains simple_expansion\`) | substitute the literal value; for \`\$?\`, drop the parameter and read the bare statement's exit code from the tool result (a statement ending in a trailer exits with the trailer's status, so its helper is routed on its own output) |
-> | a \`2>\` redirect to a file target | drop the redirect, stderr appears in the tool result |
-> | the Write tool outside \`.prflow/tmp/\` | the Write tool under \`.prflow/tmp/\` |
-> | a \`bash <path>\` wrapper | the helper path directly as the command's leading token |
-> | process substitution (\`<(…)\` / \`>(…)\`) | a temp file authored with the Write tool under \`.prflow/tmp/\`, read back by path |
-> | an interpreter head (\`python3\`/\`python\`/\`node\`) | invoke the helper directly by its granted path as the leading token |
->
-> Reach for a single statement whose leading token is a granted head or a resolved helper
-> path; a pipe into \`tee\`; or a \`VAR=\$(cmd)\` capture. Redirect evidence is scoped to the
-> exact tier, command head, target form, and statement that was measured.
-> - **Hard rule: after one refusal of an ungranted head, or
->   after two denials of a shape, switch to a permitted alternative above — never retry
->   variants.** \`dangerouslyDisableSandbox\` lifts no permission refusal. Iterating denied variants is what
->   exhausts the run and ends it with no verdict. When the refused command is a bundled
->   plugin helper, record the refusal on this run's durable record (the workpad, else the
->   PR description) naming the helper, the tier, and that tier's remedy — on this cloud tier,
->   \`install.sh --apply\` or the matching \`allowed_tools\` config token — then report the
->   artifact it would have produced as absent; never reproduce that artifact by hand, through
->   another tool, an interpreter, or a self-attested check.
+EOF
+printf '%s' "$SHAPES_SECTION"
+cat <<EOF
 >
 > **${N_HEADLESS}. This is a headless run: ending your turn ends the process.** There is no
 > re-invocation here — do NOT end your turn while any dispatched agent has not

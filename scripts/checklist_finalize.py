@@ -33,8 +33,12 @@ carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
 ``verification-step1-iter-<N-1>.json`` (the row wins) — or, with ``--prior FILE``,
 that file as already-joined items; an unusable snapshot carries nothing.
 
-``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array) and
-``<run-dir>/coverage-shortfall-iter-<N>.json``. It fails closed — ``ok: false``,
+``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array). It reads
+the acceptance criteria from ``<run-dir>/criteria.json`` (written by Phase 0.4's
+``acs-resolve --criteria-out``) and creates one ``issue_acceptance`` item per criterion
+after the cap, so acceptance items never take a cap slot; a criteria file present but
+malformed sets ``criteria_error`` and writes no acceptance item, still ``ok: true``, and
+an absent file creates no acceptance item and no error. It fails closed — ``ok: false``,
 no checklist written — on:
 
     bad_batch                  a batch file missing, unparseable, not an array of objects,
@@ -58,6 +62,7 @@ the array itself; the merged row's ``merged_from`` records which ids it absorbed
 """
 from __future__ import annotations
 
+import importlib.util
 import itertools
 import json
 import os
@@ -66,10 +71,9 @@ import subprocess
 import sys
 
 CAP = 100
-ISSUE_ACCEPTANCE_SUBCAP = 25
-# Rank 1 is issue_acceptance (sub-capped); ranks 2..6 fill the rest in this order.
-# A category outside the list ranks last.
-PRIORITY = ["issue_acceptance", "absolute_claim", "dependency_interaction",
+# The cap ranks non-acceptance items only — issue_acceptance items are built after the cap
+# and never enter cap_items. A category outside the list ranks last.
+PRIORITY = ["absolute_claim", "dependency_interaction",
             "test_mock_alignment", "api_contract", "data_format_assumption"]
 TOKEN_MIN = 8  # the floor the dispatching prose tells the engine to generate
 _WORK_RE = re.compile(rf"\Aphase1-[A-Za-z0-9]{{{TOKEN_MIN},64}}\Z")
@@ -199,59 +203,104 @@ def _changed_since(prior_head):
     return {n for n in names if n}, None
 
 
-def _strip_line_anchor(fc):
-    """``file_checked`` with its trailing line-anchor list removed — after the last ``:``, one
-    or more comma-separated ``N`` / ``N-M`` items, spaces and a trailing ``-`` tolerated; any
-    other tail, or a non-string, is returned unchanged. Coupled site: a copy of
-    normalize-verdicts.py's ``_strip_line_anchor`` (that helper's build mode must not import
-    this module); a divergence reuses a citation the collector's gate then demotes."""
-    if not isinstance(fc, str):
-        return fc
-    idx = fc.rfind(":")
-    if idx <= 0:
-        return fc
-    items = [item.strip() for item in fc[idx + 1:].split(",")]
-    items = [item for item in items if item]
-    if not items:
-        return fc
-    for item in items:
-        parts = item.split("-")
-        if not (1 <= len(parts) <= 2) or not parts[0].isdigit() or (
-                len(parts) == 2 and parts[1] and not parts[1].isdigit()):
-            return fc
-    return fc[:idx].rstrip()
+_CITED = []  # memo: [(normalize-verdicts.py's _cited_paths or None, cause)]
+
+
+def _collector_cited_paths():
+    """(fn, cause): the collector's ``_cited_paths``, loaded from the sibling
+    normalize-verdicts.py rather than copied, so carry splits a citation the way the collector
+    does. ``fn`` is None, with its cause, when it cannot load."""
+    if not _CITED:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "normalize-verdicts.py")
+        try:
+            spec = importlib.util.spec_from_file_location("prflow_normalize_verdicts", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            fn = module._cited_paths
+            _CITED.append((fn, None) if callable(fn) else (None, "_cited_paths is not callable"))
+        # SystemExit too: normalize-verdicts.py's Python-version guard calls sys.exit at import.
+        except (Exception, SystemExit) as exc:  # any load failure turns reuse off; carry still runs
+            _CITED.append((None, f"normalize-verdicts.py _cited_paths unavailable: {type(exc).__name__}"))
+    return _CITED[0]
+
+
+class _Tracked:
+    """``_cited_paths``' inventory, answered by the HEAD probe."""
+
+    def __init__(self, probe):
+        self._probe = probe
+
+    def __contains__(self, path):
+        return isinstance(path, str) and self._probe(path)
+
+
+def _carry_cited_paths(fc, tracked, errors=None):
+    """The paths ``file_checked`` cites, split as the collector splits them with no view
+    prefixes and the tracked set as its inventory; None when the collector cannot load or
+    raises on this value (the exception's name is appended to ``errors``), so only this
+    item verifies fresh."""
+    fn, _ = _collector_cited_paths()
+    if fn is None:
+        return None
+    try:
+        return fn(fc, (), _Tracked(tracked))
+    except (Exception, SystemExit) as exc:
+        if errors is not None:
+            errors.append(type(exc).__name__)
+        return None
+
+
+_REGULAR_MODES = (b"100644", b"100755")
+
+
+def _regular_file_at_head(path):
+    """Whether HEAD records `path`, spelled exactly as git records it, as a regular file:
+    one `git ls-tree` entry (literal pathspec, full tree) named `path` with mode 100644/100755.
+    So a non-canonical spelling (`./x`, `a/../x`, absolute), a tree, a submodule, and a symlink
+    (whose target may have changed) are refused, as is a path git cannot take (a NUL byte)."""
+    if not isinstance(path, str) or not path or "\0" in path:
+        return False
+    try:
+        run = subprocess.run(["git", "--literal-pathspecs", "ls-tree", "-z", "--full-tree", "HEAD",
+                              "--", path], capture_output=True)
+        want = path.encode("utf-8", "surrogateescape")
+    except (OSError, ValueError):
+        return False
+    entries = [e for e in run.stdout.split(b"\0") if e]
+    if run.returncode != 0 or len(entries) != 1:
+        return False
+    meta, _, name = entries[0].partition(b"\t")
+    fields = meta.split(b" ")
+    return len(fields) == 3 and fields[0] in _REGULAR_MODES and fields[1] == b"blob" and name == want
 
 
 def tracked_at_head():
-    """A memoized probe: whether `path` names a blob at HEAD (`git cat-file -t HEAD:<path>`;
-    a tree — a directory, or the root for `""` — is not a file the collector can re-bind). A
-    probe that cannot run or exits non-zero reads as not tracked, so the item verifies fresh."""
+    """A memoized ``_regular_file_at_head`` probe. Anything it cannot establish — including a
+    probe that cannot run — reads as not tracked, so that item alone verifies fresh."""
     seen = {}
 
     def probe(path):
         if path not in seen:
-            try:
-                run = subprocess.run(["git", "cat-file", "-t", f"HEAD:{path}"], capture_output=True)
-                seen[path] = run.returncode == 0 and run.stdout.strip() == b"blob"
-            except OSError:
-                seen[path] = False
+            seen[path] = _regular_file_at_head(path)
         return seen[path]
     return probe
 
 
-def _reusable(item, changed, tracked):
-    """Whether a carried PASS is reused: its ``file_checked``, anchor list stripped, is one
-    path tracked at HEAD and outside the changed-file set — evidence the collector can re-bind
-    to the current head. A multi-file citation, free text, ``null``, ``""`` or a changed path
-    verifies fresh instead of being reused and then demoted to INCONCLUSIVE."""
+def _reusable(item, changed, tracked, errors=None):
+    """Whether a carried PASS is reused: every path its ``file_checked`` cites is a regular
+    file HEAD records under that exact spelling (``tracked``) and outside the changed-file set.
+    The collector's head view is materialized from that same HEAD, so its gate admits every
+    path carry reuses. A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, or any
+    changed or untracked path verifies fresh."""
     if item.get("verdict") != "PASS":
         return False
-    path = _strip_line_anchor(item.get("file_checked"))
-    return isinstance(path, str) and bool(path) and path not in changed and tracked(path)
+    paths = _carry_cited_paths(item.get("file_checked"), tracked, errors)
+    return bool(paths) and all(p not in changed and tracked(p) for p in paths)
 
 
-def carry_items(prior_items, diff_paths, changed, iteration, tracked):
-    """Apply the carry rule and the tag table. Returns (carried, skipped_malformed)."""
+def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_errors=None):
+    """Apply the carry rule and the tag table. Returns (carried, skipped_malformed); each item
+    whose citation split raised is appended to ``split_errors`` as ``"<id>: <exception>"``."""
     carried, malformed = [], 0
     for item in prior_items:
         if not isinstance(item, dict):
@@ -264,8 +313,12 @@ def carry_items(prior_items, diff_paths, changed, iteration, tracked):
             continue
         if cat == "issue_acceptance" or src not in diff_paths or src in changed:
             continue
-        out = dict(item)
-        if _reusable(item, changed, tracked):
+        out = dict(item, carried=True)
+        raised = []
+        reuse = _reusable(item, changed, tracked, raised)
+        if raised and split_errors is not None:
+            split_errors.append(f"{ident}: _cited_paths raised {raised[0]}")
+        if reuse:
             origin = item.get("reused_from_iter")
             if isinstance(origin, bool) or not isinstance(origin, int) or origin < 1:
                 origin = iteration - 1
@@ -356,12 +409,19 @@ def op_carry(work, run_dir, iteration, prior_head, prior_path):
     changed, cause = _changed_since(prior_head)
     if changed is None:
         return none(cause)
-    carried, malformed = carry_items(items, diff_paths, changed, iteration, tracked_at_head())
+    split_errors = []
+    carried, malformed = carry_items(items, diff_paths, changed, iteration, tracked_at_head(), split_errors)
     os.makedirs(work, exist_ok=True)
     _write_json(out_path, carried)
     result["carried"] = len(carried)
     result["reused_pass"] = sum(1 for c in carried if c["reused_from_iter_prev"])
     result["skipped_malformed"] = malformed
+    _, cause = _collector_cited_paths()
+    if cause:
+        result["breadcrumb"] = f"carry-forward: reuse off ({cause})"
+    elif split_errors:
+        shown = "; ".join(split_errors[:5]) + ("; …" if len(split_errors) > 5 else "")
+        result["breadcrumb"] = f"carry-forward: reuse skipped for {len(split_errors)} item(s) ({shown})"
     result["announce"] = announce()
     return result
 
@@ -494,7 +554,7 @@ def _connected(members):
     return len(seen) == len(members)
 
 
-def merge_groups(raw_items, groups, crumbs):
+def merge_groups(raw_items, groups, crumbs, hint_ids=frozenset()):
     """Collapse raw items by the deduper's groups. `groups` None means the
     deterministic fallback: merge identical (claim_signature, source_file) only."""
     by_id = {it["id"]: (i, it) for i, it in enumerate(raw_items)}
@@ -512,7 +572,9 @@ def merge_groups(raw_items, groups, crumbs):
             continue
         ids = []
         for ident in group["merged_from"]:
-            if not isinstance(ident, str) or ident not in by_id:
+            if isinstance(ident, str) and ident in hint_ids:
+                crumbs.append(f"dedup group {n + 1}: acceptance hint {ident} never merges, ignored")
+            elif not isinstance(ident, str) or ident not in by_id:
                 crumbs.append(f"dedup group {n + 1}: unknown id {ident!r} ignored")
             elif ident in assigned or ident in ids:
                 crumbs.append(f"dedup group {n + 1}: id {ident} already merged, ignored")
@@ -573,23 +635,89 @@ def _ledger_diff(expected, actual):
 
 
 def cap_items(items):
-    """Keep the top CAP by PRIORITY with the issue_acceptance sub-cap, preserving
-    input order. Returns (kept, dropped)."""
+    """Keep the top CAP by PRIORITY, preserving input order. Returns (kept, dropped).
+    issue_acceptance items never reach here — they are built after the cap."""
     if len(items) <= CAP:
         return list(items), []
     rank = {c: i for i, c in enumerate(PRIORITY)}
     order = sorted(range(len(items)), key=lambda i: (rank.get(items[i].get("category"), len(PRIORITY)), i))
-    keep, acceptance = set(), 0
-    for i in order:
-        if len(keep) >= CAP:
-            break
-        if items[i].get("category") == "issue_acceptance":
-            if acceptance >= ISSUE_ACCEPTANCE_SUBCAP:
-                continue
-            acceptance += 1
-        keep.add(i)
+    keep = set(order[:CAP])
     return ([it for i, it in enumerate(items) if i in keep],
             [it for i, it in enumerate(items) if i not in keep])
+
+
+def _read_criteria(run_dir):
+    """(criteria, error): criteria is a list of ``{"criterion": N, "text": T}`` in order
+    1..K, or None; error is None or a short string. A MISSING file is not an error (a run
+    with no acceptance criteria — no items, no error); every other malformed shape is an
+    error and yields None criteria, so the checklist still writes every non-acceptance item."""
+    status, doc = _read_json(os.path.join(run_dir, "criteria.json"))
+    if status == "missing":
+        return None, None
+    if status != "ok":
+        return None, f"criteria file {status}"
+    if not isinstance(doc, list):
+        return None, f"criteria root is {_shape(doc)}, not an array"
+    if not doc:
+        return None, "criteria file is an empty array"
+    criteria = []
+    for i, entry in enumerate(doc):
+        if not isinstance(entry, dict):
+            return None, f"criteria entry {i + 1} is {_shape(entry)}, not an object"
+        crit = entry.get("criterion")
+        if isinstance(crit, bool) or not isinstance(crit, int):
+            return None, f"criteria entry {i + 1} criterion is {_shape(crit)}, not an integer"
+        text = entry.get("text")
+        if not (isinstance(text, str) and text):
+            return None, f"criteria entry {i + 1} text is {_shape(text)}, not a non-empty string"
+        criteria.append({"criterion": crit, "text": text})
+    if [c["criterion"] for c in criteria] != list(range(1, len(criteria) + 1)):
+        return None, "criteria numbering is not 1..K in order"
+    return criteria, None
+
+
+def _generic_hint(diff_path, text):
+    """The verify_hint for a criterion no valid generator hint located: it names the
+    run-scoped diff and tells the verifier to cite the head-view file the diff meets."""
+    return (f"No generator hint located this criterion. Read {diff_path} to find where the diff "
+            f"meets the criterion, then cite that head-view file. Criterion: {text}")
+
+
+def _build_acceptance_items(criteria, hints, run_dir, crumbs):
+    """One issue_acceptance item per criterion, criteria in 1..K order, ids assigned later
+    in the fresh pass. The FIRST hint in list (batch) order whose integer non-boolean
+    ``criterion`` matches supplies each of source_file/source_line/verify_hint it validly carries; a criterion with no
+    valid hint gets a generic diff-citing verify_hint. With criteria present, every hint not
+    selected for a criterion gets a breadcrumb."""
+    by_criterion = {}
+    k = len(criteria) if criteria else 0
+    for h in hints if criteria else []:
+        c = h.get("criterion")
+        if isinstance(c, bool) or not isinstance(c, int):
+            crumbs.append(f"hint {h['id']} unused: criterion is {_shape(c)}, not an integer")
+        elif not 1 <= c <= k:
+            crumbs.append(f"hint {h['id']} unused: criterion {c} is outside 1..{k}")
+        elif c in by_criterion:
+            crumbs.append(f"hint {h['id']} unused: criterion {c} already located by an earlier hint")
+        else:
+            by_criterion[c] = [h]
+    diff_path = os.path.join(run_dir, "diff.patch")
+    items = []
+    for spec in criteria or []:
+        n = spec["criterion"]
+        row = {"category": "issue_acceptance", "verification_mode": "agent",
+               "claim_provenance": "generated_paraphrase", "claim": spec["text"],
+               "claim_signature": f"issue-acceptance-{n}"}
+        hint = (by_criterion.get(n) or [None])[0]
+        if hint is not None:
+            if isinstance(hint.get("source_file"), str) and hint["source_file"]:
+                row["source_file"] = hint["source_file"]
+            if _has_line(hint):
+                row["source_line"] = hint["source_line"]
+        vh = hint.get("verify_hint") if hint is not None else None
+        row["verify_hint"] = vh if (isinstance(vh, str) and vh) else _generic_hint(diff_path, spec["text"])
+        items.append(row)
+    return items
 
 
 def op_finalize(work, run_dir, iteration, batches, no_groups):
@@ -597,8 +725,14 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     raw_items, counts, bad, flagged = load_batches(work, batches)
     if bad:
         return {"op": "finalize", "ok": False, "error": "bad_batch", "bad_batches": bad}
+    # Hints never merge, take a cap slot or ship; acceptance items come from criteria.json.
+    hint_items = [it for it in raw_items if it.get("category") == "issue_acceptance"]
+    other_items = [it for it in raw_items if it.get("category") != "issue_acceptance"]
+    hint_id_set = {it["id"] for it in hint_items}
     generated = len(raw_items)
     raw_ids = sorted(it["id"] for it in raw_items)
+    other_ids = sorted(it["id"] for it in other_items)
+    hint_ids = sorted(hint_id_set)
     if batches > 1:
         groups = None
         if not no_groups:
@@ -614,17 +748,19 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
                 return {"op": "finalize", "ok": False, "error": "bad_groups",
                         "detail": f"raw.json {status if status != 'ok' else 'no longer matches the batch files'}"
                                   " — re-run `raw` and the deduper"}
-        merged = merge_groups(raw_items, groups, crumbs)
+        merged = merge_groups(other_items, groups, crumbs, hint_id_set)
     else:
-        merged = [dict(it, merged_from=[it["id"]]) for it in raw_items]
+        merged = [dict(it, merged_from=[it["id"]]) for it in other_items]
 
-    # Merge invariant, computed from the merge OUTPUT against the raw input rather than
-    # from merge_groups' own bookkeeping: every raw id sits in exactly one merged_from.
+    # Merge invariant over the non-acceptance items: each sits in exactly one merged_from.
     ledger = _id_ledger(merged)
-    if ledger != raw_ids:
+    if ledger != other_ids:
         return {"op": "finalize", "ok": False, "error": "merge_invariant_violation",
-                "detail": _ledger_diff(raw_ids, ledger)}
+                "detail": _ledger_diff(other_ids, ledger)}
     kept, dropped = cap_items(merged)
+
+    criteria, criteria_error = _read_criteria(run_dir)
+    acceptance_items = _build_acceptance_items(criteria, hint_items, run_dir, crumbs)
 
     carried = []
     carried_path = os.path.join(work, "carried.json")
@@ -640,29 +776,28 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
 
     taken = {c["id"] for c in carried}
     final, n = [], 0
-    for it in kept:
+    for it in itertools.chain(kept, acceptance_items):
         n += 1
         while f"VC-{n}" in taken:
             n += 1
         row = dict(it)
         row["id"] = f"VC-{n}"
         row.pop("reused_from_iter", None)
+        row.pop("carried", None)
         row["reused_from_iter_prev"] = False
         final.append(row)
     fresh = len(final)
     final.extend(carried)
 
-    # Conservation, traced by id through the array about to be written: every raw id is
-    # in a fresh row's merged_from or a capped row's, exactly once; the carried tail is
-    # the carried input; every final id is unique.
-    merged_away = sum(len(row["merged_from"]) - 1 for row in final[:fresh])
+    # Every raw id is traced: kept and capped rows by merged_from, hints by the hint-id term.
+    merged_away = sum(len(row["merged_from"]) - 1 for row in final[:fresh] if "merged_from" in row)
     ids = [it["id"] for it in final]
-    traced = sorted(_id_ledger(final[:fresh]) + _id_ledger(dropped))
+    traced = sorted(_id_ledger(final[:fresh]) + _id_ledger(dropped) + hint_ids)
     if traced != raw_ids or final[fresh:] != carried or len(set(ids)) != len(ids):
         return {"op": "finalize", "ok": False, "error": "conservation_violation",
                 "detail": dict(_ledger_diff(raw_ids, traced), generated=generated, fresh=fresh,
                                capped=len(dropped), carried=len(carried), final=len(final),
-                               unique_ids=len(set(ids)))}
+                               acceptance=len(acceptance_items), unique_ids=len(set(ids)))}
     if batches == 1:
         for row in final[:fresh]:
             row.pop("merged_from", None)
@@ -671,46 +806,37 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     for it in dropped:
         cat = it.get("category") if isinstance(it.get("category"), str) else "uncategorized"
         by_category[cat] = by_category.get(cat, 0) + 1
-    acc_dropped = [it for it in dropped if it.get("category") == "issue_acceptance"]
-    acc_kept = sum(1 for it in kept if it.get("category") == "issue_acceptance")
+
+    # A hint never ships as an item; its problems are the "hint ... unused" breadcrumbs.
+    flagged = [f for f in flagged if f["id"] not in hint_id_set]
 
     checklist_path = os.path.join(run_dir, f"checklist-iter-{iteration}.json")
-    shortfall_path = os.path.join(run_dir, f"coverage-shortfall-iter-{iteration}.json")
-    # `criteria` stays empty here: recovering a dropped criterion's text is the
-    # engine's step. A positive dropped_count with no criteria reads as an
-    # unrecovered shortfall downstream, which fails closed. The checklist is written
-    # last, and a checklist write that fails takes the shortfall file back out.
-    _write_json(shortfall_path, {"dropped_count": len(acc_dropped), "criteria": []})
-    try:
-        _write_json(checklist_path, final)
-    except (WriteUnverified, OSError):
-        try:
-            os.remove(shortfall_path)
-        except OSError:
-            pass
-        raise
+    _write_json(checklist_path, final)
 
     announce = [f"Generated {generated} verification checklist items."]
     if batches > 1:
-        announce.append(f"Deduped to {len(merged)} of {generated} items.")
+        announce.append(f"Deduped to {len(merged)} of {len(other_items)} items.")
     crumbs.extend(f"item {f['id']} kept but lacks a usable {', '.join(f['fields'])}" for f in flagged)
     if dropped:
         cats = ", ".join(f"{c}: {k}" for c, k in sorted(by_category.items()))
         announce.append(f"Capped checklist at {CAP} of {len(merged)} items (dropped {len(dropped)} items by "
-                        f"category: {cats}; issue_acceptance kept: {acc_kept} of {ISSUE_ACCEPTANCE_SUBCAP}; "
-                        f"priority kept: {', '.join(PRIORITY)}).")
+                        f"category: {cats}; priority kept: {', '.join(PRIORITY)}).")
+    if criteria is not None:
+        announce.append(f"Itemized {len(acceptance_items)} acceptance criteria (no cap).")
+    elif criteria_error:
+        announce.append(f"Acceptance criteria not itemized: {criteria_error}.")
     return {
-        "op": "finalize", "ok": True, "checklist": checklist_path, "shortfall": shortfall_path,
+        "op": "finalize", "ok": True, "checklist": checklist_path,
+        "criteria_error": criteria_error, "issue_acceptance_count": len(acceptance_items),
         "counts": {"generated": generated, "batches": counts, "merged_away": merged_away,
                    "groups_refused": sum(1 for c in crumbs if " not merged: " in c),
                    "capped": len(dropped), "new": len(kept), "carried": len(carried),
+                   "acceptance": len(acceptance_items),
                    "reused_pass": sum(1 for c in carried if c.get("reused_from_iter_prev") is True),
                    "final": len(final),
                    "lite": sum(1 for it in final if it.get("verification_mode") == "lite"),
                    "agent": sum(1 for it in final if it.get("verification_mode") != "lite")},
         "cap_drops": {"count": len(dropped), "by_category": by_category},
-        "issue_acceptance": {"kept": acc_kept, "dropped": len(acc_dropped),
-                             "dropped_claims": [it.get("claim") for it in acc_dropped]},
         "flagged_items": flagged, "announce": announce, "breadcrumbs": crumbs,
     }
 

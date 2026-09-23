@@ -162,6 +162,12 @@ Discharge every 3.4-deferred documentation AC (mandatory, before §4.3). Phase 3
 Route on the token the helper prints and the `route:` line it prints on stderr immediately before that token, as implement-driven checkpoint 4. Do not reload Phase 1.
 
 ```bash
+.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh
+```
+
+On exit 127 from that vendored literal, retry once through the portable anchor:
+
+```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/update-branch-checkpoint.sh
 ```
 

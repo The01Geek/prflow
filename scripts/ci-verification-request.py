@@ -15,7 +15,8 @@ command that owns that lifecycle:
                    dispatched-uncorrelated before correlating it to a run id.
                    Repeated attachment reuses the run; an accepted dispatch whose
                    correlation is ambiguous, lost, or failed is reconciled by request
-                   identity before another dispatch.
+                   identity before another dispatch. A new dispatch first runs the
+                   config-listed pre-request checks and refuses while one fails.
                    `--ref` must name the branch carrying the candidate: it defaults to
                    `--base`, so a caller that omits it dispatches a run whose checkout is
                    not the candidate and the worker-checkout binding refuses it.
@@ -71,8 +72,11 @@ import argparse
 import json
 import os
 import re
+import shutil
+import signal
 import subprocess
 import sys
+import tempfile
 import time
 import unicodedata
 import uuid
@@ -115,6 +119,9 @@ _POLL_INTERVAL_SECONDS = 20
 # Bounded transport retries: a transient gh failure is retried this many times before the
 # wait reports a bounded transport error (never a passing or a hard-terminal outcome).
 _MAX_TRANSPORT_RETRIES = 3
+# Per-check wall-clock limit for a config-listed pre-request check (issue #870). Three checks
+# at the limit (a pass, a failure, its merge-base re-run) stay under a 900 s Bash tool call.
+_PRE_REQUEST_CHECK_TIMEOUT_SECONDS = 240
 # A downloaded artifact larger than this is refused rather than read whole — the
 # diagnostics are small text tallies, and an unbounded read is a denial-of-service seam.
 _MAX_ARTIFACT_BYTES = 4 * 1024 * 1024
@@ -143,12 +150,12 @@ _RECAP_ANSI_RE = re.compile(
     r"|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)"  # OSC … BEL or ST
     r"|\x1b[@-Z\\-_]"                      # other two-byte escapes
 )
-# `gh run view --job <id> --log` prefixes EVERY line with `group\tstep\t<RFC3339 timestamp> `
-# (page-job-log.py keeps that prefix; here it must be stripped, or the exact-match recap
-# header/bullet rule never fires against a real job log and the recap silently extracts
-# nothing — issue #603 AC1). Anchored to the timestamp so a recap identifier that merely
-# contains tabs is not mistaken for a prefix.
-_GH_LOG_PREFIX_RE = re.compile(r"^[^\t]*\t[^\t]*\t\d{4}-\d\d-\d\dT[\d:.]+Z ")
+# A job log prefixes EVERY line with `<RFC3339 timestamp> ` (the jobs-logs API) or
+# `group\tstep\t<RFC3339 timestamp> ` (`gh run view --log`); it must be stripped, or the
+# exact-match recap header/bullet rule never fires against a real job log and the recap
+# silently extracts nothing — issue #603 AC1. Anchored to the timestamp so a recap
+# identifier that merely contains tabs is not mistaken for a prefix.
+_GH_LOG_PREFIX_RE = re.compile(r"^(?:[^\t]*\t[^\t]*\t)?\d{4}-\d\d-\d\dT[\d:.]+Z ")
 
 
 # _REFUSAL_TOKENS closes the refusal vocabulary so a raise-site typo cannot ship a
@@ -176,6 +183,8 @@ _REFUSAL_TOKENS = frozenset({
     "no-request",
     "no-run",
     "path-traversal",
+    "pre-request-check-failed",
+    "pre-request-check-unavailable",
     "provenance-mismatch",
     "run-not-successful",
     "transport",
@@ -487,6 +496,156 @@ def _adopt_completed_dispatch_run(repo: str, head_sha: str) -> dict | None:
     }
 
 
+# ── pre-request checks (issue #870) ──────────────────────────────────────────────
+class _CheckUnavailable(Exception):
+    """A check list or check whose outcome is unknown; never a pass."""
+
+
+class _CheckFailed(Exception):
+    """A check that exited non-zero on the candidate and is not inherited from the base."""
+
+
+_JSON_TYPE_NAMES = {dict: "an object", list: "an array", str: "a string", bool: "a boolean",
+                    int: "a number", float: "a number", type(None): "null"}
+
+
+def _check_label(argv) -> str:
+    """The argv as bounded, control-stripped JSON — config text is untrusted in a refusal line."""
+    return _sanitize_recap(json.dumps(argv, ensure_ascii=False))[:_RECAP_MAX_CHARS]
+
+
+def _pre_request_checks(root: str) -> list:
+    """prflow_implement.ci_verification.pre_request_checks from .prflow/config.json. An absent
+    file, an absent key on the path, or [] yields []; every other unexpected shape raises
+    _CheckUnavailable (fail-closed, so the valid-falsy values refuse)."""
+    path = _state_config_path(root)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            node = json.load(fh)
+    except FileNotFoundError:
+        return []
+    except OSError as exc:
+        raise _CheckUnavailable(f"{path} is unreadable ({exc.__class__.__name__})")
+    except ValueError:
+        raise _CheckUnavailable(f"{path} is not valid JSON")
+    where = "the config"
+    for key in ("prflow_implement", "ci_verification", "pre_request_checks"):
+        if not isinstance(node, dict):
+            raise _CheckUnavailable(f"{where} is {_JSON_TYPE_NAMES.get(type(node), 'unknown')}, "
+                                    "not an object")
+        if key not in node:
+            return []
+        node, where = node[key], key
+    if not isinstance(node, list):
+        raise _CheckUnavailable(
+            f"pre_request_checks is {_JSON_TYPE_NAMES.get(type(node), 'unknown')}, not a list")
+    for i, entry in enumerate(node):
+        if not (isinstance(entry, list) and entry and all(isinstance(t, str) for t in entry)):
+            raise _CheckUnavailable(f"pre_request_checks entry {i} is not a non-empty list of "
+                                    f"strings: {_check_label(entry)}")
+    return node
+
+
+def _pre_request_check_timeout() -> float:
+    """The per-check limit. DEVFLOW_CI_REQUEST_CHECK_TIMEOUT overrides it only while the gh
+    stub seam is active (a test context), as _poll_interval does; a non-positive or
+    non-numeric value keeps the constant."""
+    raw = os.environ.get("DEVFLOW_CI_REQUEST_CHECK_TIMEOUT")
+    if raw is None or not os.environ.get("DEVFLOW_CI_REQUEST_GH_STUB"):
+        return _PRE_REQUEST_CHECK_TIMEOUT_SECONDS
+    try:
+        val = float(raw)
+    except ValueError:
+        return _PRE_REQUEST_CHECK_TIMEOUT_SECONDS
+    return val if val > 0 else _PRE_REQUEST_CHECK_TIMEOUT_SECONDS
+
+
+def _run_check(argv: list, cwd: str, limit: float) -> int:
+    """Run one check with no shell, its output on this process's stderr (stdout stays the
+    single-line contract). A `.py` first token runs under this interpreter, so a Windows host
+    never executes the file directly. Returns the exit code; raises _CheckUnavailable when it
+    cannot be launched or outlives `limit` (its process group is killed where supported)."""
+    cmd = [sys.executable, *argv] if argv[0].endswith(".py") else list(argv)
+    extra = {"start_new_session": True} if os.name == "posix" else {}
+    sys.stdout.flush()
+    sys.stderr.flush()
+    try:
+        proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=2, stderr=2,
+                                **extra)
+    except OSError as exc:
+        raise _CheckUnavailable(
+            f"{_check_label(argv)} could not be launched ({exc.__class__.__name__})")
+    try:
+        return proc.wait(timeout=limit)
+    except subprocess.TimeoutExpired:
+        try:
+            if os.name == "posix":
+                os.killpg(proc.pid, signal.SIGKILL)
+            else:
+                proc.kill()
+        except OSError:
+            proc.kill()
+        proc.wait()
+        raise _CheckUnavailable(f"{_check_label(argv)} did not exit within the time limit of "
+                                f"{limit:g}s and was terminated")
+
+
+def _merge_base(head_sha: str, base_sha: str, base: str) -> str | None:
+    refs = [base_sha] if base_sha else [base, f"origin/{base}"]
+    for ref in refs:
+        if not ref or ref.startswith("-"):
+            continue
+        rc, out, _ = _git(["merge-base", head_sha, ref])
+        if rc == 0 and re.fullmatch(r"[0-9a-f]{40}", out.strip()):
+            return out.strip()
+    return None
+
+
+def _exit_at_base(root: str, argv: list, merge_base: str, limit: float) -> int | str:
+    """Re-run a failing check in a temporary detached worktree at `merge_base`. Returns its
+    exit code, or a reason string when the base run could not be established."""
+    tmp = tempfile.mkdtemp(prefix="prflow-pre-request-")
+    try:
+        rc, _, err = _git(["-C", root, "worktree", "add", "--detach", "--quiet", tmp, merge_base])
+        if rc != 0:
+            return f"worktree at {merge_base} not created ({err.strip()[:200]})"
+        try:
+            return _run_check(argv, tmp, limit)
+        except _CheckUnavailable as exc:
+            return str(exc)
+    finally:
+        rc, _, _ = _git(["-C", root, "worktree", "remove", "--force", tmp])
+        shutil.rmtree(tmp, ignore_errors=True)
+        if rc != 0:
+            _git(["-C", root, "worktree", "prune"])
+
+
+def _run_pre_request_checks(args, root: str) -> list:
+    """Run every config-listed check in order from `root`; the first non-zero exit stops the
+    sequence. A failure the candidate inherited from its base (the same exit at the merge-base
+    of the head and `--base-sha`, else `--base`) is reported and skipped. Returns the inherited
+    checks; raises _CheckFailed / _CheckUnavailable otherwise."""
+    checks = _pre_request_checks(root)
+    limit = _pre_request_check_timeout()
+    inherited = []
+    for argv in checks:
+        code = _run_check(argv, root, limit)
+        if code == 0:
+            continue
+        failed = f"{_check_label(argv)} exited {code}"
+        merge_base = _merge_base(args.head_sha, args.base_sha, args.base)
+        if merge_base is None:
+            sys.stderr.write("pre-request-check: merge-base with the base is unresolvable\n")
+            raise _CheckFailed(failed)
+        at_base = _exit_at_base(root, argv, merge_base, limit)
+        if at_base != code:
+            sys.stderr.write(f"pre-request-check: at base {merge_base}: {at_base}\n")
+            raise _CheckFailed(failed)
+        sys.stderr.write(f"pre-request-check-inherited: {failed} at base {merge_base}\n")
+        inherited.append({"argv": argv, "exit": code, "base_sha": merge_base})
+    return inherited
+
+
 # ── subcommand: request ──────────────────────────────────────────────────────────
 def cmd_request(args) -> int:
     if args.workflow != _CI_WORKFLOW:
@@ -544,6 +703,14 @@ def cmd_request(args) -> int:
                   f"url={record['run_url']}")
             return 0
 
+    # Only the dispatch path runs the checks: a reused/reconciled/adopted head dispatches nothing.
+    try:
+        inherited = _run_pre_request_checks(args, _repo_root())
+    except _CheckFailed as exc:
+        raise _Refuse("pre-request-check-failed", str(exc))
+    except _CheckUnavailable as exc:
+        raise _Refuse("pre-request-check-unavailable", str(exc))
+
     request_id = uuid.uuid4().hex
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -561,6 +728,8 @@ def cmd_request(args) -> int:
         "state": "pending-dispatch",
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if inherited:
+        record["pre_request_checks_inherited"] = inherited
     _store_request(record)  # persist BEFORE dispatch — a lost response is reconcilable
 
     rc, _out, err = _gh([
@@ -616,7 +785,7 @@ def _sanitize_recap(line: str) -> str:
 def _extract_recap_ids(log_text: str) -> list[str]:
     """The `  - <identifier>` bullets after a `Failure recap:` header in a job log, using
     shard-tally.py's exact rule (a 4-space continuation is ignored; any other non-bullet
-    line ends the recap section). The `gh run view --log` line prefix is stripped first, so
+    line ends the recap section). The job-log line prefix is stripped first, so
     the exact-match rule fires against a real job log and not only shard-tally.py's
     prefix-free summary artifact. Sanitized, length-bounded, and capped in count."""
     ids: list[str] = []
@@ -675,8 +844,10 @@ def _print_failure_recap(record: dict) -> None:
         print(f"failed-job: {_sanitize_recap(name)[:_RECAP_MAX_CHARS]}")
     recap_ids: list[str] = []
     for job in failed:
-        rc, out, _err = _gh(["run", "view", "--job", str(job.get("databaseId")),
-                             "--log", "--repo", record["repo"]])
+        # The jobs-logs endpoint serves a finished job's log while other jobs still run;
+        # the run-view log form refuses until the whole run completes.
+        job_id = job.get("databaseId")
+        rc, out, _err = _gh(["api", f"repos/{record['repo']}/actions/jobs/{job_id}/logs"])
         if rc != 0:
             print("recap-status: unestablished — log-fetch-failed")
             break

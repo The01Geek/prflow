@@ -794,9 +794,12 @@ def _run_invocation(inv: Invocation, top: str, tool_cache: dict,
 # ── subcommand entrypoints (driven by preflight.py's argparse) ───────────────
 # Exit-code contract, shared by both subcommands:
 #   0  established, invocations ran (advisory — lint FINDINGS never fail the run)
-#   2  population or manifest unestablished (an unknown set is not a clean empty one)
+#   1  `lint-changed --fail-on-findings` only: an invocation ran and its tool exited non-zero
+#   2  population or manifest unestablished (an unknown set is not a clean empty one), or,
+#      under `--fail-on-findings`, an invocation whose outcome is not `ran`
 #   3  no repository root, or a named receipt non-success
 LINT_OK = 0
+LINT_FINDINGS = 1
 LINT_UNESTABLISHED = 2
 LINT_ERROR = 3
 
@@ -890,16 +893,20 @@ def _base_receipt_fields(subcommand, run_id, attempt, provenance) -> dict:
 
 
 def _emit_invocations(invocations, pop, top, writer, base_fields, examined,
-                      ruff_family_pinned: str | None = None) -> tuple[int, str]:
+                      ruff_family_pinned: str | None = None,
+                      outcomes: list | None = None) -> tuple[int, str]:
     """Run each invocation, write its receipt, and return (receipt count, distilled ruff
     family). A named receipt non-success raises `ReceiptError` to the caller. The distilled
     family (issue #603) summarizes the run's ruff invocations for the caller's summary line;
-    it is `none` when no ruff family was recorded (no ruff invocation, or none requested)."""
+    it is `none` when no ruff family was recorded (no ruff invocation, or none requested).
+    When `outcomes` is a list, each invocation's (op id, outcome, exit) is appended to it."""
     written = 0
     tool_cache: dict = {}
     ruff_families: list[str] = []
     for inv in invocations:
         outcome = _run_invocation(inv, top, tool_cache, ruff_family_pinned)
+        if outcomes is not None:
+            outcomes.append((inv.op_id, outcome["outcome"], outcome["exit"]))
         if "ruff_family" in outcome:
             ruff_families.append(outcome["ruff_family"])
         fields = dict(base_fields)
@@ -950,18 +957,30 @@ def cmd_lint_changed(args) -> int:
     # records a family (the summary then reads `ruff-family=none`).
     ruff_cfg = (result.manifest.get("tools") or {}).get("ruff")
     ruff_family_pinned = _minor_family(ruff_cfg.get("version")) if isinstance(ruff_cfg, dict) else None
+    outcomes: list = []
     try:
         written, ruff_family = _emit_invocations(
-            invocations, pop, top, writer, base_fields, examined, ruff_family_pinned)
+            invocations, pop, top, writer, base_fields, examined, ruff_family_pinned, outcomes)
     except ReceiptError as exc:
         print(f"LINT-CHANGED receipt-non-success {exc}", file=sys.stderr)
         return LINT_ERROR
+    rc = LINT_OK
+    if getattr(args, "fail_on_findings", False):
+        # issue #870: opt-in exit status for a caller that gates on this lint. A not-`ran`
+        # outcome (tool absent, timeout, launch error) is unknown, which outranks a finding.
+        failing = [op for op, outcome, code in outcomes if outcome != "ran" or code != 0]
+        if any(outcome != "ran" for _op, outcome, _code in outcomes):
+            rc = LINT_UNESTABLISHED
+        elif failing:
+            rc = LINT_FINDINGS
+        if failing:
+            print(f"LINT-CHANGED findings ops={','.join(failing)}")
     print(
         f"LINT-CHANGED established-{pop.status} population={len(pop.records)} "
         f"run={len(pop.run_paths())} invocations={len(invocations)} receipts={written} "
         f"ruff-family={ruff_family}"
     )
-    return LINT_OK
+    return rc
 
 
 def cmd_lint_full(args) -> int:

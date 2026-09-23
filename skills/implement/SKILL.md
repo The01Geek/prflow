@@ -27,7 +27,7 @@ Expired-credential fail-fast (two strikes, never open-ended retry). A cloud writ
 
 Input: GitHub issue number provided as `$ARGUMENTS`
 
-Fresh context (local/interactive tier, checked once at run start). If this conversation held work before the `/prflow:implement` command, stop before Phase 1 and tell the user to re-run `/prflow:implement <n>` in a fresh session. A cloud run (`tier: cloud` in the prompt's run-facts or grounding block) is a fresh process and never meets this condition; re-reading this root at a later phase entry does not repeat the check.
+Fresh context (local/interactive tier, checked once at run start). If this conversation held work before the `/prflow:implement` command (local slash-command output, such as plugin management or reloads, is not work), stop before Phase 1 and tell the user to re-run `/prflow:implement <n>` in a fresh session. A cloud run (`tier: cloud` in the prompt's run-facts or grounding block) is a fresh process and never meets this condition; re-reading this root at a later phase entry does not repeat the check.
 
 The Phase 1 intake worker reads issue/comments; consume its actionable handoff, not the comment history. ACs come from the issue body only.
 
@@ -49,7 +49,7 @@ Each Bash call is a fresh shell: a value that must cross a fence boundary is pri
 
 Working-directory contract. The run begins at the repository root and the Bash working directory persists across calls; every helper path is a repo-relative literal and no fence emits a leading `cd`.
 
-Consumer prompt extension (load first). The extension reaches you only through this ladder: run it unconditionally at run start and read its output whole — no `>/dev/null`, `| head -<n>`, or truncation — an extension you never observed governs nothing, including this rule. Pass the outcome to intake, which records the `Skill extension resolved: implement.md` row after §1.3 establishes the workpad; do not repeat its hydration or tick. From the repo root, emit the vendored literal first:
+Consumer prompt extension (load first). The extension reaches you only through this ladder: run it unconditionally at run start and read its output whole — no `>/dev/null`, `| head -<n>`, or truncation — an extension you never observed governs nothing, including this rule. Pass the outcome to intake, which records the `Skill extension resolved: implement.md` row after §1.3 establishes the workpad; do not repeat its hydration or tick. From the repo root, follow the *Tier-agnostic invocation* ladder:
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh implement
@@ -140,7 +140,7 @@ Outcome reaction on the triggering comment. At every terminal `Status` transitio
   .prflow/vendor/prflow/scripts/workpad.py update $ISSUE_NUMBER --note "Outcome reaction: react-to-trigger.sh exited non-zero (best-effort; the run continues)"
 ```
 
-Tier-agnostic invocation (do not classify your own tier): emit the vendored literal first; on a `command not found` / `No such file` / exit-127 reading fall back to the anchor form. The same ladder governs every fence below.
+Tier-agnostic invocation (do not classify your own tier): once at run start, before the extension load, run `ls -d .prflow/vendor/prflow/scripts/` as its own command. If it reports the folder absent, emit every helper through the anchor form alone for the rest of the run. Otherwise — present, refused, or failing any other way — emit the vendored literal first and on a `command not found` / `No such file` / exit-127 reading fall back to the anchor form. The same ladder governs every fence.
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/react-to-trigger.sh --outcome=complete --issue $ISSUE_NUMBER --report-failure ||

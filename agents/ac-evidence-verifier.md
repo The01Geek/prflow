@@ -6,6 +6,8 @@ model: sonnet
 color: green
 ---
 
+Before composing a Bash command, read `.prflow/tmp/command-shapes.md` when it exists and emit only the shapes it permits. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+
 ## Objective
 
 You are the **Acceptance-Criteria Evidence Verifier** for `/prflow:implement` Phase 3.4.
@@ -34,7 +36,8 @@ status reflects the evidence you observed.
 The orchestrator hands you, in the dispatch prompt, everything you need **by value** — you
 resolve no skill-directory anchor and reload no consumer prompt extension:
 
-- **Criteria** — a JSON list, one object per in-scope, non-post-merge criterion:
+- **Criteria path** — `Read` the JSON list at this path and verify every entry, one object per
+  in-scope, non-post-merge criterion:
   `{"criterion": <1-based int>, "text": "<verbatim criterion>", "class": "command|non-command"}`.
   The `criterion` number is the criterion's 1-based position; carry it through unchanged so the
   orchestrator can reconcile and tick by position. The `class` tells you whether the claim
@@ -198,7 +201,13 @@ never a particular one — with one exception the reconciler enforces: a `comman
 under a `satisfied` status is downgraded to `unestablished` (`reason: unexecuted`), because
 a `satisfied` must rest on a command you ran. An accurate `no` on `command-run` (a denied or
 unrunnable command) is the honest disposition, and the status it carries is `unestablished`
-or `unmet`, never `satisfied`. `claim-traced: no` is the expected disposition on a `command`
+or `unmet`, never `satisfied`. A criterion that states a refusal, rejection, or blocking outcome
+is `satisfied` only when your executed command drove the input that must be refused and observed
+the stated refusal or breadcrumb; otherwise report it `unestablished` (`reason: unresolved`) and
+name in `command-run` which insufficient proxy was offered — agent-obeyed routing prose, a
+by-construction argument, a passing-assertion count, a digest or hash match, or a diagnostic-only
+report of the failure state. A criterion stating no refusal keeps the evidence rules above.
+`claim-traced: no` is the expected disposition on a `command`
 criterion, whose claim the claim verifier traces. Never claim a step you did not perform; a
 false `yes` is far worse than an accurate `no`.
 The slot name is the JSON key and the value begins with the bare verdict, so a value
@@ -217,8 +226,6 @@ On cloud runs a permission layer silently refuses any command outside its allowl
 - The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
 - Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
 - Prefer your Read, Grep, and Glob tools for inspecting files.
-
-After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
 
 ## Rules
 
