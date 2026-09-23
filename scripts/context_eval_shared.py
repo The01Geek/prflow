@@ -59,6 +59,8 @@ WORKER_PHASE_FILES = {"phase-4-finalization.md": "phase4"}
 REFERENCE_PHASE_FILES = {
     "extension-row-ticks.md": "phase3",
     "phase-1-intake.md": "phase1",
+    "phase-2-0-resume-gate.md": "phase2",
+    "phase-2-2-6-ac-plan-reconciliation.md": "phase2",
     "phase-2-5-workflow-edit-guard.md": "phase2",
     "phase-3-3-review-fix.md": "phase3",
     "post-merge-tagging.md": "phase3",

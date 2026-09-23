@@ -125,6 +125,7 @@ writes the combined verification array, so the orchestrator types only judgment:
       "lite":           [ { "id", "verdict", "evidence", "file_checked", "view_revision" } ],
       "response_text":  { "VC-9": "<response of a verifier that wrote no file>" },
       "pinned_verdict": { "VC-4": "FAIL" },               # field-completion re-ask
+      "pinned_from":    { "VC-4": "<first answer's nonce>" },   # its provenance source
       "recovered":      { "VC-9": { "verdict", "evidence" } },  # in-context recovery
       "views":          { "head": { "revision": "<40-hex>", "inventory": "<path>" },
                           "base": { "revision": "<40-hex>", "inventory": "<path>" } }
@@ -138,6 +139,12 @@ PASS (a raw PASS is forced to INCONCLUSIVE with a ``view_ineligible`` marker; ci
 text is never byte-compared). The gate is inert when ``views`` is absent, so a legacy run is
 unaffected and the wording-only normalization contract is unchanged. The summary carries a
 ``view_check`` object ``{bound_revisions, states}``.
+
+``pinned_from`` (issue #1027) names a pinned item's first-answer nonce. The stored ``evidence``,
+``file_checked`` and ``view_revision`` then come from ``<verdicts-dir>/<id>-<that nonce>.json``,
+and the re-ask's copies of those three fields are ignored. An unusable entry (a non-string or
+unsafe nonce, no matching ``pinned_verdict``, or a first file that is absent, unreadable,
+unparseable or carries none of the three fields) is ignored with an ``input_warnings`` line; the item grades as it would without it.
 
 Each checklist item is partitioned exactly as the evidence gate partitions it: a
 ``reused_from_iter_prev: true`` item carrying a prior ``PASS`` keeps the verdict it
@@ -157,9 +164,14 @@ assembly in the sibling ``checklist_finalize.py`` (its ops, files and output are
 documented there). It rides this helper because a cloud profile grants leading
 tokens per helper, and this one is granted wherever the review engine runs.
 
-Prepare mode — ``prepare <checklist-iter-N.json> --verdicts-dir <dir>`` — is Phase 2.0's
-dispatch plan, run exactly once per engine entry before the first verifier dispatch. It
-loads the checklist (the same ``bad_input`` report as build mode, deleting nothing),
+Prepare mode — ``prepare <checklist-iter-N.json> --verdicts-dir <dir> [--fields <file>]`` —
+is Phase 2.0's dispatch plan, run before an engine entry's first verifier dispatch, and again
+with ``--fields`` after the pre-dispatch re-ask, still before that dispatch. ``--fields`` names
+the re-ask's answer, ``{"<id>": {"claim_provenance", "source_excerpt"}}``: prepare writes into
+the checklist file (atomically, only beneath a ``.prflow/tmp/`` pair) each field a fresh agent
+item lacks — ``claim_provenance`` one of the two enum values, ``source_excerpt`` a non-empty
+string on a ``source_authored`` item — and warns about, then ignores, every other entry; an
+unusable fields file or a failed write merges nothing. It loads the checklist (the same ``bad_input`` report as build mode, deleting nothing),
 refuses with a ``usage`` object (rc 2, deleting nothing) a ``<dir>`` that does not resolve
 beneath a ``.prflow/tmp/`` pair or whose last component is not ``iter-<N>``, then creates
 ``<dir>``, unlinks every regular file and symlink directly inside it (a subdirectory stays;
@@ -168,6 +180,7 @@ prints — to stdout only, never to a file, since a written nonce is one a runni
 could read::
 
     { "ok": true, "iteration": N, "verdicts_dir": "<dir>",
+      "items_dir": "<checklist path without .json>.items" | null,
       "reused": [ "<id>" ],                                   # carried PASS, not dispatched
       "lite":   [ { "id", "lite_probe" } ],                   # effective-lite items
       "agent":  [ { "id", "nonce" } ],                        # 16 lowercase hex, distinct
@@ -175,9 +188,15 @@ could read::
       "counts": { "reused", "lite", "agent", "missing_fields" },
       "wiped": <files removed>, "warnings": [...] }
 
+``items_dir`` sits beside the checklist and is spelled as the checklist argument was. Prepare
+unlinks every regular file and symlink directly inside it (a subdirectory stays), then writes each agent item's checklist object — no
+nonce — to ``<items_dir>/<id>.json`` (UTF-8, ``\\n`` newlines), so a verifier reads only its
+own item. It is null, with a warning naming the cause, when that directory resolves outside
+a ``.prflow/tmp/`` pair, is a symlink, or a write fails; the rest of the plan is unchanged.
+
 An item whose id is not usable as a file-name part is skipped with a warning naming it
-and gets no nonce. A later single-item dispatch inside the same entry mints its own nonce
-and never re-runs prepare: a re-run wipes the wave's verdict files.
+and gets no nonce and no item file. A later single-item dispatch inside the same entry
+mints its own nonce and never re-runs prepare: a re-run wipes the wave's verdict files.
 
 Exit codes:
     0  Helper ran (results OR bad-input report printed).
@@ -378,10 +397,31 @@ def _verdict_defect(result, item_id, defect):
     return result, {"id": item_id, "kind": "verdict", "defect": defect}, False
 
 
-def _process_pair(pair):
+PROVENANCE_FIELDS = ("evidence", "file_checked", "view_revision")
+
+
+def _first_provenance(path):
+    """Return ``(fields, None)`` or ``(None, reason)``: the three provenance fields of a pinned
+    item's first answer (issue #1027), read through the same channel as a verdict file."""
+    text, source = _read_verdict_bytes({"verdict_path": path})
+    if text is None:
+        return None, ("first verdict file unreadable" if source == "none_file_unreadable"
+                      else "first verdict file absent")
+    obj, defect = extract_verdict_object(text)
+    if defect is not None:
+        return None, f"first verdict file unparseable ({defect})"
+    fields = {k: obj[k] if isinstance(obj.get(k), str) else None for k in PROVENANCE_FIELDS}
+    if not any(fields.values()):
+        return None, "first verdict file has no evidence, file_checked or view_revision"
+    return fields, None
+
+
+def _process_pair(pair, first=None):
     """Return ``(result_dict, retry_entry_or_None, is_field_defect_fail)`` for one
     pair. ``is_field_defect_fail`` is decided here from the structured blocker
-    lists (never re-derived from the rendered ``normalization_ineligible`` string)."""
+    lists (never re-derived from the rendered ``normalization_ineligible`` string).
+    ``first`` (build mode only) is a pinned pair's first-answer provenance, which
+    replaces the re-ask's."""
     item = pair.get("item") if isinstance(pair.get("item"), dict) else {}
     item_id = item.get("id")
     mode = item.get("verification_mode")
@@ -457,6 +497,10 @@ def _process_pair(pair):
     # treats it as absent rather than crashing.
     vr = obj.get("view_revision")
     result["view_revision"] = vr if isinstance(vr, str) else None
+    if is_pinned and first is not None:
+        # issue #1027: a compliant re-ask carries only the two auxiliary fields, so the
+        # provenance comes from the first answer; the re-ask's own copies are ignored.
+        result.update(first)
 
     # --- auxiliary-field classification ----------------------------------------
     pp_state = _aux_state(obj, "property_proven")
@@ -597,8 +641,9 @@ def run(pairs_file):
     return run_pairs(payload["pairs"])
 
 
-def run_pairs(pairs):
-    """Process a pairs list (from a pairs file, or derived by ``build``)."""
+def run_pairs(pairs, firsts=None):
+    """Process a pairs list (from a pairs file, or derived by ``build``). ``firsts`` maps a
+    pair index to its first-answer provenance (build mode only)."""
     results = []
     needs_retry = []
     field_defect_fail_count = 0
@@ -621,7 +666,7 @@ def run_pairs(pairs):
                                 "defect": "malformed_pair", "pair_index": idx})
             continue
         try:
-            result, retry, is_field_defect_fail = _process_pair(pair)
+            result, retry, is_field_defect_fail = _process_pair(pair, (firsts or {}).get(idx))
         except Exception as e:
             # One corrupt element must never abort the batch. An uncaught exception
             # here exits non-zero with EMPTY stdout, and empty stdout is exactly what
@@ -634,7 +679,7 @@ def run_pairs(pairs):
             # and why its defect_class is `helper_internal`, NOT `verdict`: the engine's
             # kind-`verdict` remedy re-dispatches the verifier subagent, which cannot
             # fix a bug in this helper. Proven live by the mutation control in
-            # lib/test/normalize-verdicts-test.py.
+            # lib/test/python_scripts_part3/normalize_verdicts.py.
             sys.stderr.write(
                 "normalize-verdicts.py: internal error processing pair index "
                 f"{idx} — this is a helper defect, not a verifier defect:\n"
@@ -692,7 +737,7 @@ def _checklist_main(argv):
 
 BUILD_FLAGS = ("--checklist", "--verdicts-dir", "--out")
 _INPUT_TYPES = {"nonces": dict, "lite": list, "response_text": dict,
-                "pinned_verdict": dict, "recovered": dict, "views": dict}
+                "pinned_verdict": dict, "recovered": dict, "views": dict, "pinned_from": dict}
 
 # issue #851 collector view-provenance check.
 VIEW_INELIGIBLE_PREFIX = "VIEW-UNESTABLISHED: "
@@ -961,7 +1006,20 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             warnings.append(f"lite[{idx}]: needs a string id and a PASS|FAIL|INCONCLUSIVE "
                             "verdict -- ignored")
 
-    verification, pairs, slots = [], [], []
+    pinned_from = {}
+    for pid, first_nonce in inp["pinned_from"].items():
+        if not isinstance(first_nonce, str):
+            why = "nonce is not a string"
+        elif not (_path_safe(pid) and _path_safe(first_nonce)):
+            why = "id or nonce is not a usable file-name part"
+        elif inp["pinned_verdict"].get(pid) not in VERDICT_ENUM:
+            why = "no matching pinned_verdict"
+        else:
+            pinned_from[pid] = first_nonce
+            continue
+        warnings.append(f"pinned_from[{pid!r}]: {why} -- ignored")
+
+    verification, pairs, slots, firsts = [], [], [], {}
     lite_count = reused_count = 0
     for idx, item in enumerate(checklist):
         if not isinstance(item, dict):
@@ -1002,11 +1060,18 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             for field in ("response_text", "pinned_verdict"):
                 if isinstance(inp[field].get(key), str):
                     pair[field] = inp[field][key]
+            if key in pinned_from:
+                first, why = _first_provenance(
+                    os.path.join(verdicts_dir, f"{key}-{pinned_from[key]}.json"))
+                if first is None:
+                    warnings.append(f"pinned_from[{key!r}]: {why} -- re-ask fields kept")
+                else:
+                    firsts[len(pairs)] = first
             slots.append(len(verification))
             verification.append(None)
             pairs.append(pair)
 
-    ran = run_pairs(pairs)
+    ran = run_pairs(pairs, firsts)
     recovered_ids = set()
     for slot, result in zip(slots, ran["results"]):
         item_id = result.get("id")
@@ -1113,7 +1178,126 @@ def _confined_verdicts_dir(verdicts_dir):
     return int(match.group(1)), None
 
 
-def prepare(checklist_file, verdicts_dir):
+def _under_prflow_tmp(path):
+    """True when ``path`` resolves beneath a ``.prflow/tmp/`` pair."""
+    parts = os.path.realpath(path).replace("\\", "/").split("/")
+    return any(a == ".prflow" and b == "tmp" for a, b in itertools.pairwise(parts[:-1]))
+
+
+def _write_item_files(items_dir, agent_items):
+    """Write each ``(id, item)`` to ``<items_dir>/<id>.json`` after unlinking every regular
+    file and symlink directly inside ``<items_dir>`` (a subdirectory stays). Returns None, or
+    the warning naming why prepare prints ``items_dir: null`` — the engine then dispatches
+    from the checklist. After a failed write it tries to unlink the files this call wrote,
+    and the warning names any it could not remove."""
+    if os.path.islink(items_dir):
+        return "items_dir_is_a_symlink -- no item files written"
+    if not _under_prflow_tmp(items_dir):
+        return "items_dir_outside_prflow_tmp -- no item files written"
+    written = []
+    try:
+        os.makedirs(items_dir, exist_ok=True)
+        with os.scandir(items_dir) as entries:
+            for entry in entries:
+                if entry.is_symlink() or entry.is_file(follow_symlinks=False):
+                    os.unlink(entry.path)
+        for item_id, item in agent_items:
+            # Serialize first: an item json.dumps cannot render fails before its file exists.
+            body = json.dumps(item, indent=2, ensure_ascii=False) + "\n"
+            path = os.path.join(items_dir, item_id + ".json")
+            # "x": a duplicate id (or, on a case-insensitive filesystem, a case-variant twin)
+            # fails instead of overwriting.
+            with open(path, "x", encoding="utf-8", newline="\n") as fh:
+                written.append(path)
+                fh.write(body)
+    except (OSError, ValueError, TypeError, RecursionError) as e:  # ValueError covers UnicodeError
+        kept = []
+        for path in written:
+            try:
+                os.unlink(path)
+            except OSError:
+                kept.append(os.path.basename(path))
+        tail = f"item files not removed: {', '.join(kept)}" if kept else "item files removed"
+        return f"items_dir_write_failed ({type(e).__name__}: {e}) -- {tail}"
+    return None
+
+
+_PROVENANCE = ("generated_paraphrase", "source_authored")
+
+
+def _fresh_agent(item):
+    return (isinstance(item, dict) and effective_mode(item) == "agent"
+            and not (item.get("reused_from_iter_prev") is True and item.get("verdict") == "PASS"))
+
+
+def _complete_field(item, field, value):
+    """The reason ``value`` cannot complete ``item[field]``, or None when it can."""
+    if isinstance(item.get(field), str):
+        return "already set"
+    if field == "claim_provenance":
+        return None if value in _PROVENANCE else f"{value!r} is not one of {'|'.join(_PROVENANCE)}"
+    if item.get("claim_provenance") != "source_authored":
+        return "item is not source_authored"
+    return None if isinstance(value, str) and value.strip() else f"{value!r} is not a non-empty string"
+
+
+def _merge_fields(checklist_file, checklist, fields_file, warnings):
+    """Write the pre-dispatch re-ask's completed fields (``{"<id>": {"claim_provenance",
+    "source_excerpt"}}``) into the checklist file, filling only a field a fresh agent item lacks.
+    Returns the checklist to plan from; on any refusal the file is unchanged and a warning
+    names why."""
+    fields, bad = _load(fields_file, "fields_file", dict)
+    if bad:
+        warnings.append(f"fields: {bad['error']} ({bad['detail']}) -- nothing merged")
+        return checklist
+    merged, matched, changed = [], set(), False
+    for item in checklist:
+        item_id = item.get("id") if _fresh_agent(item) and _path_safe(item.get("id")) else None
+        if item_id is None or item_id not in fields:
+            merged.append(item)
+            continue
+        got = fields[item_id]
+        matched.add(item_id)
+        if not isinstance(got, dict):
+            warnings.append(f"fields[{item_id!r}]: expected an object, got {_shape(True, got)} -- ignored")
+            merged.append(item)
+            continue
+        item = dict(item)
+        for field in sorted(got, key=lambda f: f != "claim_provenance"):
+            why = (_complete_field(item, field, got[field]) if field in ("claim_provenance", "source_excerpt")
+                   else "not a completable field")
+            if why:
+                warnings.append(f"fields[{item_id!r}].{field}: {why} -- ignored")
+            else:
+                item[field] = got[field]
+                changed = True
+        merged.append(item)
+    for key in fields:
+        if key not in matched:
+            warnings.append(f"fields[{key!r}]: no fresh agent item has that id -- ignored")
+    if not changed:
+        return checklist
+    if os.path.islink(checklist_file) or not _under_prflow_tmp(checklist_file):
+        warnings.append("fields: the checklist is a symlink or outside a .prflow/tmp/ pair -- nothing merged")
+        return checklist
+    tmp = checklist_file + ".fields-tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
+        os.replace(tmp, checklist_file)
+    except (OSError, UnicodeError) as e:
+        left = ""
+        if os.path.lexists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                left = f"; {os.path.basename(tmp)} not removed"
+        warnings.append(f"fields: checklist write failed ({type(e).__name__}: {e}) -- nothing merged{left}")
+        return checklist
+    return merged
+
+
+def prepare(checklist_file, verdicts_dir, fields_file=None):
     """Phase 2.0's dispatch plan (module docstring, *Prepare mode*)."""
     iteration, err = _confined_verdicts_dir(verdicts_dir)
     if err:
@@ -1121,6 +1305,9 @@ def prepare(checklist_file, verdicts_dir):
     checklist, bad = _load(checklist_file, "checklist", list)
     if bad:
         return bad, 0
+    warnings = []
+    if fields_file is not None:
+        checklist = _merge_fields(checklist_file, checklist, fields_file, warnings)
     os.makedirs(verdicts_dir, exist_ok=True)
     wiped = 0
     with os.scandir(verdicts_dir) as entries:
@@ -1129,7 +1316,7 @@ def prepare(checklist_file, verdicts_dir):
             if entry.is_symlink() or entry.is_file(follow_symlinks=False):
                 os.unlink(entry.path)
                 wiped += 1
-    reused, lite, agent, missing, warnings, nonces = [], [], [], [], [], set()
+    reused, lite, agent, missing, nonces, agent_items = [], [], [], [], set(), []
     for idx, item in enumerate(checklist):
         if not isinstance(item, dict):
             warnings.append(f"checklist[{idx}]: not an object -- skipped")
@@ -1157,10 +1344,16 @@ def prepare(checklist_file, verdicts_dir):
                 nonce = secrets.token_hex(8)
             nonces.add(nonce)
             agent.append({"id": item_id, "nonce": nonce})
+            agent_items.append((item_id, item))
         if fields:
             missing.append({"id": item_id, "claim_signature": item.get("claim_signature"),
                             "fields": fields})
-    return {"ok": True, "iteration": iteration, "verdicts_dir": verdicts_dir,
+    items_dir = checklist_file.removesuffix(".json") + ".items"
+    items_warning = _write_item_files(items_dir, agent_items)
+    if items_warning:
+        items_dir = None
+        warnings.append(items_warning)
+    return {"ok": True, "iteration": iteration, "verdicts_dir": verdicts_dir, "items_dir": items_dir,
             "reused": reused, "lite": lite, "agent": agent, "missing_fields": missing,
             "counts": {"reused": len(reused), "lite": len(lite), "agent": len(agent),
                        "missing_fields": len(missing)},
@@ -1171,7 +1364,7 @@ def _prepare_main(argv):
     positional, flags = [], {}
     i = 0
     while i < len(argv):
-        if argv[i] == "--verdicts-dir":
+        if argv[i] in ("--verdicts-dir", "--fields"):
             if i + 1 >= len(argv):
                 positional = None
                 break
@@ -1182,10 +1375,10 @@ def _prepare_main(argv):
             i += 1
     if positional is None or len(positional) != 1 or "--verdicts-dir" not in flags:
         out, rc = {"ok": False, "error": "usage",
-                   "detail": "prepare takes <checklist-iter-N.json> --verdicts-dir <dir>"}, 2
+                   "detail": "prepare takes <checklist-iter-N.json> --verdicts-dir <dir> [--fields <file>]"}, 2
     else:
         try:
-            out, rc = prepare(positional[0], flags["--verdicts-dir"])
+            out, rc = prepare(positional[0], flags["--verdicts-dir"], flags.get("--fields"))
         except Exception as e:
             sys.stderr.write(
                 "normalize-verdicts.py: internal error — this is a helper defect:\n"
@@ -1223,7 +1416,7 @@ def main(argv=None):
         # pairs-file read, no JSON verdict. rc 0.
         print("usage: normalize-verdicts.py <pairs-file>")
         print("       normalize-verdicts.py checklist carry|raw|finalize <work-dir> ...")
-        print("       normalize-verdicts.py prepare <checklist-iter-N.json> --verdicts-dir <dir>")
+        print("       normalize-verdicts.py prepare <checklist-iter-N.json> --verdicts-dir <dir> [--fields <file>]")
         print("       normalize-verdicts.py <inputs-file> " + " ".join(f"{f} <path>" for f in BUILD_FLAGS))
         return 0
     if argv and argv[0] == "checklist":

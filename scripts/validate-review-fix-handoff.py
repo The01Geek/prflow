@@ -16,7 +16,10 @@ Four schemas share this reader, selected by `--schema
 - `intake` (issue #700): Phase 1 dispatches a `implement-intake` worker whose durable handoff the
   parent validates here — shape, identity, path/home containment, the snapshot receipt's
   bytes/sha256 against the snapshot file, and the `proceed` conditions. Needs `--run-id` and
-  `--run-attempt` (canonical-string compared).
+  `--run-attempt` (canonical-string compared). On a `blocked`/`error` record,
+  `issue.classification` (§1.1) and `workpad.id`/`workpad.observed_status` (§1.3) may be null
+  unless `completed_steps` marks the owning step `complete`; a rejected stop record's
+  `blocked_reason` is echoed on stderr (issue #983).
 - `issue-claim-audit` (issue #700): Phase 1.6 dispatches a `issue-claim-auditor` worker whose
   durable handoff the parent validates here; the reader takes `record_validation`/
   `projection_validation` as the worker's attestations and runs no audit gate itself. Needs
@@ -610,6 +613,12 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
     checkout_real = os.path.realpath(checkout_root)
     outcome = data.get("outcome")
     stop = outcome in _INTAKE_STOP_OUTCOMES
+    completed = data.get("completed_steps")
+
+    def unreached(sid):
+        """A stop record's field owned by step `sid` may be null unless `completed_steps` claims
+        that step complete (issue #983)."""
+        return stop and not (isinstance(completed, dict) and completed.get(sid) == "complete")
 
     # Identity — dispatch literals the worker echoes, required non-null on every outcome.
     req("schema_version", lambda v: v == SCHEMA_VERSION, f"must be {SCHEMA_VERSION}")
@@ -648,7 +657,8 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
         labels = issue.get("labels")
         if not (isinstance(labels, list) and all(_is_str(x) for x in labels)):
             offending.append("issue.labels: must be an array of strings")
-        if issue.get("classification") not in _CLASSIFICATIONS:
+        if issue.get("classification") not in _CLASSIFICATIONS \
+                and not (issue.get("classification") is None and unreached("1.1")):
             offending.append(f"issue.classification: must be one of {_CLASSIFICATIONS}")
         rationale = issue.get("classification_rationale")
         if not (rationale is None or _is_str(rationale)):
@@ -701,9 +711,10 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
     workpad = sect("workpad")
     if workpad is not None:
         wid = workpad.get("id")
-        if not (_is_str(wid) or _is_int(wid)):
+        if not (_is_str(wid) or _is_int(wid) or (wid is None and unreached("1.3"))):
             offending.append("workpad.id: must be a string or integer")
-        if not _is_str(workpad.get("observed_status")):
+        if not (_is_str(workpad.get("observed_status"))
+                or (workpad.get("observed_status") is None and unreached("1.3"))):
             offending.append("workpad.observed_status: must be a string")
         snapshot_path = workpad.get("snapshot_path")
         snapshot_path_contained = None
@@ -777,7 +788,6 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
         if not isinstance(p2.get("code_sweeps_complete"), bool):
             offending.append("phase2_resume.code_sweeps_complete: must be a JSON boolean")
 
-    completed = data.get("completed_steps")
     if not stop:
         if not isinstance(completed, dict):
             offending.append("completed_steps: must be an object when outcome is proceed")
@@ -1046,6 +1056,11 @@ def main(argv=None):
         return 0
     print("validate-review-fix-handoff: the worker handoff is unusable — "
           + "; ".join(result["offending"]), file=sys.stderr)
+    if args.schema == "intake" and data.get("outcome") in _INTAKE_STOP_OUTCOMES \
+            and _is_str(data.get("blocked_reason")) and data["blocked_reason"].strip():
+        # The worker's own stop cause still reaches the Blocked record (issue #983).
+        print(f"validate-review-fix-handoff: worker outcome {data['outcome']}: "
+              f"{data['blocked_reason']}", file=sys.stderr)
     return 2
 
 

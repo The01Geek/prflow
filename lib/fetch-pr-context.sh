@@ -70,7 +70,37 @@ CHANGED_FILES="$(echo "$PR_JSON" | "$DEVFLOW_JQ" '[.files[].path]')"
 # Mirror lib/scan.sh's union predicate (label / closes-issue / prefix) so
 # a PR scan selected on the label or closes-issue path — e.g. PRFlow's own
 # issue-<N>-<slug> branches that match no prefix — is not then dropped here.
-IMPL_PREFIX="$(devflow_conf '.prflow_retrospective.implementation_branch_prefix' 'claude/')"
+# The configured prefix decides BOTH the kind classification below and the
+# prefixed-branch issue lookup in §3, so a value that is not a branch prefix must
+# not be laundered into either. config-get.sh COERCES rather than refuses: an
+# object arrives as the literal `[object Object]`, an array as its comma-join, and
+# a boolean/number as its text. Each unusable shape falls back to the shipped
+# default with its own breadcrumb; nothing here is fatal. RESIDUAL: config-get.sh
+# collapses absent, JSON null and an explicit "" onto one empty read, so those
+# three shapes necessarily share the first breadcrumb.
+IMPL_PREFIX="$(devflow_conf '.prflow_retrospective.implementation_branch_prefix' '')"
+case "$IMPL_PREFIX" in
+    '')
+        echo "fetch-pr-context: .prflow_retrospective.implementation_branch_prefix is absent, null or empty - using the default 'claude/'" >&2
+        IMPL_PREFIX='claude/' ;;
+    *'[object Object]'*)
+        echo "fetch-pr-context: .prflow_retrospective.implementation_branch_prefix holds an object, not a branch prefix - using the default 'claude/'" >&2
+        IMPL_PREFIX='claude/' ;;
+    *,*)
+        echo "fetch-pr-context: .prflow_retrospective.implementation_branch_prefix holds an array, not a branch prefix - using the default 'claude/'" >&2
+        IMPL_PREFIX='claude/' ;;
+    true|false)
+        echo "fetch-pr-context: .prflow_retrospective.implementation_branch_prefix holds the boolean '$IMPL_PREFIX', not a branch prefix - using the default 'claude/'" >&2
+        IMPL_PREFIX='claude/' ;;
+    *[!A-Za-z0-9/_.-]*)
+        echo "fetch-pr-context: .prflow_retrospective.implementation_branch_prefix holds '$IMPL_PREFIX', which carries a character no branch name may contain - using the default 'claude/'" >&2
+        IMPL_PREFIX='claude/' ;;
+    *[!0-9]*)
+        : ;;  # a plain string: the usable shape
+    *)
+        echo "fetch-pr-context: .prflow_retrospective.implementation_branch_prefix holds the number '$IMPL_PREFIX', not a branch prefix - using the default 'claude/'" >&2
+        IMPL_PREFIX='claude/' ;;
+esac
 LABELS_JSON="$(echo "$PR_JSON" | "$DEVFLOW_JQ" -c '.labels // []')"
 CLOSING_JSON="$(echo "$PR_JSON" | "$DEVFLOW_JQ" -c '.closingIssuesReferences // []')"
 # argjson-ok: watched labels closing -- per-PR bounded operands (one PR's label list and closing-issue refs, plus a constant boolean), never corpus-sized (issue #895)
@@ -82,28 +112,61 @@ if [ "$KIND" = "skip" ]; then
 fi
 
 # ── 3. Issue number ──────────────────────────────────────────────────────────
+# Precedence, most authoritative first (issue #945):
+#   1. GitHub's own `closingIssuesReferences` — the only link GitHub itself
+#      maintains, so it is the one source a renamed or recovered branch cannot
+#      falsify.
+#   2. A `Closes|Fixes|Resolves #<N>` keyword in the PR body — authored deliberately.
+#   3. The CONFIGURED implementation-branch prefix (`<IMPL_PREFIX>issue-<N>-…`), not a
+#      hardcoded `claude/`, so a consumer with a different configured prefix keeps
+#      its issue linkage.
+#   4. A bare `issue-<N>-<slug>` branch — LAST, and never above 1-3: fork/resume
+#      recovery can leave a branch whose slug names a STALE issue, so promoting this
+#      pattern would trade a `NoIssue` record for a silently-wrong-issue one.
+# Every derivation below runs on bash builtins (`case`, parameter expansion, `[[ =~ ]]`).
+# lib/preflight.sh guarantees only git/gh/jq/python3, so deriving the number that
+# decides the emitted bundle through `sed`/`grep` would silently fail open on a host
+# that lacks them.
 ISSUE_NUMBER="null"
-# Try branch name first: claude/issue-<N>-...
-ISSUE_FROM_BRANCH="$(sed -nE 's|^claude/issue-([0-9]+)-.*$|\1|p' <<<"$BRANCH" || true)"
-if [ -n "$ISSUE_FROM_BRANCH" ]; then
-    ISSUE_NUMBER="$ISSUE_FROM_BRANCH"
-else
-    # Fallback: grep body for Closes/Fixes/Resolves #<N>
-    ISSUE_FROM_BODY="$(echo "$BODY" | grep -oiE '(Closes|Fixes|Resolves)[[:space:]]+#[0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
-    if [ -n "$ISSUE_FROM_BODY" ]; then
-        ISSUE_NUMBER="$ISSUE_FROM_BODY"
-    else
-        # Final fallback: GitHub's own issue linkage (closingIssuesReferences).
-        # PRFlow's own `issue-<N>-<slug>` branches never match the `claude/issue-`
-        # pattern above, and a PR linked only via the UI carries no Closes/Fixes
-        # keyword in its body — yet such PRs are selected by the union predicate.
-        # Without this they source an EMPTY workpad (a milder form of the bug this
-        # change fixes). Use the first linked issue's number.
-        ISSUE_FROM_CLOSING="$(echo "$CLOSING_JSON" | "$DEVFLOW_JQ" -r '.[0].number // empty' 2>/dev/null || true)"
-        if [ -n "$ISSUE_FROM_CLOSING" ]; then
-            ISSUE_NUMBER="$ISSUE_FROM_CLOSING"
-        fi
-    fi
+
+# <branch> <prefix> → the issue digits on stdout, or nothing. Requires the trailing
+# `-<slug>` separator, so `<prefix>issue-12` alone is not a match.
+devflow_issue_from_branch() {
+    local _branch="$1" _prefix="$2" _rest _num
+    case "$_branch" in
+        "${_prefix}issue-"*) _rest="${_branch#"${_prefix}issue-"}" ;;
+        *) return 0 ;;
+    esac
+    case "$_rest" in *-*) ;; *) return 0 ;; esac
+    _num="${_rest%%-*}"
+    case "$_num" in ''|*[!0-9]*) return 0 ;; esac
+    printf '%s' "$_num"
+}
+
+# 1. GitHub's linkage. A wrong-typed `closingIssuesReferences` makes the jq read
+#    fail; that is a miss, not an abort.
+ISSUE_FROM_CLOSING="$(echo "$CLOSING_JSON" | "$DEVFLOW_JQ" -r '.[0].number // empty' 2>/dev/null || true)"
+# 2. The body keyword, matched case-insensitively on the leftmost occurrence.
+ISSUE_FROM_BODY=""
+_NOCASE_WAS_SET=0
+if shopt -q nocasematch; then _NOCASE_WAS_SET=1; fi
+shopt -s nocasematch
+if [[ "$BODY" =~ (Closes|Fixes|Resolves)[[:space:]]+#([0-9]+) ]]; then
+    ISSUE_FROM_BODY="${BASH_REMATCH[2]}"
+fi
+if [ "$_NOCASE_WAS_SET" -eq 0 ]; then shopt -u nocasematch; fi
+# 3./4. The configured prefix, then the bare `issue-<N>-<slug>` shape.
+ISSUE_FROM_PREFIXED_BRANCH="$(devflow_issue_from_branch "$BRANCH" "$IMPL_PREFIX")"
+ISSUE_FROM_BARE_BRANCH="$(devflow_issue_from_branch "$BRANCH" "")"
+
+if [ -n "$ISSUE_FROM_CLOSING" ]; then
+    ISSUE_NUMBER="$ISSUE_FROM_CLOSING"
+elif [ -n "$ISSUE_FROM_BODY" ]; then
+    ISSUE_NUMBER="$ISSUE_FROM_BODY"
+elif [ -n "$ISSUE_FROM_PREFIXED_BRANCH" ]; then
+    ISSUE_NUMBER="$ISSUE_FROM_PREFIXED_BRANCH"
+elif [ -n "$ISSUE_FROM_BARE_BRANCH" ]; then
+    ISSUE_NUMBER="$ISSUE_FROM_BARE_BRANCH"
 fi
 
 # The five list-endpoint slurps below (issue comments, review comments, PR comments, PR

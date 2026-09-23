@@ -349,7 +349,7 @@ def _resolve_out(out: str) -> "str | int":
         return 1
     resolved = out if os.path.isabs(out) else os.path.join(root, out)
     resolved = os.path.normpath(resolved)
-    scratch = os.path.join(root, ".prflow", "tmp")
+    scratch = os.path.normpath(os.path.join(root, ".prflow", "tmp"))
     try:
         contained = os.path.commonpath([scratch, resolved]) == scratch
     except ValueError:

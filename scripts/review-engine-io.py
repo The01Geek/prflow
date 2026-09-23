@@ -70,7 +70,7 @@ HINT_WIDTH = 160
 RETURN_REQUIRED = (
     'root_completeness', 'phase3_findings', 'phase3_dispatched', 'expected_reviewers',
     'plan_eligible', 'plan_exclusions', 'phase3_failed_agents', 'diff_profile',
-    'cap_drops', 'verdict', 'report')
+    'cap_drops', 'acceptance_criteria', 'verdict', 'report')
 RETURN_LISTS = ('phase3_findings', 'phase3_dispatched', 'expected_reviewers',
                 'plan_eligible', 'plan_exclusions', 'phase3_failed_agents')
 # view_revision joins the verdict fields spliced into the engine-return checklist so the
@@ -586,6 +586,10 @@ def cmd_return(args):
     for key in ('verdict', 'report'):
         if not isinstance(authored[key], str) or not authored[key].strip():
             raise Stop('authored-part', f'{key} must be a nonempty string')
+    # The fixer's criterion-conflict guard reads this; only "" means none resolved.
+    if not isinstance(authored['acceptance_criteria'], str):
+        raise Stop('authored-part', 'acceptance_criteria must be a string ("" when none resolved), '
+                   f'found {type(authored["acceptance_criteria"]).__name__}')
     head = args.head.strip()
     if not HEX40_RE.match(head):
         raise Stop('arguments', '--head is the commit Phase 0.2 produced diff.patch at, as full hex')

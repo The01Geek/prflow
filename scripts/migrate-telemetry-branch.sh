@@ -12,14 +12,21 @@
 # the fail-closed Tier 1 atomic unit, because it needs the remote.
 #
 # Callers: `/prflow:init` and `install.sh --apply` run it once after the Tier 1 migration
-# reports; `lib/efficiency-trace.sh`'s do_persist runs it as a backstop before its first
+# reports; `lib/efficiency-trace.sh`'s do_persist runs it with --backstop before its first
 # append when the source branch still exists on the remote and the push gate passes.
 #
-# Usage: migrate-telemetry-branch.sh TARGET_REPO_ROOT
+# First, the in-place arm (issue #337) rewrites a resolved telemetry branch whose tip still
+# carries `.devflow/logs/` records — a kept `devflow-telemetry` name or a hand-renamed branch — to
+# the matching `.prflow/logs/` paths in one commit on the same branch. persist_tree only adds
+# paths and refuses such a branch, so this arm builds its own commit, then runs the writer's store
+# check on it. --backstop skips the arm, so a writable run never rewrites branch history.
+#
+# Usage: migrate-telemetry-branch.sh TARGET_REPO_ROOT [--backstop]
 #   TARGET_REPO_ROOT  the repository whose records are migrated. REQUIRED: lib/config-source.sh
 #                     fixes the config path from the current directory's git top level at source
 #                     time and honors no operand, so the helper cd's into this root BEFORE
 #                     sourcing lib/telemetry-branch.sh.
+#   --backstop        skip the in-place arm (the efficiency-trace.sh persist backstop).
 # Exit code: always 0 (best-effort), except 2 for a bad argument shape.
 set -uo pipefail
 
@@ -39,8 +46,15 @@ die()    { printf 'migrate-telemetry-branch: %s\n' "$1" >&2; exit 2; }
 SELF_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 RENAME_MAP="$SELF_DIR/../lib/rename-map.json"
 
+USAGE="usage: migrate-telemetry-branch.sh TARGET_REPO_ROOT [--backstop]"
+[ "$#" -le 2 ] || die "too many arguments ($USAGE)"
+IN_PLACE=yes
+if [ "$#" -eq 2 ]; then
+  [ "$2" = "--backstop" ] || die "unknown argument '$2' ($USAGE)"
+  IN_PLACE=no
+fi
 TARGET_ROOT="${1:-}"
-[ -n "$TARGET_ROOT" ] || die "a target repository root is required (usage: migrate-telemetry-branch.sh TARGET_REPO_ROOT)"
+[ -n "$TARGET_ROOT" ] || die "a target repository root is required ($USAGE)"
 [ -d "$TARGET_ROOT" ] || die "target repository root '$TARGET_ROOT' is not a directory"
 
 # cd first, THEN source: config-source.sh (sourced by telemetry-branch.sh) fixes the config
@@ -81,13 +95,6 @@ if [ -z "$TARGET_BRANCH" ]; then
   exit 0
 fi
 
-# ── Same-name shape is a separately filed defect (a telemetry.branch set to the old name):
-# report it and change nothing.
-if [ "$SOURCE_BRANCH" = "$TARGET_BRANCH" ]; then
-  report "telemetry.branch is set to the superseded name '$SOURCE_BRANCH' — source and target are the same branch, which is out of scope for this migration (filed separately); no changes made"
-  exit 0
-fi
-
 # ── Telemetry master switch: do nothing when telemetry.enabled is the JSON boolean false.
 # telemetry-master-off.py exits 0 only for an explicit false; 1 = on; 2/other = present-but-
 # unreadable, which fails safe ON (persist as if on), matching do_persist's convention.
@@ -105,12 +112,173 @@ if ! _devflow_telemetry_should_push; then
   exit 0
 fi
 
+HAVE_ORIGIN=no
+git remote get-url origin >/dev/null 2>&1 && HAVE_ORIGIN=yes
+
+# ── In-place arm (issue #337): relocate the resolved branch's own .devflow/logs/ records.
+# rc 0 = nothing left to rewrite (relocated, already current, absent, or diverged with no legacy
+# record on either tip); rc 1 = refused, not published, or published without advancing the local
+# ref, after one report line.
+# tip_has_legacy COMMIT — rc 0 when COMMIT holds a .devflow/logs/ path; rc 1 when it holds none.
+# An unreadable tree also returns 0, so the caller refuses rather than guessing it is current.
+tip_has_legacy() {
+  local names
+  names="$(git ls-tree -r --full-tree --name-only "$1" -- .devflow/logs 2>/dev/null)" || return 0
+  [ -n "$names" ]
+}
+relocate_in_place() {
+  local remote_tip="" local_tip="" base="" lsr_rc=0 listing line path sha mapped mapped_sha
+  local legacy=() legacy_meta=() current=() current_sha=() i j idx tree new push_err upd_err tab
+  tab="$(printf '\t')"
+  if [ "$HAVE_ORIGIN" = yes ]; then
+    GIT_TERMINAL_PROMPT=0 git ls-remote --exit-code origin "refs/heads/${TARGET_BRANCH}" >/dev/null 2>&1 || lsr_rc=$?
+    case "$lsr_rc" in
+      0)
+        if ! GIT_TERMINAL_PROMPT=0 git fetch -q --no-tags origin "+refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}" 2>/dev/null; then
+          report "could not fetch '$TARGET_BRANCH' from origin (offline or auth) — skipping migration this run"
+          return 1
+        fi
+        remote_tip="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/remotes/origin/${TARGET_BRANCH}")"
+        if [ -z "$remote_tip" ]; then
+          report "could not resolve the fetched '$TARGET_BRANCH' tip to a commit — skipping migration this run"
+          return 1
+        fi
+        ;;
+      2) ;;
+      *)
+        report "could not query origin for '$TARGET_BRANCH' (offline or auth) — skipping migration this run"
+        return 1
+        ;;
+    esac
+  fi
+  local_tip="$(devflow_telemetry_commit_id "$TARGET_ROOT" "refs/heads/${TARGET_BRANCH}")"
+
+  # Rewrite on top of the newer tip; a local ref that diverged from the remote is left alone.
+  if [ -n "$remote_tip" ] && [ -n "$local_tip" ] && [ "$remote_tip" != "$local_tip" ]; then
+    if git merge-base --is-ancestor "$local_tip" "$remote_tip" 2>/dev/null; then
+      base="$remote_tip"
+    elif git merge-base --is-ancestor "$remote_tip" "$local_tip" 2>/dev/null; then
+      base="$local_tip"
+    else
+      # Neither tip holds a .devflow/logs/ record: nothing to rewrite, so leave the diverged
+      # branch to the writer's own fetch/re-parent in the source migration below.
+      if ! tip_has_legacy "$local_tip" && ! tip_has_legacy "$remote_tip"; then
+        return 0
+      fi
+      report "the local and remote '$TARGET_BRANCH' tips have diverged — not rewriting its record paths; no changes made"
+      return 1
+    fi
+  else
+    base="${remote_tip:-$local_tip}"
+  fi
+  [ -n "$base" ] || return 0
+
+  if ! listing="$(git -c core.quotePath=false ls-tree -r --full-tree "$base" 2>/dev/null)"; then
+    report "could not read the tip tree of '$TARGET_BRANCH' — not rewriting its record paths; no changes made"
+    return 1
+  fi
+  # Each line is `<mode> <type> <sha>\t<path>`; a quoted (special-character) path is foreign.
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    path="${line#*"$tab"}"
+    case "$path" in
+      .prflow/logs/*) current+=("$path"); current_sha+=("${line%%"$tab"*}") ;;
+      .devflow/logs/*) legacy+=("$path"); legacy_meta+=("${line%%"$tab"*}") ;;
+      *)
+        report "'$TARGET_BRANCH' holds a path under neither .devflow/logs/ nor .prflow/logs/ ('$path') — refusing to rewrite or migrate onto it; no changes made"
+        return 1
+        ;;
+    esac
+  done <<EOF
+$listing
+EOF
+  [ "${#legacy[@]}" -gt 0 ] || return 0
+
+  # A mapped path the branch already holds must carry the same blob, or one record would be dropped.
+  # Read from the listing above, so a failed lookup is never mistaken for an absent path.
+  for ((i = 0; i < ${#legacy[@]}; i++)); do
+    mapped=".prflow/${legacy[$i]#.devflow/}"
+    sha="${legacy_meta[$i]##* }"
+    for ((j = 0; j < ${#current[@]}; j++)); do
+      [ "${current[$j]}" = "$mapped" ] || continue
+      mapped_sha="${current_sha[$j]##* }"
+      if [ "$mapped_sha" != "$sha" ]; then
+        report "'$TARGET_BRANCH' holds both '${legacy[$i]}' and a differing '$mapped' — refusing to rewrite, which would drop one of them; no changes made"
+        return 1
+      fi
+    done
+  done
+
+  if devflow_telemetry_branch_checked_out "$TARGET_ROOT" "refs/heads/${TARGET_BRANCH}"; then
+    report "'$TARGET_BRANCH' is checked out in a worktree — not rewriting its record paths; no changes made"
+    return 1
+  fi
+  if ! mkdir -p "${TARGET_ROOT}/.prflow/tmp" 2>/dev/null; then
+    report "could not create .prflow/tmp/ for the temp index — not rewriting '$TARGET_BRANCH'; no changes made"
+    return 1
+  fi
+  idx="${TARGET_ROOT}/.prflow/tmp/telemetry-relocate-index-$$-${RANDOM}-${SECONDS}"
+  # Each record keeps its blob (bytes unchanged) and its sub-path; only the prefix changes.
+  tree="$(
+    export GIT_INDEX_FILE="$idx"
+    git read-tree "$base" 2>/dev/null || exit 1
+    for ((i = 0; i < ${#legacy[@]}; i++)); do
+      git update-index --add --cacheinfo "${legacy_meta[$i]%% *},${legacy_meta[$i]##* },.prflow/${legacy[$i]#.devflow/}" 2>/dev/null || exit 1
+      git update-index --force-remove -- "${legacy[$i]}" 2>/dev/null || exit 1
+    done
+    git write-tree 2>/dev/null
+  )" || tree=""
+  rm -f "$idx" 2>/dev/null || true
+  new=""
+  if [ -n "$tree" ]; then
+    new="$(GIT_AUTHOR_NAME="$_DEVFLOW_TELEMETRY_IDENT_NAME" GIT_AUTHOR_EMAIL="$_DEVFLOW_TELEMETRY_IDENT_EMAIL" \
+      GIT_COMMITTER_NAME="$_DEVFLOW_TELEMETRY_IDENT_NAME" GIT_COMMITTER_EMAIL="$_DEVFLOW_TELEMETRY_IDENT_EMAIL" \
+      git commit-tree "$tree" -p "$base" -m "chore: relocate telemetry records from .devflow/logs/ to .prflow/logs/" 2>/dev/null || true)"
+  fi
+  if [ -z "$new" ]; then
+    report "could not build the relocation commit for '$TARGET_BRANCH' (object-store write failed); no changes made"
+    return 1
+  fi
+  if ! devflow_telemetry_verify_store "$TARGET_ROOT" "$new"; then
+    report "the relocated '$TARGET_BRANCH' tree failed the telemetry store check; no changes made"
+    return 1
+  fi
+
+  if [ "$HAVE_ORIGIN" = yes ]; then
+    # Fast-forward-only push: a concurrent writer's newer remote tip rejects it.
+    if ! push_err="$(GIT_TERMINAL_PROMPT=0 git push -q origin "${new}:refs/heads/${TARGET_BRANCH}" 2>&1)"; then
+      report "could not push the relocated '$TARGET_BRANCH' ($push_err) — the branch is unchanged; re-run /prflow:init to retry"
+      return 1
+    fi
+    git update-ref "refs/remotes/origin/${TARGET_BRANCH}" "$new" 2>/dev/null || true
+  fi
+  if [ -n "$local_tip" ]; then
+    if ! upd_err="$(git update-ref "refs/heads/${TARGET_BRANCH}" "$new" "$local_tip" 2>&1)"; then
+      report "relocated '$TARGET_BRANCH' as $new but could not advance its local ref ($upd_err) — advance it by hand with: git update-ref refs/heads/$TARGET_BRANCH $new"
+      return 1
+    fi
+  fi
+  report "relocated ${#legacy[@]} record(s) on '$TARGET_BRANCH' from .devflow/logs/ to .prflow/logs/ in one commit"
+  return 0
+}
+
+if [ "$IN_PLACE" = yes ]; then
+  relocate_in_place || exit 0
+fi
+
+if [ "$SOURCE_BRANCH" = "$TARGET_BRANCH" ]; then
+  if [ "$IN_PLACE" = yes ]; then
+    report "telemetry.branch is the superseded name '$SOURCE_BRANCH' — no separate branch to migrate from"
+  else
+    report "telemetry.branch is the superseded name '$SOURCE_BRANCH' — only /prflow:init or install.sh --apply rewrites its record paths; no changes made"
+  fi
+  exit 0
+fi
+
 report "migrating telemetry records from '$SOURCE_BRANCH' onto '$TARGET_BRANCH'"
 
 SOURCE_REMOTE_REF=""   # set to the remote-tracking ref when the remote holds the source
 SOURCE_LOCAL_REF=""    # set to refs/heads/<source> when a local ref exists
-HAVE_ORIGIN=no
-git remote get-url origin >/dev/null 2>&1 && HAVE_ORIGIN=yes
 
 # Probe the remote for the source branch with an EXACT ref match (exit 0 present, 2 absent,
 # anything else unestablished).

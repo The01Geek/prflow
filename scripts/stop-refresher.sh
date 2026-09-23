@@ -35,7 +35,8 @@
 #
 # Env (all optional; defaults match the refresher + the workflow):
 #   RUNNER_TEMP                 base dir for the default pidfile/log paths
-#   DEVFLOW_REFRESH_PIDFILE     pidfile path (default $RUNNER_TEMP/devflow-refresh.pid)
+#   DEVFLOW_REFRESH_PIDFILE     pidfile path (default $RUNNER_TEMP/devflow-refresh.pid;
+#                               a Windows-form value is normalized before use)
 #   DEVFLOW_REFRESH_LOG         log path     (default $RUNNER_TEMP/devflow-refresh.log)
 #   DEVFLOW_REFRESH_STARTED     the Start step's `outcome` (success/failure/skipped/
 #                               cancelled). An absent pidfile only means "defeated"
@@ -70,6 +71,24 @@ LOG="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"
 STARTED="${DEVFLOW_REFRESH_STARTED:-success}"   # default success: a direct/test run has no gate
 SELFTEST_FAILED="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
 
+# Source the shared path normalizer ONCE (issue #614) for the derived reap glob, the
+# own-pidfile skip and the health check: a Windows workflow publishes the pidfile in
+# Windows form, and comparing it raw against the normalized glob reaps the job's own refresher.
+_np_lib="$(dirname "${BASH_SOURCE[0]}")/../lib/normalize-path.sh"
+_np_ok=no
+# shellcheck source=../lib/normalize-path.sh
+if [ -r "$_np_lib" ] && . "$_np_lib" 2>/dev/null && command -v devflow_normalize_path >/dev/null 2>&1; then
+  _np_ok=yes
+fi
+# The job's own pidfile in normalized form, for the reap skip and the health check;
+# breadcrumbs echo the raw $PIDFILE. Degrades to the raw value when the normalizer is
+# unsourceable; a non-Windows-form value passes through unchanged.
+if [ "$_np_ok" = yes ]; then
+  PIDFILE_NORM="$(devflow_normalize_path "$PIDFILE")"
+else
+  PIDFILE_NORM="$PIDFILE"
+fi
+
 # Ordered BEFORE the self-test attribution below, which exits 0: a job whose self-test
 # failed still shares the runner with a prior job's orphan, and reaping is exactly the
 # duty that must not be skipped on the self-hosted hosts this change targets.
@@ -78,25 +97,26 @@ SELFTEST_FAILED="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
 # refresher still looping on this runner — an orphan whose self-termination may
 # have failed must not keep holding a live repository-write token. Every pidfile
 # in the glob that is not this job's own is another job's by construction, so the
-# reap decision is that name inequality plus the liveness and identity checks
-# below — never a read of the orphan's job pointer.
+# reap decision is that inequality (by path, or by the pid it holds) plus the liveness
+# and identity checks below — never a read of the orphan's job pointer.
 if [ -n "${DEVFLOW_REFRESH_REAP_GLOB:-}" ]; then
   # An explicit pattern is authoritative and used exactly as given, with NO
   # conversion (issue #1925): the caller already chose the form its shell expresses.
   REAP_GLOB="$DEVFLOW_REFRESH_REAP_GLOB"
+  _reap_converted=no
 else
   # Normalize the derived temp dir to the running shell's POSIX form first (issue #1925):
   # an unquoted glob eats a Windows-form $RUNNER_TEMP's backslashes and sweeps zero files;
   # reap nothing (empty pattern) rather than sweep the wrong directory when it cannot.
   _reap_base="${RUNNER_TEMP:-/tmp}"
-  _reap_lib="$(dirname "${BASH_SOURCE[0]}")/../lib/normalize-path.sh"
-  # shellcheck source=../lib/normalize-path.sh
-  if [ -r "$_reap_lib" ] && . "$_reap_lib" 2>/dev/null && command -v devflow_normalize_path >/dev/null 2>&1; then
+  _reap_converted=no
+  if [ "$_np_ok" = yes ]; then
     _reap_base="$(devflow_normalize_path "$_reap_base")"
+    [ "$_reap_base" = "${RUNNER_TEMP:-/tmp}" ] || _reap_converted=yes
   else
     # The normalizer decides which directory is swept, so its absence is not a value
     # to guess past — reap nothing rather than sweep from an unnormalized value.
-    echo "::warning::skipped cross-job orphan reap: could not source the path normalizer ($_reap_lib) to establish the reap directory from RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' — nothing signalled (fail-safe)"
+    echo "::warning::skipped cross-job orphan reap: could not source the path normalizer ($_np_lib) to establish the reap directory from RUNNER_TEMP '${RUNNER_TEMP:-/tmp}' — nothing signalled (fail-safe)"
     _reap_base=""
   fi
   case "$_reap_base" in
@@ -110,16 +130,28 @@ else
     *) REAP_GLOB="$_reap_base/devflow-refresh-*.pid" ;;
   esac
 fi
+# The job's own refresher pid, so a swept pidfile holding it is skipped whatever its path
+# spelling (a doubled separator, drive-letter case) — path equality alone fails open.
+_own_pid=""
+for _opf in "$PIDFILE_NORM" "$PIDFILE"; do
+  if [ -f "$_opf" ]; then read -r _own_pid 2>/dev/null < "$_opf" || :; break; fi
+done
 # Intentional glob + word-split of the reap pattern.
 # shellcheck disable=SC2086
 for _rpf in $REAP_GLOB; do
   [ -f "$_rpf" ] || continue
-  [ "$_rpf" = "$PIDFILE" ] && continue
+  # Skip the job's own pidfile in either form (issue #614): the derived glob yields
+  # normalized paths, while an explicit glob is used unconverted and may name the raw one.
+  if [ "$_rpf" = "$PIDFILE_NORM" ] || [ "$_rpf" = "$PIDFILE" ]; then continue; fi
   # Read the pid with the `read` BUILTIN, never `cat`: cat is not preflight-guaranteed,
   # and on a host lacking it every pidfile would read empty and be unlinked below as
   # stale — silently retiring the record of a LIVE orphan instead of signalling it.
   _ropid=""
   read -r _ropid 2>/dev/null < "$_rpf" || :
+  if [ -n "$_own_pid" ] && [ "$_ropid" = "$_own_pid" ]; then
+    echo "skipped own refresher (pid $_ropid) at swept pidfile $_rpf: its path differs from DEVFLOW_REFRESH_PIDFILE '$PIDFILE'"
+    continue
+  fi
   # A stale pidfile (empty, or a pid that is no longer alive) is retired so no later
   # teardown re-consults it.
   if [ -z "$_ropid" ] || ! kill -0 "$_ropid" 2>/dev/null; then
@@ -141,10 +173,14 @@ for _rpf in $REAP_GLOB; do
     ps) command -v ps >/dev/null 2>&1 && _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)" ;;
     *)
       if [ -r "/proc/$_ropid/cmdline" ]; then
-        # bash strips the NUL separators, so the args concatenate. A host without `cat`
-        # leaves _rcmd empty here, so the ps fall-through below is unconditional —
-        # committing to /proc would make the reaper inert on a cat-less host.
-        _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
+        # Read the NUL-delimited cmdline with the `read` BUILTIN, never `$(cat …)` (issue
+        # #614): a command substitution over NUL-separated bytes makes bash log
+        # `warning: command substitution: ignored null byte in input`. An unreadable or empty
+        # cmdline leaves _rcmd empty for the ps fall-through below.
+        while IFS= read -r -d '' _rpart || [ -n "$_rpart" ]; do
+          [ -n "$_rpart" ] && _rcmd="$_rcmd$_rpart "
+        done 2>/dev/null < "/proc/$_ropid/cmdline"
+        _rcmd="${_rcmd% }"
       fi
       if [ -z "$_rcmd" ] && command -v ps >/dev/null 2>&1; then
         _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)"
@@ -188,11 +224,21 @@ reason=""
 # misdirect the operator (PR #491 shadow review).
 impact="git push / gh calls past ~60 min may have used a stale token"
 
-if [ -f "$PIDFILE" ]; then
-  # Same builtin-not-`cat` rule as the reaper below: a host without cat would read
-  # every pidfile empty and report a spurious defeat instead of this job's real state.
+# Probe the NORMALIZED own pidfile (issue #614) so a Windows-form DEVFLOW_REFRESH_PIDFILE
+# resolves to the file the reaper left in place; fall back to the raw path when the
+# normalized one is absent (a converter whose mount scheme differs from the shell's).
+if [ ! -f "$PIDFILE_NORM" ] && [ "$PIDFILE_NORM" != "$PIDFILE" ] && [ -f "$PIDFILE" ]; then
+  _impact=""
+  # Only a glob derived through the same converter can have swept the wrong directory.
+  [ "${_reap_converted:-no}" = yes ] && _impact=", so the cross-job orphan reap may have swept the wrong directory"
+  echo "::warning::own pidfile resolved only in its raw form '$PIDFILE' (normalized '$PIDFILE_NORM' is absent): the path converter's mount scheme differs from this shell's$_impact"
+fi
+[ -f "$PIDFILE_NORM" ] || PIDFILE_NORM="$PIDFILE"
+if [ -f "$PIDFILE_NORM" ]; then
+  # Same builtin-not-`cat` rule as the reaper above: a host without cat would read every
+  # pidfile empty and report a spurious defeat instead of this job's real state.
   pid=""
-  read -r pid 2>/dev/null < "$PIDFILE" || :
+  read -r pid 2>/dev/null < "$PIDFILE_NORM" || :
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     # Briefly wait for the signalled process to actually exit before tailing its log, so

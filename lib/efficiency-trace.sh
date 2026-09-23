@@ -2282,6 +2282,7 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
   # Pre-rename telemetry-branch migration backstop (issue #336): before this run's first
   # append, migrate a consumer's superseded-branch records onto the current branch. Gated on
   # push authorization + a remote source branch — drop the probe and an un-migrated repo re-probes each persist.
+  # --backstop: only init/install rewrite a branch's record paths in place (issue #337).
   if _devflow_telemetry_should_push && git -C "$root" remote get-url origin >/dev/null 2>&1; then
     local _mtb_src=""
     _mtb_src="$(PRFLOW_RENAME_MAP="$HERE/rename-map.json" python3 -c '
@@ -2303,7 +2304,7 @@ except Exception:
       local _mtb_lsr=0
       GIT_TERMINAL_PROMPT=0 git -C "$root" ls-remote --exit-code origin "refs/heads/${_mtb_src}" >/dev/null 2>&1 || _mtb_lsr=$?
       if [ "$_mtb_lsr" -eq 0 ]; then
-        "$HERE/../scripts/migrate-telemetry-branch.sh" "$root" || true
+        "$HERE/../scripts/migrate-telemetry-branch.sh" "$root" --backstop || true
       elif [ "$_mtb_lsr" -ne 2 ]; then
         # rc 2 is a clean "absent" (the common no-op); any other non-zero is an unestablished
         # probe (offline/auth) — breadcrumb it rather than skipping the backstop silently.

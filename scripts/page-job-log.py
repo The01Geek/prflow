@@ -82,8 +82,8 @@ def _store_dir():
 def _sanitize(line):
     line = _ANSI_RE.sub("", line)
     # Drop every control/format character (Unicode category starting with "C" — C0/C1
-    # controls, DEL, format chars) except the tab, which is kept because `gh run view
-    # --log` emits tab-separated group/step/timestamp prefixes worth preserving.
+    # controls, DEL, format chars) except the tab, which is kept because log lines may
+    # carry tab-separated content worth preserving.
     # Bytes that were not valid UTF-8 arrived as U+FFFD (category So) and pass through inert.
     return "".join(
         ch for ch in line if ch == "\t" or not unicodedata.category(ch).startswith("C")
@@ -131,7 +131,9 @@ def main(argv):
             return 1
         try:
             proc = subprocess.run(
-                [_gh(), "run", "view", "--job", job, "--log"],
+                # The jobs-logs endpoint serves a finished job's log while other jobs in
+                # the run still go; the run-view log form refuses until the run ends.
+                [_gh(), "api", f"repos/{{owner}}/{{repo}}/actions/jobs/{job}/logs"],
                 capture_output=True, env=fresh_gh_env(),
             )
         except OSError as exc:

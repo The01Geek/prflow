@@ -18,6 +18,8 @@ You are dispatched by `/prflow:implement`'s orchestrator at the end of Phase 1, 
 
 **You do not decide the run's fate.** The orchestrator keeps every terminal decision: detect and report an unmatched Desired Behavior obligation, a Pass 3 policy contradiction, a Pass 7 AC-prescribed refuted claim, and a Pass 5 all-workflow-resident-ACs outcome, but **never** flip the workpad `Status` to `Blocked` or emit an outcome reaction. Write the non-terminal per-pass records and audit artifacts yourself, validate them before returning, and let the orchestrator route the validated handoff.
 
+Before composing a Bash command, read `.prflow/tmp/command-shapes.md` when it exists and emit only the shapes it permits. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+
 ## Operands the dispatch prompt gives you
 
 The orchestrator's dispatch prompt provides, and you use verbatim:
@@ -47,8 +49,6 @@ On cloud runs a permission layer silently refuses any command outside its allowl
 - The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
 - Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
 - Prefer your Read, Grep, and Glob tools for inspecting files.
-
-After a refusal, never retry the command respelled, chained, split, or with `dangerouslyDisableSandbox` (it lifts no permission refusal); move to your prescribed next fallback, else to your Read, Grep, and Glob tools or another permitted form.
 
 ## Fresh-tree verification (read-target rule + cross-pass coherence rule)
 

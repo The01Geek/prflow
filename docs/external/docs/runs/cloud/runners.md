@@ -34,6 +34,19 @@ A third optional variable, `DEVFLOW_REVIEW_RUNNER`, applies to one job: the `com
 
 Unset or empty, the expression falls through to the `DEVFLOW_LIGHT_RUNNER` chain and then the `DEVFLOW_RUNNER` chain, so setting nothing moves nothing.
 
+## Launch a Runner per Job
+
+In a bare-label value, `{0}` becomes the workflow run id. Write a literal `{` as `{{`.
+
+If you start a fresh runner for each job instead of keeping one running, give each heavy job its own label. Put `{1}` in `DEVFLOW_IMPLEMENT_RUNNER`, `DEVFLOW_REVIEW_RUNNER` or `DEVFLOW_RUNNER`. It becomes the target issue or pull-request number. For example, `ci-{0}-issue-{1}` resolves to `ci-4512345678-issue-42`. This works for a bare label and for a JSON array such as `["self-hosted","ci-{0}-issue-{1}"]`. When a JSON array contains `{1}`, `{0}` and `{{` are expanded in it too.
+
+- **Only the implement `claude` job and the `command` job expand `{1}`.** The light jobs and every `devflow-retrospective.yml` job run before a target number exists, or without one. A `{1}` in the variable they read fails their workflow evaluation. Point `DEVFLOW_LIGHT_RUNNER` at a label without `{1}`, such as a GitHub-hosted runner. Keep `{1}` out of `DEVFLOW_RUNNER` if you run the retrospective.
+- **Put `{0}` and `{1}` in the label.** A label that repeats across runs lets one queued job start on another job's runner.
+- **If no number resolves**, PRFlow skips a variable that contains `{1}` and uses the next one in the chain. It never produces a label with a blank or literal placeholder.
+- **Launch and remove the runners yourself.** Subscribe to the `workflow_job` webhook. On `queued`, read the job's `labels` and register a runner with exactly those labels. On `completed`, remove that runner. Registering runners takes a token with repository administration write access, or organization self-hosted-runner write access for organization runners.
+
+A value without `{1}` resolves exactly as before.
+
 <Warning>
   The light jobs still carry secrets: the standalone-review job runs your model-provider API key (under the read-only reviewer identity) and the helper jobs mint the GitHub App token. If you self-host `DEVFLOW_RUNNER` for network isolation, pointing `DEVFLOW_LIGHT_RUNNER` at a GitHub-hosted runner runs those secrets outside that boundary. Keep the light runner inside the same fleet unless a GitHub-hosted light runner is acceptable for those secrets.
 </Warning>

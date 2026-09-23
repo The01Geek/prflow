@@ -1076,11 +1076,79 @@ def _acs_render(items: list[dict], *, exclude_post_merge: bool,
     highest-priority items a Phase 2 verifier then FAILs — the exact failure
     this mechanism exists to remove.
     """
-    kept = [
-        it for it in items
-        if not (exclude_post_merge and is_post_merge_tagged(it['text']))
-    ]
+    kept = _acs_filtered(items, exclude_post_merge=exclude_post_merge)
     return '\n'.join(render_line(it, neutralize_box=neutralize_boxes) for it in kept)
+
+
+def _acs_filtered(items: list[dict], *, exclude_post_merge: bool) -> list[dict]:
+    """The items `_acs_render` prints; a criteria file, when written, holds exactly these."""
+    return [it for it in items
+            if not (exclude_post_merge and is_post_merge_tagged(it['text']))]
+
+
+_CRITERIA_OUT_CRUMB = 'workpad.py acs-resolve: criteria-out:'
+
+
+def _confined_criteria_path(path: str) -> str | None:
+    """The refusal cause for a `--criteria-out` path, or None when it is usable: the leaf
+    must not be a symlink and its resolved parent must sit beneath contiguous
+    `.prflow/tmp/review` segments."""
+    parts = os.path.realpath(os.path.dirname(os.path.abspath(path))).replace('\\', '/').split('/')
+    if not any(parts[i:i + 3] == ['.prflow', 'tmp', 'review'] for i in range(len(parts) - 2)):
+        return 'it does not resolve beneath a .prflow/tmp/review/ tree'
+    if os.path.islink(path):
+        return 'the leaf is a symlink'
+    return None
+
+
+def _acs_clear_criteria(path: str | None) -> bool:
+    """Remove any earlier `--criteria-out` file; a refused path is left untouched.
+    True when the path is usable and now absent. Runs before the issue-body read,
+    so an exit-3 run leaves no stale file.
+    Every failure is a stderr breadcrumb, never an exit — the stdout blocks are the
+    contract Phase 0.4 consumes."""
+    if path is None:
+        return False
+    cause = _confined_criteria_path(path)
+    if cause:
+        print(f'{_CRITERIA_OUT_CRUMB} refused {path!r}: {cause}; nothing written', file=sys.stderr)
+        return False
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        print(f'{_CRITERIA_OUT_CRUMB} could not remove the earlier file {path!r} '
+              f'({type(e).__name__}: {e}); not writing', file=sys.stderr)
+        return False
+    return True
+
+
+def _acs_write_criteria(path: str, items: list[dict]) -> None:
+    """Write `items` as the criteria file when non-empty, publishing only bytes that
+    read back equal; the caller already cleared `path` via `_acs_clear_criteria`."""
+    if not items:
+        return
+    value = [{'criterion': n, 'text': it['text']} for n, it in enumerate(items, 1)]
+    tmp = path + '.tmp'
+    try:
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644),
+                  'w', encoding='utf-8', newline='\n') as fh:
+            json.dump(value, fh, indent=2, ensure_ascii=False)
+            fh.write('\n')
+        with open(tmp, encoding='utf-8') as fh:
+            if json.load(fh) != value:
+                raise ValueError('read-back differs from the value written')
+        os.replace(tmp, path)
+    except (OSError, ValueError) as e:
+        print(f'{_CRITERIA_OUT_CRUMB} write failed for {path!r} ({type(e).__name__}: {e}); '
+              f'no criteria file written', file=sys.stderr)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass  # the temp may never have been created; the breadcrumb above already fired
 
 
 def _acs_workpad_state(section_lines: list[str], items: list[dict]) -> str:
@@ -1422,6 +1490,7 @@ def cmd_acs_resolve(args):
     # rejects the non-ASCII digits `str.isdigit()`/`isdecimal()` would accept, matching
     # the seed helper's `*[!0-9]*` shell guard.
     issue_arg = args.issue
+    criteria_out_ready = _acs_clear_criteria(args.criteria_out)
     if not issue_arg or not all(c in '0123456789' for c in issue_arg):
         # Breadcrumb on stderr so a CALLER bug (a malformed issue argument) is
         # distinguishable from an infrastructure denial: both route to the same
@@ -1437,6 +1506,7 @@ def cmd_acs_resolve(args):
         )
         print(f'source: {_ACS_SOURCE_RESOLVER_UNAVAILABLE}')
         print('criteria:')
+        print('criteria-count: 0')
         print('divergence:')
         print('not-applicable')
         return
@@ -1497,11 +1567,15 @@ def cmd_acs_resolve(args):
         if not issue_items and state == _ACS_SOURCE_ISSUE_BODY:
             source = _ACS_SOURCE_NONE
 
+    reviewer_facing = _acs_filtered(selected, exclude_post_merge=True)
+    if criteria_out_ready:
+        _acs_write_criteria(args.criteria_out, reviewer_facing)
     print(f'source: {source}')
     print('criteria:')
-    rendered = _acs_render(selected, exclude_post_merge=True, neutralize_boxes=True)
+    rendered = _acs_render(reviewer_facing, exclude_post_merge=False, neutralize_boxes=True)
     if rendered:
         print(rendered)
+    print(f'criteria-count: {len(reviewer_facing)}')
     print('divergence:')
     if state in (_ACS_SOURCE_WORKPAD, _ACS_SOURCE_PR_IDENTITY_MISMATCH):
         for line in _acs_diverge(issue_items, workpad_items, decisions) or ['none']:
@@ -10138,6 +10212,14 @@ def main():
                         'no record can then be confirmed as this run\'s, so a '
                         'narrowed workpad fails closed to pr-identity-mismatch '
                         'exactly as it does for an unbound record.')
+    s.add_argument('--criteria-out', default=None, metavar='PATH',
+                   help='Also write the reviewer-facing criteria as a JSON array of '
+                        '{"criterion": N, "text": T} (N from 1) for `checklist finalize`. '
+                        'The path must resolve beneath a .prflow/tmp/review/ tree and its '
+                        'leaf must not be a symlink. Any earlier file there is removed '
+                        'first; nothing is written when the criteria set is empty. A '
+                        'refused path is left untouched; it or a failed write is named '
+                        'on stderr and still exits 0.')
     s.set_defaults(func=cmd_acs_resolve)
 
     s = sub.add_parser(

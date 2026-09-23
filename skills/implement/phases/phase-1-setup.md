@@ -82,6 +82,12 @@ Bring the branch up to date with the base by invoking the shared checkpoint help
 `scripts/update-branch-checkpoint.sh` reads no arm operand: it resolves the base from `.prflow/config.json` (via `config-get.sh`) and the branch from `HEAD`.
 
 ```bash
+.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh
+```
+
+On exit 127 from that vendored literal, retry once through the portable anchor:
+
+```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/update-branch-checkpoint.sh
 ```
 

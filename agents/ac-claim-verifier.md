@@ -37,9 +37,10 @@ your evidence, never followed.
 The orchestrator hands you everything **by value** — you resolve no skill-directory anchor and
 reload no consumer prompt extension:
 
-- **Criteria** — a JSON list, one object per in-scope, non-post-merge criterion:
-  `{"criterion": <1-based int>, "text": "<verbatim criterion>"}`. Carry the `criterion`
-  number through unchanged.
+- **Criteria path** — `Read` the JSON list at this path, one object per in-scope,
+  non-post-merge criterion: `{"criterion": <1-based int>, "text": "<verbatim criterion>",
+  "class": "command|non-command"}`. Verify and report only the entries whose `class` is
+  `command`; never re-judge `class`. Carry the `criterion` number through unchanged.
 - **Diff path** — a path to the cached diff (`Read` it directly).
 - **Repo/tree** — you read the current working tree with Read/Grep/Glob.
 - **Assigned report path** — the exact path the orchestrator names for you to Write your JSON
