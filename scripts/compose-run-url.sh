@@ -6,7 +6,7 @@
 # WHY A HELPER, not an agent-composed string: the review progress comment's run link was
 # assembled in agent prose from an unobservable shell assignment, so the agent filled it in
 # from a guess — yielding a wrong repository owner or an unexpanded literal on real runs. This
-# helper is the SINGLE place the run link is composed; its consumers (skills/review/SKILL.md,
+# helper is the SINGLE place the run link is composed; its consumers (skills/review/phases/phase-0-3-5-progress-comment.md,
 # scripts/seed-review-progress.sh, and the implement skill's phase-1-setup.md / phase-3-review.md,
 # issue #40) observe THIS helper's stdout instead of composing their own, so there is nothing
 # left for the agent to invent.

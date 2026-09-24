@@ -359,6 +359,7 @@ _reconcile() {  # $1 = overrides path, $2 = limit
         [ (.patterns // {}) | to_entries[] | (.value.meta_issues // [])[]? | ((.repo // "") | strings) // ""
           | select(. != "") ] | unique | .[]' "$ov")" \
       || { echo "::error::pattern-state: could not enumerate the repositories named in ${ov} (jq exited non-zero) — no transition applied" >&2; return 1; }
+    entry_repos="${entry_repos//$'\r'/}"  # a native Windows jq.exe ends each line with CR (#1050)
 
     # Prefetch map keyed by "<repo>#<number>" → {state,stateReason,closedAt}.
     # A jq failure inside a command substitution is NOT caught by `set -e`: the
@@ -374,8 +375,11 @@ _reconcile() {  # $1 = overrides path, $2 = limit
             echo "::error::pattern-state: the Retrospective prefetch body for ${one_repo} did not parse as a JSON array" >&2
             return 1
         fi
-        prefetch_map="$(printf '%s' "$prefetch_raw" | "$DEVFLOW_JQ" -c --arg repo "$one_repo" --slurpfile acc <(printf '%s' "$prefetch_map") '
-            reduce .[] as $r ($acc[0]; . + {($repo + "#" + ($r.number|tostring)): {state: $r.state, stateReason: $r.stateReason, closedAt: $r.closedAt}})')" \
+        # The accumulator rides stdin ahead of the page: a native Windows jq.exe cannot
+        # open a `<(…)` process-substitution path (#1050).
+        prefetch_map="$(printf '%s\n%s\n' "$prefetch_map" "$prefetch_raw" | "$DEVFLOW_JQ" -nc --arg repo "$one_repo" '
+            input as $acc | input
+            | reduce .[] as $r ($acc; . + {($repo + "#" + ($r.number|tostring)): {state: $r.state, stateReason: $r.stateReason, closedAt: $r.closedAt}})')" \
           || { echo "::error::pattern-state: could not build the prefetch map for ${one_repo} (jq exited non-zero) — no transition applied" >&2; return 1; }
         [ -n "$prefetch_map" ] \
           || { echo "::error::pattern-state: the prefetch map came out empty for ${one_repo} (jq produced no output) — no transition applied" >&2; return 1; }
@@ -391,6 +395,7 @@ _reconcile() {  # $1 = overrides path, $2 = limit
         | select(.number != null)
         | (((.repo // "") | strings) // "") + "#" + (.number|tostring)' "$ov")" \
       || { echo "::error::pattern-state: could not enumerate the meta-issue numbers in ${ov} (jq exited non-zero) — no transition applied" >&2; return 1; }
+    numbers="${numbers//$'\r'/}"  # a native Windows jq.exe ends each line with CR (#1050)
 
     # Build a resolution map covering every number, using the prefetch first and
     # the by-number fallback for uncovered numbers. A number that resolves through

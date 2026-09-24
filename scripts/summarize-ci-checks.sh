@@ -102,6 +102,7 @@ if ! RUN_IDS=$(printf '%s' "$RUNS_JSON" | "$DEVFLOW_JQ" -rs --arg self "$SELF_WO
       | .[] | (.id | tostring)' 2>/dev/null); then
   unavailable "workflow-runs payload could not be parsed for $HEAD_SHA (jq failed, or the payload was not JSON / not an object page)."
 fi
+RUN_IDS="${RUN_IDS//$'\r'/}"  # a native Windows jq.exe ends each line with CR (#1050)
 
 # Bound the per-run jobs queries. Each surviving run costs one paginated API call on
 # the critical path of a paid review's prompt composition, and a busy head (re-runs,

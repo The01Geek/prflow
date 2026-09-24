@@ -34,6 +34,7 @@ fi
 _found=0
 _value=""
 while IFS= read -r _line; do
+  _line="${_line%$'\r'}"  # a CRLF block (native Windows jq.exe upstream)
   case "$_line" in
     "permission_denials_commands: "*)
       _value="${_line#permission_denials_commands: }"

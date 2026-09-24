@@ -34,13 +34,14 @@ def refresh(body, url):
 
 
 def _force_utf8_streams():
-    """Force stdin/stdout/stderr to UTF-8. Never call this at import: doing so mutates the
-    streams of any process that imports this module for tests. Tolerates a stream that
-    has no usable `reconfigure` (issue #1762)."""
-    for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    """Force stdin/stdout/stderr to UTF-8 with no newline translation on either end, so a
+    native-Windows Python returns the body byte-for-byte as a POSIX one does. Never call
+    this at import: doing so mutates the streams of any process that imports this module
+    for tests. Tolerates a stream that has no usable `reconfigure` (issue #1762)."""
+    for _stream, _newline in ((sys.stdin, ""), (sys.stdout, "\n"), (sys.stderr, "\n")):
         try:
-            _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError, OSError):
+            _stream.reconfigure(encoding="utf-8", newline=_newline)
+        except (AttributeError, TypeError, ValueError, OSError):
             pass
 
 

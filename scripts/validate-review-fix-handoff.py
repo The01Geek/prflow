@@ -85,9 +85,10 @@ Exit codes (all schemas):
         whereas the review-fix schema treats a non-object as the exit-2 "parses but does not
         conform" case
 
-Callers branch on zero-vs-non-zero, never on 2 specifically: argparse also exits 2 for a missing
+Callers branch on zero-vs-non-zero, never on 2 alone: argparse also exits 2 for a missing
 argument, so reading 2 as "non-conforming handoff" would misreport an invocation error as a
-rejected return.
+rejected return. A caller that does branch on 2 (the workers' self-checks) first separates an
+argparse `usage:` message from the `the worker handoff is unusable —` offender line.
 """
 
 import argparse

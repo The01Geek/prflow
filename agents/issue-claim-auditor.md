@@ -18,7 +18,7 @@ You are dispatched by `/prflow:implement`'s orchestrator at the end of Phase 1, 
 
 **You do not decide the run's fate.** The orchestrator keeps every terminal decision: detect and report an unmatched Desired Behavior obligation, a Pass 3 policy contradiction, a Pass 7 AC-prescribed refuted claim, and a Pass 5 all-workflow-resident-ACs outcome, but **never** flip the workpad `Status` to `Blocked` or emit an outcome reaction. Write the non-terminal per-pass records and audit artifacts yourself, validate them before returning, and let the orchestrator route the validated handoff.
 
-Before composing a Bash command, read `.prflow/tmp/command-shapes.md` when it exists and emit only the shapes it permits. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+Before your first Bash command, use the Read tool once on `.prflow/tmp/command-shapes.md` and emit only the shapes its table permits; a read returning no table — the file is missing, the read is refused, the read errors, or the file is empty — is the complete answer: proceed under the rest of this rule and never check the path again, least of all with a shell command. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
 
 ## Operands the dispatch prompt gives you
 
@@ -27,7 +27,7 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 - `ISSUE_NUMBER` — the GitHub issue this run implements.
 - `DISPATCH_ID` — the opaque identifier for this dispatch. Preserve it in every return artifact so a stale result cannot satisfy a later dispatch.
 - `WORKPAD` — the exact `workpad.py` helper path to invoke as a **leading token** for every workpad write (e.g. `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier). The granted allowlist matches that leading token, so never respell it as a repo-root form. This handle is the ladder's first rung and the only one passed: when a rung does not run, advance the next — the same file under `SKILL_DIR`, then `python3` against each in that order.
-- `SCRIPTS` — the directory prefix for the other bundled helpers you invoke (`check-verified-premises.py`), the same prefix `WORKPAD` sits in.
+- `SCRIPTS` — the directory prefix for the other bundled helpers you invoke (`check-verified-premises.py`, `validate-issue-claim-audit.py`, `run-jq.sh`), the same prefix `WORKPAD` sits in.
 - `SKILL_DIR` — the resolved implement-skill base directory, whose `../../scripts/` spells the workpad ladder's anchor rung; your own agent directory is not it.
 - `REPO_ROOT` — the checkout root path for Pass 6's `--repo-root` (a distinct value from `SCRIPTS` and `SKILL_DIR`; do not conflate them).
 - `ISSUE_BODY_PATH` — the intake handoff's exact issue-body artifact: the §1.1 cache on `IGNORED`, or intake's transient run-owned snapshot on `NOT_IGNORED`. Read it and **do not re-fetch** the issue.
@@ -144,7 +144,7 @@ Route the adjudicated exit first, then the ungraded lines (which are orthogonal 
 
 - **Exit 0 with `total=0` AND `UNGRADED_CLAIMS total=0`** → `--note "Issue-claim audit (verified-premise): no Verified: bullets and no ungraded claims found in the issue body — pass complete"`. This pass-complete arm is reached **only** when the helper reported no bullets *and* printed the literal `UNGRADED_CLAIMS total=0`; a nonzero `UNGRADED_CLAIMS total` takes the ungraded-detection arm below instead, and `UNGRADED_CLAIMS unavailable` takes the unestablished-ungraded arm below — neither ever this note.
 - **Exit 0** → `--note "Issue-claim audit (verified-premise): re-checked {N} Verified: bullet(s) at HEAD — {H} hold, {U} unestablished; no premise refuted"`.
-- **Exit 2 (a REFUTED premise)** → `--reflection-kind issue-accuracy --reflection "Issue-claim audit (verified-premise): bullet {n} is REFUTED at HEAD ({detail}) — discarding that premise and investigating the surface directly"`; **discard the refuted premise** and return it in your record so Phase 2 never builds on it. This does **not** block the run.
+- **Exit 2 (a REFUTED premise)** → **discard each refuted premise** and return it in your record so Phase 2 never builds on it; this does **not** block the run, and no grep of a quote's tokens overrides the helper's verdict. Run `git diff --name-only --no-renames origin/$BASE...HEAD`. A refuted bullet is branch-changed when that list contains a path its `detail=` refutes (the absent path, or a file the quote no longer occurs in; never a `not adjudicated` path): `--note "Issue-claim audit (verified-premise): bullet {n} is REFUTED at HEAD ({detail}) — branch-changed: this branch edited {paths}; discarding that premise"`. Every other refuted bullet takes `--reflection-kind issue-accuracy --reflection "Issue-claim audit (verified-premise): bullet {n} is REFUTED at HEAD ({detail}) — discarding that premise and investigating the surface directly"`; when the diff fails or is refused, all of them do, each appending ` (branch diff unavailable: {cause})`.
 - **Exit 3, a refusal, or no output** → `--reflection-kind dropped-failed --reflection "Issue-claim audit (verified-premise): the re-check could not be established ({cause}) — every Verified: bullet is treated as unverified and its premise re-investigated from first principles"`. Never read an unestablished measurement as a clean pass.
 - **Any `ungraded_claim=` line (nonzero `UNGRADED_CLAIMS total`, independent of the exit code)** → for each such line, `--reflection-kind issue-accuracy --reflection "Issue-claim audit (verified-premise): an ungraded verification claim in the {region} region ('{phrase}') is graded by nothing — this is an ungraded claim, not a refutation, and it does NOT license a skipped investigation; investigate the surface directly"`. Record it as an ungraded claim, never as a refuted premise, and do not treat the annotated claim as already checked.
 - **`UNGRADED_CLAIMS unavailable` (independent of the exit code)** → `--reflection-kind dropped-failed --reflection "Issue-claim audit (verified-premise): the ungraded-claim pass could not be established ({reason}) — the body may carry ungraded verification claims that were never reported, so no claim in it is treated as already checked"`. Never read this as zero ungraded claims; the adjudicated arms above still route on their own exit code, which this does not change.
@@ -233,28 +233,28 @@ notes: <one-line summary of the per-pass records written to the workpad>
 
 Use `proceed` for a clean projection, a Pass 1/6 correction, a Pass 2 added surface, a Pass 5 partial deferral, and a Pass 7 confirmation, unverified record, or non-blocking correction. Use `blocked-specification` only for an unmatched Pass 0 obligation; `blocked-policy` only for a Pass 3 contradiction or Pass 7 AC-prescribed refuted claim; and `blocked-capability` only when Pass 5 finds every in-scope criterion workflow-resident.
 
-For `outcome: proceed`, validate the record yourself before authoring the handoff:
+For `outcome: proceed`, validate the record yourself before authoring the handoff. In each gate's first fence, `<SCRIPTS>` is the dispatched `SCRIPTS` literal without a trailing `/`, and `<LIB>` is that literal with its final `scripts` segment replaced by `lib`; double-quote either when it contains a space or backslash. Run the portable fallback only on a `command not found` / `No such file` / rc-127 reading, or directly when the dispatch carries no `SCRIPTS`.
 
-1. Invoke the validator with the cloud-granted vendored literal first:
+1. Invoke the validator:
 
    ```bash
-   .prflow/vendor/prflow/scripts/validate-issue-claim-audit.py --record-file <record-path>
+   <SCRIPTS>/validate-issue-claim-audit.py --record-file <record-path>
    ```
 
-   Only on a `command not found` / `No such file` / rc-127 reading, use the portable fallback:
+   Portable fallback:
 
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/validate-issue-claim-audit.py --record-file <record-path>
    ```
 
    Only observed exit 0 establishes every chartered pass ran. A non-zero, refused, silent, or malformed result becomes handoff `outcome: error`; do not return a plausible proceed record and do not ask the orchestrator to rerun the audit inline.
-2. Write `{ "projection_disposition": ..., "unmatched_desired_behavior": ... }` to `RUN_SCRATCH/issue-claim-projection-<ISSUE_NUMBER>.json`, preserving the exact array. Invoke the shared projection gate with the vendored literal first:
+2. Write `{ "projection_disposition": ..., "unmatched_desired_behavior": ... }` to `RUN_SCRATCH/issue-claim-projection-<ISSUE_NUMBER>.json`, preserving the exact array. Invoke the shared projection gate:
 
    ```bash
-   .prflow/vendor/prflow/scripts/run-jq.sh -e -f .prflow/vendor/prflow/lib/projection-gate.jq <projection-path>
+   <SCRIPTS>/run-jq.sh -e -f <LIB>/projection-gate.jq <projection-path>
    ```
 
-   Only on a `command not found` / `No such file` / rc-127 reading, use the portable fallback:
+   Portable fallback:
 
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -e -f "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/projection-gate.jq <projection-path>
@@ -270,9 +270,21 @@ After validation, author `RUN_SCRATCH/issue-claim-audit-handoff-<ISSUE_NUMBER>.j
 - `record_path`, `projection_path` (or `null` when not produced), `record_validation` (`passed`, `failed`, or `not-applicable`), and `projection_validation` with the same vocabulary.
 - `projection_disposition`, the exact `unmatched_desired_behavior` array, `pass5_workflow_resident_acs`, `pass2_wrongly_excluded_surfaces`, `superseding_assumptions`, and `external_facts` from the record. Keep requirements and corrections exact; do not truncate them to meet an arbitrary size.
 - `prior_decisions`, `prior_corrections`, and `unresolved_blockers`, preserving each intake item with its evidence reference and recording any audit disposition added here.
-- `pass_dispositions`, keyed by the seven chartered pass numbers, and `workpad_write` with its observed outcome/remedy. An unavailable observation is explicit, never success.
+- `pass_dispositions`, keyed by the seven chartered pass numbers, and `workpad_write`: `{"outcome": "<o>", "remedy": "<r>"}` copied from the last `workpad.py update: outcome=<o> remedy=<r>` stderr line of your audit-end update, or `null` when none was observed — never a success value.
 
-Read the JSON back in this worker. Reject a missing field, type mismatch, path outside `RUN_SCRATCH`, or content disagreement with the text record as `error`. Do not append procedure text, raw issue/workpad history, tool output, or reasoning.
+Do not append procedure text, raw issue/workpad history, tool output, or reasoning. Check it once with the parent's reader, `<SCRIPTS>` and its fallback as above:
+
+```bash
+<SCRIPTS>/validate-review-fix-handoff.py --schema issue-claim-audit --handoff-file <handoff-path> --checkout-root <REPO_ROOT> --run-scratch <RUN_SCRATCH> --dispatch-id <DISPATCH_ID> --issue-number <ISSUE_NUMBER> --base <BASE> --freshness <FRESHNESS>
+```
+
+Portable fallback:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/validate-review-fix-handoff.py --schema issue-claim-audit --handoff-file <handoff-path> --checkout-root <REPO_ROOT> --run-scratch <RUN_SCRATCH> --dispatch-id <DISPATCH_ID> --issue-number <ISSUE_NUMBER> --base <BASE> --freshness <FRESHNESS>
+```
+
+Exit 0 is a pass. On exit 2 or 3, correct each offender it names from your observations, rewrite, and re-run once; a `usage:` error means fix the command. Any other result, including a refused or silent reader, leaves the check to the orchestrator. A correction never changes an observed value: a non-`none` workpad remedy makes the handoff `outcome: error`, never `proceed` with the remedy rewritten.
 
 Return only:
 

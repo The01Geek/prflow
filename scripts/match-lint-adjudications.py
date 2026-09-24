@@ -210,8 +210,8 @@ STALE = "STALE"
 # same decision instead of inheriting a silent precedent.
 CARRY_FORWARD_EXCLUDED_RULES = frozenset({"R4"})
 
-# The run-keyed progress-comment marker (mirrors skills/review/SKILL.md's Live
-# Progress Comment section). Its `run=<id>` capture is the run_key the demotion
+# The run-keyed progress-comment marker (mirrors
+# skills/review/phases/phase-0-3-5-progress-comment.md). Its `run=<id>` capture is the run_key the demotion
 # map surfaces. Kept in lockstep with that skill prose.
 RUN_MARKER_RE = re.compile(r"<!-- (?:pr|dev)flow:review-progress run=(\S+) -->")
 
@@ -219,7 +219,8 @@ RUN_MARKER_RE = re.compile(r"<!-- (?:pr|dev)flow:review-progress run=(\S+) -->")
 # honored ONLY between these two lines of a trusted comment — a payload literal
 # outside them (e.g. quoted inside a rendered evidence line, which is
 # attacker-controlled diff prose) is data, never an instruction. Kept in lockstep
-# with skills/review/SKILL.md's Phase 4 finalize-write producer contract.
+# with the Phase 4 finalize-write producer contract in
+# skills/review/phases/phase-0-3-5-progress-comment.md.
 ADJ_SECTION_START = "<!-- prflow:lint-adjudications-start -->"
 ADJ_SECTION_END = "<!-- prflow:lint-adjudications-end -->"
 # The superseded spelling (issue #1003). No existing progress comment is

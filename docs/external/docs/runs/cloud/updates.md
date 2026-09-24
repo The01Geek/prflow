@@ -22,16 +22,16 @@ The installer is review-first on an update: it previews by default, and it never
     Download the newer installer and pass the same new tag as the payload.
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.48.66/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.49.0/install.sh -o devflow-install.sh
     # read devflow-install.sh, then:
-    DEVFLOW_REF=v2.48.66 bash devflow-install.sh
+    DEVFLOW_REF=v2.49.0 bash devflow-install.sh
     ```
 
     On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
   </Step>
   <Step title="Apply It">
     ```bash
-    DEVFLOW_REF=v2.48.66 bash devflow-install.sh --apply
+    DEVFLOW_REF=v2.49.0 bash devflow-install.sh --apply
     ```
 
     This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.
@@ -84,7 +84,7 @@ Whenever it preserves your version, it writes the proposed replacement beside it
 
 ## Keep the Workflow and the Version Pin Together
 
-In a thin install, `prflow_version` in `.prflow/config.json` decides which plugin the installed workflows fetch at run time. The installer re-stamps an empty or SHA-shaped value to the commit it installed, and preserves a value you set by hand, such as a tag or a branch name.
+In a thin install, `prflow_version` in `.prflow/config.json` decides which plugin the installed workflows fetch at run time. The installer re-stamps an empty or SHA-shaped value, or the pin it recorded in `.prflow/install-manifest.json`, to the version it installed (never an older one, below), and preserves any other value you set by hand, such as a tag or a branch name. One exception: if your manifest predates this record, a release tag older than the one it last noted is advanced once. It never moves its own `vX.Y.Z` pin to an older `vX.Y.Z` release.
 
 <Warning>
   Updating only the workflow files, or only `prflow_version`, can leave two halves of one feature out of sync. Run the installer with the new tag and review the resulting pin in the same change.

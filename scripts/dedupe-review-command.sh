@@ -176,13 +176,13 @@ emit() { printf '%s=%s\n' "$1" "$2"; }
 
 # The marker the review engine seeds its live progress comment with, and the
 # in-flight status line it carries until the Phase-4 terminal flip. Kept identical
-# to skills/review/SKILL.md's template (lib/test/run.sh pins the agreement).
+# to skills/review/phases/phase-0-3-5-progress-comment.md's template (lib/test/run.sh pins the agreement).
 PROGRESS_MARKER='<!-- prflow:review-progress'
 # PRFlow writes the current spelling; every artifact created before the rename carries the superseded one and no body is rewritten, so readers accept BOTH (issue #1003).
 PROGRESS_MARKER_SUPERSEDED='<!-- devflow:review-progress'
 INFLIGHT_STATUS='🚀 Reviewing'
 # The seed-time head producer key (issue #1010), kept identical to the marker line
-# skills/review/SKILL.md's progress-comment template carries. Newly minted in the
+# skills/review/phases/phase-0-3-5-progress-comment.md's template carries. Newly minted in the
 # `prflow:` namespace: it has no pre-rename history, so there is deliberately NO
 # superseded spelling and no dual-form reader here. A pre-#1010 comment carries no
 # such key at all, which is the fail-open arm below, not a spelling question.

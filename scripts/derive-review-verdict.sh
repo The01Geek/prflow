@@ -188,6 +188,9 @@ drv_marker_verdict() {
     rest="${body#*$'\n'}"
     line2="${rest%%$'\n'*}"
   fi
+  # A native Windows jq.exe (or a CRLF body) ends each line with CR, which `-->$` rejects.
+  line1="${line1%$'\r'}"
+  line2="${line2%$'\r'}"
   local l
   for l in "$line1" "$line2"; do
     [[ "$l" =~ $MARKER_LOOSE_RE ]] || continue

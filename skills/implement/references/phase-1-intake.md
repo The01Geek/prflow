@@ -132,6 +132,14 @@ Branch on all four exits before any create or mutation decision:
 - Exit 3 → a gh-api / parse / transport failure: the read did not complete. Do NOT create and do NOT proceed as if absent: take the same no-mutation stop path, naming the failed triage read.
 - A refused or no-output invocation, or any other exit code → an *unestablished measurement*, never a decided "no workpad": take the same stop path, naming the unestablished triage read.
 
+Comment read. On exit 0 or 2, read the issue's comments once — intake's only comment read. Substitute `WORKPAD_ID` for `<WORKPAD_ID>`, or `none` on exit 2 (it matches no comment, so every comment returns):
+
+```bash
+gh issue view $ISSUE_NUMBER --json comments --jq '.comments[] | select(.url | endswith("issuecomment-<WORKPAD_ID>") | not) | {url, author: .author.login, body}'
+```
+
+Exit 0 with no output means no comments. Retry a non-zero or refused read once; a second failure is a sourced unestablished obligation under `corrections`, never `[]` — continue intake.
+
 Handoff-provenance + live-status triage (cloud tier). On the cloud tier (`tier: cloud` in the run-facts block) the workflow wrote an advisory handoff record naming this run's provenance. Read it and pair it with the triage state above so lifecycle wording is truthful:
 
 1. Resolve provenance (offline, no network — always exits 0, degrades to `unknown`):
@@ -221,7 +229,7 @@ Then reconcile the skeleton to the (recorded or read) classification (idempotent
 
 `--reconcile-extension-rows` repairs the nested `Skill extension resolved: …` rows into a workpad predating them; include it on both arms like `--reconcile-reproduction`, or every extension tick below misses its row and exits non-zero.
 
-Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it). Tick a `Skill extension resolved: …` row only on observed content: the `load-prompt-extension.sh` ladder's full output reached you carrying the extension's contents, or reached you empty (no extension file for that skill). Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation. No result at all, or any partial result, is `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. A tick matching no unticked row is the expected idempotent no-op. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`. The Phase 4.3 terminal `--status Complete` gate mechanizes this: `workpad.py` refuses Complete while any `Skill extension resolved:` row is unticked and carries no `state not established` note.
+Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it). Tick a `Skill extension resolved: …` row only on observed content: the `load-prompt-extension.sh` ladder's full output reached you carrying the extension's contents, or reached you empty (no extension file for that skill). Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation. No result at all, or any partial result, is `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. A tick matching no unticked row is the expected idempotent no-op. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`. The Phase 4.3 terminal `--status Complete` gate mechanizes this: `workpad.py` refuses Complete while any `Skill extension resolved:` row is unticked and no note carries its `extension resolved: <name>.md` together with `state not established`.
 
 Tick the implement extension row (every arm). Apply the rule above to the implement extension's own load and carry that outcome on the §1.3 hydration update: `--tick-progress "extension resolved: implement.md"` where the state was established, else — the row left unticked — `--note "Extension resolved: implement.md — state not established (the loader ladder did not resolve it)"` in its place (never both).
 

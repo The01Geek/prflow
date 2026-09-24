@@ -16,7 +16,7 @@ If all three hold → exit the loop early. The remaining unresolved findings (sk
 
 If any condition fails → loop back to Step 1 for iter N+1.
 
-Note: convergence is *not* a way around an unresolved REJECT. If iter N's verdict is REJECT due to stuck/pushed-back findings, the shadow pass and Loop Exit's verdict flow still fire (a REJECT-on-convergence-exit goes straight to Loop Exit; Step 2.6 only runs when the tentative verdict is non-REJECT). Early exit just means "iterating won't help" — the human gate still applies.
+Note: convergence is *not* a way around an unresolved REJECT. If iter N's verdict is REJECT due to stuck/pushed-back findings, Loop Exit's verdict flow still fires; the convergence-time shadow is skipped, and only an eligible downgrade runs Step 2.6's downgrade entry (`references/shadow-review.md`). Early exit just means "iterating won't help" — the human gate still applies.
 
 ---
 

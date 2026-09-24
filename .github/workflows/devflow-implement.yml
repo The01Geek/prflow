@@ -1629,7 +1629,7 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@9ca9355b36297178e28d37c799d1c9c8a28e6507 # main 2026-09-22 (CLI 2.1.280, the Opus 5.5 floor); unreleased — move to the first v1.0.x tag that ships it
+        uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c # v1.0.233 (CLI 2.1.281)
         env:
           # Surfaces the workflow-capable-token signal to the /devflow:implement
           # agent's Phase 1.6 execution-capability pass (Pass 5, issues #346/#350).

@@ -195,9 +195,10 @@ if [ "$ISSUE_NUMBER" != "null" ]; then
     # (e.g. `[.labels[]?.name]`) aborts under `set -e` on a wrong-type `labels`,
     # taking down the WHOLE context fetch — not just provenance — so the issue leg
     # must fail closed to [] exactly as the PR leg does.
-    ISSUE_JSON="$(echo "$ISSUE_RAW" | "$DEVFLOW_JQ" \
-        --slurpfile comments <(printf '%s' "$ISSUE_COMMENTS_NORM") \
-        '{title: (.title // ""), body: (.body // ""), labels: ((.labels // []) | if type == "array" then map(if type == "object" then (.name // "") else . end) else [] end), comments: $comments[0]}')"
+    # The comments ride stdin ahead of the issue: a native Windows jq.exe cannot open a
+    # `<(…)` process-substitution path, so no file operand is used (#1050).
+    ISSUE_JSON="$(printf '%s\n%s\n' "$ISSUE_COMMENTS_NORM" "$ISSUE_RAW" | "$DEVFLOW_JQ" -n \
+        'input as $comments | inputs | {title: (.title // ""), body: (.body // ""), labels: ((.labels // []) | if type == "array" then map(if type == "object" then (.name // "") else . end) else [] end), comments: $comments}')"
 fi
 
 # ── 5b. Provenance label ──────────────────────────────────────────────────────
@@ -695,6 +696,7 @@ if [ "$POST_BOT_COMMITS" -gt 0 ]; then
     ')"
     PATCHES=""
     while IFS= read -r SHA; do
+        SHA="${SHA%$'\r'}"  # a native Windows jq.exe ends each line with CR (#1050)
         set +e
         _PATCH_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${SHA}")"
         _PATCH_EXIT=$?

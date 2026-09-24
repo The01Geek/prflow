@@ -86,7 +86,7 @@ _THEME_CATEGORIES = ("api_contract", "string_presence")
 # The verdict fields a carried PASS keeps, joined from its verification row. Must equal the
 # engine-return join's key set (review-engine-io.py VERDICT_KEYS) or a carried item drops a field.
 _PRIOR_VERDICT_FIELDS = ("verdict", "raw_verdict", "normalized", "evidence", "file_checked",
-                         "normalization_ineligible", "view_revision")
+                         "normalization_ineligible", "view_revision", "demoted")
 
 
 def _shape(value):
@@ -225,13 +225,17 @@ def _collector_cited_paths():
 
 
 class _Tracked:
-    """``_cited_paths``' inventory, answered by the HEAD probe."""
+    """``_cited_paths``' inventory, answered by the HEAD probe (and its ``has_dir``, when set)."""
 
     def __init__(self, probe):
         self._probe = probe
 
     def __contains__(self, path):
         return isinstance(path, str) and self._probe(path)
+
+    def has_dir(self, path):
+        fn = getattr(self._probe, "has_dir", None)
+        return isinstance(path, str) and callable(fn) and fn(path) is True
 
 
 def _carry_cited_paths(fc, tracked, errors=None):
@@ -253,36 +257,50 @@ def _carry_cited_paths(fc, tracked, errors=None):
 _REGULAR_MODES = (b"100644", b"100755")
 
 
-def _regular_file_at_head(path):
-    """Whether HEAD records `path`, spelled exactly as git records it, as a regular file:
-    one `git ls-tree` entry (literal pathspec, full tree) named `path` with mode 100644/100755.
-    So a non-canonical spelling (`./x`, `a/../x`, absolute), a tree, a submodule, and a symlink
-    (whose target may have changed) are refused, as is a path git cannot take (a NUL byte)."""
+def _head_entry(path):
+    """``(mode, type)`` of the one `git ls-tree` entry (literal pathspec, full tree) HEAD records
+    named exactly `path`, else None — so a non-canonical spelling (`./x`, `a/../x`, absolute) or
+    a path git cannot take (a NUL byte) is None."""
     if not isinstance(path, str) or not path or "\0" in path:
-        return False
+        return None
     try:
         run = subprocess.run(["git", "--literal-pathspecs", "ls-tree", "-z", "--full-tree", "HEAD",
                               "--", path], capture_output=True)
         want = path.encode("utf-8", "surrogateescape")
     except (OSError, ValueError):
-        return False
+        return None
     entries = [e for e in run.stdout.split(b"\0") if e]
     if run.returncode != 0 or len(entries) != 1:
-        return False
+        return None
     meta, _, name = entries[0].partition(b"\t")
     fields = meta.split(b" ")
-    return len(fields) == 3 and fields[0] in _REGULAR_MODES and fields[1] == b"blob" and name == want
+    return (fields[0], fields[1]) if len(fields) == 3 and name == want else None
+
+
+def _regular_file_at_head(path):
+    """Whether HEAD records `path`, spelled exactly as git records it, as a regular file (mode
+    100644/100755). A tree, a submodule, and a symlink (whose target may have changed) are refused."""
+    entry = _head_entry(path)
+    return entry is not None and entry[0] in _REGULAR_MODES and entry[1] == b"blob"
 
 
 def tracked_at_head():
-    """A memoized ``_regular_file_at_head`` probe. Anything it cannot establish — including a
-    probe that cannot run — reads as not tracked, so that item alone verifies fresh."""
-    seen = {}
+    """A memoized ``_regular_file_at_head`` probe whose ``has_dir`` answers whether HEAD records
+    the path as a tree (the collector's directory test). Anything either cannot establish —
+    including a probe that cannot run — reads as not tracked, so that item alone verifies fresh."""
+    seen, trees = {}, {}
 
     def probe(path):
         if path not in seen:
             seen[path] = _regular_file_at_head(path)
         return seen[path]
+
+    def has_dir(path):
+        if path not in trees:
+            entry = _head_entry(path)
+            trees[path] = entry is not None and entry[1] == b"tree"
+        return trees[path]
+    probe.has_dir = has_dir
     return probe
 
 
@@ -290,7 +308,8 @@ def _reusable(item, changed, tracked, errors=None):
     """Whether a carried PASS is reused: every path its ``file_checked`` cites is a regular
     file HEAD records under that exact spelling (``tracked``) and outside the changed-file set.
     The collector's head view is materialized from that same HEAD, so its gate admits every
-    path carry reuses. A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, or any
+    path carry reuses. A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, a
+    directory (the collector admits one, but a fix may have changed a file under it), or any
     changed or untracked path verifies fresh."""
     if item.get("verdict") != "PASS":
         return False

@@ -1003,6 +1003,7 @@ do_self_check() {
       echo "::warning::devflow review-and-fix self-check: iter workpad '$(basename "$iter")' is unreadable or not valid JSON — cannot validate its fields" >&2
       continue
     fi
+    missing="${missing//$'\r'/}"  # a native Windows jq.exe ends each name with CR (#1050)
     if [ "$missing" = "__non_object__" ]; then
       echo "::warning::devflow review-and-fix self-check: iter workpad '$(basename "$iter")' is valid JSON but not an object — cannot validate its fields" >&2
       continue
@@ -1051,6 +1052,7 @@ do_self_check() {
                    or (((.reference_reads.fix_delta.reason // "") | tostring | length) == 0))
           | "reference_reads.fix_delta")
       end' "$iter" 2>&1)"; then
+      evidence_bad="${evidence_bad//$'\r'/}"
       for field in $evidence_bad; do
         echo "::warning::devflow review-and-fix self-check: synthesized iter workpad '$(basename "$iter")' carries field '${field}' WITHOUT unrecoverable provenance — a fix-commit-only record cannot establish this evidence, so a real-looking value here asserts something the synthesis floor never observed" >&2
       done
@@ -1086,6 +1088,7 @@ do_self_check() {
     if shadow_missing="$("$DEVFLOW_JQ" -r --arg sfields "$SHADOW_SYNTH_EXPECTED_FIELDS" \
                           'if ((.shadow | type) == "object") and (.shadow.shadow_synthesized == true) then (($sfields | split(" ")) - (.shadow | keys))[] else empty end' \
                           "$iter" 2>/dev/null)"; then
+      shadow_missing="${shadow_missing//$'\r'/}"
       for field in $shadow_missing; do
         echo "::warning::devflow review-and-fix self-check: iter workpad '$(basename "$iter")' has a synthesized shadow marker missing expected field '${field}'" >&2
       done
@@ -1136,6 +1139,7 @@ do_self_check() {
       # record this cross-check cannot read is skipped (best-effort).
       continue
     fi
+    dc_meta="${dc_meta//$'\r'/}"  # a native Windows jq.exe ends each line with CR (#1050)
     while IFS="$dc_tab" read -r dc_entry dc_recmode dc_recjson dc_disp; do
       [ -n "$dc_entry" ] || continue
       dc_checked=$((dc_checked + 1))
@@ -2741,8 +2745,12 @@ do_correct_iter() {
     printf 'correct-outcome: lost missing-record\n'; return 0
   fi
 
-  local cur_sha corrected_sha
-  cur_sha="$(git -C "$root" rev-parse --verify --quiet "${ref}:${rel_iter}" 2>/dev/null || true)"
+  local cur_sha corrected_sha tip
+  # A commit ID left of the colon, never "${ref}:": Git Bash rewrites a `refs/…:<path>`
+  # argument, so on Windows every correction read as a digest mismatch (issue #578).
+  tip="$(devflow_telemetry_commit_id "$root" "$ref")"
+  cur_sha=""
+  [ -z "$tip" ] || cur_sha="$(git -C "$root" rev-parse --verify --quiet "${tip}:${rel_iter}" 2>/dev/null || true)"
   corrected_sha="$(git -C "$root" hash-object "$corr_abs" 2>/dev/null || true)"
 
   # Idempotency (AC5): the durable bytes already equal this correction AND its archive
@@ -2877,10 +2885,19 @@ do_correct_iter() {
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
+# --persist and --correct-iter reach origin where nobody can answer a prompt (issue #997).
+# GIT_TERMINAL_PROMPT=0 alone still lets GCM or git's SSH_ASKPASS fallback (Git for Windows
+# exports a GUI one) open a window. A deliberate GIT_ASKPASS/core.askPass is kept.
+unattended_origin_calls() {
+  exec </dev/null
+  unset SSH_ASKPASS
+  export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
+    GIT_HTTP_LOW_SPEED_LIMIT=1 GIT_HTTP_LOW_SPEED_TIME=30
+}
 case "$ACTION" in
   self-check)   do_self_check;   exit 0 ;;
-  persist)      do_persist;      exit 0 ;;
-  correct-iter) do_correct_iter; exit 0 ;;
+  persist)      unattended_origin_calls; do_persist;      exit 0 ;;
+  correct-iter) unattended_origin_calls; do_correct_iter; exit 0 ;;
 esac
 
 # Default action: --mode trace|record (unchanged contract).

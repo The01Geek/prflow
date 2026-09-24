@@ -34,6 +34,11 @@ normal):
                           `detail` naming the failed arm — this REPLACES guard 2
                           for foreclosure entries; guards 1 and 3 still apply.
 
+An entry that is not a mapping, or whose `reason`, `reason.category`, `finding`,
+`finding.file`, `finding.line_range` or `follow_up` holds a present value of the
+wrong type, fails before guards 2-4 with reason `malformed-entry` and a `detail`
+naming the field; its siblings are still matched. Other fields are left to the guards.
+
 Matching rule (v1, conservative): a current finding matches a surviving
 deferral iff same file AND same kind AND line_range overlaps within ±25
 lines. Summary similarity is not used — file+kind+line_range is strong
@@ -149,10 +154,9 @@ PAYLOAD_START = "<!-- DEVFLOW_DEFERRED_PAYLOAD"
 # default (so the empty-string edge matches config-get.sh's behavior, but via its
 # fallback rather than a passthrough here).
 
-# Rejection reason codes — mirrored verbatim in
-# skills/review/phases/phase-4-verdict.md prose (the review engine is a bundle
-# since #529; the codes moved out of skills/review/SKILL.md with it).
-# Edit both in lockstep.
+# Rejection reason codes. skills/review/phases/phase-4-verdict.md names
+# `untrusted-filer` and `disclosure-unverified` and renders every other code as
+# data; edit those two in lockstep with it.
 REASON_UNTRUSTED_FILER = "untrusted-filer"
 REASON_MISSING_FOLLOW_UP_ISSUE = "missing-follow-up-issue"
 REASON_ISSUE_UNREADABLE = "issue-unreadable"
@@ -165,6 +169,8 @@ REASON_UNMATCHED = "unmatched"
 # cross-link guard for this category only. It fails closed with this reason code
 # plus a `detail` naming the failed arm.
 REASON_DISCLOSURE_UNVERIFIED = "disclosure-unverified"
+# issue #974: an entry with a wrong-typed field; `detail` names the field.
+REASON_MALFORMED_ENTRY = "malformed-entry"
 
 # The per-entry reason.category value that marks a settled-by-disclosure
 # foreclosure (issue #621). A foreclosure has no follow-up issue — the
@@ -224,7 +230,10 @@ def _verify_disclosure(deferral: dict, hunks: dict, diff_hunk_count: int,
     if repo_root is None:
         return "repo-root-unresolved"
     root = Path(repo_root).resolve()
-    target = (root / path).resolve()
+    try:
+        target = (root / path).resolve()
+    except (OSError, ValueError):  # e.g. a NUL byte in the path
+        return "path-unresolvable"
     try:
         target.relative_to(root)
     except ValueError:
@@ -234,7 +243,11 @@ def _verify_disclosure(deferral: dict, hunks: dict, diff_hunk_count: int,
     diff_files = {f for f, hs in hunks.items() if hs}
     if _norm_path(path) in diff_files:
         return "disclosure-in-diff"
-    if not target.is_file():
+    try:
+        is_file = target.is_file()
+    except (OSError, ValueError):  # e.g. ENAMETOOLONG, which Python 3.11's is_file raises
+        return "path-unresolvable"
+    if not is_file:
         return "file-absent"
     try:
         file_text = target.read_text(encoding="utf-8", errors="replace")
@@ -492,6 +505,45 @@ def _parse_diff_hunks(diff_text: str) -> dict:
     return hunks
 
 
+def _deferral_id(d) -> str:
+    return d.get("id", "(no-id)") if isinstance(d, dict) else "(no-id)"
+
+
+def _entry_shape_error(d) -> str | None:
+    """Return the first wrong-typed field of a deferral entry, else None.
+
+    An absent or null `reason`, `reason.category`, `finding.file`,
+    `finding.line_range` or `follow_up` is not malformed — the per-entry guards
+    in main() decide it. A present `finding` must be a mapping, and a present
+    `line_range` a list of exactly two ints.
+    """
+    if not isinstance(d, dict):
+        return "entry"
+    reason = d.get("reason")
+    if reason is not None:
+        if not isinstance(reason, dict):
+            return "reason"
+        category = reason.get("category")
+        if category is not None and not isinstance(category, str):
+            return "reason.category"
+    finding = d.get("finding", {})
+    if not isinstance(finding, dict):
+        return "finding"
+    file_path = finding.get("file")
+    if file_path is not None and not isinstance(file_path, str):
+        return "finding.file"
+    line_range = finding.get("line_range")
+    if line_range is not None and not (
+        isinstance(line_range, list) and len(line_range) == 2
+        and all(isinstance(n, int) and not isinstance(n, bool) for n in line_range)
+    ):
+        return "finding.line_range"
+    follow_up = d.get("follow_up")
+    if follow_up is not None and not isinstance(follow_up, dict):
+        return "follow_up"
+    return None
+
+
 def _widens_surface(deferral: dict, hunks: dict) -> bool:
     file_path = deferral.get("finding", {}).get("file")
     line_range = deferral.get("finding", {}).get("line_range") or []
@@ -585,15 +637,23 @@ def main(argv=None):
     }
 
     if block is None:
-        print(json.dumps(result, indent=2))
+        print(json.dumps(result, indent=2, default=str))
         return 0
 
     payload = _parse_yaml_payload(block)
-    deferrals = payload.get("deferrals") or []
+    deferrals = payload.get("deferrals")
+    if deferrals is None:
+        deferrals = []
+    elif not isinstance(deferrals, list):
+        sys.stderr.write(
+            f"match-deferrals.py: deferrals is a {type(deferrals).__name__}, "
+            "not a list; ignoring\n"
+        )
+        deferrals = []
     result["stats"]["total_deferrals"] = len(deferrals)
 
     if not deferrals:
-        print(json.dumps(result, indent=2))
+        print(json.dumps(result, indent=2, default=str))
         return 0
 
     allowed_bots_raw = _config_get(".prflow.allowed_bots", "", args.config)
@@ -610,10 +670,10 @@ def main(argv=None):
     if not pr_author_trusted:
         for d in deferrals:
             result["rejected_deferrals"].append({
-                "deferral_id": d.get("id", "(no-id)"),
+                "deferral_id": _deferral_id(d),
                 "reason": REASON_UNTRUSTED_FILER,
             })
-        print(json.dumps(result, indent=2))
+        print(json.dumps(result, indent=2, default=str))
         return 0
 
     hunks = {}
@@ -631,7 +691,15 @@ def main(argv=None):
 
     valid_deferrals: list[dict] = []
     for d in deferrals:
-        deferral_id = d.get("id", "(no-id)")
+        deferral_id = _deferral_id(d)
+        shape_error = _entry_shape_error(d)
+        if shape_error is not None:
+            result["rejected_deferrals"].append({
+                "deferral_id": deferral_id,
+                "reason": REASON_MALFORMED_ENTRY,
+                "detail": shape_error,
+            })
+            continue
 
         # issue #621: a foreclosure entry (reason.category == "settled-by-
         # disclosure") has no follow-up issue by design. It skips the missing-
@@ -705,8 +773,8 @@ def main(argv=None):
         result["honored"].append({
             "finding_index": matched_index,
             "deferral_id": d.get("id", "(no-id)"),
-            "follow_up_issue": d.get("follow_up", {}).get("issue"),
-            "category": d.get("reason", {}).get("category", "(unspecified)"),
+            "follow_up_issue": (d.get("follow_up") or {}).get("issue"),
+            "category": (d.get("reason") or {}).get("category", "(unspecified)"),
         })
 
     result["stats"]["honored"] = len(result["honored"])
@@ -714,7 +782,7 @@ def main(argv=None):
         1 for r in result["rejected_deferrals"] if r["reason"] == REASON_UNMATCHED
     )
 
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result, indent=2, default=str))
     return 0
 
 

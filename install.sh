@@ -175,17 +175,25 @@ devflow_files_match_crlf_insensitive() {
 # `return 0`s live inside the `if` conditions so `set -e` can't fire on a tool
 # failure.
 #
-# Only re-stamps when the EXISTING prflow_version is absent/empty or already
-# looks like a commit SHA (7-40 lowercase hex). This is a SHAPE heuristic, not
-# true provenance detection: it cannot distinguish a SHA this function itself
-# previously wrote from a SHA the user hand-set to pin to one specific commit,
-# so a hand-pinned exact SHA is not guaranteed to survive a re-run. A value
-# that does NOT match that pattern (a branch name like "main", a tag like
-# "v1.2.0") was set by hand, so it IS guaranteed to be treated as a deliberate
-# pin/tracking choice and left untouched — re-running the installer must never
-# silently convert "track main" into "pinned to a SHA".
+# Only re-stamps a value this installer owns: absent/empty, commit-SHA-shaped
+# (7-40 lowercase hex), equal to the stamp the previous run recorded in the install
+# manifest beside the config (see devflow_recorded_pin), or — under a legacy
+# manifest with no stamp — a release tag older than its record. A non-git source
+# (/prflow:init's plugin cache) pins a release tag, so it advances only through
+# the manifest. Anything else ("main", a tag the user set) is kept. None of these
+# proves provenance: a hand-set value matching one of them is re-stamped.
+#
+# An owned vX.Y.Z pin never moves to an older vX.Y.Z release (pre-releases are
+# not ordered).
+#
+# Leaves DEVFLOW_PIN_OWNED holding the stamp the manifest records: the version it
+# wrote, the owned value it kept, or empty when a hand-set value is kept. It stays
+# UNSET when the config is missing or unreadable, or when a non-empty, non-SHA value
+# meets an unreadable manifest (only that path reads it), so the manifest write keeps
+# the previous stamp rather than recording "owns nothing".
 set_config_version() {
-  local cfg="$1" version="$2" tmp reparg=""
+  local cfg="$1" version="$2" tmp reparg="" cur owned=0 sha_re='^[0-9a-f]{7,40}$'
+  unset DEVFLOW_PIN_OWNED
   [ -f "$cfg" ] || return 0
   # Record prflow_repo beside the version pin ONLY when installed from a
   # non-default repository (issue #228); a default install writes nothing for the
@@ -214,60 +222,139 @@ set_config_version() {
   if [ -n "${DEVFLOW_JQ:-}" ] && ! "$jqbin" --version >/dev/null 2>&1; then
     log "warning: DEVFLOW_JQ is set to '$jqbin' but it does not execute; falling back for this step — fix DEVFLOW_JQ before running PRFlow."
   fi
+  # Read the current value. Only null/false count as absent (jq's `// ""`); any other
+  # non-string (0, [], {}, true) fails the read on both backends and takes the generic
+  # warning rather than being coerced to "" and overwritten.
+  local backend=""
   if [ -n "$jqbin" ] && "$jqbin" --version >/dev/null 2>&1; then
-    if "$jqbin" -e '(.prflow_version // "") as $cur | ($cur == "" or ($cur | test("^[0-9a-f]{7,40}$")))' \
-        "$cfg" >/dev/null 2>&1; then
-      if "$jqbin" --arg v "$version" --arg r "$reparg" \
-          'if $r != "" then .prflow_version = $v | .prflow_repo = $r else .prflow_version = $v end' \
-          "$cfg" > "$tmp" 2>/dev/null; then
-        if mv "$tmp" "$cfg"; then
-          log "pinned prflow_version=$version in $cfg"; return 0
-        fi
-      fi
-    else
-      local rc=$?
-      if [ "$rc" -eq 1 ]; then
-        rm -f "$tmp"
-        log "kept existing prflow_version in $cfg (looks like a deliberate pin, not a previous SHA stamp) — not overwriting."
-        return 0
-      fi
-      # rc > 1: jq itself errored on the eligibility check (not a genuine false/null
-      # result) — fall through to the generic warning rather than misreport it as a
-      # deliberate pin.
+    if cur="$("$jqbin" -e -r '(.prflow_version // "") | if type == "string" then . else error("prflow_version is not a string") end' \
+        "$cfg" 2>/dev/null)"; then
+      backend=jq
     fi
   elif command -v python3 >/dev/null 2>&1; then
-    if DEVFLOW_CFG="$cfg" DEVFLOW_VER="$version" DEVFLOW_OUT="$tmp" DEVFLOW_REPO_ARG="$reparg" python3 -c 'import json,os,re,sys
-c=json.load(open(os.environ["DEVFLOW_CFG"]))
-cur=c.get("prflow_version")
-# Only null/false count as "absent", mirroring jq'"'"'s `// ""` exactly (jq'"'"'s // only
-# substitutes on false/null, never on other falsy JSON values like 0/[]/{}). A
-# non-string, non-null/false value (e.g. 0) then fails the re.match below with an
-# uncaught TypeError -> exit 1 -> the generic warning, matching jq'"'"'s test/1 runtime
-# error on the same input (rc>1) rather than python silently coercing it to "".
+    if cur="$(DEVFLOW_CFG="$cfg" python3 -c 'import json,os,sys
+sys.stdout.reconfigure(newline="\n")
+cur=json.load(open(os.environ["DEVFLOW_CFG"],encoding="utf-8")).get("prflow_version")
 if cur is None or cur is False:
     cur=""
-if cur == "" or re.match(r"^[0-9a-f]{7,40}$", cur):
-    c["prflow_version"]=os.environ["DEVFLOW_VER"]
-    if os.environ.get("DEVFLOW_REPO_ARG"):
-        c["prflow_repo"]=os.environ["DEVFLOW_REPO_ARG"]
-    open(os.environ["DEVFLOW_OUT"],"w").write(json.dumps(c,indent=2)+"\n")
-    sys.exit(0)
-sys.exit(3)' 2>/dev/null; then
-      if mv "$tmp" "$cfg"; then
+if not isinstance(cur,str):
+    sys.exit(1)
+sys.stdout.write(cur)' 2>/dev/null)"; then
+      backend=python3
+    fi
+  fi
+  if [ -n "$backend" ]; then
+    if [ -z "$cur" ] || [[ $cur =~ $sha_re ]]; then
+      owned=1
+    else
+      devflow_recorded_pin "$cfg"
+      if [ -n "$DEVFLOW_RECORDED_PIN" ] && [ "$cur" = "$DEVFLOW_RECORDED_PIN" ]; then
+        owned=1
+      # A legacy manifest recorded each attempted pin, so a release tag the config kept
+      # at an older release than that record is treated as this installer's stuck stamp.
+      elif [ "$DEVFLOW_RECORDED_PIN_KIND" = legacy ] && devflow_is_older_release "$cur" "$DEVFLOW_RECORDED_PIN"; then
+        owned=1
+      fi
+    fi
+    if [ "$owned" = 0 ]; then
+      # An unusable manifest leaves ownership unestablished: keep the stamp unset so the
+      # manifest write does not record "owns nothing" over a record it could not read.
+      [ "$DEVFLOW_RECORDED_PIN_KIND" = unusable ] || DEVFLOW_PIN_OWNED=""
+      rm -f "$tmp"
+      log "kept existing prflow_version in $cfg (looks like a deliberate pin, not a previous installer stamp) — not overwriting."
+      return 0
+    fi
+    DEVFLOW_PIN_OWNED="$cur"
+    if devflow_is_older_release "$version" "$cur"; then
+      rm -f "$tmp"
+      log "warning: kept prflow_version=$cur in $cfg — not downgrading to $version, an older release. This is usually a Claude Code session still running the previous PRFlow plugin after an update, and this run still wrote the workflow files from $version: restart it and re-run /prflow:init to refresh them. To downgrade on purpose, set prflow_version by hand."
+      return 0
+    fi
+    if [ "$backend" = jq ]; then
+      if "$jqbin" --arg v "$version" --arg r "$reparg" \
+          'if $r != "" then .prflow_version = $v | .prflow_repo = $r else .prflow_version = $v end' \
+          "$cfg" > "$tmp" 2>/dev/null && mv "$tmp" "$cfg"; then
+        DEVFLOW_PIN_OWNED="$version"
         log "pinned prflow_version=$version in $cfg"; return 0
       fi
-    else
-      local rc=$?
-      rm -f "$tmp"
-      if [ "$rc" -eq 3 ]; then
-        log "kept existing prflow_version in $cfg (looks like a deliberate pin, not a previous SHA stamp) — not overwriting."
-        return 0
-      fi
+    elif DEVFLOW_CFG="$cfg" DEVFLOW_VER="$version" DEVFLOW_OUT="$tmp" DEVFLOW_REPO_ARG="$reparg" python3 -c 'import json,os
+c=json.load(open(os.environ["DEVFLOW_CFG"],encoding="utf-8"))
+c["prflow_version"]=os.environ["DEVFLOW_VER"]
+if os.environ.get("DEVFLOW_REPO_ARG"):
+    c["prflow_repo"]=os.environ["DEVFLOW_REPO_ARG"]
+open(os.environ["DEVFLOW_OUT"],"w",encoding="utf-8").write(json.dumps(c,indent=2)+"\n")' 2>/dev/null && mv "$tmp" "$cfg"; then
+      DEVFLOW_PIN_OWNED="$version"
+      log "pinned prflow_version=$version in $cfg"; return 0
     fi
   fi
   rm -f "$tmp"
   log "warning: could not set prflow_version=$version automatically — add \"prflow_version\": \"$version\" to $cfg by hand so the runtime fetch is pinned."
   return 0
+}
+
+# Sets DEVFLOW_RECORDED_PIN to the config prflow_version the previous run owned, read
+# from the install manifest beside $1 (the config path), else empty. KIND is `stamp`
+# (prflow_version_stamp) or `legacy`: a manifest written before that key existed holds
+# only prflow_version, the pin that run attempted, written even when the config kept its value.
+# An empty stamp means the previous run owned no pin. An unusable manifest (or no
+# python3 to read it) sets KIND `unusable` and logs why; the pin then reads as hand-set.
+DEVFLOW_MANIFEST_PIN_PY='
+import json, sys
+sys.stdout.reconfigure(newline="\n")
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        data = json.load(fh)
+except OSError:
+    print("unusable\tunreadable"); sys.exit(0)
+except ValueError:
+    print("unusable\tnot valid JSON"); sys.exit(0)
+if not isinstance(data, dict):
+    print("unusable\tnot a JSON object"); sys.exit(0)
+key = "prflow_version_stamp" if "prflow_version_stamp" in data else "prflow_version"
+if key not in data:
+    print("unusable\tno prflow_version recorded"); sys.exit(0)
+val = data[key]
+if key == "prflow_version_stamp" and val == "":
+    print("stamp\t"); sys.exit(0)
+if not isinstance(val, str) or val == "":
+    print("unusable\t" + key + " is not a non-empty string"); sys.exit(0)
+print(("stamp" if key == "prflow_version_stamp" else "legacy") + "\t" + val)
+'
+devflow_recorded_pin() {
+  local mf out
+  DEVFLOW_RECORDED_PIN="" DEVFLOW_RECORDED_PIN_KIND=""
+  case "$1" in */*) mf="${1%/*}/install-manifest.json" ;; *) mf="install-manifest.json" ;; esac
+  [ -e "$mf" ] || return 0
+  if ! devflow_resolve_python; then
+    DEVFLOW_RECORDED_PIN_KIND=unusable
+    log "note: no working python3 to read $mf, so the existing prflow_version is treated as hand-set."
+    return 0
+  fi
+  out="$("$DEVFLOW_PY" -c "$DEVFLOW_MANIFEST_PIN_PY" "$mf" 2>/dev/null)" || out=$'unusable\tthe reader failed'
+  case "$out" in
+    stamp$'\t'*|legacy$'\t'*)
+      DEVFLOW_RECORDED_PIN_KIND="${out%%$'\t'*}"; DEVFLOW_RECORDED_PIN="${out#*$'\t'}" ;;
+    *) DEVFLOW_RECORDED_PIN_KIND=unusable
+       log "note: $mf has no usable prflow_version record (${out#*$'\t'}), so the existing prflow_version is treated as hand-set." ;;
+  esac
+}
+
+# True when $1 and $2 are both release tags (vX.Y.Z or X.Y.Z) and $1 is older.
+# Components compare as decimal strings (leading zeros stripped, then length, then
+# digits), so no component length overflows bash arithmetic.
+devflow_is_older_release() {
+  local re='^v?([0-9]+)\.([0-9]+)\.([0-9]+)$' a b i
+  [[ $1 =~ $re ]] || return 1
+  a=("${BASH_REMATCH[@]:1}")
+  [[ $2 =~ $re ]] || return 1
+  b=("${BASH_REMATCH[@]:1}")
+  for i in 0 1 2; do
+    a[i]="${a[i]#"${a[i]%%[!0]*}"}"; b[i]="${b[i]#"${b[i]%%[!0]*}"}"
+    [ "${a[i]}" = "${b[i]}" ] && continue
+    [ "${#a[i]}" -ne "${#b[i]}" ] && { [ "${#a[i]}" -lt "${#b[i]}" ]; return; }
+    [[ ${a[i]} < ${b[i]} ]]; return
+  done
+  return 1
 }
 
 # Remove PRFlow's OWN superseded workflow files on upgrade. Left behind, the
@@ -802,6 +889,11 @@ out = {
     "installed_from_ref": ref,
     "artifacts": dict(sorted(arts.items())),
 }
+# The owned config pin; an unestablished one keeps the previous record.
+if os.environ.get("DEVFLOW_PIN_STAMP_KNOWN") == "1":
+    out["prflow_version_stamp"] = os.environ.get("DEVFLOW_PIN_STAMP", "")
+elif isinstance(data.get("prflow_version_stamp"), str):
+    out["prflow_version_stamp"] = data["prflow_version_stamp"]
 os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 tmp = path + ".tmp"
 with open(tmp, "w", encoding="utf-8") as fh:
@@ -817,7 +909,9 @@ devflow_write_manifest() {
   fi
   # shellcheck disable=SC2086  # DEVFLOW_RECORD_RELS is a space-separated list of
   # repo-relative paths this script itself composed; word splitting is the point.
-  if "$DEVFLOW_PY" -c "$DEVFLOW_MANIFEST_WRITE_PY" "$DEVFLOW_MANIFEST_PATH" "$version" "$ref" $DEVFLOW_RECORD_RELS; then
+  # prflow_version_stamp records DEVFLOW_PIN_OWNED; left unset, the previous record is kept.
+  if DEVFLOW_PIN_STAMP="${DEVFLOW_PIN_OWNED-}" DEVFLOW_PIN_STAMP_KNOWN="${DEVFLOW_PIN_OWNED+1}" \
+      "$DEVFLOW_PY" -c "$DEVFLOW_MANIFEST_WRITE_PY" "$DEVFLOW_MANIFEST_PATH" "$version" "$ref" $DEVFLOW_RECORD_RELS; then
     log "recorded install provenance in $DEVFLOW_MANIFEST_PATH"
   else
     log "warning: could not write $DEVFLOW_MANIFEST_PATH; the next upgrade will preserve every existing artifact rather than update it."
@@ -1455,16 +1549,17 @@ JSON
   #     Independent of install mode — a sidecar is written on both.
   manage_sidecar_gitignore
 
-  # 6. Pin prflow_version to the exact commit we installed from, so the runtime
-  #    fetch is reproducible and never tracks mutable main. Re-running the
-  #    installer re-stamps it when eligible (see set_config_version above for the
-  #    empty/SHA-shape rule — a hand-set non-SHA value is preserved, not
-  #    re-stamped); a maintainer can also bump it by hand to any tag, branch, or
-  #    SHA.
+  # 6. Pin prflow_version to the exact commit we installed from (DEVFLOW_REF, such
+  #    as the release tag /prflow:init passes, when the source tree is not a git
+  #    checkout), so the runtime fetch is reproducible. Re-running the installer
+  #    re-stamps it when this installer owns it (see set_config_version above — a
+  #    hand-set value is normally preserved); a maintainer can also bump it by
+  #    hand to any tag, branch, or SHA.
   set_config_version ".prflow/config.json" "$pin"
 
   # 7. Record what we installed, so the NEXT upgrade can tell an untouched artifact
-  #    from a hand-edited one instead of clobbering both alike.
+  #    from a hand-edited one instead of clobbering both alike, and the config
+  #    prflow_version it owns from a hand-set one.
   devflow_write_manifest "$pin" "$ref"
 
   # 8. Report (never rewrite) a consumer settings file still carrying a superseded

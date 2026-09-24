@@ -220,7 +220,9 @@ fi
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 
-"$DEVFLOW_JQ" -n \
+# Captured, not redirected: any raw CR in jq's JSON is a native Windows jq.exe's line
+# ending, dropped so the rewritten config stays LF-only.
+MERGED_CFG="$("$DEVFLOW_JQ" -n \
   --slurpfile cfg "$CONFIG" \
   --slurpfile pre "$PRESETS" \
   --argjson keys "$ACTIVE_JSON" \
@@ -243,7 +245,8 @@ trap 'rm -f "$TMP"' EXIT
        then .setup.node_version = $nodever else . end)
   | (if ($nodewd != "") and ((.setup.node_working_directory // "") == "")
        then .setup.node_working_directory = $nodewd else . end)
-  ' > "$TMP"
+  ')"
+printf '%s\n' "${MERGED_CFG//$'\r'/}" > "$TMP"
 
 # --- 4. Best-effort shape guard before committing the merge -----------------
 # The merge above can only PARSE-check its output. A malformed pre-existing

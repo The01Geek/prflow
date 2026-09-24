@@ -140,6 +140,7 @@ gh_err_detail() { [ -s "$1" ] && cat "$1" || echo 'no error output captured'; }
 gate_signal_lines() {  # $1=lines  $2=signal noun for the breadcrumb
   local _st _cn
   while IFS='|' read -r _st _cn; do
+    _cn="${_cn%$'\r'}"  # a native Windows jq.exe ends each line with CR
     if [ "$_st" != "completed" ]; then
       echo "derive-review-preconditions: $2 on $HEAD_SHA is still '$_st' — deferring the review (ci-not-green: pending)." >&2
       emit false ci-not-green

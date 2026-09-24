@@ -57,7 +57,7 @@ Cloud-emission discipline. Invoke the helper as the repo-relative vendored liter
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here.
 
-Use the Agent tool with `subagent_type: prflow:code-explorer` to explore the codebase and understand the system as it relates to the issue.
+Use the Agent tool with `subagent_type: prflow:code-explorer` and `run_in_background: false` to explore the codebase and understand the system as it relates to the issue.
 
 Read `ISSUE_BODY_PATH` and `RESOLVED_AC_PATH` from the validated intake handoff once at this entry. These are the exact requirement artifacts the intake and audit workers consumed; load them instead of the setup workpad snapshot or its historical notes. A missing, unreadable, empty, or path-mismatched artifact is unestablished requirements and routes to Blocked, never an inferred empty issue.
 
@@ -128,7 +128,7 @@ Plan the implementation inline using the explorer's findings. Identify which fil
 
 #### Path B: Complex issue
 
-Use the Agent tool with `subagent_type: prflow:code-architect` to design the implementation.
+Use the Agent tool with `subagent_type: prflow:code-architect` and `run_in_background: false` to design the implementation.
 
 Pass it:
 - The GitHub issue title and labels inline (the code-architect dispatch, on every arm)
@@ -181,11 +181,11 @@ Steps when scoping down:
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
        --replace-acs-file <run-scratch>/narrowed-acs-${ISSUE_NUMBER}.md \
-       --scope-decision-deferred pending "{the deferred criterion's text, verbatim}" \
+       --scope-decision-deferred <PR> "{the deferred criterion's text, verbatim}" \
        --note "Scope decision: {which subset this PR delivers}. Deferred (verbatim): {list}. Will be tracked in follow-up issue(s) filed in Phase 4.0."
    ```
 
-Pass one `--scope-decision-deferred pending "<the deferred criterion's text, verbatim>"` per deferred criterion, in the same call as `--replace-acs-file`, so the narrowing and its machine-readable record land together. The PR literal is `pending` here because §3.1 has not yet opened the draft PR, and §3.1 binds every `pending` record to the real number the moment it exists. The review engine reads this machine-readable record and never the free-text `--note`.
+Pass one `--scope-decision-deferred` per deferred criterion, in the same call as `--replace-acs-file`, so the narrowing and its machine-readable record land together; the review engine reads that record, never the free-text `--note`. `<PR>` is this run's draft PR number once §3.1 has run (a Phase 3.4 return here) — the `number` of its `pr-open` record, or the workpad `**PR:**` line when that record is no longer in context — and `pending` before §3.1, which binds only the records already written when it runs.
 
 This is not "inventing" criteria (forbidden by 1.4) — the deferred items are preserved verbatim in the workpad notes (`--note`), which stays the human-readable record, and carried forward by Phase 4.0.
 

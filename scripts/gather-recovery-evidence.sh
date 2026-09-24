@@ -162,6 +162,7 @@ fi
 # failure-level annotation; the workflow renders that as `unavailable`.
 ANNOTATION_MESSAGE="$(printf '%s' "$annotations_json" | "$DEVFLOW_JQ" -r \
   '[.[]? | select((.annotation_level // "") == "failure") | (.message // "")] | first // empty' 2>/dev/null)" || ANNOTATION_MESSAGE=""
+ANNOTATION_MESSAGE="${ANNOTATION_MESSAGE//$'\r'/}"  # a native Windows jq.exe writes each LF as CRLF
 
 # ── Issue comments → reclaim marker presence, author, bindings ───────────────
 if [ -n "$FIX_COMMENTS" ]; then

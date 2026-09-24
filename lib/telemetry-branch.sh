@@ -545,29 +545,18 @@ devflow_telemetry_persist_tree() {
     # Echoes the new commit sha, `NOOP`
     # when the union tree equals the remote tip's tree, or empty on failure.
     commit_union_on() {  # $1 = remote tip (parent), $2 = local tip to overlay
-      local base="$1" overlay="$2" tree tree_rc ptree meta path mode sha overlay_out remote_sha local_selected remote_selected jq_bin
+      local base="$1" overlay="$2" tree tree_rc ptree meta path mode sha status overlay_out remote_sha local_selected remote_selected jq_bin
       jq_bin="${DEVFLOW_JQ:-jq}"
-      # Read the OVERLAY's listing (and its rc) BEFORE building the tree, and fail closed.
-      #
-      # This was the one git call in this file whose rc was discarded, and it was the most
-      # expensive place to discard one. Streaming `ls-tree` straight into the loop meant a
-      # FAILED listing (a corrupt/unreadable object store, or an $overlay that a sibling
-      # deleted between our CAS and this line) produced an EMPTY stream: the loop body never
-      # ran, `write-tree` returned the BASE tree unchanged, `tree == ptree`, and the function
-      # printed NOOP. The caller reads NOOP as the positive fact "our content already lives on
-      # the remote tip" and FAST-FORWARDS the local ref onto remote_tip — orphaning this run's
-      # just-committed CAS commit AND every offline-accumulated record the union exists to
-      # preserve. Silently, exit 0, with the comment asserting the opposite of what happened.
-      #
-      # An unreadable local tree is NOT proof our records are on the remote. `verify_store`
-      # already captures ls-tree's output-and-status together for exactly this reason; this is
-      # the same rule, applied to the one call that was still streaming.
+      # Capture the base→overlay listing and its rc BEFORE building the tree, and fail closed.
+      # Never stream it into the loop: a failed listing would read as an empty diff, the tree
+      # would equal base, and the NOOP below would fast-forward the local ref onto the remote
+      # tip — orphaning this run's CAS commit and every offline-accumulated record.
       [ -n "$overlay" ] || {
         echo "::warning::telemetry-branch: the local tip of '${branch}' vanished before the re-parent (a sibling deleted the ref?); refusing to fast-forward onto the fetched tip, which would orphan this run's records; telemetry retained on the local ref only$(_devflow_telemetry_retention_note)" >&2
         return 1
       }
-      if ! overlay_out="$(git -c core.quotePath=false -C "$root" ls-tree -r "$overlay" 2>/dev/null)"; then
-        echo "::warning::telemetry-branch: could not read the local tip's tree for '${branch}' (git ls-tree failed — corrupt or unreadable object store); refusing to union or fast-forward, because an unreadable local tree is NOT evidence that our records are already on the remote; telemetry retained on the local ref only$(_devflow_telemetry_retention_note)" >&2
+      if ! overlay_out="$(git -c core.quotePath=false -C "$root" diff-tree -r --no-renames "$base" "$overlay" 2>/dev/null)"; then
+        echo "::warning::telemetry-branch: could not diff the local tip's tree against the fetched tip for '${branch}' (git diff-tree failed — corrupt or unreadable object store); refusing to union or fast-forward, because an unreadable local tree is NOT evidence that our records are already on the remote; telemetry retained on the local ref only$(_devflow_telemetry_retention_note)" >&2
         return 1
       fi
       rm -f "$idx" 2>/dev/null || true
@@ -582,16 +571,24 @@ devflow_telemetry_persist_tree() {
           blob="$(git -C "$root" cat-file blob "$1" 2>/dev/null)" || return 2
           printf '%s' "$blob" | "$jq_bin" -e "$2" >/dev/null 2>&1
           rc=$?
-          case "$rc" in 0) printf 'yes\n' ;; 1) printf 'no\n' ;; *) return 2 ;; esac
+          case "$rc" in (0) printf 'yes\n' ;; (1) printf 'no\n' ;; (*) return 2 ;; esac
         }
-        # This loop assembles tree CONTENT (a union), not a selection decision, so iterating
-        # the listing is appropriate. Format is `<mode> <type> <sha>\t<path>`; split the tab,
-        # then take the first/last fields. Fed from the ALREADY-VALIDATED capture above.
+        # One row per path whose base and overlay blob or mode differ, as
+        # :BASE_MODE OVERLAY_MODE BASE_SHA OVERLAY_SHA STATUS, a tab, then the path.
+        # Do not add a pass over paths absent from this listing: read-tree already placed
+        # their identical content, and the staged arms below could at most re-serialize it.
+        # Inside this command substitution write case patterns as (pattern) and keep apostrophes
+        # and backquotes out of comments: bash 3.2 mis-parses either and the union fails on macOS.
         while IFS="$(printf '\t')" read -r meta path; do
           [ -n "$path" ] || continue
-          mode="${meta%% *}"; sha="${meta##* }"
+          read -r _ mode remote_sha sha status <<< "${meta:1}"
+          # A base-only path (D) stays base-wins; an overlay-only path (A) has no base blob.
+          case "$status" in
+            (D) continue ;;
+            (A) remote_sha="" ;;
+          esac
           # Was this path STAGED by THIS run? Only staged paths overwrite the base side.
-          # `staged_rel` (the conforming set) is in the enclosing function's scope. The set
+          # staged_rel (the conforming set) is in the scope of the enclosing function. The set
           # is small (a run stages a few files), so a linear membership test is fine — and
           # it stays a bash builtin (no non-preflight PATH tool decides this selection).
           _u_staged=0
@@ -602,26 +599,25 @@ devflow_telemetry_persist_tree() {
             # Not staged this run: base-wins. If base already has it, read-tree already
             # placed it, so do nothing. If base LACKS it, add the local copy (offline-
             # accumulation preservation — the #441 case this union was born for).
-            if ! git -C "$root" cat-file -e "${base}:${path}" 2>/dev/null; then
+            if [ -z "$remote_sha" ]; then
               git -C "$root" update-index --add --cacheinfo "${mode},${sha},${path}" 2>/dev/null || exit 1
             fi
              continue
            fi
-           remote_sha="$(git -C "$root" rev-parse --verify --quiet "${base}:${path}" 2>/dev/null)" || remote_sha=""
            if [ -n "$remote_sha" ]; then
              local_selected=no; remote_selected=no
              case "$path" in
-               .prflow/logs/review/*/iter-*.json)
+               (.prflow/logs/review/*/iter-*.json)
                  local_selected="$(classify_migration_blob "$sha" 'type == "object" and ((has("telemetry") | not) or .telemetry == null)')" || exit 2
                  remote_selected="$(classify_migration_blob "$remote_sha" 'type == "object" and ((has("telemetry") | not) or .telemetry == null)')" || exit 2 ;;
-               .prflow/logs/efficiency/*.json)
+               (.prflow/logs/efficiency/*.json)
                  local_selected="$(classify_migration_blob "$sha" 'type == "object" and (.telemetry | type) == "array" and all(.telemetry[]; type == "object") and any(.telemetry[]; has("phases") and .phases == null)')" || exit 2
                  remote_selected="$(classify_migration_blob "$remote_sha" 'type == "object" and (.telemetry | type) == "array" and all(.telemetry[]; type == "object") and any(.telemetry[]; has("phases") and .phases == null)')" || exit 2 ;;
              esac
              [ "$local_selected" = yes ] && [ "$remote_selected" != yes ] && continue
            fi
           # Staged this run. A staged efficiency RECORD that ALSO exists on base is a
-          # floor-merge target: this run's only changes to it are the add-if-absent floor
+          # floor-merge target: the only changes this run made to it are the add-if-absent floor
           # keys, so re-apply THOSE onto the fetched base version rather than overwriting
           # it with our possibly-stale full copy (AC5a). A staged path that is not such a
           # target applies local-wins.
@@ -630,15 +626,15 @@ devflow_telemetry_persist_tree() {
           # is silently dropped whenever a concurrent writer forces this merge path, so a
           # new floor in lib/efficiency-trace.sh adds its key here in the same change.
           case "$path" in
-            .prflow/logs/efficiency/*.json)
-              if git -C "$root" cat-file -e "${base}:${path}" 2>/dev/null; then
-                _u_base="$(git -C "$root" show "${base}:${path}" 2>/dev/null)"
-                _u_local="$(git -C "$root" show "${overlay}:${path}" 2>/dev/null)"
+            (.prflow/logs/efficiency/*.json)
+              if [ -n "$remote_sha" ]; then
+                _u_base="$(git -C "$root" cat-file blob "$remote_sha" 2>/dev/null)"
+                _u_local="$(git -C "$root" cat-file blob "$sha" 2>/dev/null)"
                 # jq is a preflight prerequisite (resolve-jq set DEVFLOW_JQ when this file
                 # was sourced by efficiency-trace.sh; a standalone source falls back to
-                # bare `jq`). Add each floor key onto base ONLY when base lacks it AND the
+                # bare jq). Add each floor key onto base ONLY when base lacks it AND the
                 # local copy actually carries one (a base that already carries one — another
-                # writer got there first — wins; never write a `<key>: null` key — the
+                # writer got there first — wins; never write a <key>: null key — the
                 # staged record IS a merge-arm target so it carries one, but guard the
                 # operand rather than assume it).
                 if _u_merged="$(printf '%s' "$_u_base" | "${DEVFLOW_JQ:-jq}" -c --argjson local "$_u_local" \
@@ -654,8 +650,8 @@ devflow_telemetry_persist_tree() {
                 # read race): fall through to a plain local-wins overlay (the pre-#475
                 # behavior) rather than dropping the record — best-effort. Emit a NAMED
                 # breadcrumb so this degradation is auditable rather than silent (the
-                # floor's never-silent discipline): a stale local copy overwriting base
-                # here could revert a concurrent writer's floor keys (issue #475).
+                # never-silent discipline of the floor): a stale local copy overwriting base
+                # here could revert the floor keys of a concurrent writer (issue #475).
                 echo "::warning::telemetry-branch: floor-key merge for '${path}' fell back to local-wins — jq unavailable/failed, or an empty base/local blob; a concurrent base-side value of any floor key may be reverted this push" >&2
               fi
               ;;

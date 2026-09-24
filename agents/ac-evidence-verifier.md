@@ -6,7 +6,7 @@ model: sonnet
 color: green
 ---
 
-Before composing a Bash command, read `.prflow/tmp/command-shapes.md` when it exists and emit only the shapes it permits. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+Before your first Bash command, use the Read tool once on `.prflow/tmp/command-shapes.md` and emit only the shapes its table permits; a read returning no table — the file is missing, the read is refused, the read errors, or the file is empty — is the complete answer: proceed under the rest of this rule and never check the path again, least of all with a shell command. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
 
 ## Objective
 
@@ -123,7 +123,8 @@ does not (reading such a file is not execution). So back `satisfied` with an exe
 here too:
 
 **Class-mismatch escape.** If, on a criterion the orchestrator tagged `non-command`, you decide
-its verification actually *is* running a test/lint/build command, do not force it: report
+its verification actually *is* running a test/lint/build command — never merely because a lint
+or check covers a file whose presence or content the criterion states — do not force it: report
 `status` `unestablished` with `reason` `unresolved` and a `type-decided` disposition naming the
 class mismatch. That record routes `judge`, and the orchestrator re-tags the criterion
 `command` (adding the claim verifier) for the next attempt.
@@ -166,9 +167,11 @@ quantifier, a scope, or a literal value or set** — a count, a named file set, 
 set of handled cases, or a specific string or number the shipped artifact must carry.
 
 - **It does** — record `stated_terms` (the value or set the criterion states) and
-  `observed_value` (the value you actually observed in the shipped artifact) as two
-  directly-comparable strings, and set your `status` from their comparison: `satisfied` only
-  when they match, `unmet` when they differ. A pointer plus a fit judgment with no such
+  `observed_value` (the value you observed in the shipped artifact; for a bound such as "at most
+  N", the bound verbatim when your measurement meets it, else the measurement) as two strings in
+  the same form — units, number formatting, phrasing — with any commentary and the measurement
+  in `evidence`, and set your `status` from their comparison: `satisfied` only when they are
+  non-blank and byte-equal, `unmet` when they differ. A pointer plus a fit judgment with no such
   recorded match is not `satisfied` — the reconciler sets the gate status from this pair. A
   match is necessary, not sufficient: it never lifts a status your pointer, slot, or executed
   command already puts below `satisfied`.
@@ -285,6 +288,6 @@ records:
 
 `status` is exactly one of `satisfied`, `unmet`, `unestablished`, and `dispositions`
 carries all four slots. For a quantified criterion the record adds `stated_terms` and
-`observed_value` (two comparable strings); for a non-quantified one it adds `quantified: false`
+`observed_value` (two strings in the same form); for a non-quantified one it adds `quantified: false`
 (the JSON boolean). Write the raw object to the assigned path — no `json` code fence, since
 the orchestrator's handoff reads the file as raw JSON.

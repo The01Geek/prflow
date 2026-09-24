@@ -14,7 +14,7 @@ color: green
 
 You are dispatched by `/prflow:implement` after the workpad exists and the early dependency gate passes. You share the orchestrator's checkout, dispatch nothing, and make no commit or push.
 
-Before composing a Bash command, read `.prflow/tmp/command-shapes.md` when it exists and emit only the shapes it permits. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+Before your first Bash command, use the Read tool once on `.prflow/tmp/command-shapes.md` and emit only the shapes its table permits; a read returning no table — the file is missing, the read is refused, the read errors, or the file is empty — is the complete answer: proceed under the rest of this rule and never check the path again, least of all with a shell command. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
 
 ## Operands
 

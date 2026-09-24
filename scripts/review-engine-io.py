@@ -77,7 +77,7 @@ RETURN_LISTS = ('phase3_findings', 'phase3_dispatched', 'expected_reviewers',
 # per-item commit provenance (issue #851) survives cmd_return's join by id, exactly like
 # every other verdict field — a rename here silently drops the collector's provenance input.
 VERDICT_KEYS = ('verdict', 'raw_verdict', 'normalized', 'evidence', 'file_checked',
-                'normalization_ineligible', 'view_revision')
+                'normalization_ineligible', 'view_revision', 'demoted')
 RETURN_SPLICED = ('dispatch_mode', 'diff_produced_at_head', 'checklist')
 
 # Harness-instruction files (issue #851 AC8): the harness loads a nested CLAUDE.md/AGENTS.md
@@ -728,6 +728,15 @@ def _deleted_entries(diff_base, commit, root):
     return deleted
 
 
+def _inventory_text(inventory):
+    """One `entries` object per line. Keep json.dumps' default separators, insertion key order
+    and ensure_ascii=False: verifiers grep the literal `"path": "<p>", "stored_path": null,
+    "kind": "deleted"`, so sort_keys, compact separators or ASCII escaping breaks that lookup."""
+    head = json.dumps({k: v for k, v in inventory.items() if k != 'entries'}, ensure_ascii=False)[:-1]
+    rows = ',\n'.join(json.dumps(e, ensure_ascii=False) for e in inventory['entries'])
+    return head + (', ' if len(head) > 1 else '') + '"entries": [\n' + rows + '\n]}\n'
+
+
 def _view_materialize(args):
     root = _repo_root()
     if args.revision not in ('head', 'base'):
@@ -813,7 +822,14 @@ def _view_materialize(args):
         inventory = {'revision': commit, 'entries': inventory_entries,
                      'harness_renamed': harness_renamed, 'file_count': blob_count,
                      'bytes': total_bytes}
-        _write_atomic(tmp_dir / 'inventory.json', json.dumps(inventory) + '\n')
+        # _write_atomic claims both names (its sibling .tmp first): a materialized blob at either
+        # would be silently overwritten, a directory an opaque 'filesystem' stop. Keep this check
+        # here, not in _write_atomic, whose other callers overwrite on purpose.
+        for claimed in ('inventory.json.tmp', 'inventory.json'):
+            if (tmp_dir / claimed).exists():
+                raise Stop('view-path', f'stored path {claimed!r} collides with the view manifest '
+                                        f'write (a tracked root {claimed} cannot be materialized)')
+        _write_atomic(tmp_dir / 'inventory.json', _inventory_text(inventory))
         # Swap the complete tmp tree into place atomically: a consumer sees either no view
         # directory or a whole one, never a half-materialized tree (AC8 partial-materialization).
         if view_dir.exists():

@@ -209,13 +209,15 @@ from datetime import datetime, timezone
 
 
 def _force_utf8_streams():
-    """Force stdin/stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    """Force stdin/stdout/stderr to UTF-8, output to LF-only (native Windows writes CRLF
+    into the shell caller's value). Never call this at import: doing so mutates the
     streams of any process that imports this module for tests. Tolerates a stream that
     has no usable `reconfigure` (issue #1762)."""
-    for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    for _stream, _kw in ((sys.stdin, {}), (sys.stdout, {"newline": "\n"}),
+                         (sys.stderr, {"newline": "\n"})):
         try:
-            _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError, OSError):
+            _stream.reconfigure(encoding="utf-8", **_kw)
+        except (AttributeError, TypeError, ValueError, OSError):
             pass
 
 

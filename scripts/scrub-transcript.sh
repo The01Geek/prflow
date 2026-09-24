@@ -160,20 +160,21 @@ for dirpath, dirnames, filenames in os.walk(root):
                         break
         except OSError:
             pass
-        sys.stdout.write(full + "\t" + cwd + "\n")
+        # Root-relative with `/`: on Windows, python sees a translated root (C:/...) and
+        # joins with `\`, so bash rebuilds the absolute path in its own form below.
+        sys.stdout.write(os.path.relpath(full, root).replace(os.sep, "/") + "\t" + cwd + "\n")
 PY
 )"
-  while IFS=$'\t' read -r abspath cwd; do
-    [ -z "$abspath" ] && continue
+  while IFS=$'\t' read -r rel cwd; do
+    [ -z "$rel" ] && continue
+    abspath="${STORE_ROOT%/}/$rel"
     ncwd="$cwd"
     if [ -n "$cwd" ] && [ "$HAS_NORMALIZE" = 1 ]; then
       ncwd="$(devflow_normalize_path "$cwd")"
     fi
     if [ -n "$WS" ] && [ "$ncwd" = "$WS" ]; then
-      # Strip the store root and the encoded project directory (the first component), keeping
-      # the nesting below it so <session>.jsonl lands at the output root and
-      # <session>/subagents/<id>.jsonl beneath it.
-      rel="${abspath#"$STORE_ROOT"/}"
+      # Strip the encoded project directory (the first component), keeping the nesting below
+      # it so <session>.jsonl lands at the output root and <session>/subagents/<id>.jsonl beneath it.
       rel="${rel#*/}"
       SELECTED_ABS+=("$abspath")
       SELECTED_REL+=("$rel")
