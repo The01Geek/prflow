@@ -275,7 +275,7 @@ EXCERPT_STATE=absent
 EXCERPT_VAL=""
 EXCERPT_CAVEAT=""
 if EXCERPT_RAW=$("$DEVFLOW_JQ" -rs '
-    (last(.. | objects | select(.type? == "result"))) as $r
+    ([.. | objects | select(.type? == "result")] | last) as $r
     | if $r == null or ($r.is_error != true) then empty
       elif ($r | has("result")) and ($r.result != null) then ($r.result | tostring)
       elif ($r | has("errors")) then ($r.errors | map(tostring) | join("; "))
@@ -335,13 +335,14 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" \
       if $obj == null then "n/a"
       elif ($obj | has($key)) then (if $obj[$key] == null then "null" else ($obj[$key] | tostring) end)
       else "n/a" end;
-    (last(.. | objects | select(.type? == "result"))) as $r
+    # [f] | last, never last(f): under jq 1.8 last(empty) yields nothing, emptying the whole program (issue #999).
+    ([.. | objects | select(.type? == "result")] | last) as $r
     # api_retry: the last system event with subtype api_retry (issue #158).
-    | (last(.. | objects | select(.type? == "system" and .subtype? == "api_retry"))) as $ar
+    | ([.. | objects | select(.type? == "system" and .subtype? == "api_retry")] | last) as $ar
     # rate_limit: the LAST rate_limit_event, taken ONLY when its status is the
     # string "rejected" — a later event of any other status means the run continued
     # past the rejection, so no rate-limit values are published (issue #158).
-    | (last(.. | objects | select(.type? == "rate_limit_event"))) as $rl_last
+    | ([.. | objects | select(.type? == "rate_limit_event")] | last) as $rl_last
     | (if ($rl_last != null) and (($rl_last.rate_limit_info?.status?) == "rejected")
        then ($rl_last.rate_limit_info) else null end) as $rl
     # `unique` de-duplicates: the same denial can appear in more than one place in
@@ -435,6 +436,8 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" \
   exit 0
 fi
 
+# A native Windows jq.exe ends every line with CR, which the line readers below would keep (#1050).
+BLOCK="${BLOCK//$'\r'/}"
 _emit "$BLOCK"
 _publish_denials "$BLOCK"
 _publish_claude_code_version "$BLOCK"

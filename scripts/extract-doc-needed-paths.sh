@@ -11,7 +11,9 @@
 # the scope note below: (1) a `- **Documentation Needed**` list item (issue #185),
 # (2) a bare blank-line-preceded `**Documentation Needed**` bold paragraph (issue
 # #309), (3) a `### Documentation Needed` level-3 heading (issue #380), and
-# (4) a plain `- Documentation Needed —` list item (issue #506). The direct
+# (4) a plain `- Documentation Needed —` list item (issue #506). Both bold
+# openers also accept the colon inside the bold, `**Documentation Needed:**`
+# (issue #1125). The direct
 # consumer is scripts/read-doc-needed-deliverables.sh, which Phase 4.1 Stage 1
 # (pre-flight briefing) and Stage 2 (post-hoc diff gate) each invoke rather than
 # re-deriving paths by LLM prose interpretation — so the two passes can never disagree
@@ -115,7 +117,9 @@
 # true no-op signal).
 set -euo pipefail
 
-body="$(cat "${1:-/dev/stdin}")"
+# Plain `cat` for stdin: Git Bash cannot open a native Windows pipe (Python
+# `subprocess.run(input=...)`) through /dev/stdin (issue #1124).
+if [ -n "${1:-}" ]; then body="$(cat "$1")"; else body="$(cat)"; fi
 
 # Recognized documentation/source extensions (an ERE alternation, no anchors).
 # SINGLE-SOURCED here: Stage A's `emitted` proxy (passed in via -v extre) and
@@ -369,7 +373,7 @@ run_stage_a() {
   # deliverable) from a PRIMARY prose declaration (the deliverable itself). See
   # the Shape 2 comment.
   state >= 1 && ( /^- \*\*[^`]/ || ( /^\*\*[^`]/ && prev_blank ) ) {
-    ns = ($0 ~ /^(- )?\*\*Documentation Needed\*\*/) ? 2 : 1
+    ns = ($0 ~ /^(- )?\*\*Documentation Needed:?\*\*/) ? 2 : 1
     if (ns == 2 && state != 2) emitted = 0
     # Reset the declaration latch on EVERY Documentation Needed opener (issue
     # #1663): a `none` block must not suppress a later block deliverable. Not gated
@@ -395,7 +399,7 @@ run_stage_a() {
   # shape used by issue prose. Items with a backtick before the em dash, indented
   # items, and wrapped lines remain inside the Documentation Needed scope. The plain
   # Documentation Needed opener is excluded here so it does not close its own scope.
-  state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed\*\*/ && $0 !~ /^- Documentation Needed —/ {
+  state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed:?\*\*/ && $0 !~ /^- Documentation Needed —/ {
     state = 1
     list_scope = 0
   }

@@ -942,9 +942,9 @@ elif "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in 
                 fi
                 _pattern_filed=0   # reset PER PATTERN — a stale 1 from the previous pattern
                                    # would annotate this one as filed on a run that filed nothing
-                # Iterate the to-file array by index (keys[] -> 0,1,2…) so no `$((…))` counter is
-                # needed; `.[$_fi]` still selects each finding.
+                # Iterate keys[] so no `$((…))` counter is needed; strip a Windows jq's CR.
                 while IFS= read -r _fi; do
+                    _fi="${_fi%$'\r'}"
                     # $KEY is the composed (or aliased) opaque filing key; it passes as BOTH
                     # --tag and --slug (they share the [A-Za-z0-9_-]+ grammar the key already
                     # satisfies), with the attribution --category alongside.

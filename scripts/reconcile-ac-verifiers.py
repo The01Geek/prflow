@@ -81,7 +81,9 @@ the dispositions projection reads it to decide which side's fields to emit (issu
 The optional `stated_terms`/`observed_value` pair (issue #387) carries the evidence
 verifier's recorded criterion terms and the value it observed in the shipped artifact; a
 criterion that names a quantifier, scope, or literal value/set is `satisfied` only when they
-match, unless the evidence report opts out with `quantified: false`.
+match (both non-blank and equal), unless the evidence report opts out with `quantified: false`.
+An evidence side that reported `satisfied` over a pair failing that rule gets `PAIR_SLOT` in
+`undischarged_slots`.
 The two disposition maps and `undischarged_slots` (side-qualified `<side>:<slot>`)
 are carried out so the orchestrator records what each verifier did alongside the
 reconciled verdict, rather than letting it die with the dispatch return. The two
@@ -120,6 +122,11 @@ BLOCKING_STATUSES = ("unmet", "unestablished")
 # gate would then check a slot the charter never asks for, blocking every criterion.
 EVIDENCE_SLOTS = ("type-decided", "command-run", "claim-traced", "evidence-recorded")
 CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
+# Not a charter slot, and already side-qualified: the reconciler adds it to
+# `undischarged_slots` when the evidence side reported `satisfied`, the criterion is not
+# `quantified: false`, and `_pair_status` is not `satisfied` (issue #1068). Do not rename
+# without the matching edit to phase-3-ac-gate.md's restate routing line, which names it.
+PAIR_SLOT = "evidence:stated-observed-pair"
 
 # The criterion class decides the verifier roster: a `command` criterion is checked by both
 # verifiers (the merge script requires their agreement); a `non-command` criterion by the
@@ -338,13 +345,45 @@ def _quantified_false(record):
     return isinstance(record, dict) and record.get("quantified") is False
 
 
+PAIR_CRUMB_CHARS = 80
+
+
+def _pair_crumb_offset(stated, observed):
+    """The window start for both pair sides: the first differing character index when two
+    differing strings agree through the whole bound (else they render identically), else 0."""
+    if not (isinstance(stated, str) and isinstance(observed, str)) or stated == observed:
+        return 0
+    i = next((k for k, (a, b) in enumerate(zip(stated, observed)) if a != b),
+             min(len(stated), len(observed)))
+    return i if i >= PAIR_CRUMB_CHARS else 0
+
+
+def _pair_side_desc(record, key, offset=0):
+    """Describe one pair field for the stderr breadcrumb: its repr when a string, else the
+    shape that made it unusable (absent, or the JSON type it arrived as). A non-zero
+    `offset` renders the window from there with its character range and the full length."""
+    value = record.get(key, _ABSENT) if isinstance(record, dict) else _ABSENT
+    if value is _ABSENT:
+        return "absent"
+    if isinstance(value, str):
+        if not offset:
+            return repr(value[:PAIR_CRUMB_CHARS])
+        end = min(offset + PAIR_CRUMB_CHARS, len(value))
+        return f"{value[offset:end]!r} at characters {offset}-{end} of {len(value)}"
+    return f"a {type(value).__name__}, not a string"
+
+
 def _pair_status(stated, observed):
     """The pair rule's status, complete by construction (issue #387 AC1).
 
-    `unestablished` unless BOTH sides are strings; `satisfied` when they compare equal
-    under `==`; `unmet` when both are strings and unequal.
+    `unestablished` unless BOTH sides are strings carrying an alphanumeric character (a
+    quantified criterion always states a value, so a blank or punctuation-only side records
+    nothing — issue #1068); `satisfied` when they compare equal under `==`; `unmet` otherwise.
+    No normalization: `"61,750"` is not `"61750"`.
     """
-    if not isinstance(stated, str) or not isinstance(observed, str):
+    if (not isinstance(stated, str) or not isinstance(observed, str)
+            or not _REASON_SUBSTANTIVE_RE.search(stated)
+            or not _REASON_SUBSTANTIVE_RE.search(observed)):
         return "unestablished"
     return "satisfied" if stated == observed else "unmet"
 
@@ -593,7 +632,7 @@ def reconcile(evidence_records, claim_records, criteria=None):
             # command-only one: a satisfied non-command record with no evidence pointer would
             # otherwise tick with no evidence, so it fails closed to `unestablished` here exactly
             # as reconcile_one does for the command path.
-            status = e_status
+            status = _normalize_status(e_status)
             evidence = _evidence_of(e_rec)
             evidence_source = "evidence" if evidence else ""
             if status == "satisfied" and not evidence:
@@ -622,13 +661,26 @@ def reconcile(evidence_records, claim_records, criteria=None):
         # undischarged slot), so one side's coincidental value match cannot override the
         # two-verifier cross-check. A `satisfied` status here already carries an evidence
         # pointer (the AC6 no-evidence downgrade ran on the command and non-command branches
-        # above), so the retained pointer stays valid on a downgrade. `_pair_status` is pure, so computing it
-        # unconditionally is free and keeps this a single flat guard.
+        # above), so the retained pointer stays valid on a downgrade.
+        # An evidence side that reported `satisfied` over a failing pair contradicted its own
+        # record, so the pair is named as an undischarged evidence slot (issue #1068) even when
+        # another gate already downgraded the status — else a restatement fixes only the other
+        # evidence-side defect and the repeat routes `judge`. When every expected side reported
+        # `satisfied` and rules 1-5 do not match, `_remedy` rule 6 then routes `restate-evidence`.
         stated_terms, observed_value = _pair_terms_of(e_rec)
         pair_status = _pair_status(stated_terms, observed_value)
         if (expected and not _quantified_false(e_rec)
-                and status == "satisfied" and pair_status != "satisfied"):
-            status = pair_status
+                and _normalize_status(e_reported) == "satisfied"
+                and pair_status != "satisfied"):
+            undischarged = undischarged + [PAIR_SLOT]
+            offset = _pair_crumb_offset(stated_terms, observed_value)
+            print(f"reconcile-ac-verifiers: criterion {num}: the evidence report concluded "
+                  f"'satisfied' but its stated/observed pair is {pair_status} (stated_terms "
+                  f"{_pair_side_desc(e_rec, 'stated_terms', offset)}, observed_value "
+                  f"{_pair_side_desc(e_rec, 'observed_value', offset)}) — naming {PAIR_SLOT}",
+                  file=sys.stderr)
+            if status == "satisfied":
+                status = pair_status
 
         blocks = status in BLOCKING_STATUSES
         if blocks:

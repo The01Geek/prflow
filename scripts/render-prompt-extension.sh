@@ -34,7 +34,7 @@
 # THE STATUS VOCABULARY
 # ---------------------
 # Generalized from the `EXTENSION-STATUS:` three-token contract that
-# skills/review/phases/phase-3-agents.md already imposes on the DISPATCHED reviewer
+# skills/review/final-pass-contract.md already imposes on the DISPATCHED reviewer
 # subagent. This script gives the orchestrator's own load the counterpart it lacked.
 #
 #   PROMPT-EXTENSION-STATUS: content-present

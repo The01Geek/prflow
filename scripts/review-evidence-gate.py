@@ -52,25 +52,33 @@ argparse exits 2 on a malformed or missing required argument, which is a wiring 
 caller, and the step's `set -uo pipefail` (no `-e`) leaves the token empty, routing to the
 step's unrecognized-output warning rather than a silent green.
 
-  pass <arm>                 a verdict was posted and its required evidence is present, OR
-                             no checklist was owed. <arm> is one of legitimate-skip,
+  pass <arm>                 a verdict was posted and its required evidence is present (on
+                             the lean arm no checklist is owed, but with --execution-file the
+                             always-on Phase 3 dispatches still are, unless the phase log
+                             records a blocker-recheck hit). <arm> is one of legitimate-skip,
                              generator-failure-skip, blocker-recheck-hit, checklist-phases-ran.
   no-verdict                 no marker-bearing verdict was posted by this run for the head.
   fail missing=<tokens> review_id=<id> review_state=<state>
-                             a verdict was posted, the checklist was owed, and the run root
-                             attributed to this run holds no durable checklist/verification
-                             artifact pair (and no special record) proving it ran. The
-                             <tokens> are space-free (checklist-artifact, verification-
-                             artifact, run-root), joined by commas.
+                             a verdict was posted and either (a) the checklist was owed and
+                             the run root attributed to this run holds no durable checklist/
+                             verification artifact pair (and no special record) proving it
+                             ran, or (b) independently of whether a checklist was owed, with
+                             --execution-file, the transcript is missing a dispatch of any
+                             always-on Phase 3 reviewer on an arm that owes Phase 3 (every
+                             arm but a blocker-recheck hit). The <tokens> are space-free
+                             (checklist-artifact, verification-artifact, run-root,
+                             transcript-dispatch-shortfall, phase3-dispatch:<subagent_type>),
+                             joined by commas.
   unestablished <reason>     an evidence state the gate could not settle — reported neither
                              as a pass nor as a failure.
 
 UNKNOWN IS NOT ZERO. A present-but-malformed artifact, a malformed phase log, an unreadable
 run root, an unresolvable diff range, an unparseable reviews payload, an ambiguous run-root
 delta, or an older vendored engine are each UNESTABLISHED — never a pass and never laundered
-into a fail. Only what a hollow run positively leaves behind — a posted verdict, a checklist
-owed, and a run root holding neither the durable artifact pair nor a special record (or no
-run root at all) — is the fail arm.
+into a fail. Only what a hollow run positively leaves behind — a posted verdict with either a
+checklist owed and a run root holding neither the durable artifact pair nor a special record
+(or no run root at all), or an established transcript missing an owed Phase 3 reviewer
+dispatch — is the fail arm.
 """
 import argparse
 import glob
@@ -123,6 +131,13 @@ _VERDICTS_SUBDIR = 'verdicts'
 # The subagent a checklist agent-item is verified by; the transcript backstop counts actual
 # dispatch events naming it (issue #193).
 _VERIFIER_SUBAGENT = 'prflow:checklist-verifier'
+# The always-on Phase 3 reviewers every standalone roster carries (issue #1051). The final-pass
+# `general-purpose` Task and the gated type-design/pr-test analyzers are deliberately absent:
+# requiring them would fail a run whose in-run gate legitimately excluded them.
+_PHASE3_ALWAYS_ON_SUBAGENTS = ('prflow:code-reviewer', 'prflow:silent-failure-hunter',
+                               'prflow:comment-analyzer')
+# Every subagent the transcript backstop counts; `_decide` reads each key from the counts.
+_COUNTED_SUBAGENTS = (_VERIFIER_SUBAGENT,) + _PHASE3_ALWAYS_ON_SUBAGENTS
 # The tool a harness records a subagent dispatch under: `Agent` on the current cloud harness,
 # `Task` on older ones. Dropping either zeroes the count on that harness's transcripts.
 _DISPATCH_TOOL_NAMES = frozenset({'Agent', 'Task'})
@@ -859,34 +874,45 @@ def _subagent_of(d):
     return None
 
 
-def _is_verifier_dispatch(d):
-    """Whether `d` is an actual checklist-verifier DISPATCH event (issue #193): a typed
-    tool_use record, or a flattened record carrying a tool identity (the cloud harness's
-    `task_started` record), whose dispatched tool — when it names one — is a subagent-dispatch
-    tool (`_DISPATCH_TOOL_NAMES`) and whose subagent_type is the checklist verifier. A
-    `tool_result` payload and a plain string quote are never dispatches. The schema is not a
-    public contract (execution-file-shape.md), so both observed shapes are tolerated."""
+def _dispatched_subagent(d):
+    """The non-empty subagent_type `d` dispatches, or None when `d` is not an actual DISPATCH event
+    (issue #193, generalized by #1051): a typed tool_use record, or a flattened record carrying
+    a tool identity (the cloud harness's `task_started` record), whose dispatched tool — when it
+    names one — is a subagent-dispatch tool (`_DISPATCH_TOOL_NAMES`). A `tool_result` payload
+    and a plain string quote are never dispatches. The schema is not a public contract
+    (execution-file-shape.md), so both observed shapes are tolerated."""
     if not isinstance(d, dict) or d.get('type') == 'tool_result':
-        return False
+        return None
     is_dispatch = (d.get('type') == 'tool_use'
                    or isinstance(d.get('tool_name'), str)
                    or 'tool_use_id' in d)
     if not is_dispatch:
-        return False
+        return None
     name = d.get('name') if d.get('type') == 'tool_use' else d.get('tool_name')
     if isinstance(name, str) and name not in _DISPATCH_TOOL_NAMES:
-        return False
-    return _subagent_of(d) == _VERIFIER_SUBAGENT
+        return None
+    subagent = _subagent_of(d)
+    return subagent or None
 
 
 def _count_verifier_dispatches(execution_file_path):
-    """(count, None) or (None, reason). The number of UNIQUE actual checklist-verifier
-    dispatch events in the harness transcript (issue #193 AC6), counted over the tolerant
+    """(count, None) or (None, reason): unique checklist-verifier dispatches (issue #193 AC6),
+    per `_count_dispatches`."""
+    counts, reason = _count_dispatches(execution_file_path, (_VERIFIER_SUBAGENT,))
+    if counts is None:
+        return None, reason
+    return counts.get(_VERIFIER_SUBAGENT, 0), None
+
+
+def _count_dispatches(execution_file_path, subagent_types):
+    """({subagent_type: count}, None) or (None, reason). The number of UNIQUE actual dispatch
+    events per named subagent in the harness transcript, in one pass over the tolerant
     object/array/JSONL carriers. A record is counted only when it carries a string
     `tool_use_id`/`id`, deduplicated by that key; a record with no string key is skipped, not
     counted (issue #242) — the fail-closed direction, since with no key there is no dedup and
     counting id-less records could inflate the count. Quoted text and tool_result payloads
-    contribute nothing (only typed tool_use records are walked, never a raw substring scan).
+    contribute nothing (only typed tool_use or flattened tool-identity dispatch records are
+    counted, never a raw substring scan).
     Missing/corrupt/incomplete transcript data → (None, reason), never a false 0."""
     try:
         with open(execution_file_path, encoding='utf-8', errors='replace') as fh:
@@ -905,9 +931,10 @@ def _count_verifier_dispatches(execution_file_path):
     if not parsed.parsed:
         return None, 'unparseable'
     seen = set()
-    count = 0
+    counts = dict.fromkeys(subagent_types, 0)
     for d in _iter_dicts(parsed.records):
-        if not _is_verifier_dispatch(d):
+        subagent = _dispatched_subagent(d)
+        if subagent not in counts:
             continue
         key = d.get('tool_use_id') or d.get('id')
         if not isinstance(key, str):
@@ -915,8 +942,14 @@ def _count_verifier_dispatches(execution_file_path):
         if key in seen:
             continue
         seen.add(key)
-        count += 1
-    return count, None
+        counts[subagent] += 1
+    return counts, None
+
+
+def _phase3_missing(counts):
+    """The `phase3-dispatch:<subagent_type>` token per always-on reviewer the transcript never
+    dispatched (issue #1051)."""
+    return ['phase3-dispatch:' + s for s in _PHASE3_ALWAYS_ON_SUBAGENTS if not counts.get(s, 0)]
 
 
 def _offline_numstat_facts(numstat_z):
@@ -1156,14 +1189,38 @@ def _decide(args):
             'review-evidence-gate: the reviewed diff could not be recomputed: ',
             facts['reason'], '.')
     disproof = workpad._review_coverage_profile_disproof(facts)
-    if disproof is None:
-        # The diff authorizes the intentional checklist skip — no checklist owed.
-        return 'pass legitimate-skip', _detail(
-            'review-evidence-gate: the recomputed diff authorizes the ',
-            'intentional checklist skip (small config-only diff); no checklist ',
-            'evidence owed.')
+    exec_file = getattr(args, 'execution_file', None)
+    if exec_file:
+        counts, treason = _count_dispatches(exec_file, _COUNTED_SUBAGENTS)
+    else:
+        counts, treason = None, None
+    fail_tail = f' review_id={verdict_id} review_state={verdict_state}'
+    unusable = (f'unestablished execution-transcript-{treason}', _detail(
+        'review-evidence-gate: an execution transcript was supplied but its subagent ',
+        'dispatches could not be established (', str(treason), '); the run is neither ',
+        'passed nor failed on the transcript.'))
 
-    # The checklist IS owed. Attribute this run's run root by the inventory delta.
+    def phase3_detail(missing):
+        return _detail(
+            'review-evidence-gate: the harness transcript records no dispatch of the ',
+            'always-on Phase 3 reviewer(s) ', ', '.join(m.split(':', 1)[1] for m in missing),
+            ', so the posted verdict was not reached through the specialist review.')
+
+    lean_pass = 'pass legitimate-skip', _detail(
+        'review-evidence-gate: the recomputed diff authorizes the ',
+        'intentional checklist skip (small config-only diff); no checklist ',
+        'evidence owed.')
+    if disproof is None and (not exec_file
+                             or (counts is not None and not _phase3_missing(counts))):
+        # Keep this ahead of run-root attribution: an attribution fault must not turn a lean run
+        # whose transcript dispatched every always-on reviewer into unestablished.
+        return lean_pass
+    if disproof is None and counts is None:
+        # Lean arm only: a supplied-but-unusable transcript is unestablished even beside a
+        # blocker-recheck record, and no run-root attribution fault masks its reason.
+        return unusable
+
+    # Attribute this run's run root by the inventory delta.
     post_run_roots, roots_err = _list_run_roots(args.post_tree_root)
     if roots_err is not None:
         return f'unestablished {roots_err}', _detail(
@@ -1174,6 +1231,27 @@ def _decide(args):
             'review-evidence-gate: more than one run root appeared during the ',
             'engine step (', ', '.join(fresh_roots), '); this run cannot be ',
             'attributed.')
+    run_root_dir = (os.path.join(args.post_tree_root, _REVIEW_SUBDIR, fresh_roots[0])
+                    if fresh_roots else None)
+    special = _special_record_grade(run_root_dir) if run_root_dir else None
+    # A phase-log blocker-recheck hit replaces Phase 3 by design (issue #1051 AC4), so it owes
+    # no reviewer dispatch on any arm.
+    recheck_hit = bool(special and special[:2] == ('special', 'blocker-recheck-hit'))
+
+    if disproof is None:
+        if special is not None and special[0] == 'unestablished':
+            return f'unestablished {special[1]}', _detail(
+                'review-evidence-gate: the attributed run root ', fresh_roots[0],
+                ' has a phase log that could not be graded (', special[1], ').')
+        if not recheck_hit:
+            missing = _phase3_missing(counts)
+            if missing:
+                return f'fail missing={",".join(missing)}{fail_tail}', phase3_detail(missing)
+        return lean_pass
+
+    # Missing reviewers join a fail line only when the transcript established them, so an
+    # unusable transcript never softens an established artifact failure into unestablished.
+    extra = _phase3_missing(counts) if counts is not None and not recheck_hit else []
 
     fail_detail_head = (
         f'review-evidence-gate: this run posted a merge-gating verdict (review '
@@ -1183,13 +1261,11 @@ def _decide(args):
     if not fresh_roots:
         # No run root appeared during the engine step — the same missing-record state as a
         # run root that holds neither durable artifact nor a special record (AC3).
-        return (f'fail missing=run-root review_id={verdict_id} '
-                f'review_state={verdict_state}'), _detail(
+        return f'fail missing={",".join(["run-root"] + extra)}{fail_tail}', _detail(
             fail_detail_head, 'the engine step created NO run-scoped ',
             'directory at all, so no durable checklist or verification artifact ',
-            'records that the checklist phases ran.')
+            'records that the checklist phases ran.') + (phase3_detail(extra) if extra else [])
 
-    run_root_dir = os.path.join(args.post_tree_root, _REVIEW_SUBDIR, fresh_roots[0])
     grade, payload, agent_count = _grade_run_root_detail(run_root_dir)
     if grade == 'unestablished' and payload == 'review-artifact-malformed':
         return 'unestablished review-artifact-malformed', _detail(
@@ -1212,28 +1288,34 @@ def _decide(args):
             'blocker-recheck hit record, the sole evidence its fast-path ',
             're-verdict owes.')
     if grade == 'special' and payload == 'generator-failure':
+        if exec_file and counts is None:
+            return unusable
+        if extra:
+            return f'fail missing={",".join(extra)}{fail_tail}', phase3_detail(extra)
         return 'pass generator-failure-skip', _detail(
             'review-evidence-gate: the phase log carries the checklist ',
             'generator double-failure record, a legitimate no-checklist arm.')
     if grade == 'pass':
         # Transcript backstop (issue #193 AC6): require the dispatch count to meet the qualifying
-        # iteration's agent-item count. A supplied-but-unusable transcript is unestablished, never
-        # a silent pass-through; an established shortfall takes the existing fail action.
-        if getattr(args, 'execution_file', None):
+        # iteration's agent-item count, and every owed Phase 3 reviewer dispatched (#1051). A
+        # supplied-but-unusable transcript is unestablished, never a silent pass-through; an
+        # established shortfall takes the existing fail action.
+        if exec_file:
+            if counts is None:
+                return unusable
             required = agent_count or 0
-            observed, treason = _count_verifier_dispatches(args.execution_file)
-            if observed is None:
-                return f'unestablished execution-transcript-{treason}', _detail(
-                    'review-evidence-gate: an execution transcript was supplied but its ',
-                    'checklist-verifier dispatch count could not be established (', treason,
-                    '); the run is neither passed nor failed on the transcript.')
-            if observed < required:
-                return (f'fail missing=transcript-dispatch-shortfall '
-                        f'review_id={verdict_id} review_state={verdict_state}'), _detail(
+            observed = counts.get(_VERIFIER_SUBAGENT, 0)
+            shortfall = ['transcript-dispatch-shortfall'] if observed < required else []
+            if shortfall or extra:
+                detail = _detail(
                     fail_detail_head, 'the harness transcript records only ', str(observed),
                     ' checklist-verifier dispatch event(s), below the ', str(required),
                     ' its agent-mode checklist items require (observed=', str(observed),
-                    ' required=', str(required), ').')
+                    ' required=', str(required), ').') if shortfall else _detail(
+                    fail_detail_head, 'the harness transcript is missing an always-on Phase 3 ',
+                    'reviewer dispatch.')
+                return (f'fail missing={",".join(shortfall + extra)}{fail_tail}',
+                        detail + (phase3_detail(extra) if extra else []))
             return 'pass checklist-phases-ran', _detail(
                 'review-evidence-gate: the attributed run root holds the durable Phase 1 ',
                 'checklist and Phase 2 verification artifacts, and the harness transcript ',
@@ -1246,10 +1328,10 @@ def _decide(args):
             'was not corroborated.')
     # grade == 'fail'
     missing = payload
-    return (f'fail missing={",".join(missing)} review_id={verdict_id} '
-            f'review_state={verdict_state}'), _detail(
+    return f'fail missing={",".join(missing + extra)}{fail_tail}', _detail(
         fail_detail_head, 'the attributed run root ', fresh_roots[0],
-        ' is missing these durable checklist-phase artifacts: ', ', '.join(missing), '.')
+        ' is missing these durable checklist-phase artifacts: ', ', '.join(missing),
+        '.') + (phase3_detail(extra) if extra else [])
 
 
 def _force_utf8_streams():
@@ -1293,8 +1375,9 @@ def main(argv=None):
                         help='offline mode (issue #193): grade this run root from its own '
                              'diff.patch alone — no GitHub, ref resolution, or fetch.')
     parser.add_argument('--execution-file',
-                        help='the harness transcript (issue #193): count actual '
-                             'checklist-verifier dispatch events as a cloud-path backstop.')
+                        help='the harness transcript (issues #193, #1051): count actual '
+                             'checklist-verifier and always-on Phase 3 reviewer dispatch '
+                             'events as a cloud-path backstop.')
     args = parser.parse_args(argv)
 
     if args.grade_run_root is None:

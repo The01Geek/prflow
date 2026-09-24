@@ -83,6 +83,9 @@ devflow_probe_cli_version() {
   _p_out="$("$_p_jq" -rs '
     [ .. | objects | .claude_code_version? | strings | select(length > 0) ] | first // empty
   ' "$_p_file" 2>/dev/null)" || _p_out=""
+  # A native Windows jq.exe ends the line with CR, and only Git Bash's `$(…)` drops it;
+  # the alphabet check below would turn it into a false `unavailable` (#1121).
+  _p_out="${_p_out//$'\r'/}"
   # Cosmetic sanitization that fails CLOSED (the repo's rule for sanitizing with
   # anything that can come up empty): a value outside a plausible version alphabet
   # is reported unavailable rather than echoed into a Markdown step summary.

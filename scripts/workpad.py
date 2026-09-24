@@ -180,12 +180,13 @@ def _force_utf8_streams():
     tests never mutates the importer's global streams. Windows' default codec is
     cp1252, so the rocket/em-dash this script emits would otherwise raise
     `UnicodeEncodeError`; reconfigure overrides even a hostile `PYTHONIOENCODING`.
+    Output is LF-only: native Windows would write CRLF into the shell caller's value.
     The guard tolerates a stream replaced with a non-`TextIOWrapper` (e.g. a
     test's `io.StringIO`), which has no `reconfigure`."""
     for _stream in (sys.stdout, sys.stderr):
         try:
-            _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError, OSError):
+            _stream.reconfigure(encoding="utf-8", newline="\n")
+        except (AttributeError, TypeError, ValueError, OSError):
             pass
 
 
@@ -1338,12 +1339,14 @@ def _acs_diverge(issue_items: list[dict], workpad_items: list[dict],
     tick state moves as the run proceeds — so a raw-text comparison would report
     divergence on every PRFlow PR and carry no signal.
 
-    Reports DROPS, audited DEFERRALS, and TEXT CHANGES only — a criterion the
-    workpad no longer carries renders as `DEFERRED:` when a bound record
-    explains it and `DROP:` when nothing does, and a `rewritten` record renders
-    as `CHANGED:` — but only when that record actually carries a `newtext=`
-    payload; a `rewritten` record without one covers nothing and its criterion
-    routes to `DROP` like any other unexplained one. A criterion present in the workpad and
+    Reports DROPS, audited DEFERRALS, and TEXT CHANGES only. A criterion the
+    workpad no longer carries is explained by `_acs_rewrite_walk`: `CHANGED:`
+    naming the workpad text its `rewritten` chain reaches, else `DEFERRED:` when
+    the chain reaches a text a `deferred` record names. An unexplained criterion
+    keeps its pre-walk rendering: `CHANGED:` to its own record's `newtext=` (a
+    report line only — the source token still reads it as unexplained), else
+    `DROP:`. A `rewritten` record without `newtext=` is no edge and licenses no
+    `CHANGED:` line. A criterion present in the workpad and
     absent from the issue body is never a finding: that is exactly what the
     mirrored `## Test Plan` items look like, and `_render_md` writes them into
     one flat block with no heading, label, or marker, so the section carries no
@@ -1356,15 +1359,11 @@ def _acs_diverge(issue_items: list[dict], workpad_items: list[dict],
     """
     issue_norm = [normalize_criterion(it['text']) for it in issue_items]
     workpad_norm = {normalize_criterion(it['text']) for it in workpad_items}
-    deferred = {d['text'] for d in decisions if d['kind'] == 'deferred'}
     # A `rewritten` record with no `newtext=` field records nothing about what
     # replaced the criterion, so it licenses no text change: it is excluded here
-    # and its criterion falls through to `DEFERRED`/`DROP` like any other
-    # uncovered one. Crediting it as an audited `CHANGED:` would report a scope
-    # narrowing as reviewed on a record that establishes nothing — the same
-    # fail-closed direction `_parse_scope_decisions` takes for an empty payload,
-    # and the direction `_acs_pr_identity_ok` already takes for the same shape
-    # (its `new_text is not None` conjunct), which this line was asymmetric with.
+    # and, unless the walk explains its criterion, that criterion routes to `DROP`.
+    # Crediting it as an audited `CHANGED:` would report a scope narrowing as
+    # reviewed on a record that establishes nothing.
     rewritten = {d['text']: d['new_text'] for d in decisions
                  if d['kind'] == 'rewritten' and d['new_text']}
 
@@ -1372,10 +1371,13 @@ def _acs_diverge(issue_items: list[dict], workpad_items: list[dict],
     for text in issue_norm:
         if text in workpad_norm:
             continue
-        if text in rewritten:
+        reached = _acs_rewrite_walk(text, workpad_norm, decisions)
+        if reached is not None:
+            kind, target = reached
+            lines.append(f'CHANGED: {text} -> {target}' if kind == 'workpad'
+                         else f'DEFERRED: {text}')
+        elif text in rewritten:
             lines.append(f'CHANGED: {text} -> {rewritten[text]}')
-        elif text in deferred:
-            lines.append(f'DEFERRED: {text}')
         else:
             lines.append(f'DROP: {text}')
     return lines
@@ -1400,9 +1402,9 @@ def _acs_pr_identity_ok(issue_items: list[dict], workpad_items: list[dict],
     Fails CLOSED on an absent comparand, and does so PER CRITERION — never at
     the level of the record set as a whole. Every criterion the issue body
     carries and the workpad does not must be individually explained by a record
-    bound to this PR: a `deferred` record naming that criterion, or a
-    `rewritten` record naming it whose `new_text` is itself present in the
-    workpad (the criterion did not vanish, it was restated). One unexplained
+    bound to this PR: a chain of `rewritten` records from it reaching a text the
+    workpad carries (the criterion did not vanish, it was restated) or a text a
+    `deferred` record names (`_acs_rewrite_walk`). One unexplained
     criterion rejects the workpad, however many records exist — including the
     zero-record shape a pre-change workpad and a failed record write both take.
     An existential `bool(decisions)` test would instead let a single unrelated
@@ -1414,7 +1416,7 @@ def _acs_pr_identity_ok(issue_items: list[dict], workpad_items: list[dict],
     workpad_norm = {normalize_criterion(it['text']) for it in workpad_items}
     if not issue_norm or not workpad_norm:
         return True
-    # Pure short-circuit, NOT a load-bearing guard: on a superset the loop below
+    # Pure short-circuit, NOT a load-bearing guard: on a superset the `all()` below
     # iterates an empty difference and returns True on its own. Deleting this line
     # is behaviorally inert (mutation-checked green), so no test pins it and none
     # should be added claiming to — a test named for a guard that cannot fail is a
@@ -1422,16 +1424,37 @@ def _acs_pr_identity_ok(issue_items: list[dict], workpad_items: list[dict],
     # run.sh's `wp-superset.md` fixture.
     if workpad_norm >= issue_norm:
         return True
+    return all(_acs_rewrite_walk(text, workpad_norm, decisions) is not None
+               for text in issue_norm - workpad_norm)
+
+
+def _acs_rewrite_walk(text: str, workpad_norm: set[str],
+                      decisions: list[dict]) -> tuple[str, str] | None:
+    """Explain a criterion missing from the workpad by following `rewritten` records.
+
+    Walks breadth-first from `text` along every `rewritten` edge (OLD -> NEW), in
+    record order, visiting each text once, so a chain A->B->C, a fan-out, and a
+    cycle all resolve. Returns `('workpad', t)` for the first reached text the
+    workpad carries, else `('deferred', t)` for the first reached text a `deferred`
+    record names, else None. A `rewritten` record without `newtext=` is no edge.
+    `decisions` must already be bound to this PR by `_parse_scope_decisions`; the
+    walk does no binding of its own. Shared by `_acs_pr_identity_ok` and
+    `_acs_diverge`.
+    """
     deferred = {d['text'] for d in decisions if d['kind'] == 'deferred'}
-    rewritten = {d['text']: d['new_text'] for d in decisions if d['kind'] == 'rewritten'}
-    for text in issue_norm - workpad_norm:
-        if text in deferred:
-            continue
-        new_text = rewritten.get(text)
-        if new_text is not None and new_text in workpad_norm:
-            continue
-        return False
-    return True
+    edges = [(d['text'], d['new_text']) for d in decisions
+             if d['kind'] == 'rewritten' and d['new_text']]
+    order, seen = [text], {text}
+    for cur in order:
+        for old, new in edges:
+            if old == cur and new not in seen:
+                seen.add(new)
+                order.append(new)
+    hit = next((t for t in order if t in workpad_norm), None)
+    if hit is not None:
+        return 'workpad', hit
+    hit = next((t for t in order if t in deferred), None)
+    return None if hit is None else ('deferred', hit)
 
 
 def _acs_fetch_issue_body(issue: str) -> str:
@@ -7998,14 +8021,19 @@ def _extension_row_verdict(progress_content: str) -> None:
             for ln in lines
         )
         if not note_present:
-            offending.append(text)
+            offending.append((text, substr))
     if offending:
-        rows = '\n'.join(f'    - [ ] {t}' for t in offending)
+        rows = '\n'.join(
+            f'    - [ ] {t}\n      accepted note: '
+            f'{s[0].upper()}{s[1:]} — state not established (<cause>)'
+            for t, s in offending
+        )
         raise _UpdateError(
             "refusing to finalize Status: Complete — "
             f"{len(offending)} prompt-extension row(s) resolved-but-unrecorded: each "
-            "is unticked and carries no `state not established` note (tick it once the "
-            "extension's state was observed, or record that note, before finalizing) "
+            "is unticked and has no note line holding both its row name and the phrase "
+            "`state not established` (tick it once the extension's state was observed, "
+            "or record its accepted note, before finalizing) "
             f"[extension-row-unrecorded]:\n{rows}"
         )
 
@@ -8674,6 +8702,48 @@ def _render_scope_decisions(args) -> list[str]:
             _validate_scope_decision_text(new, flag, 'NEW criterion'),
         ))
     return notes
+
+
+def _check_rewrites_match_records(rows, records) -> None:
+    """Refuse a `--rewrite-ac` call whose rows disagree with its records (issue #1067).
+
+    `rows` holds one `[before, after]` text pair per rewritten row; `records` holds
+    the call's `--scope-decision-rewritten` `(PR, OLD, NEW)` triples. With no record
+    the call behaves as before. Otherwise rows and records must pair one-to-one: each
+    record's OLD and NEW `normalize_criterion` equal to its row's before and after
+    text. So a fragment NEW (which replaces the whole row) cannot land beside a
+    full-text record that claims otherwise, and no record in a `--rewrite-ac` call
+    can vouch for a rewrite that call did not make. Raises before any PATCH.
+    """
+    if not records:
+        return
+    pool = {}
+    for _pr, o, n in records:
+        pool.setdefault((normalize_criterion(o), normalize_criterion(n)), []).append((o, n))
+    for before, after in rows:
+        key = (normalize_criterion(before), normalize_criterion(after))
+        if pool.get(key):
+            pool[key].pop()
+            continue
+        # State both sides rather than guess which operand is wrong: the fragment
+        # may have picked the wrong row, or either record text may be the error.
+        unused = [pair for pairs in pool.values() for pair in pairs]
+        raise _UpdateError(
+            f"--rewrite-ac rewrote the Acceptance Criteria row reading {before!r} to "
+            f"{after!r}, and no unmatched --scope-decision-rewritten record in this "
+            f"call reads OLD {before!r} and NEW {after!r} (unmatched records: "
+            f"{', '.join(f'{o!r} -> {n!r}' for o, n in unused) or 'none'}). "
+            f"--rewrite-ac replaces the whole row: correct its OLD fragment, its NEW "
+            f"(the complete new criterion) or the record, one record per rewritten "
+            f"row. No PATCH was made."
+        )
+    leftover = next((pair for pairs in pool.values() for pair in pairs), None)
+    if leftover:
+        raise _UpdateError(
+            f"--scope-decision-rewritten record {leftover[0]!r} -> {leftover[1]!r} "
+            f"matches no row this call's --rewrite-ac rewrites; each record must "
+            f"describe one rewrite in the same call. No PATCH was made."
+        )
 
 
 def _resolve_head_branch() -> str:
@@ -9525,21 +9595,23 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # covers the `--rewrite-ac` channel only — the Phase 2.2.5
         # `--replace-acs-file` channel remains a deliberate, documented exception.
         pre_pm = _post_merge_flags(content)
+        # Row index -> [text before this call, text after it], for the record
+        # cross-check below. Indices are stable for the reason given above.
+        rewritten_rows: dict[int, list[str]] = {}
         for old, new in args.rewrite_ac:
-            if not has_note:
-                # Resolve the row this pair targets with the rewriter's own
-                # resolution, then ask whether the pair terminally tags it.
-                _row_text = _find_checkbox_row(
-                    content, old, 'Acceptance Criteria',
-                )[2].group(4)
-                if _pair_appends_post_merge(old, new, _row_text):
-                    raise _UpdateError(
-                        f"--rewrite-ac pair {old!r} -> {new!r} appends the "
-                        f"{_POST_MERGE_MARKER} tag but no non-empty --note "
-                        f"rationale was supplied; a mid-run {_POST_MERGE_MARKER} "
-                        f"retag must record why the deferral is genuinely-live "
-                        f"(§3.4). No PATCH was made."
-                    )
+            # Resolve the row this pair targets with the rewriter's own resolution.
+            _, _row_idx, _row_m = _find_checkbox_row(content, old, 'Acceptance Criteria')
+            _row_text = _row_m.group(4)
+            rewritten_rows.setdefault(_row_idx, [_row_text, new])[1] = new
+            # Without a note, ask whether the pair terminally tags the row it targets.
+            if not has_note and _pair_appends_post_merge(old, new, _row_text):
+                raise _UpdateError(
+                    f"--rewrite-ac pair {old!r} -> {new!r} appends the "
+                    f"{_POST_MERGE_MARKER} tag but no non-empty --note "
+                    f"rationale was supplied; a mid-run {_POST_MERGE_MARKER} "
+                    f"retag must record why the deferral is genuinely-live "
+                    f"(§3.4). No PATCH was made."
+                )
             content = _rewrite_checkbox(content, old, new, 'Acceptance Criteria')
         if not has_note and _net_adds_post_merge(pre_pm, _post_merge_flags(content)):
             raise _UpdateError(
@@ -9548,6 +9620,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"mid-run {_POST_MERGE_MARKER} retag must record why the deferral "
                 f"is genuinely-live (§3.4). No PATCH was made."
             )
+        _check_rewrites_match_records(
+            rewritten_rows.values(), getattr(args, 'scope_decision_rewritten', None) or [])
         sections[idx] = (heading, content)
 
     # Notes and checkpoint rows are both timestamped ## Progress bullets, so they
@@ -10384,8 +10458,10 @@ def main():
                'exclusive (pass one); each --record-* flag requires its own '
                'companion flags (e.g. --record-completion-evidence-ci requires '
                '--completion-ci-check; --record-verification-evidence requires '
-               'its evidence operands); and a --rewrite-ac pair that appends '
-               'the (post-merge) tag requires a non-empty --note rationale.',
+               'its evidence operands); a --rewrite-ac pair that appends '
+               'the (post-merge) tag requires a non-empty --note rationale; and '
+               '--rewrite-ac rows and any --scope-decision-rewritten records in '
+               'the same call must pair one-to-one.',
     )
     u.add_argument('issue', type=int)
     u.add_argument('--status', help='Replace the Status line value. A canonical '
@@ -10438,8 +10514,14 @@ def main():
                         'mutations applied).')
     u.add_argument('--rewrite-ac', nargs=2, metavar=('OLD', 'NEW'),
                    action='append', default=[],
-                   help='Find one AC matching OLD; replace its text with NEW. '
-                        'Preserves the checkbox state. For Phase 2.2.6. '
+                   help='Find the one AC row whose text contains OLD (any '
+                        'distinguishing fragment); replace the whole row text with '
+                        'NEW, so NEW is the complete new criterion. Preserves the '
+                        'checkbox state. For Phase 2.2.6. With '
+                        '--scope-decision-rewritten in the same call, rewritten '
+                        'rows and records must pair one-to-one (each row\'s text '
+                        'before and after the call, normalized, equal to its '
+                        'record\'s OLD and NEW), or the call aborts with no PATCH. '
                         'Repeatable: multiple pairs apply in argument order, each '
                         'validated by the exactly-one-match rule; any pair '
                         'matching zero or multiple rows aborts the whole call '

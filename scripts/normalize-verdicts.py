@@ -43,7 +43,7 @@ Output — one JSON object on stdout, rc 0 whenever the helper ran::
       "results": [ { "id", "raw_verdict", "verdict", "normalized",
                      "evidence", "file_checked", "view_revision", "source",
                      "defect", "defect_class",
-                     "normalization_ineligible" }, ... ],
+                     "normalization_ineligible", "demoted" (source-defect demotions only) }, ... ],
       "needs_retry": [ { "id", "kind": "verdict"|"auxiliary", "defect" }, ... ],
       "counts": { "normalized_count", "field_defect_fail_count" }
     }
@@ -63,6 +63,10 @@ fence and the body does not contain exactly one parseable object),
 ``id_mismatch``, ``no_verdict`` (neither file nor response_text),
 ``no_verdict_trusted_file_unreadable`` (same, but the named nonce file existed
 and could not be read — a filesystem fault a verifier re-dispatch cannot fix).
+Build mode adds ``verdict_file_absent`` (issue #1144): a fresh, unpinned agent item
+whose verdict came off ``response_text`` because its nonce file is absent keeps that
+verdict in the tally, and this one kind-``verdict`` entry replaces any auxiliary one —
+the fix loop's evidence gate FAILs the missing file, so the engine re-dispatches it.
 More than one ``json`` fence reads the LAST fence as authoritative
 (final-answer convention).
 
@@ -77,8 +81,8 @@ real traceback on stderr) so a single corrupt element never aborts the batch.
 
 Auxiliary-field defects (an absent / unknown-token / wrong-typed
 ``property_proven`` or ``inaccuracy_scope``) never invalidate a well-formed
-verdict: the item keeps its raw verdict and is normalization-ineligible. An
-auxiliary defect enters ``needs_retry`` with kind ``auxiliary`` for a
+verdict: the item keeps its raw verdict (or its source-defect demotion) and is
+normalization-ineligible. An auxiliary defect enters ``needs_retry`` with kind ``auxiliary`` for a
 field-completion re-ask only on an item that is an agent-mode
 (``verification_mode == "agent"``), ``claim_provenance: "generated_paraphrase"``
 pair whose raw verdict is the byte-exact token ``FAIL`` **and** that is not
@@ -100,8 +104,8 @@ provenance, and a trusted verdict file present but unreadable.
 
 Reading the verdict bytes off the fallback ``response_text`` channel when the
 named nonce file was PRESENT but unreadable is a real-value normalization blocker
-(the trusted binding was abandoned), distinct from the legitimate absent-file
-fallback, which is not.
+(the trusted binding was abandoned). An absent file is not a blocker; see
+``verdict_file_absent`` above for when build mode re-dispatches it.
 
 The five-conjunct normalization predicate (raw FAIL -> stored PASS) holds exactly
 when ALL hold: (1) ``verification_mode == "agent"``; (2)
@@ -110,6 +114,14 @@ when ALL hold: (1) ``verification_mode == "agent"``; (2)
 ``"true"`` does not qualify — a real type check); (5)
 ``inaccuracy_scope == "generated_claim_text"``. No malformed shape of any class
 ever resolves to a stored PASS.
+
+Source-defect demotion (issue #1140): a raw ``PASS`` on a
+``claim_provenance: "source_authored"`` item whose ``inaccuracy_scope`` is exactly
+``source_authored_text`` reports the item's own authored subject false, so it is stored
+``FAIL`` with an added ``demoted: true`` key, ``raw_verdict: "PASS"`` and the ``CONFIRMED SOURCE DEFECT
+(raw PASS): `` evidence prefix, and draws no auxiliary re-ask. A defective scope field never demotes.
+In build mode a non-``ok`` view state still stores ``INCONCLUSIVE`` with the view marker
+instead.
 
 An item whose ``category`` is ``issue_acceptance`` is additionally never
 normalization-eligible: such items satisfy conjuncts (1) and (2) structurally, so
@@ -126,7 +138,7 @@ writes the combined verification array, so the orchestrator types only judgment:
       "response_text":  { "VC-9": "<response of a verifier that wrote no file>" },
       "pinned_verdict": { "VC-4": "FAIL" },               # field-completion re-ask
       "pinned_from":    { "VC-4": "<first answer's nonce>" },   # its provenance source
-      "recovered":      { "VC-9": { "verdict", "evidence" } },  # in-context recovery
+      "recovered":      { "VC-9": { "verdict", "evidence", "inaccuracy_scope"? } },  # in-context recovery
       "views":          { "head": { "revision": "<40-hex>", "inventory": "<path>" },
                           "base": { "revision": "<40-hex>", "inventory": "<path>" } }
     }
@@ -134,9 +146,11 @@ writes the combined verification array, so the orchestrator types only judgment:
 ``views`` (issue #851) binds the run's head and base source-view inventories. When present,
 the collector runs a provenance gate before the tally: a verdict whose ``view_revision`` is
 not the bound head or base, is absent, or whose ``file_checked`` path is absent from that
-view's inventory and not recorded there as ``deleted``, is left unestablished and cannot earn
+view's inventory and not recorded there as ``deleted`` (a bare directory holding a present
+entry counts as present), is left unestablished and cannot earn
 PASS (a raw PASS is forced to INCONCLUSIVE with a ``view_ineligible`` marker; cited evidence
-text is never byte-compared). The gate is inert when ``views`` is absent, so a legacy run is
+text is never byte-compared). A 12-39 lowercase-hex ``view_revision`` prefixing exactly one bound
+revision is first replaced by that revision, with an ``input_warnings`` line. The gate is inert when ``views`` is absent, so a legacy run is
 unaffected and the wording-only normalization contract is unchanged. The summary carries a
 ``view_check`` object ``{bound_revisions, states}``.
 
@@ -154,7 +168,9 @@ nonce comes ONLY from ``nonces``, never from a directory listing, so the binding
 above holds. No stored verdict is ever null: an item with no usable verdict stores
 ``INCONCLUSIVE`` naming the defect, and ``recovered`` applies only to a
 verdict-defect item. Every optional input is classified in ``inputs_seen`` and a
-wrong-typed one is ignored with an ``input_warnings`` line. Stdout is the summary
+wrong-typed one is ignored with an ``input_warnings`` line. A wrong-typed
+``response_text`` value is ignored and an empty one read, each with a line, as is a
+supplied map lacking a file-less item. Stdout is the summary
 ``{written, tally, counts, needs_retry, non_pass, inputs_seen, input_warnings}``;
 when the ``--out`` write fails, ``written`` is null and the array rides along as
 ``verification`` for the orchestrator to Write.
@@ -242,6 +258,7 @@ def _force_utf8_streams():
 VERDICT_ENUM = ("PASS", "FAIL", "INCONCLUSIVE")
 SCOPE_ENUM = ("generated_claim_text", "source_authored_text", "none")
 NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
+SOURCE_DEFECT_PREFIX = "CONFIRMED SOURCE DEFECT (raw PASS): "
 # Single-sourced so the contradiction detection below compares against the SAME literal
 # the blocker assembly appends — a renamed string here can never silently stop the
 # is_contradiction match firing.
@@ -361,7 +378,8 @@ def _read_verdict_bytes(pair):
     the exact ``verdict_path`` named in this pair (ignoring every unnamed file);
     falls back to the transcribed ``response_text`` when no readable file exists.
 
-    An ABSENT file is the legitimate fallback and yields ``source == "response_text"``.
+    An ABSENT file is the fallback and yields ``source == "response_text"``; ``build()``
+    decides its re-dispatch.
     A file that is PRESENT but unreadable (permission error or invalid UTF-8) is an
     anomaly — the trusted channel was abandoned — so it yields
     ``source == "response_text_file_unreadable"`` (still a response_text read) so the
@@ -373,7 +391,7 @@ def _read_verdict_bytes(pair):
             with open(path, "r", encoding="utf-8") as fh:
                 return fh.read(), "file"
         except FileNotFoundError:
-            pass  # file genuinely absent -> the legitimate silent fallback
+            pass  # file absent -> response_text fallback; build() decides re-dispatch
         except (OSError, UnicodeDecodeError, ValueError):
             # ValueError is NOT an OSError subclass: an embedded NUL in the
             # LLM-transcribed path (json.loads accepts it) makes open() raise
@@ -488,7 +506,7 @@ def _process_pair(pair, first=None):
 
     evidence = obj.get("evidence")
     result["raw_verdict"] = raw
-    result["verdict"] = raw  # stored verdict defaults to raw; normalization may flip it
+    result["verdict"] = raw  # defaults to raw; normalization or source-defect demotion may flip it
     result["evidence"] = evidence if isinstance(evidence, str) else None
     fc = obj.get("file_checked")
     result["file_checked"] = fc if isinstance(fc, str) else None
@@ -536,7 +554,7 @@ def _process_pair(pair, first=None):
     if trusted_channel_lost:
         # A real-value blocker, not a field defect: a raw FAIL read over an abandoned
         # trusted channel must never silently store as PASS. (A genuinely ABSENT file
-        # is the legitimate fallback and does not reach here.)
+        # does not reach here.)
         real_blockers.append("trusted verdict file present but unreadable")
 
     can_normalize = (
@@ -552,7 +570,13 @@ def _process_pair(pair, first=None):
         result["evidence"] = NORMALIZED_PREFIX + base
         return result, None, False
 
-    # not normalized: record the ineligibility reason(s)
+    if (raw == "PASS" and provenance == "source_authored"
+            and obj.get("inaccuracy_scope") == "source_authored_text"):
+        result["verdict"] = "FAIL"
+        result["demoted"] = True
+        result["evidence"] = _source_defect_evidence(result["evidence"])
+
+    # raw FAIL not normalized: record the ineligibility reason(s)
     if raw == "FAIL":
         blockers = real_blockers + field_defect_blockers
         if blockers:
@@ -804,8 +828,42 @@ def _bare_key(text, prefixes):
     for form in forms:
         for prefix in prefixes:
             if form.startswith(prefix + "/"):
-                return form[len(prefix) + 1:]
+                return _ViewStripped(form[len(prefix) + 1:])
     return key
+
+
+class _ViewStripped(str):
+    """A key a bound view's directory prefix was stripped from: it may name a file, never a
+    directory (issue #1123 accepts only the bare repository form of a directory)."""
+
+
+class _ViewInventory(frozenset):
+    """One bound view's inventory keys, plus ``has_dir``: whether a key is a directory holding at
+    least one present (not ``deleted``) entry."""
+
+    def __new__(cls, paths, dirs=()):
+        inv = super().__new__(cls, paths)
+        inv._dirs = frozenset(dirs)
+        return inv
+
+    def has_dir(self, key):
+        return key in self._dirs
+
+
+def _in_view(key, inventory):
+    """Whether one cited key is in the view: an inventory path, or (issue #1123) a tracked
+    directory as the inventory's ``has_dir`` answers it. Only a bare, segment-clean relative key
+    is tried as a directory — never ``""``, ``.``, ``/``, a trailing ``/``, an absolute or ``..``
+    spelling, or a view-prefixed key. ``has_dir`` is asked, never iterated, so carry's
+    membership-only object works; an inventory without it (a plain set) holds no directory."""
+    if key in inventory:
+        return True
+    if (not isinstance(key, str) or isinstance(key, _ViewStripped) or not key
+            or key.startswith("/") or os.path.isabs(key)
+            or any(seg in ("", ".", "..") for seg in key.split("/"))):
+        return False
+    has_dir = getattr(inventory, "has_dir", None)
+    return callable(has_dir) and has_dir(key) is True
 
 
 def _cited_paths(fc, prefixes, inventory):
@@ -817,21 +875,37 @@ def _cited_paths(fc, prefixes, inventory):
     in the inventory, it is the one citation — so a real path containing `` and `` or ``,`` is
     never split when cited alone. Otherwise the value is split on ``;`` / `` and `` / ``,`` and
     each part reduced; a part that is only an anchor item (``682``, ``12-40``, ``12-``) belongs to
-    the path before it and is dropped; a part that reduces to nothing (the view directory alone)
-    keeps its original text, and a value that yields no part at all (anchor items only, a
+    the path before it and is dropped. A part missing from the inventory that holds whitespace
+    (``a.py:12 b.py:40``, issue #1102) becomes its whitespace pieces, reduced the same way, only
+    when every piece is in the inventory; otherwise it stays whole and misses. An anchor-item
+    piece is dropped only where it continues an anchor list (leading the part, or after an
+    anchored piece), so ``a.py 12`` keeps ``12`` as a piece and misses.
+    Membership is ``_in_view`` (a path, or a tracked directory): carry passes a membership-only object. A part that
+    reduces to nothing (the view directory alone) keeps its original text, and a value that yields no part at all (anchor items only, a
     separator alone) is returned as itself — both are non-members, so a citation that names no
     file demotes exactly as before. Only a non-string or the empty string ``""`` returns ``[]``
     (unchanged: those were never path-checked)."""
     if not isinstance(fc, str) or fc == "":
         return []
     whole = _bare_key(fc, prefixes)
-    if whole in inventory:
+    if _in_view(whole, inventory):
         return [whole]
     keys = []
     for part in fc.replace(" and ", ";").replace(",", ";").split(";"):
         raw = part.strip()
         if raw and _strip_line_anchor("x:" + raw) != "x":
-            keys.append(_bare_key(raw, prefixes) or raw)
+            key = _bare_key(raw, prefixes) or raw
+            if len(raw.split()) > 1 and not _in_view(key, inventory):
+                pieces, anchored = [], True  # a leading anchor item drops, as an anchor-only part does
+                for p in raw.split():
+                    if anchored and _strip_line_anchor("x:" + p) == "x":
+                        continue
+                    pieces.append(_bare_key(p, prefixes))
+                    anchored = _strip_line_anchor(p) != p
+                if pieces and all(p and _in_view(p, inventory) for p in pieces):
+                    keys.extend(pieces)
+                    continue
+            keys.append(key)
     return keys or [fc]
 
 
@@ -840,7 +914,8 @@ def _load_view_index(views):
 
     ``index`` maps each bound revision SHA to the set of paths its inventory records (present
     entries AND ``kind: "deleted"`` records alike — a deleted record is legitimate absence, not
-    an unread path). ``bound_revisions`` is the set of the run's head/base revisions and
+    an unread path) as a ``_ViewInventory`` whose ``has_dir`` names each directory holding a
+    present entry. ``bound_revisions`` is the set of the run's head/base revisions and
     ``head_revision`` is the head slot's revision (or ``None``); ``dirs`` maps each bound revision
     to its view-directory prefixes (``_view_prefixes``). A malformed ``views`` block, or
     an unreadable/mis-shaped inventory, yields no bound revision for that slot and a warning; when
@@ -879,7 +954,10 @@ def _load_view_index(views):
         # name the verifier Reads, so it is a key of this view alongside the original path.
         paths = {e[k] for e in entries if isinstance(e, dict)
                  for k in ("path", "stored_path") if isinstance(e.get(k), str)}
-        index[revision] = paths
+        present = {e["path"] for e in entries if isinstance(e, dict)
+                   and isinstance(e.get("path"), str) and e.get("kind") != "deleted"}
+        index[revision] = _ViewInventory(paths, {p.rsplit("/", i)[0] for p in present
+                                                 for i in range(1, p.count("/") + 1)})
         dirs[revision] = _view_prefixes(inv_path)
         bound.add(revision)
         if slot == "head":
@@ -887,18 +965,27 @@ def _load_view_index(views):
     return index, bound, head_revision, warnings, dirs
 
 
+def _expand_view_prefix(vr, bound):
+    """Return the one bound revision ``vr`` prefixes when ``vr`` is 12-39 lowercase hex, else ``None``.
+    Keep ``_is_hex40`` strict: the ``views`` slot validation shares it."""
+    if not (isinstance(vr, str) and 12 <= len(vr) <= 39 and all(c in _HEX40 for c in vr)):
+        return None
+    matches = [rev for rev in bound if rev.startswith(vr)]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _view_state(entry, index, bound, dirs):
     """Classify a verification entry's view provenance against the bound inventories.
     Returns ``"ok"`` | ``"absent"`` | ``"wrong-revision"`` | ``"path-not-in-inventory"``.
     Cited evidence text is never inspected — only ``view_revision`` and ``file_checked``;
-    every path ``file_checked`` cites (``_cited_paths``) must be in that view's inventory."""
+    every path ``file_checked`` cites (``_cited_paths``) must be in that view (``_in_view``)."""
     vr = entry.get("view_revision")
     if not _is_hex40(vr):
         return "absent"
     if vr not in bound:
         return "wrong-revision"
     inventory = index.get(vr, set())
-    if any(key not in inventory
+    if any(not _in_view(key, inventory)
            for key in _cited_paths(entry.get("file_checked"), dirs.get(vr, ()), inventory)):
         return "path-not-in-inventory"
     return "ok"
@@ -968,13 +1055,28 @@ def _stub(item_id, evidence, **extra):
             "file_checked": None, **extra}
 
 
+def _source_defect_evidence(evidence):
+    """Prefix `evidence` with the source-defect marker once, so _demote_pass's single strip removes it."""
+    evidence = evidence or ""
+    return evidence if evidence.startswith(SOURCE_DEFECT_PREFIX) else SOURCE_DEFECT_PREFIX + evidence
+
+
+def _view_gated(entry):
+    """True for an entry the view gate must not let stand: a PASS, or a raw PASS the
+    source-defect arm demoted (view ineligibility dominates that demotion)."""
+    return entry.get("verdict") == "PASS" or entry.get("demoted") is True
+
+
 def _demote_pass(entry, state):
-    """Force a PASS to INCONCLUSIVE with the view-ineligibility marker for `state`,
-    prefixing the prior evidence. Both build() view-gate arms share this contract."""
+    """Force a PASS or demoted FAIL to INCONCLUSIVE with the view-ineligibility marker
+    for `state`, prefixing the prior evidence. Both build() view-gate arms share this contract.
+    Undoes a source-defect demotion first, so its marker never reaches the fixer."""
+    evidence = entry.get("evidence") or ""
+    if entry.pop("demoted", None) is True:
+        evidence = evidence.removeprefix(SOURCE_DEFECT_PREFIX)
     entry["verdict"] = "INCONCLUSIVE"
     entry["view_ineligible"] = state
-    entry["evidence"] = (VIEW_INELIGIBLE_PREFIX + f"provenance {state}: "
-                         + (entry.get("evidence") or ""))
+    entry["evidence"] = VIEW_INELIGIBLE_PREFIX + f"provenance {state}: " + evidence
 
 
 def build(inputs_file, checklist_file, verdicts_dir, out_file):
@@ -1060,6 +1162,10 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             for field in ("response_text", "pinned_verdict"):
                 if isinstance(inp[field].get(key), str):
                     pair[field] = inp[field][key]
+            rt = inp["response_text"].get(key)
+            if key in inp["response_text"] and not (isinstance(rt, str) and rt):
+                warnings.append(f"response_text[{key!r}]: " + ("empty string" if rt == "" else
+                                f"expected string, got {_shape(True, rt)} -- ignored"))
             if key in pinned_from:
                 first, why = _first_provenance(
                     os.path.join(verdicts_dir, f"{key}-{pinned_from[key]}.json"))
@@ -1072,8 +1178,24 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             pairs.append(pair)
 
     ran = run_pairs(pairs, firsts)
+    # issue #1144: a fresh, unpinned agent item whose verdict came off the response_text
+    # fallback has no nonce file, so the fix loop's evidence gate FAILs it. Keep the verdict, and
+    # replace any auxiliary re-ask with one full re-dispatch. Decided from file absence
+    # (the source), never from the verdict value.
+    absent_ids = []
+    for pair, result in zip(pairs, ran["results"]):
+        key = result.get("id")
+        if (result.get("source") == "response_text" and result.get("defect_class") != "verdict"
+                and pair.get("pinned_verdict") not in VERDICT_ENUM and key not in absent_ids):
+            absent_ids.append(key)
+        elif (result.get("source") == "none" and isinstance(key, str)
+                and isinstance(inputs.get("response_text"), dict) and key not in inp["response_text"]):
+            warnings.append(f"response_text[{key!r}]: missing and no verdict file")
+    needs_retry = [r for r in ran["needs_retry"]
+                   if not (r.get("id") in absent_ids and r.get("kind") == "auxiliary")]
+    needs_retry += [{"id": k, "kind": "verdict", "defect": "verdict_file_absent"} for k in absent_ids]
     recovered_ids = set()
-    for slot, result in zip(slots, ran["results"]):
+    for slot, pair, result in zip(slots, pairs, ran["results"]):
         item_id = result.get("id")
         if result.get("verdict") is None:
             rec = inp["recovered"].get(item_id) if isinstance(item_id, str) else None
@@ -1084,6 +1206,12 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
                 result["evidence"] = ev if isinstance(ev, str) else "recovered via in-context parse"
                 result["source"] = "recovered"
                 recovered_ids.add(item_id)
+                # issue #1140: a recovered reply's scope demotes exactly as a parsed one does.
+                if (rec["verdict"] == "PASS" and rec.get("inaccuracy_scope") == "source_authored_text"
+                        and pair["item"].get("claim_provenance") == "source_authored"):
+                    result["verdict"] = "FAIL"
+                    result["demoted"] = True
+                    result["evidence"] = _source_defect_evidence(result["evidence"])
             else:
                 result["verdict"] = "INCONCLUSIVE"
                 result["evidence"] = f"verifier produced no usable verdict ({result.get('defect')})"
@@ -1121,10 +1249,15 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
                                     head_paths)
                 if keys and all(key in head_paths for key in keys):
                     entry["view_revision"] = head_revision
+            prefix = entry.get("view_revision")
+            full = _expand_view_prefix(prefix, bound_revisions)
+            if full is not None:
+                entry["view_revision"] = full
+                warnings.append(f"{entry.get('id')}: view_revision {prefix} expanded to bound revision {full}")
             state = _view_state(entry, view_index, bound_revisions, view_dirs)
             entry["view_state"] = state
             view_states[state] = view_states.get(state, 0) + 1
-            if state != "ok" and entry.get("verdict") == "PASS":
+            if state != "ok" and _view_gated(entry):
                 _demote_pass(entry, state)
     elif views_supplied:
         # The run supplied views (it intended commit binding) but none were usable — every slot
@@ -1134,7 +1267,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
         for entry in verification:
             entry["view_state"] = "views-unusable"
             view_states["views-unusable"] += 1
-            if entry.get("verdict") == "PASS":
+            if _view_gated(entry):
                 _demote_pass(entry, "views-unusable")
 
     tally = {"pass": 0, "fail": 0, "inconclusive": 0, "lite": lite_count,
@@ -1143,7 +1276,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
         tally[entry["verdict"].lower()] += 1
 
     out = {"written": out_file, "tally": tally, "counts": ran["counts"],
-           "needs_retry": [r for r in ran["needs_retry"] if r.get("id") not in recovered_ids],
+           "needs_retry": [r for r in needs_retry if r.get("id") not in recovered_ids],
            "non_pass": [e for e in verification if e["verdict"] != "PASS"],
            "inputs_seen": seen, "input_warnings": warnings,
            "view_check": {"bound_revisions": sorted(bound_revisions), "states": view_states}}

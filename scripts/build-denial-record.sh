@@ -24,11 +24,11 @@
 # aborted). The caller gates the env handoff on non-empty stdout.
 #
 # ONE DOCUMENTED EXCEPTION to "the count and tool_name are always persisted" (below):
-# when the credential scrub CANNOT RUN, this helper emits NOTHING AT ALL — not a record
-# carrying only the count. AC4's fail-closed rule wins over AC5/AC7's always-on rule,
-# deliberately: the scrub-unavailable arm means `sed` could not be executed, and rather
-# than reason about which fields of a partially-derived record are still trustworthy the
-# helper declines the whole run and breadcrumbs. So read the always-on property as
+# when a denied command CANNOT BE DECODED OR SCRUBBED, this helper emits NOTHING AT ALL —
+# not a record carrying only the count. AC4's fail-closed rule wins over AC5/AC7's
+# always-on rule, deliberately: rather than reason about which fields of a partially-
+# derived record are still trustworthy, the helper declines the whole run and breadcrumbs
+# the failed step. So read the always-on property as
 # "never gated by the CONFIG KEY", which is what AC5/AC7 are about — not as "survives a
 # fail-closed abort".
 #
@@ -100,11 +100,14 @@ fi
 # literal "unavailable", never 0. tool_names is the deduped, sorted set of denied tool
 # identifiers (a fixed vocabulary — Bash, Write, …), always emitted (may be []).
 if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
+    # Keep the sub-trim before tonumber: jq 1.8 rejects padding 1.7 accepts (issue #1082); trim/0 is absent in jq 1.6.
+    def denial_num: (sub("^\\s+"; "") | sub("\\s+$"; "") | tonumber)?;
     ([.. | objects | (.permission_denials? // empty)
        | if type == "array" then .[] else . end
        | select(type == "object")]) as $denials_all
     | ($denials_all | unique) as $denials
-    | (last(.. | objects | select(.type? == "result"))) as $r
+    # [f] | last, never last(f): under jq 1.8 last(empty) yields nothing, emptying the whole program (issue #999).
+    | ([.. | objects | select(.type? == "result")] | last) as $r
     | ($denials | length) as $dcount
     # Array-presence signal (issue #2064), independent of the object filter above: any
     # permission_denials value that is an array is a MEASUREMENT even when empty or
@@ -120,7 +123,7 @@ if ! COUNT_TOOLS=$("$DEVFLOW_JQ" -rs '
     # direction, but it defeats a real positive count (issue #1064 review).
     | (if $r == null then null
        else ($r.permission_denials_count
-             | if type == "string" then (tonumber? // null) else . end) end) as $rc
+             | if type == "string" then (denial_num // null) else . end) end) as $rc
     | (if $rc != null
        then (if $dcount > $rc then $dcount else $rc end)
        elif ($dcount > 0 or $has_pd_array) then $dcount
@@ -174,6 +177,8 @@ _bdr_result_present=false
 # One jq pass over $COUNT_TOOLS for both drift operands. A jq failure yields empty output, so
 # read leaves _bdr_count empty and the warning stays suppressed (the safe direction).
 IFS=$'\t' read -r _bdr_count _bdr_result_present < <(printf '%s' "$COUNT_TOOLS" | "$DEVFLOW_JQ" -r '[.count, (.result_present // false)] | @tsv' 2>/dev/null)
+# A native Windows jq.exe ends the line with CR, which `read` leaves on the last field (#1050).
+_bdr_result_present="${_bdr_result_present//$'\r'/}"
 if [ "$_bdr_count" = unavailable ] && [ "$_bdr_result_present" = true ]; then
   echo "prflow: build-denial-record.sh: execution-file shape drift suspected — a result event was present but permission_denials_count could not be established (no count field, no permission_denials array); the execution-file shape may have changed" >&2
 fi
@@ -248,7 +253,7 @@ if [ "$COMMANDS_ENABLED" = true ]; then
           TRUNCATED=false ;;
         present)
           # Extract the raw command strings, scrub each through the shared helper, and
-          # rebuild a JSON array. FAIL CLOSED (AC4): if the scrub cannot run for ANY
+          # rebuild a JSON array. FAIL CLOSED (AC4): if decode or scrub fails for ANY
           # command, emit NOTHING for the whole run — an unscrubbed persist to a durable
           # branch is worse than an absent record.
           _raw_cmds="$(printf '%s' "$CMDS_JSON" | "$DEVFLOW_JQ" -c '.commands' 2>/dev/null)" || _raw_cmds=""
@@ -261,23 +266,33 @@ if [ "$COMMANDS_ENABLED" = true ]; then
             # re-parsing/re-serializing a growing JSON string with `. + [$s]` per element —
             # keeps the loop linear rather than O(n²) in the payload.)
             _scrubbed_cmds=()
-            _scrub_ok=1
+            _fail_step=""
             while IFS= read -r _b64; do
+              # A native Windows jq.exe ends each line with CR, which `read` keeps and
+              # @base64d rejects after an unpadded payload (#1050). Base64 never holds a CR.
+              _b64="${_b64//$'\r'/}"
               [ -n "$_b64" ] || continue
-              _cmd="$("$DEVFLOW_JQ" -rn --arg b "$_b64" '$b | @base64d' 2>/dev/null)" || { _scrub_ok=0; break; }
+              if ! _cmd="$("$DEVFLOW_JQ" -rn --arg b "$_b64" '$b | @base64d' 2>/dev/null)"; then
+                # jq's stderr quotes the operand's head (encoded command text), so it is never echoed.
+                _fail_step=decode
+                break
+              fi
               if _scrubbed="$(printf '%s' "$_cmd" | "$_BDR_DIR/scrub-credentials.sh")"; then
                 _scrubbed_cmds+=("$_scrubbed")
               else
-                # scrub-credentials.sh exited non-zero (sed unavailable / failed) →
-                # fail closed for the whole record.
-                _scrub_ok=0
+                # scrub-credentials.sh already breadcrumbed its cause (sed unavailable / failed).
+                _fail_step=scrub
                 break
               fi
             done < <(printf '%s' "$_raw_cmds" | "$DEVFLOW_JQ" -r '.[] | @base64' 2>/dev/null)
-            if [ "$_scrub_ok" -ne 1 ]; then
-              echo "prflow: build-denial-record.sh: credential scrub could not run over the denied command text — persisting NOTHING for this run (fail-closed, AC4)" >&2
-              exit 0
-            fi
+            case "$_fail_step" in
+              decode)
+                echo "prflow: build-denial-record.sh: decode step failed on a denied command — persisting NOTHING for this run (fail-closed, AC4)" >&2
+                exit 0 ;;
+              scrub)
+                echo "prflow: build-denial-record.sh: scrub step failed — credential scrub could not run over the denied command text; persisting NOTHING for this run (fail-closed, AC4)" >&2
+                exit 0 ;;
+            esac
             # Build the scrubbed array once from the collected strings ($ARGS.positional is
             # the empty array [] when no commands were collected, matching a genuine zero).
             # `${arr[@]+"${arr[@]}"}` expands to nothing on an empty array without tripping

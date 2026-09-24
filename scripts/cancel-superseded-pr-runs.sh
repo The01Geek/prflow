@@ -122,6 +122,7 @@ CANCEL_IDS="$(printf '%s' "$RUNS_JSON" | "$DEVFLOW_JQ" -r \
 CANDIDATES=0
 CANCELLED=0
 while IFS= read -r _rid; do
+  _rid="${_rid%$'\r'}"  # a native Windows jq.exe ends each line with CR
   [ -n "$_rid" ] || continue
   case "$_rid" in ''|*[!0-9]*) continue ;; esac
   CANDIDATES=$((CANDIDATES + 1))

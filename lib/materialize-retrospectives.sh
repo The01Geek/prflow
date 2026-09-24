@@ -90,7 +90,10 @@ if ! REDACT_ERR="$("$DEVFLOW_JQ" -c '
     cp "$NEW_FILE" "$REDACTED"
 fi
 
+# A native Windows jq.exe writes CRLF; JSON escapes a real CR, so any raw CR is that
+# translation and is dropped to keep the committed JSONL LF-only (#1050).
 while IFS= read -r line; do
+    line="${line%$'\r'}"
     [ -z "$line" ] && continue
 
     pr="$("$DEVFLOW_JQ" -r '.pr' <<<"$line")"
@@ -111,8 +114,9 @@ while IFS= read -r line; do
         NEW_TMP="$(mktemp)"
         # shellcheck disable=SC2064
         trap "rm -f '$NEW_TMP' '$TMP' '$REDACTED'" EXIT
-        "$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" --argjson repl "$line" \
-            'if .repo==$repo and .pr==$pr and .kind==$kind then $repl else . end' "$TMP" > "$NEW_TMP"
+        _replaced="$("$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" --argjson repl "$line" \
+            'if .repo==$repo and .pr==$pr and .kind==$kind then $repl else . end' "$TMP")"
+        printf '%s\n' "${_replaced//$'\r'/}" > "$NEW_TMP"
         mv "$NEW_TMP" "$TMP"
         # Restore trap to only clean $TMP/$REDACTED now that $NEW_TMP is gone (renamed to $TMP)
         trap 'rm -f "$TMP" "$REDACTED"' EXIT

@@ -46,10 +46,12 @@
 # nine-field cause set read from the execution file. This helper reads those
 # values from the environment (positional operands unchanged) and, when one is
 # PRESENT, names the engine's own reason ahead of the two-operand clause. PRESENT
-# means a real value: the empty string, the literal `unavailable` (absent source),
-# and the literal `null` (a key present with a JSON null) are all NOT present, so
-# a run whose whole cause set is unavailable falls through to the clause below
-# exactly as before this change. Precedence, first present wins:
+# means a real value once CR is stripped: the empty string, the literal
+# `unavailable` (absent source), the renderer's own `n/a`, and the literal `null`
+# (a key present with a JSON null) are all NOT present, so a run whose whole cause
+# set is unavailable falls through to the clause below. The recovery arm shares
+# this test, so a runner name or annotation that is exactly `n/a` renders
+# `unavailable` too. Precedence, first present wins:
 #   1. RATE_LIMIT_TYPE  — a rejected rate-limit event; names the limit type and
 #      the raw RATE_LIMIT_RESETS_AT as recorded (no date conversion).
 #   2. TERMINAL_REASON  — names it with SUBTYPE and API_ERROR_STATUS.
@@ -74,12 +76,11 @@ set -u
 CLAUDE_OUTCOME="${1:-}"
 ENGINE_IS_ERROR="${2:-}"
 
-# A cause-set value counts only when it carries a real reason: the absent sentinel
-# `unavailable` and a present JSON `null` must not select a richer arm, or a run
-# with no cause set would name a `null` cause instead of the two-operand clause.
+# An absent sentinel must not select a richer arm, or a dead run would name a cause
+# it never measured, such as `rate-limited (n/a)`.
 _present() {
-  case "$1" in
-    "" | unavailable | null) return 1 ;;
+  case "${1//$'\r'/}" in
+    "" | unavailable | n/a | null) return 1 ;;
     *) return 0 ;;
   esac
 }
@@ -144,6 +145,10 @@ elif [ -z "$CLAUDE_OUTCOME" ]; then
 else
   CLAUSE="claude step ${CLAUDE_OUTCOME}"
 fi
+
+# A present value is printed as recorded, so drop any CR an older renderer left on
+# it (issue #1121): a CR would split the one-line clause.
+CLAUSE="${CLAUSE//$'\r'/}"
 
 # Cap at 200 characters (AC): a bounded clause keeps the comment line and the
 # progress line legible. `${var:0:200}` is a bash builtin — no un-guaranteed tool.

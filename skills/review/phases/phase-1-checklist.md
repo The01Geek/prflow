@@ -23,7 +23,7 @@ Run `checklist carry <work-dir> <N> <prior_diff_head>` (the commit id as a liter
 
 The helper establishes the changed-file set — what moved between the prior iteration's reviewed head and this one — with `git diff --name-only --no-renames <prior_diff_head> HEAD`, and fails closed when it cannot: `prior_diff_head` does not resolve (as in a shallow cloud checkout), or the `git diff` exits non-zero. It then carries nothing and prints the breadcrumb `carry-forward: none (<cause>)` — log it. An exit-0 empty output is a genuinely empty changed set, not a failure. An absent `prior_diff_head` never reaches here — this step is skipped and the loop logs that cause itself.
 
-**Carry a prior item** iff all three hold: its `category` is not `issue_acceptance`; its `source_file` is in this run's Phase 0.3 changed-file list; and its `source_file` is not in the changed-file set above. A carried item keeps its prior `id` and `claim_signature`. It reuses its prior PASS only when its verification row's `verdict` is `PASS` and every path its `file_checked` cites (the whole value, else each part split on `;`, `,` or ` and `; anchor lists removed) is a regular file tracked at HEAD, spelled as git records it, and outside the changed-file set — evidence the collector's provenance gate can re-bind to this head; any other citation (`null`, free text, `./` or `..` spellings, a symlink, an untracked or changed path) verifies fresh. A reused PASS can still rest on an unchanged file whose cross-file dependency moved; Phase 3 over the whole diff is the check on that.
+**Carry a prior item** iff all three hold: its `category` is not `issue_acceptance`; its `source_file` is in this run's Phase 0.3 changed-file list; and its `source_file` is not in the changed-file set above. A carried item keeps its prior `id` and `claim_signature`. It reuses its prior PASS only when its verification row's `verdict` is `PASS` and every path its `file_checked` cites (the whole value, else each part split on `;`, `,` or ` and `, then on whitespace if every piece is tracked; anchor lists removed) is a regular file tracked at HEAD, spelled as git records it, and outside the changed-file set — evidence the collector's provenance gate can re-bind to this head; any other citation (`null`, free text, `./` or `..` spellings, a symlink, an untracked or changed path) verifies fresh. A reused PASS can still rest on an unchanged file whose cross-file dependency moved; Phase 3 over the whole diff is the check on that.
 
 The carried items — never the full prior array — are the `prior_checklist` §1.2 hands the generator, by the `carried.json` path, so its signature drop reaches only carried claims and a claim about a changed file is emitted fresh.
 
@@ -98,7 +98,7 @@ where `M` is the total dropped count (`N - 100`) and per-category counts sum to 
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
-Use the Agent tool with `subagent_type: "prflow:checklist-generator"`. Resolve its overrides per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override. Compose the generator calls and Phase 3.1's prepared selected reviewer calls before dispatch; emit them in the same message before any blocking collection. Keep the reviewer handles for §3.2; generator retries do not repeat that initial reviewer dispatch.
+Use the Agent tool with `subagent_type: "prflow:checklist-generator"` and `run_in_background: false`, retries included. Resolve its overrides per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override. Compose the generator calls and Phase 3.1's prepared selected reviewer calls, the reviewer calls alone with `run_in_background: true`, before dispatch; emit them in the same message before any blocking collection. Keep the reviewer handles for §3.2; generator retries do not repeat that initial reviewer dispatch.
 
 Pass the following prompt — carrying the slice's file path (from Phase 1.1), never inline diff content:
 ```
@@ -109,7 +109,7 @@ Diff path: {SLICE_PATH}
 
 Output path: {OUT_PATH}
 
-Head view: {§0.2.8 {VIEW_HEAD} directory and {VIEW_HEAD_REV} 40-hex revision; else "none (read the working tree)"}
+Head view: {§0.2.8 {VIEW_HEAD} (revision {VIEW_HEAD_REV}); else "none (read the working tree)"}
 
 Changed files to analyze:
 {paste the file list here}
@@ -177,7 +177,7 @@ Output: `Phase 1.5/4: Deduping checklist across {B} batches...`
 
 First run `checklist raw <work-dir> <B>`: it concatenates the {B} batch files into `<work-dir>/raw.json`, giving each item the batch-tagged id `batch{K}:VC-{i}` (e.g. `batch1:VC-3`, `batch2:VC-1`).
 
-Then use the Agent tool with `subagent_type: "prflow:checklist-deduper"`. Resolve overrides for `prflow:checklist-deduper` per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override.
+Then use the Agent tool with `subagent_type: "prflow:checklist-deduper"` and `run_in_background: false`, its retry included. Resolve overrides for `prflow:checklist-deduper` per Per-Subagent Model/Effort Overrides above, applying any resolved `model` as the Agent tool's `model` override.
 
 Pass the following prompt — the path, never the array:
 ```

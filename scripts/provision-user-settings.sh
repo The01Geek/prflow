@@ -183,7 +183,8 @@ TMP="$(mktemp "$SETTINGS_DIR/.settings.json.XXXXXX")" || {
 trap 'rm -f "$TMP"' EXIT
 # $SETTINGS is untouched until the mv (an atomic same-dir rename), so a failed write
 # leaves the original intact.
-if ! { printf '%s\n' "$MERGED" > "$TMP" && mv "$TMP" "$SETTINGS"; }; then
+# Any raw CR in jq's JSON is a native Windows jq.exe's line ending; the file stays LF-only.
+if ! { printf '%s\n' "${MERGED//$'\r'/}" > "$TMP" && mv "$TMP" "$SETTINGS"; }; then
   warn "could not write $SETTINGS (check permissions and free space); left it unchanged."
   exit 2
 fi

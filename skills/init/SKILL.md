@@ -228,7 +228,7 @@ DEVFLOW_SRC=<plugin-root> DEVFLOW_REF=<the release tag> <plugin-root>/install.sh
 
 When the version read is empty or not version-shaped (a parse failure, or the `main` default from a missing key), omit `DEVFLOW_REF` and run the same `install.sh --apply` without it — `prflow_version` then tracks mutable `main`, so tell the user to pin it to a tag or SHA by hand.
 
-`install.sh --apply` re-runs `migrate-consumer-tier1.sh` and `scaffold-config.sh`, this run's own idempotent no-ops, so relay only its new workflow/action-installation and `<path>.prflow-new` sidecar-preservation lines. On a successful apply, tell the user to review the `.github/` diff before committing. If `install.sh` is not resolvable at the anchor or invoking it fails, report that and print the manual `install.sh --apply` command instead. None of this step's arms — a config that will not read, a declined or unavailable question, or a failed or unresolvable `install.sh` — ever fails or halts `/prflow:init`.
+`install.sh --apply` re-runs `migrate-consumer-tier1.sh` and `scaffold-config.sh`, this run's own idempotent no-ops, so relay only its new workflow/action-installation, `<path>.prflow-new` sidecar-preservation, and `prflow_version` pin lines, including a `not downgrading` line's restart remedy. On a successful apply, tell the user to review the `.github/` diff before committing. If `install.sh` is not resolvable at the anchor or invoking it fails, report that and print the manual `install.sh --apply` command instead. None of this step's arms — a config that will not read, a declined or unavailable question, or a failed or unresolvable `install.sh` — ever fails or halts `/prflow:init`.
 
 ## Then: verify the runtime dependencies are present
 

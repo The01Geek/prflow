@@ -201,6 +201,7 @@ devflow_select_audit_bundles() {
         echo "::error::audit-bundle-selection: devflow_select_audit_bundles could not select occurrence PRs — ${out:-jq produced no diagnostic}. Refusing to return an empty selection the caller would read as 'this pattern has no occurrences'" >&2
         return 1
     fi
+    out="${out//$'\r'/}"  # a native Windows jq.exe ends each line with CR (#1050)
     # `2>&1` above merges jq's stderr into the capture so the FAILURE arm can quote a
     # diagnostic. On a ZERO-exit run any warning jq wrote is in `$out` too, and would
     # flow into the caller's `for n in $SELECTED_PRS` as a bogus PR number — a

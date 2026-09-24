@@ -180,6 +180,8 @@ fi
 # so a seeded secret, a long prompt body, or a hostile check-run name (all string
 # leaves) cannot survive into the output (AC2, asserted on emitted bytes downstream).
 if ! BODY=$("$DEVFLOW_JQ" -rs '
+    # Keep the sub-trim before tonumber: jq 1.8 rejects padding 1.7 accepts (issue #1082); trim/0 is absent in jq 1.6.
+    def denial_num: (sub("^\\s+"; "") | sub("\\s+$"; "") | tonumber)?;
     # The completion-gate + present/absent decision lives in ONE place: with no
     # result event the run is incomplete/aborted, so the field is `unavailable`
     # (never `absent`, never `0`); otherwise present/absent by observation. Folding
@@ -246,7 +248,7 @@ if ! BODY=$("$DEVFLOW_JQ" -rs '
     | (if ($has_result | not) then "unavailable"
        elif (any($objs[]; has("permission_denials") and (.permission_denials != null)
                  and (if (.permission_denials | type) == "array" then (.permission_denials | length) > 0
-                      else ((.permission_denials | if type == "string" then (tonumber? // .) else . end) as $pdv
+                      else ((.permission_denials | if type == "string" then (denial_num // .) else . end) as $pdv
                             | ($pdv != 0 and $pdv != "" and $pdv != false)) end)))
        then "present"
        else
@@ -254,7 +256,7 @@ if ! BODY=$("$DEVFLOW_JQ" -rs '
          # $has_result is true on this branch, so a no-carrier file is genuinely `absent`.
          | if ($counts | length) == 0 then "absent"
            else
-             ([ $counts[] | (if type == "string" then (tonumber? // null) else numbers end) ]
+             ([ $counts[] | (if type == "string" then (denial_num // null) else numbers end) ]
               | map(select(. != null))) as $nums
              | if   ($nums | length) == 0 then "unavailable"
                elif ($nums | max) > 0     then "present"
@@ -367,5 +369,6 @@ fi
 
 printf '%s\n' "$_HEADER"
 printf 'encoding: %s\n' "$ENCODING"
-printf '%s\n' "$BODY"
+# A native Windows jq.exe ends every line with CR; line readers downstream would keep it (#1050).
+printf '%s\n' "${BODY//$'\r'/}"
 exit 0

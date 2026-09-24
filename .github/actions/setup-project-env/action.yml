@@ -164,17 +164,18 @@ runs:
           fi
           # Build argv as an array — env values and ports are never word-split,
           # so a value containing spaces/metacharacters is passed safely.
+          # A native Windows jq.exe ends each line with CR, which `read` keeps — strip it.
           args=(run -d --name "$name")
-          while IFS= read -r p; do [ -n "$p" ] && args+=(-p "$p"); done \
+          while IFS= read -r p; do p="${p%$'\r'}"; [ -n "$p" ] && args+=(-p "$p"); done \
             < <(echo "$svc" | jq -r '.ports[]? // empty')
-          while IFS= read -r kv; do [ -n "$kv" ] && args+=(-e "$kv"); done \
+          while IFS= read -r kv; do kv="${kv%$'\r'}"; [ -n "$kv" ] && args+=(-e "$kv"); done \
             < <(echo "$svc" | jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"')
           # `options` is an ARRAY of complete docker-run args (each element one
           # argv token), so a flag whose value contains spaces — e.g.
           # "--health-cmd=mysqladmin ping -h 127.0.0.1" — survives intact. A
           # single space-separated string would word-split on the spaces inside
           # the health command and break it, so the schema requires an array.
-          while IFS= read -r o; do [ -n "$o" ] && args+=("$o"); done \
+          while IFS= read -r o; do o="${o%$'\r'}"; [ -n "$o" ] && args+=("$o"); done \
             < <(echo "$svc" | jq -r '.options[]? // empty')
           args+=("$image")
           echo "::group::Starting service '$name' ($image)"
@@ -288,6 +289,7 @@ runs:
       run: |
         set -euo pipefail
         INSTALL=$(echo "$CONFIG_JSON" | jq -r '.setup.install | if type=="array" then join("\n") elif type=="string" then . else "" end')
+        INSTALL="${INSTALL//$'\r'/}"  # a native Windows jq.exe writes each LF as CRLF
         if [ -n "$INSTALL" ]; then
           echo "::group::Installing project dependencies"
           # bash -euo pipefail (not a bare `bash -c`): the outer shell's
