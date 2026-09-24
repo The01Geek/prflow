@@ -952,10 +952,12 @@ def _load_view_index(views):
             continue
         # An entry's stored_path (a harness-instruction file under its ``.src`` suffix) is the
         # name the verifier Reads, so it is a key of this view alongside the original path.
-        paths = {e[k] for e in entries if isinstance(e, dict)
+        # A path-too-long entry was never written, so it is neither a key nor present.
+        entries = [e for e in entries if isinstance(e, dict) and e.get("kind") != "path-too-long"]
+        paths = {e[k] for e in entries
                  for k in ("path", "stored_path") if isinstance(e.get(k), str)}
-        present = {e["path"] for e in entries if isinstance(e, dict)
-                   and isinstance(e.get("path"), str) and e.get("kind") != "deleted"}
+        present = {e["path"] for e in entries
+                   if isinstance(e.get("path"), str) and e.get("kind") != "deleted"}
         index[revision] = _ViewInventory(paths, {p.rsplit("/", i)[0] for p in present
                                                  for i in range(1, p.count("/") + 1)})
         dirs[revision] = _view_prefixes(inv_path)

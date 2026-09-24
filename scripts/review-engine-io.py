@@ -41,6 +41,7 @@ no rows) or `error`, and an error's `step` is one of STOP_STEPS. Exit codes: 0 o
 """
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -655,6 +656,25 @@ def _safe_view_path(path, view_dir):
     return stored_rel, target, renamed
 
 
+def _extended_path(text):
+    r"""`text`, an absolute Windows path, in its extended-length form: `\\?\<drive path>`, or
+    `\\?\UNC\<server\share...>` for a UNC path. An already-extended path is returned unchanged."""
+    if text.startswith('\\\\?\\'):
+        return text
+    if text.startswith('\\\\'):
+        return '\\\\?\\UNC\\' + text[2:]
+    return '\\\\?\\' + text
+
+
+def _fs_path(path):
+    """The filesystem-side form of a view path: on Windows its resolved extended-length form,
+    which the 260-character MAX_PATH limit does not apply to; elsewhere `path` unchanged. Never
+    return it to a caller or write it to the inventory: readers use the plain path."""
+    if os.name != 'nt':
+        return path
+    return Path(_extended_path(str(Path(path).resolve())))
+
+
 def _ls_tree(commit, root):
     """Parse `git ls-tree -r -z <commit>` into (mode, gtype, oid, path) tuples."""
     proc = _git(['ls-tree', '-r', '-z', commit], root)
@@ -756,9 +776,13 @@ def _view_materialize(args):
             raise Stop('view-commit', f'commit {args.commit!r} is unavailable: {_err(pin)}')
 
     view_dir = run_dir / f'view-{args.revision}'
-    tmp_dir = run_dir / f'view-{args.revision}.tmp'
+    # Every filesystem operation below goes through the _fs_path form; a plain path past
+    # MAX_PATH fails on Windows, and a plain `exists()`/`rmtree` there is silently blind to it.
+    fs_run_dir = _fs_path(run_dir)
+    fs_view_dir = fs_run_dir / f'view-{args.revision}'
+    tmp_dir = fs_run_dir / f'view-{args.revision}.tmp'
     try:
-        run_dir.mkdir(parents=True, exist_ok=True)
+        fs_run_dir.mkdir(parents=True, exist_ok=True)
         if tmp_dir.exists():
             shutil.rmtree(tmp_dir)
         tmp_dir.mkdir()
@@ -767,7 +791,7 @@ def _view_materialize(args):
                      if gtype == 'blob' and mode != GIT_MODE_SYMLINK]
         blobs = _cat_file_batch(blob_oids, root)
         blob_iter = iter(blobs)
-        inventory_entries, total_bytes = [], 0
+        inventory_entries, total_bytes, too_long = [], 0, 0
         for mode, gtype, oid, path in raw_entries:
             if mode == GIT_MODE_SUBMODULE or gtype == 'commit':
                 inventory_entries.append({'path': path, 'stored_path': None,
@@ -788,22 +812,29 @@ def _view_materialize(args):
                 raise Stop('view-catfile', 'cat-file returned fewer blobs than ls-tree '
                                            'listed blob oids (oid/entry skew)') from None
             kind = 'lfs-pointer' if content.startswith(LFS_POINTER_PREFIX) else 'blob'
-            target.parent.mkdir(parents=True, exist_ok=True)
-            # Two entries must never materialize to one file: a harness `.src` rename can
-            # collide with a really-tracked `<name>.src` blob, and the later write_bytes would
-            # clobber the earlier — a silent wrong-bytes read in the evidence path. Key the
-            # check on the consumer's own namespace (the filesystem target), not a re-derived
-            # string, so a case-fold collision on a case-insensitive filesystem is caught too:
-            # tmp_dir starts empty, so an already-existing target means a prior entry wrote it
-            # this run. Fail closed rather than materialize an ambiguous view (AC8).
-            if target.exists():
-                raise Stop('view-path', f'stored path {stored_rel!r} collides with an already-'
-                                        f'materialized entry (a harness .src rename may collide '
-                                        f'with a real .src blob)')
+            # One try covers the parent mkdir and the write: ENAMETOOLONG from either records the
+            # entry unwritten and the view goes on; any other OSError still stops as view-write.
             try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                # Two entries must never materialize to one file: a harness `.src` rename can
+                # collide with a really-tracked `<name>.src` blob, and the later write_bytes would
+                # clobber the earlier — a silent wrong-bytes read in the evidence path. Key the
+                # check on the consumer's own namespace (the filesystem target), not a re-derived
+                # string, so a case-fold collision on a case-insensitive filesystem is caught too:
+                # tmp_dir starts empty, so an already-existing target means a prior entry wrote it
+                # this run. Fail closed rather than materialize an ambiguous view (AC8).
+                if target.exists():
+                    raise Stop('view-path', f'stored path {stored_rel!r} collides with an already-'
+                                            f'materialized entry (a harness .src rename may collide '
+                                            f'with a real .src blob)')
                 target.write_bytes(content)
             except OSError as exc:
-                raise Stop('view-write', f'could not write {stored_rel}: {exc}') from exc
+                if exc.errno != errno.ENAMETOOLONG:
+                    raise Stop('view-write', f'could not write {stored_rel}: {exc}') from exc
+                too_long += 1
+                inventory_entries.append({'path': path, 'stored_path': None,
+                                          'kind': 'path-too-long', 'size': None, 'sha': oid})
+                continue
             total_bytes += len(content)
             entry = {'path': path, 'stored_path': stored_rel, 'kind': kind,
                      'size': len(content), 'sha': oid}
@@ -832,9 +863,9 @@ def _view_materialize(args):
         _write_atomic(tmp_dir / 'inventory.json', _inventory_text(inventory))
         # Swap the complete tmp tree into place atomically: a consumer sees either no view
         # directory or a whole one, never a half-materialized tree (AC8 partial-materialization).
-        if view_dir.exists():
-            shutil.rmtree(view_dir)
-        os.replace(tmp_dir, view_dir)
+        if fs_view_dir.exists():
+            shutil.rmtree(fs_view_dir)
+        os.replace(tmp_dir, fs_view_dir)
     except (Stop, OSError) as exc:
         try:
             shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -844,10 +875,11 @@ def _view_materialize(args):
             raise
         raise Stop('view-write', str(exc)) from exc
     rel = view_dir.relative_to(root).as_posix() if view_dir.is_relative_to(root) else view_dir.as_posix()
-    sys.stderr.write(f'view-materialize: revision={commit} file_count={blob_count} bytes={total_bytes}\n')
+    sys.stderr.write(f'view-materialize: revision={commit} file_count={blob_count} bytes={total_bytes} '
+                     f'path_too_long={too_long}\n')
     return {'status': 'ok', 'revision': commit, 'view_dir': rel,
             'inventory_path': f'{rel}/inventory.json', 'file_count': blob_count,
-            'bytes': total_bytes}
+            'bytes': total_bytes, 'path_too_long_count': too_long}
 
 
 def cmd_view_materialize(args):
