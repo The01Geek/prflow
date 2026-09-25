@@ -484,7 +484,10 @@ else
     # inline heredoc cannot `import` workpad.py); lib/test/run.sh pins the couple.
     # The output is a JSON object {reflections, friction_count}; `reflections` keeps
     # its existing flat-string-array shape and contents byte-for-byte.
-    REFLECTION_PARSE="$(DEVFLOW_WORKPAD_BODY="$WORKPAD_BODY" python3 - <<'PYEOF'
+    # Both python programs in this file are read before their `$(…)`: bash 3.2 misparses a
+    # heredoc inside one whose body holds an unbalanced quote or backtick. `read -d ''`
+    # returns 1 at end of input, hence `|| true` under set -e.
+    IFS= read -r -d '' REFLECTION_PY <<'PYEOF' || true
 import os, re, json
 import sys
 sys.stdout.reconfigure(newline="\n")
@@ -536,7 +539,7 @@ for raw in body.split('\n'):
             friction += 1
 print(json.dumps({"reflections": out, "friction_count": friction}))
 PYEOF
-)"
+    REFLECTION_PARSE="$(DEVFLOW_WORKPAD_BODY="$WORKPAD_BODY" python3 - <<<"$REFLECTION_PY")"
     # Guard against a python hiccup leaving an empty/invalid value that would
     # break the later `--slurpfile reflections` / `--argjson`. The guard requires
     # BOTH keys, and — crucially — it FAILS TOWARD ANALYSIS, matching the sibling
@@ -566,7 +569,7 @@ fi
 # fallback is redundant and dropped to avoid masking a missing python3 binary.
 # Timestamps are passed via the environment, not interpolated into the source,
 # so a stray quote in the value can't break out of the Python string literal.
-TTM_HOURS="$(DEVFLOW_MERGED_AT="$MERGED_AT" DEVFLOW_CREATED_AT="$CREATED_AT" python3 - <<'PYEOF'
+IFS= read -r -d '' TTM_PY <<'PYEOF' || true
 import os
 from datetime import datetime, timezone
 import sys
@@ -580,7 +583,7 @@ try:
 except Exception:
     print(0.0)
 PYEOF
-)"
+TTM_HOURS="$(DEVFLOW_MERGED_AT="$MERGED_AT" DEVFLOW_CREATED_AT="$CREATED_AT" python3 - <<<"$TTM_PY")"
 # Guard against an empty result poisoning the later `jq --argjson ttm_hours`.
 [ -n "$TTM_HOURS" ] || TTM_HOURS=0.0
 

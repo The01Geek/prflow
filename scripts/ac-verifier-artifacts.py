@@ -36,11 +36,13 @@ Two subcommands:
     `status`, `remedy` and `reason`, and the record's `dispositions_path`. `--claim-file` is
     optional: omit it only when the criteria file names no `command` criterion (every criterion
     then reconciles from the evidence report alone); omitting it while any criterion is
-    `command`, and a supplied `--claim-file` that is missing or unreadable, each exit 3 with no
+    `command`, and a supplied report that is unreadable or malformed, each exit 3 with no
     reconciliation printed — as does a criteria file that is missing, unreadable, or not a bare
-    JSON list. A changed fingerprint, a missing baseline, and a failed measurement are each
-    independently blocking — the gate does not proceed, and the failure names the changed
-    fingerprint field(s) and, for the tracked field the offending `git status --porcelain`
+    JSON list. A report path with nothing at it (`FileNotFoundError`) reconciles as a report
+    with no records, with one stderr line naming the path (issue #1178). A changed fingerprint,
+    a missing baseline, and a failed measurement are each independently blocking — the gate
+    does not proceed, and the failure names the changed fingerprint field(s) and, for the
+    tracked field the offending `git status --porcelain`
     paths and for the untracked field the offending `git ls-files -o --exclude-standard` paths
     (which name a stray file inside an untracked directory that porcelain collapses to the
     directory). The helper only reads, reconciles, and writes the dispositions record; it
@@ -66,9 +68,9 @@ Exit codes:
         carries a breadcrumb.
     3 — a `check` input was unestablished, no reconciliation printed: a report or the criteria
         file unreadable/malformed/not-a-bare-list, `--claim-file` omitted while a `command`
-        criterion is present, a supplied `--claim-file` missing/unreadable, or the
-        `ac-dispositions.md` record could not be written (empty stdout, a stderr line prefixed
-        `could not write the dispositions record:`)
+        criterion is present, or the `ac-dispositions.md` record could not be written (empty
+        stdout, a stderr line prefixed `could not write the dispositions record:`). A report
+        path with nothing at it is not an exit-3 input.
 """
 
 from __future__ import annotations
@@ -391,6 +393,14 @@ def _dispositions_line(c: dict) -> dict:
     return line
 
 
+def _load_report_or_absent(recon, path: str) -> list:
+    try:
+        return recon._load_report(path)
+    except FileNotFoundError:
+        print(f"ac-verifier-artifacts: check: verifier report absent: {path}", file=sys.stderr)
+        return []
+
+
 def _write_dispositions(path: str, criteria: list) -> None:
     """Write the per-criterion dispositions record as a collapsed block (issue #681): a
     `<details><summary>3.4 dispositions: <N> criteria, <K> tick</summary>` first line, one UTF-8
@@ -494,10 +504,13 @@ def _cmd_check(args) -> int:
                   file=sys.stderr)
             return 3
         claim_records = []
+    # A report path with nothing at it (a verifier that handed back before its Write landed)
+    # reconciles exactly as a report with no records. Catch only FileNotFoundError: a directory
+    # or unreadable/malformed report stays exit 3.
     try:
-        evidence_records = recon._load_report(args.evidence_file)
+        evidence_records = _load_report_or_absent(recon, args.evidence_file)
         if args.claim_file is not None:
-            claim_records = recon._load_report(args.claim_file)
+            claim_records = _load_report_or_absent(recon, args.claim_file)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"ac-verifier-artifacts: check: could not read a verifier report: {exc}",
               file=sys.stderr)

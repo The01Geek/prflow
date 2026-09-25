@@ -220,6 +220,14 @@ The first `FAILED` line and exit status 7 are unchanged. `PASSED`, `CANCELLED`, 
 
 </Accordion>
 
+<Accordion title="CI verification wait printed CANCELLED, SUPERSEDED or STALLED">
+
+**Symptom:** `wait` exits 6 with a `CANCELLED`, `SUPERSEDED` or `STALLED` line. `STALLED <request-id> run=<run-id> url=<url> queued-for=<n>s cancel=ok job=<job name>` means a job waited for a runner for at least the `--cancel-queued-after` bound, so PRFlow cancelled the run (`cancel=failed` when the cancel call did not succeed; if the run is still going, cancel it from the run URL).
+
+None of these carries a verdict on the change. Request CI again for the same head.
+
+</Accordion>
+
 <Accordion title="A verification command was denied">
 
 **Symptom:** the run stops and names a command it needed but was not allowed to run.

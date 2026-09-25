@@ -147,7 +147,10 @@ PATHS_EOF
   # expansion (not tr/sed) so the literal $PR_BASE_SHA text is not itself expanded.
   # Backtick containment for the SHA does NOT rest on this substitution (it does
   # not strip backticks) — it rests on the top-of-file HEAD_SHA backtick strip.
-  _DISP_PROSE=$(cat <<'__DISP_PROSE_EOF__'
+  # Every prose section is read with `read -d ''`, never `$(cat <<…)`: bash 3.2 misparses a
+  # heredoc inside `$(…)` whose body holds an unbalanced quote or backtick. `read -d ''`
+  # returns 1 at end of input and keeps the trailing newline, which a section cuts unless it ends in one.
+  IFS= read -r -d '' _DISP_PROSE <<'__DISP_PROSE_EOF__' || true
 > **__N_DISP__. Trusted-source displacement (issues #458, #874).** The working-tree files
 > listed below were deliberately displaced before this session started by one of
 > two trusted-source producers — the Stop-hook trusted-source floor, which
@@ -177,7 +180,7 @@ PATHS_EOF
 >
 > Displaced paths this run:
 __DISP_PROSE_EOF__
-)
+  _DISP_PROSE="${_DISP_PROSE%$'\n'}"
   _DISP_PROSE="${_DISP_PROSE//__HEAD_SHA__/${HEAD_SHA:-unknown}}"
   DISPLACED_SECTION="${_DISP_PROSE}
 ${DISPLACED_LIST}>"
@@ -197,13 +200,13 @@ fi
 # carries backticks and an apostrophe that must both stay literal.
 IMPLEMENT_SCOPE_CLAUSE=''
 if [ "$MODE" = implement ]; then
-  IMPLEMENT_SCOPE_CLAUSE=$(cat <<'__IMPL_SCOPE_EOF__'
+  IFS= read -r -d '' IMPLEMENT_SCOPE_CLAUSE <<'__IMPL_SCOPE_EOF__' || true
 
 > This binds **every** phase and **every** subagent this orchestrator dispatches —
 > including Phase 3's inline `review-and-fix` pass, whose checklist and review agents
 > dispatch from your own context — at every dispatch point.
 __IMPL_SCOPE_EOF__
-)
+  IMPLEMENT_SCOPE_CLAUSE="${IMPLEMENT_SCOPE_CLAUSE%$'\n'}"
 fi
 
 # The sole-publisher section (issue #1629). Review-only, gated on the SAME derived
@@ -218,7 +221,7 @@ fi
 # the apostrophes stay literal.
 PUBLISHER_SECTION=''
 if [ "$REVIEWED_COMMIT" = yes ]; then
-  PUBLISHER_SECTION=$(cat <<'__PUBLISHER_EOF__'
+  IFS= read -r -d '' PUBLISHER_SECTION <<'__PUBLISHER_EOF__' || true
 > **__N_PUB__. A verdict reaches this pull request through Phase 4.4's emitter alone.**
 > The merge-gate consumers that decide this review's outcome scan for a
 > producer-stamped verdict marker, and only Phase 4.4's verdict emitter writes one.
@@ -228,9 +231,6 @@ if [ "$REVIEWED_COMMIT" = yes ]; then
 > compose or publish a verdict of your own through any granted channel; run Phase
 > 4.4's emitter, whose reference is the sole owner of how it is posted.
 __PUBLISHER_EOF__
-)
-  PUBLISHER_SECTION="${PUBLISHER_SECTION}
-"
 fi
 
 # Never add a section ordinal as a per-branch literal beyond the three below: every

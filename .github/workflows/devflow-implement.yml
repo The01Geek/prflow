@@ -1725,8 +1725,8 @@ jobs:
           # --persist runs from the Loop-Exit fences and that backstop step, not from a hook.
           # base-action/src/parse-sdk-options.ts still passes
           # settingSources: ["user", "project", "local"] to the Agent SDK, so the user file
-          # this input writes and the project file are loaded together; with no project-file
-          # hook present there is no merge-vs-overwrite exposure for this input to manage.
+          # this input writes and the project file are loaded together, so the input cannot
+          # displace any `hooks` the project file declares.
           #
           # REGISTER OF THE PARAGRAPH ABOVE (PR #1205 review round 2). It is a READ of
           # claude-code-action's source — not a measurement taken here, and not a documented

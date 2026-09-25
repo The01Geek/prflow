@@ -7,7 +7,7 @@
 
 Accrue `--status Implementing` for the next boundary delivery (phase-2-implement.md §2.0.5), not its own call.
 
-Now implement the feature yourself. You have full context:
+Now implement the feature yourself, editing file text with the Edit tool (Write only for a new file this skill allows), never `sed -i` or a `python3` heredoc or `-c` script — Windows Bash collapses `\\` to `\`, silently missing or corrupting the edit; generators, formatters and `git mv`/`git rm` are exempt. You have full context:
 - The explorer's system understanding
 - The architect's blueprint (if complex) or your own inline plan (if simple)
 - The original issue requirements

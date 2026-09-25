@@ -127,7 +127,10 @@ def _atomic_write(target, data, mode):
         directory.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         _fail(mode, f'could not create the directory for {target}: {exc}')
-    fd, tmp = tempfile.mkstemp(prefix=target.name + '.', suffix='.tmp', dir=str(directory))
+    try:
+        fd, tmp = tempfile.mkstemp(prefix=target.name + '.', suffix='.tmp', dir=str(directory))
+    except OSError as exc:
+        _fail(mode, f'could not create a temporary file in {directory}: {exc}')
     try:
         with os.fdopen(fd, 'wb') as fh:
             fh.write(data)

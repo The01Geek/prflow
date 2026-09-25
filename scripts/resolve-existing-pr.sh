@@ -241,7 +241,7 @@ _open_mode() {
             _pr_open_record create-failed cause "${_create_out:-gh-pr-create-failed}"
             exit 1
         fi
-        _url="$(printf '%s\n' "$_create_out" | while IFS= read -r _line; do case "$_line" in http*/*/pull/*) printf '%s\n' "$_line"; break ;; esac; done)"
+        _url="$(printf '%s\n' "$_create_out" | while IFS= read -r _line; do case "$_line" in (http*/*/pull/*) printf '%s\n' "$_line"; break ;; esac; done)"
         _number="${_url##*/}"
         case "$_number" in ''|*[!0-9]*)
             _pr_open_record create-failed cause "gh-pr-create-returned-no-parseable-url:$_create_out"

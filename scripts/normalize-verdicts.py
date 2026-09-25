@@ -41,7 +41,7 @@ Output — one JSON object on stdout, rc 0 whenever the helper ran::
 
     {
       "results": [ { "id", "raw_verdict", "verdict", "normalized",
-                     "evidence", "file_checked", "view_revision", "source",
+                     "evidence", "file_checked", "view_revision", "severity", "source",
                      "defect", "defect_class",
                      "normalization_ineligible", "demoted" (source-defect demotions only) }, ... ],
       "needs_retry": [ { "id", "kind": "verdict"|"auxiliary", "defect" }, ... ],
@@ -51,24 +51,38 @@ Output — one JSON object on stdout, rc 0 whenever the helper ran::
 ``view_revision`` (issue #851) is the 40-hex commit id of the source view the verifier read,
 carried through for the build-mode provenance gate below; a non-string is dropped to null.
 
+``severity`` (issue #1220) is the verifier's blast-radius grade: a string whose lower-cased form is
+``critical``, ``important`` or ``suggestion`` stores that form, and every other value stores ``critical``,
+as do a verdict defect and a reply read after its trusted file proved unreadable. Build mode,
+the mode that writes the stored artifact, also stores ``critical`` for a lite item, an
+``issue_acceptance`` item and an item whose ``view_state`` is not ``ok`` (pairs mode keeps the
+verifier's grade on these), and adds an ``input_warnings`` line for an invalid grade, for no
+usable verifier verdict and for an item the helper itself failed on.
+
 A malformed pairs file (unparseable / truncated / wrong-shape) instead prints the
 structured **bad-input report** — ``{"bad_input": true, "error": ...}`` — to
 stdout with rc 0, so a transcription failure is an outcome distinguishable from
 results, from error text, and from silence (a matcher denial prints nothing).
 
 Verdict defect shapes (item keeps its raw verdict, is normalization-ineligible,
-and enters ``needs_retry`` with kind ``verdict``): ``missing_fence`` (no ``json``
-fence and the body does not contain exactly one parseable object),
+and enters ``needs_retry`` with kind ``verdict``): ``missing_fence`` (no counted
+``json`` fence and the body does not contain exactly one parseable object),
 ``unparseable_json``, ``missing_verdict_field``, ``non_enum_verdict``,
 ``id_mismatch``, ``no_verdict`` (neither file nor response_text),
-``no_verdict_trusted_file_unreadable`` (same, but the named nonce file existed
-and could not be read — a filesystem fault a verifier re-dispatch cannot fix).
+``no_verdict_trusted_file_unreadable`` (the named nonce file existed and could not
+be read, and the reply holds no parseable JSON object; it replaces the reply's own
+parse defect and names a filesystem fault, not a verifier fault).
 Build mode adds ``verdict_file_absent`` (issue #1144): a fresh, unpinned agent item
 whose verdict came off ``response_text`` because its nonce file is absent keeps that
 verdict in the tally, and this one kind-``verdict`` entry replaces any auxiliary one —
 the fix loop's evidence gate FAILs the missing file, so the engine re-dispatches it.
-More than one ``json`` fence reads the LAST fence as authoritative
-(final-answer convention).
+A reply that yields no valid verdict takes the same single entry when it names the item's own
+``<id>-<nonce>.json`` (issue #1178); it stores ``INCONCLUSIVE`` naming both defects.
+Parse order (issue #1254): a whole text that parses as a JSON object is the
+verdict; otherwise ``json`` fences whose opener starts a line and whose closer ends
+one, the LAST authoritative (final-answer convention) — a valid JSON string holds no
+raw newline, so neither marker quoted inside one counts; otherwise the single-object
+fallback above.
 
 Two defect classes are NOT verifier defects and are reported under their own
 ``needs_retry`` kinds so the engine does not re-dispatch a verifier at them:
@@ -135,10 +149,9 @@ writes the combined verification array, so the orchestrator types only judgment:
     {
       "nonces":         { "VC-3": "<nonce>" },            # one per dispatched item
       "lite":           [ { "id", "verdict", "evidence", "file_checked", "view_revision" } ],
-      "response_text":  { "VC-9": "<response of a verifier that wrote no file>" },
+      "response_text":  { "VC-9": "<reply of every agent item that returned one>" },
       "pinned_verdict": { "VC-4": "FAIL" },               # field-completion re-ask
       "pinned_from":    { "VC-4": "<first answer's nonce>" },   # its provenance source
-      "recovered":      { "VC-9": { "verdict", "evidence", "inaccuracy_scope"? } },  # in-context recovery
       "views":          { "head": { "revision": "<40-hex>", "inventory": "<path>" },
                           "base": { "revision": "<40-hex>", "inventory": "<path>" } }
     }
@@ -155,10 +168,10 @@ unaffected and the wording-only normalization contract is unchanged. The summary
 ``view_check`` object ``{bound_revisions, states}``.
 
 ``pinned_from`` (issue #1027) names a pinned item's first-answer nonce. The stored ``evidence``,
-``file_checked`` and ``view_revision`` then come from ``<verdicts-dir>/<id>-<that nonce>.json``,
-and the re-ask's copies of those three fields are ignored. An unusable entry (a non-string or
+``file_checked``, ``view_revision`` and ``severity`` then come from ``<verdicts-dir>/<id>-<that nonce>.json``,
+and the re-ask's copies of those fields are ignored. An unusable entry (a non-string or
 unsafe nonce, no matching ``pinned_verdict``, or a first file that is absent, unreadable,
-unparseable or carries none of the three fields) is ignored with an ``input_warnings`` line; the item grades as it would without it.
+unparseable or carries none of ``evidence``, ``file_checked`` and ``view_revision``) is ignored with an ``input_warnings`` line; the item grades as it would without it.
 
 Each checklist item is partitioned exactly as the evidence gate partitions it: a
 ``reused_from_iter_prev: true`` item carrying a prior ``PASS`` keeps the verdict it
@@ -166,8 +179,7 @@ arrived with; an effective-lite item takes its ``lite`` entry; every other item 
 an agent pair whose ``verdict_path`` is ``<verdicts-dir>/<id>-<nonce>.json`` — the
 nonce comes ONLY from ``nonces``, never from a directory listing, so the binding
 above holds. No stored verdict is ever null: an item with no usable verdict stores
-``INCONCLUSIVE`` naming the defect, and ``recovered`` applies only to a
-verdict-defect item. Every optional input is classified in ``inputs_seen`` and a
+``INCONCLUSIVE`` naming the defect. Every optional input is classified in ``inputs_seen`` and a
 wrong-typed one is ignored with an ``input_warnings`` line. A wrong-typed
 ``response_text`` value is ignored and an empty one read, each with a line, as is a
 supplied map lacking a file-less item. Stdout is the summary
@@ -176,7 +188,7 @@ when the ``--out`` write fails, ``written`` is null and the array rides along as
 ``verification`` for the orchestrator to Write.
 
 ``checklist <op> …`` as the first argument instead routes to the Phase 1 checklist
-assembly in the sibling ``checklist_finalize.py`` (its ops, files and output are
+assembly, and the shadow review's ``match``, in the sibling ``checklist_finalize.py`` (its ops, files and output are
 documented there). It rides this helper because a cloud profile grants leading
 tokens per helper, and this one is granted wherever the review engine runs.
 
@@ -257,6 +269,7 @@ def _force_utf8_streams():
 
 VERDICT_ENUM = ("PASS", "FAIL", "INCONCLUSIVE")
 SCOPE_ENUM = ("generated_claim_text", "source_authored_text", "none")
+SEVERITY_ENUM = ("critical", "important", "suggestion")
 NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
 SOURCE_DEFECT_PREFIX = "CONFIRMED SOURCE DEFECT (raw PASS): "
 # Single-sourced so the contradiction detection below compares against the SAME literal
@@ -302,7 +315,7 @@ def _brace_objects(text):
                 candidate = text[start:i + 1]
                 try:
                     parsed = json.loads(candidate)
-                except (json.JSONDecodeError, ValueError):
+                except (ValueError, RecursionError):
                     parsed = None
                 if isinstance(parsed, dict):
                     objs.append(parsed)
@@ -310,21 +323,26 @@ def _brace_objects(text):
     return objs
 
 
+_FENCE_OPEN = re.compile(r"(?:^|\n)[ \t]*```json")
+_FENCE_CLOSE = re.compile(r"```[ \t]*(?=\r?\n|$)")
+
+
 def _json_fences(text):
-    """Return the inner text of each ```` ```json ... ``` ```` fence, in order."""
+    """Return the inner text of each ```` ```json ... ``` ```` fence, in order.
+
+    An opener counts only at a line start; a closer is the first ```` ``` ```` that ends
+    a line before the next counted opener (a span with none is dropped). A valid JSON
+    string holds no raw newline, so neither marker quoted inside one ever counts. The
+    scan is not string-aware: a malformed string with raw newlines can still expose a
+    quoted fence."""
+    openers = list(_FENCE_OPEN.finditer(text))
     fences = []
-    marker = "```json"
-    idx = 0
-    while True:
-        open_at = text.find(marker, idx)
-        if open_at == -1:
-            break
-        body_start = open_at + len(marker)
-        close_at = text.find("```", body_start)
-        if close_at == -1:
-            break
-        fences.append(text[body_start:close_at])
-        idx = close_at + 3
+    for i, opened in enumerate(openers):
+        end = openers[i + 1].start() if i + 1 < len(openers) else len(text)
+        span = text[opened.end():end]
+        closed = _FENCE_CLOSE.search(span)
+        if closed is not None:
+            fences.append(span[:closed.start()])
     return fences
 
 
@@ -332,17 +350,23 @@ def extract_verdict_object(text):
     """Parse the verdict object out of verifier bytes (a file's content or a
     transcribed response). Returns ``(obj, defect)`` — exactly one is None.
 
-    Parse contract: prefer ``json`` fences (LAST fence authoritative when more
-    than one); with no fence, tolerate a body that contains exactly one parseable
-    JSON object; otherwise ``missing_fence``."""
+    Parse contract, in order: a whole text that parses as a JSON object is the
+    verdict; else line-start ``json`` fences (LAST authoritative); else exactly one
+    parseable JSON object in the body; otherwise ``missing_fence``."""
     if text is None:
         return None, "no_verdict"
+    try:
+        whole = json.loads(text)
+    except (ValueError, RecursionError):
+        whole = None
+    if isinstance(whole, dict):
+        return whole, None
     fences = _json_fences(text)
     if fences:
         chosen = fences[-1].strip()
         try:
             obj = json.loads(chosen)
-        except (json.JSONDecodeError, ValueError):
+        except (ValueError, RecursionError):
             return None, "unparseable_json"
         if not isinstance(obj, dict):
             return None, "unparseable_json"
@@ -371,6 +395,15 @@ def _aux_state(obj, field):
             return "defect"
         return "ok" if val == "generated_claim_text" else "real"
     return "defect"
+
+
+def _severity(obj):
+    """Return ``(severity, defect)``: a valid token in any letter case, lower-cased, with
+    ``defect`` None; otherwise ``"critical"`` and the cause for the ``input_warnings`` line."""
+    val = obj.get("severity")
+    if isinstance(val, str) and val.lower() in SEVERITY_ENUM:
+        return val.lower(), None
+    return "critical", f"{_shape('severity' in obj, val)} is not one of {'|'.join(SEVERITY_ENUM)}"
 
 
 def _read_verdict_bytes(pair):
@@ -411,16 +444,17 @@ def _verdict_defect(result, item_id, defect):
     field-defect-fail (it has no established raw verdict)."""
     result["defect"] = defect
     result["defect_class"] = "verdict"
+    result["severity"] = "critical"
     result["normalization_ineligible"] = f"verdict defect: {defect}"
     return result, {"id": item_id, "kind": "verdict", "defect": defect}, False
 
 
-PROVENANCE_FIELDS = ("evidence", "file_checked", "view_revision")
+_EVIDENCE_FIELDS = ("evidence", "file_checked", "view_revision")
 
 
 def _first_provenance(path):
-    """Return ``(fields, None)`` or ``(None, reason)``: the three provenance fields of a pinned
-    item's first answer (issue #1027), read through the same channel as a verdict file."""
+    """Return ``(fields, None)`` or ``(None, reason)``: the provenance fields and raw
+    ``severity`` of a pinned item's first answer (issue #1027), read through the same channel as a verdict file."""
     text, source = _read_verdict_bytes({"verdict_path": path})
     if text is None:
         return None, ("first verdict file unreadable" if source == "none_file_unreadable"
@@ -428,8 +462,10 @@ def _first_provenance(path):
     obj, defect = extract_verdict_object(text)
     if defect is not None:
         return None, f"first verdict file unparseable ({defect})"
-    fields = {k: obj[k] if isinstance(obj.get(k), str) else None for k in PROVENANCE_FIELDS}
-    if not any(fields.values()):
+    fields = {k: obj[k] if isinstance(obj.get(k), str) else None for k in _EVIDENCE_FIELDS}
+    if "severity" in obj:  # raw, so the severity breadcrumb names the value's real shape
+        fields["severity"] = obj["severity"]
+    if not any(fields[k] for k in _EVIDENCE_FIELDS):
         return None, "first verdict file has no evidence, file_checked or view_revision"
     return fields, None
 
@@ -485,11 +521,11 @@ def _process_pair(pair, first=None):
     else:
         # --- verdict-defect arm: keep no verdict, flag for a full re-dispatch ----
         if defect is not None:
-            if defect == "no_verdict" and trusted_channel_lost:
+            if trusted_channel_lost:
                 # Discriminate "the verifier produced nothing anywhere" from "the named
                 # nonce file EXISTS but this process cannot read it" (permission fault,
-                # corrupt mount, invalid UTF-8). Collapsing them onto a bare no_verdict
-                # sends the engine's kind-`verdict` remedy at a re-dispatch that will
+                # corrupt mount, invalid UTF-8). Collapsing them onto the reply's own parse
+                # defect (no_verdict, missing_fence, unparseable_json) sends the engine's kind-`verdict` remedy at a re-dispatch that will
                 # re-produce a file it still cannot read — burning a retry on a
                 # filesystem fault the verifier cannot fix.
                 defect = "no_verdict_trusted_file_unreadable"
@@ -519,6 +555,11 @@ def _process_pair(pair, first=None):
         # issue #1027: a compliant re-ask carries only the two auxiliary fields, so the
         # provenance comes from the first answer; the re-ask's own copies are ignored.
         result.update(first)
+    # run_pairs pops _severity_defect; a result that skips run_pairs would serialize it.
+    result["severity"], result["_severity_defect"] = _severity(
+        first if is_pinned and first is not None else obj)
+    if trusted_channel_lost:  # a fallback-channel grade is untrusted, like its verdict
+        result["severity"] = "critical"
 
     # --- auxiliary-field classification ----------------------------------------
     pp_state = _aux_state(obj, "property_proven")
@@ -662,7 +703,9 @@ def run(pairs_file):
     if not isinstance(payload, dict) or not isinstance(payload.get("pairs"), list):
         return {"bad_input": True, "error": "pairs_file_wrong_shape",
                 "detail": "expected a JSON object with a 'pairs' array"}
-    return run_pairs(payload["pairs"])
+    out = run_pairs(payload["pairs"])
+    del out["severity_defects"]  # build mode's input_warnings channel; pairs mode has none
+    return out
 
 
 def run_pairs(pairs, firsts=None):
@@ -670,6 +713,7 @@ def run_pairs(pairs, firsts=None):
     pair index to its first-answer provenance (build mode only)."""
     results = []
     needs_retry = []
+    severity_defects = {}
     field_defect_fail_count = 0
     for idx, pair in enumerate(pairs):
         if not isinstance(pair, dict):
@@ -680,7 +724,7 @@ def run_pairs(pairs, firsts=None):
             # per-element analogue of the whole-file bad-input report).
             malformed = {
                 "id": None, "raw_verdict": None, "verdict": None, "normalized": False,
-                "evidence": None, "file_checked": None, "source": "none",
+                "evidence": None, "file_checked": None, "severity": "critical", "source": "none",
                 "defect": "malformed_pair", "defect_class": "verdict",
                 "normalization_ineligible": "verdict defect: malformed_pair",
                 "pair_index": idx,
@@ -713,7 +757,7 @@ def run_pairs(pairs, firsts=None):
                 "id": (pair.get("item") or {}).get("id")
                       if isinstance(pair.get("item"), dict) else None,
                 "raw_verdict": None, "verdict": None, "normalized": False,
-                "evidence": None, "file_checked": None, "source": "none",
+                "evidence": None, "file_checked": None, "severity": "critical", "source": "none",
                 "defect": "pair_processing_error", "defect_class": "helper_internal",
                 # The detail is exception-derived and the pairs file is LLM-transcribed
                 # from PR-author-controlled source, so it is bounded and repr-delimited
@@ -729,6 +773,7 @@ def run_pairs(pairs, firsts=None):
                                 "defect": "pair_processing_error",
                                 "pair_index": idx})
             continue
+        severity_defects[len(results)] = result.pop("_severity_defect", None)
         results.append(result)
         if retry is not None:
             needs_retry.append(retry)
@@ -740,6 +785,7 @@ def run_pairs(pairs, firsts=None):
     return {
         "results": results,
         "needs_retry": needs_retry,
+        "severity_defects": severity_defects,
         "counts": {
             "normalized_count": normalized_count,
             "field_defect_fail_count": field_defect_fail_count,
@@ -761,7 +807,7 @@ def _checklist_main(argv):
 
 BUILD_FLAGS = ("--checklist", "--verdicts-dir", "--out")
 _INPUT_TYPES = {"nonces": dict, "lite": list, "response_text": dict,
-                "pinned_verdict": dict, "recovered": dict, "views": dict, "pinned_from": dict}
+                "pinned_verdict": dict, "views": dict, "pinned_from": dict}
 
 # issue #851 collector view-provenance check.
 VIEW_INELIGIBLE_PREFIX = "VIEW-UNESTABLISHED: "
@@ -1054,7 +1100,7 @@ def _load(path, label, want):
 
 def _stub(item_id, evidence, **extra):
     return {"id": item_id, "verdict": "INCONCLUSIVE", "evidence": evidence,
-            "file_checked": None, **extra}
+            "file_checked": None, "severity": "critical", **extra}
 
 
 def _source_defect_evidence(evidence):
@@ -1137,6 +1183,11 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
                                           "raw_verdict", "normalized", "reused_from_iter",
                                           "view_revision")
                      if k in item}
+            entry["severity"], sev_defect = _severity(item)
+            if sev_defect is not None:
+                warnings.append(f"{item_id!r}: severity {sev_defect} -- stored critical")
+            if item.get("category") == "issue_acceptance":
+                entry["severity"] = "critical"
             entry["reused_from_iter_prev"] = True
             verification.append(entry)
         elif effective_mode(item) == "lite":
@@ -1151,7 +1202,8 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
                 verification.append({"id": item_id, "verdict": got["verdict"],
                                      "evidence": ev if isinstance(ev, str) else None,
                                      "file_checked": fc if isinstance(fc, str) else None,
-                                     "view_revision": vr if isinstance(vr, str) else None})
+                                     "view_revision": vr if isinstance(vr, str) else None,
+                                     "severity": "critical"})
         else:
             key = item_id if isinstance(item_id, str) else None
             pair = {"item": item}
@@ -1183,40 +1235,48 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
     # issue #1144: a fresh, unpinned agent item whose verdict came off the response_text
     # fallback has no nonce file, so the fix loop's evidence gate FAILs it. Keep the verdict, and
     # replace any auxiliary re-ask with one full re-dispatch. Decided from file absence
-    # (the source), never from the verdict value.
+    # (the source), never from the verdict value. Issue #1178: a reply with no valid verdict joins too
+    # when it names the item's own verdict-file name, keeping its defect for the evidence line.
     absent_ids = []
+    reply_defects = {}
     for pair, result in zip(pairs, ran["results"]):
         key = result.get("id")
-        if (result.get("source") == "response_text" and result.get("defect_class") != "verdict"
+        path, rt = pair.get("verdict_path"), pair.get("response_text")
+        names_own_file = (isinstance(path, str) and isinstance(rt, str)
+                          and os.path.basename(path) in rt)
+        if (result.get("source") == "response_text"
+                and (result.get("defect_class") != "verdict" or names_own_file)
                 and pair.get("pinned_verdict") not in VERDICT_ENUM and key not in absent_ids):
             absent_ids.append(key)
+            if result.get("defect_class") == "verdict":
+                reply_defects[key] = result["defect"]
+                result["defect"] = "verdict_file_absent"
         elif (result.get("source") == "none" and isinstance(key, str)
                 and isinstance(inputs.get("response_text"), dict) and key not in inp["response_text"]):
             warnings.append(f"response_text[{key!r}]: missing and no verdict file")
     needs_retry = [r for r in ran["needs_retry"]
-                   if not (r.get("id") in absent_ids and r.get("kind") == "auxiliary")]
+                   if not (r.get("id") in absent_ids and r.get("kind") in ("auxiliary", "verdict"))]
     needs_retry += [{"id": k, "kind": "verdict", "defect": "verdict_file_absent"} for k in absent_ids]
-    recovered_ids = set()
-    for slot, pair, result in zip(slots, pairs, ran["results"]):
+    for idx, (slot, pair, result) in enumerate(zip(slots, pairs, ran["results"])):
         item_id = result.get("id")
-        if result.get("verdict") is None:
-            rec = inp["recovered"].get(item_id) if isinstance(item_id, str) else None
-            if (result.get("defect_class") == "verdict" and isinstance(rec, dict)
-                    and rec.get("verdict") in VERDICT_ENUM):
-                ev = rec.get("evidence")
-                result["verdict"] = result["raw_verdict"] = rec["verdict"]
-                result["evidence"] = ev if isinstance(ev, str) else "recovered via in-context parse"
-                result["source"] = "recovered"
-                recovered_ids.add(item_id)
-                # issue #1140: a recovered reply's scope demotes exactly as a parsed one does.
-                if (rec["verdict"] == "PASS" and rec.get("inaccuracy_scope") == "source_authored_text"
-                        and pair["item"].get("claim_provenance") == "source_authored"):
-                    result["verdict"] = "FAIL"
-                    result["demoted"] = True
-                    result["evidence"] = _source_defect_evidence(result["evidence"])
-            else:
-                result["verdict"] = "INCONCLUSIVE"
-                result["evidence"] = f"verifier produced no usable verdict ({result.get('defect')})"
+        severity_defect = ran["severity_defects"].get(idx)
+        if item_id in reply_defects:
+            result["verdict"] = "INCONCLUSIVE"
+            result["evidence"] = ("verifier produced no usable verdict (verdict_file_absent; "
+                                  f"reply: {reply_defects[item_id]})")
+            result["severity"] = "critical"
+            severity_defect = "absent: no usable verifier verdict"
+        elif result.get("verdict") is None:
+            result["verdict"] = "INCONCLUSIVE"
+            result["evidence"] = f"verifier produced no usable verdict ({result.get('defect')})"
+            result["severity"] = "critical"
+            severity_defect = ("absent: helper failed on this item"
+                               if result.get("defect_class") == "helper_internal"
+                               else "absent: no usable verifier verdict")
+        if severity_defect is not None:
+            warnings.append(f"{item_id!r}: severity {severity_defect} -- stored critical")
+        if pair["item"].get("category") == "issue_acceptance":
+            result["severity"] = "critical"
         verification[slot] = result
 
     # issue #851 collector view-provenance gate: when the run supplies commit-bound views, a
@@ -1259,8 +1319,10 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             state = _view_state(entry, view_index, bound_revisions, view_dirs)
             entry["view_state"] = state
             view_states[state] = view_states.get(state, 0) + 1
-            if state != "ok" and _view_gated(entry):
-                _demote_pass(entry, state)
+            if state != "ok":
+                entry["severity"] = "critical"
+                if _view_gated(entry):
+                    _demote_pass(entry, state)
     elif views_supplied:
         # The run supplied views (it intended commit binding) but none were usable — every slot
         # was malformed or unreadable. Fail closed: provenance cannot be certified, so no raw PASS
@@ -1268,6 +1330,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
         # the gate is correctly inert and wording-only normalization is preserved (AC6).
         for entry in verification:
             entry["view_state"] = "views-unusable"
+            entry["severity"] = "critical"
             view_states["views-unusable"] += 1
             if _view_gated(entry):
                 _demote_pass(entry, "views-unusable")
@@ -1278,7 +1341,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
         tally[entry["verdict"].lower()] += 1
 
     out = {"written": out_file, "tally": tally, "counts": ran["counts"],
-           "needs_retry": [r for r in needs_retry if r.get("id") not in recovered_ids],
+           "needs_retry": needs_retry,
            "non_pass": [e for e in verification if e["verdict"] != "PASS"],
            "inputs_seen": seen, "input_warnings": warnings,
            "view_check": {"bound_revisions": sorted(bound_revisions), "states": view_states}}
@@ -1550,7 +1613,7 @@ def main(argv=None):
         # A help flag anywhere in argv prints usage and does nothing else — no
         # pairs-file read, no JSON verdict. rc 0.
         print("usage: normalize-verdicts.py <pairs-file>")
-        print("       normalize-verdicts.py checklist carry|raw|finalize <work-dir> ...")
+        print("       normalize-verdicts.py checklist carry|raw|finalize|match <work-dir> ...")
         print("       normalize-verdicts.py prepare <checklist-iter-N.json> --verdicts-dir <dir> [--fields <file>]")
         print("       normalize-verdicts.py <inputs-file> " + " ".join(f"{f} <path>" for f in BUILD_FLAGS))
         return 0

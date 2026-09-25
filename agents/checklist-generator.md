@@ -112,7 +112,7 @@ Tag every item with one of two modes:
 
 - **`lite`** — the claim reduces mechanically to "string S appears in file F (optionally between lines L1..L2)" or "string S does NOT appear in file F". The orchestrator will run `grep -n` / `rg` directly and skip the verifier agent. Permitted ONLY when ALL of the following hold:
   1. `category` is `api_contract` or `string_presence`.
-  2. No semantic interpretation is needed — the verdict is decidable by exact substring presence/absence.
+  2. The `claim` states no more than the probe checks: one exact string, present or absent, in one named file. A claim about several files, a count, a meaning, or a repo-wide absence is `agent`.
   3. The `lite_probe` object is populated with the exact `string` to search for and the `file` to search in (plus optional `line_range`).
 
   Examples eligible for `lite`:
@@ -157,7 +157,7 @@ The decision rule: ask "is the `claim` my rewording of code behavior, or is it a
 
 ## Rules
 
-- Prioritize claims most likely to drift: cross-file/cross-boundary contracts, external library API calls, mock-vs-real divergence, data-format assumptions about externally-produced data. Skip trivial existence checks that a `grep` would resolve in one second (e.g., "the literal string 'foo' appears in file X" — that's not worth a verifier slot).
+- Prioritize claims most likely to drift: cross-file/cross-boundary contracts, external library API calls, mock-vs-real divergence, data-format assumptions about externally-produced data. When code's outcome depends on how the host OS, shell or language runtime behaves, even through a library call, a `generated_paraphrase` claim states what the code does with each outcome that behavior can produce, never what a given platform does. Skip trivial existence checks that a `grep` would resolve in one second (e.g., "the literal string 'foo' appears in file X" — that's not worth a verifier slot).
 - Be thorough on the priorities above; err toward more on priorities, fewer on trivia.
 - One claim per checklist item. Do not bundle multiple claims.
 - No duplicates: one item per defect or contract under scrutiny about a `source_file`, whatever the wording; and a repo-wide convention check (license/SPDX header, naming or branding rule, `.gitignore` anchoring) appears once, category `api_contract`, not once per file.

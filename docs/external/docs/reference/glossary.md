@@ -9,7 +9,7 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **APPROVE**: The clean verdict. The review found nothing that blocks the merge and verified its own coverage.
 
-**APPROVE with notes**: Nothing blocked the merge, and the review still reported findings that sat below the line where a finding causes a rejection.
+**APPROVE with notes**: Nothing blocked the merge, and the review still reported findings or failed or inconclusive checklist items that sat below the line where they cause a rejection.
 
 **APPROVE WITH ADVISORY NOTES**: The review-and-fix loop approved the change and parked one or more findings for a person to judge instead of fixing them.
 
@@ -61,7 +61,7 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Reflection**: A short durable note a run writes on the workpad about friction it hit, a stop it made or a problem with the issue itself. The workpad heading is `PRFlow Reflections`; the section reader also still accepts the older `Devflow Reflection` spelling, so records written before the rename stay readable.
 
-**REJECT**: The blocking verdict. At least one checklist item failed or was inconclusive, or a finding reached the severity that blocks a merge, or the change's own diff added a line that is untrue.
+**REJECT**: The blocking verdict. A failed or inconclusive checklist item or a finding reached the severity that blocks a merge, or a rule that ignores severity fired: the change's own diff added a line that is untrue, the change misses a decided acceptance criterion, or the checklist's acceptance items do not match the decided criteria one for one (a missing or surplus item, or criteria that could not be itemized).
 
 **Review agent**: One of the nine subagents the review engine dispatches, each looking for a different class of problem — project guidelines, comment accuracy, test coverage, silent failures and type design among them.
 
@@ -79,7 +79,7 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Verdict**: The review's overall answer about a pull request, and the thing that decides whether a merge is blocked. It is one of the APPROVE forms above, or REJECT.
 
-**Verification checklist**: The list of checkable claims the review engine derives from the diff before it dispatches its agents. Each item resolves to PASS, FAIL or INCONCLUSIVE, and anything other than PASS causes a REJECT.
+**Verification checklist**: The list of checkable claims the review engine derives from the diff before it dispatches its agents. Each item resolves to PASS, FAIL or INCONCLUSIVE with a severity. A FAIL or INCONCLUSIVE item causes a REJECT when its severity is at or above `prflow_review.verdict_severity_threshold`; below it, the item does not reject on its own and is listed as a note.
 
 **Workpad**: The single GitHub issue comment that records an implementation run's branch, status, plan, progress, acceptance criteria and important recovery notes.
 

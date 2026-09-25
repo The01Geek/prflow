@@ -967,14 +967,17 @@ def render_instructions(
 _DISPATCH_POINTER_PREFIX = "dispatch-pointer:"
 
 
-def _emit_dispatch_pointer(rendered: str) -> None:
+def _emit_dispatch_pointer(rendered: bytes) -> None:
     """Echo the `dispatch-pointer:` line to stderr (issue #795).
 
     The caller used to re-read the just-written instruction file in a standalone
     `python3 -c` process solely to extract this one line — a whole extra spawn and
     Bash round-trip for a line the generator had already rendered. It is emitted
-    here from the SAME string just written to stdout, so it is byte-identical to
-    the line inside that file by construction rather than by re-derivation.
+    here from the SAME bytes just written to stdout. It is byte-identical to the
+    file's line only for `instructions_bytes()` output, whose pointer line is
+    LF-terminated and whose only slots (the draft and instructions paths) the CLI
+    admits as single-line values: this function always
+    appends `\\n` and does not reproduce any other terminator.
 
     This changes NO stdout byte and reads no consumer extension, so
     `dispatch-instructions` keeps its purity and the issue-#709 regeneration
@@ -1004,9 +1007,14 @@ def _emit_dispatch_pointer(rendered: str) -> None:
     instead. The emitted bytes are the WHOLE line, indentation included, exactly as
     the retired fence wrote it.
     """
+    prefix = _DISPATCH_POINTER_PREFIX.encode("utf-8")
     for line in rendered.splitlines():
-        if line.lstrip().startswith(_DISPATCH_POINTER_PREFIX):
-            sys.stderr.write(line + "\n")
+        if line.lstrip().startswith(prefix):
+            # Flush first so earlier text-mode stderr breadcrumbs keep their order;
+            # binary so the terminator stays the file's `\n` on native Windows.
+            sys.stderr.flush()
+            sys.stderr.buffer.write(line + b"\n")
+            sys.stderr.buffer.flush()
             return
 
 
@@ -1583,8 +1591,12 @@ def main(argv: list[str]) -> int:
                 args.instructions_path,
                 draft_text,
                 scope_text,
-            ).decode("utf-8")
-            sys.stdout.write(rendered)
+            )
+            # Binary stdout: a text-mode write turns each `\n` into `\r\n` on native
+            # Windows, and the state owner's digest of the redirected file then never
+            # matches the regeneration (issue #1210).
+            sys.stdout.buffer.write(rendered)
+            sys.stdout.buffer.flush()
             _emit_dispatch_pointer(rendered)
             return 0
         else:  # unreachable: choices already constrain mode

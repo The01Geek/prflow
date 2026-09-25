@@ -28,7 +28,7 @@ Tune `/prflow:implement` behavior and coordinate verification when multiple agen
 </Note>
 
 <Note>
-  `preflight.py lint-changed` is advisory unless you pass `--fail-on-findings`, which exits 1 when a linter reports findings and 2 when a linter could not run, and prints `LINT-CHANGED findings ops=<ids>` naming them. Its exit status never depends on ruff's version family. Each ruff receipt carries `ruff_family` as `match`, `skew` or `unestablished`. The summary line ends with `ruff-family=<value>` using the same distilled result (`none` when no ruff invocation ran).
+  `preflight.py lint-changed` is advisory unless you pass `--fail-on-findings`, which exits 1 when a linter reports findings and 2 when a linter could not run, and prints `LINT-CHANGED findings ops=<ids>` naming them. A ruff outside your lint manifest's pinned `major.minor` family reports a different rule set, so its findings never fail the run; it prints `LINT-CHANGED unverified ops=<ids> reason=ruff-family-skew reported=<X.Y> pinned=<A.B>` instead. Each ruff receipt carries `ruff_family` as `match`, `skew` or `unestablished`. The summary line ends with `ruff-family=<value>` using the same distilled result (`none` when no ruff invocation ran).
 </Note>
 
 <Warning>

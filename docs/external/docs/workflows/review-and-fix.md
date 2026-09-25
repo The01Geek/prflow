@@ -67,7 +67,7 @@ Which findings reach the fixer is set by `prflow_review_and_fix.fix_severity_thr
 | `important` (default) | Critical, Important, Major | Suggestion, Minor |
 | `suggestion` | Everything | Nothing |
 
-Anything that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore.
+Any finding or failed checklist item that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore. An inconclusive checklist item gives the fixer nothing to fix, so it is never sent.
 
 PRFlow can push back on a finding when the code disproves it, rather than "fixing" something that was never wrong. It can also defer a genuine finding when the deferral rules apply. A test broken by one of its own fixes must be repaired before the loop continues.
 

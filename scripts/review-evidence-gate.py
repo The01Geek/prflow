@@ -55,8 +55,10 @@ step's unrecognized-output warning rather than a silent green.
   pass <arm>                 a verdict was posted and its required evidence is present (on
                              the lean arm no checklist is owed, but with --execution-file the
                              always-on Phase 3 dispatches still are, unless the phase log
-                             records a blocker-recheck hit). <arm> is one of legitimate-skip,
-                             generator-failure-skip, blocker-recheck-hit, checklist-phases-ran.
+                             records a blocker-recheck hit). With --grade-run-root, every arm
+                             also owes the Phase 3 block files on the same exemption. <arm>
+                             is one of legitimate-skip, generator-failure-skip,
+                             blocker-recheck-hit, checklist-phases-ran.
   no-verdict                 no marker-bearing verdict was posted by this run for the head.
   fail missing=<tokens> review_id=<id> review_state=<state>
                              a verdict was posted and either (a) the checklist was owed and
@@ -65,10 +67,12 @@ step's unrecognized-output warning rather than a silent green.
                              ran, or (b) independently of whether a checklist was owed, with
                              --execution-file, the transcript is missing a dispatch of any
                              always-on Phase 3 reviewer on an arm that owes Phase 3 (every
-                             arm but a blocker-recheck hit). The <tokens> are space-free
-                             (checklist-artifact, verification-artifact, run-root,
-                             transcript-dispatch-shortfall, phase3-dispatch:<subagent_type>),
-                             joined by commas.
+                             arm but a blocker-recheck hit), or (c) with --grade-run-root, the
+                             run root lacks a `p3-<bare name>.md` block file for such a
+                             reviewer on such an arm (graded before any post). The <tokens>
+                             are space-free (checklist-artifact, verification-artifact, run-root,
+                             transcript-dispatch-shortfall, phase3-dispatch:<subagent_type>,
+                             phase3-block-file:<bare name>), joined by commas.
   unestablished <reason>     an evidence state the gate could not settle — reported neither
                              as a pass nor as a failure.
 
@@ -77,8 +81,11 @@ run root, an unresolvable diff range, an unparseable reviews payload, an ambiguo
 delta, or an older vendored engine are each UNESTABLISHED — never a pass and never laundered
 into a fail. Only what a hollow run positively leaves behind — a posted verdict with either a
 checklist owed and a run root holding neither the durable artifact pair nor a special record
-(or no run root at all), or an established transcript missing an owed Phase 3 reviewer
-dispatch — is the fail arm.
+(or no run root at all), an established transcript missing an owed Phase 3 reviewer
+dispatch, or a run root missing an owed Phase 3 block file — is the fail arm. An unstat-able
+block file grades `unestablished phase3-block-file-unreadable` unless an earlier unestablished
+grade, an ungradeable phase log, a blocker-recheck hit, or an established checklist failure
+settles the root first.
 """
 import argparse
 import glob
@@ -88,6 +95,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1022,9 +1030,10 @@ def _offline_owed_check(run_root):
     """Shared offline precheck (issue #193 AC1, refactored for #516): read the reviewed diff
     facts from the run root's own `diff.patch` — no GitHub, ref resolution, reviews payload,
     or repo checkout — and decide whether the checklist is owed. Returns
-    (short_circuit_token, detail, None) to return directly (an unreadable diff, an unloadable
-    workpad, or a legitimate skip), or (None, None, disproof) when the checklist IS owed and
-    the caller should grade the run root."""
+    (short_circuit_token, detail, None) to return without grading the run root's checklist
+    evidence (an unreadable diff, an unloadable workpad, or a legitimate skip), or
+    (None, None, disproof) when the checklist IS owed and the caller should grade the run
+    root."""
     facts, reason = _offline_diff_facts(run_root)
     if reason is not None:
         return f'unestablished {reason}', _detail(
@@ -1068,23 +1077,65 @@ def _format_offline_grade(run_root, grade, payload, disproof=None):
         owed, ' is missing: ', ', '.join(payload), '.')
 
 
+def _phase3_block_files_missing(run_root):
+    """The Phase 3 block-file requirement (issue #1156): one regular `p3-<bare name>.md` per
+    always-on reviewer, the offline stand-in for the transcript's dispatch count. Returns
+    (['phase3-block-file:<name>', ...], [unreadable file name, ...]) — a stat error other
+    than not-found makes the file unreadable, never missing."""
+    missing, unreadable = [], []
+    for subagent in _PHASE3_ALWAYS_ON_SUBAGENTS:
+        name = subagent.split(':', 1)[1]
+        try:
+            if stat.S_ISREG(os.stat(os.path.join(run_root, f'p3-{name}.md')).st_mode):
+                continue
+        except FileNotFoundError:
+            pass
+        except OSError:
+            unreadable.append(f'p3-{name}.md')
+            continue
+        missing.append('phase3-block-file:' + name)
+    return missing, unreadable
+
+
 def _decide_offline(run_root):
     """Grade a run root offline through the legacy run-wide `_grade_run_root_detail` (issue
-    #193 AC1) — no GitHub, ref resolution, reviews payload, or repo checkout. Returns
+    #193 AC1) — no GitHub, ref resolution, reviews payload, or repo checkout — then require
+    the Phase 3 block files on every arm but a blocker-recheck hit (issue #1156). Returns
     (token, [detail...])."""
     token, detail, disproof = _offline_owed_check(run_root)
-    if token is not None:
+    grade, payload = None, None
+    if token is None:
+        grade, payload, _agent_count = _grade_run_root_detail(run_root)
+        token, detail = _format_offline_grade(run_root, grade, payload, disproof)
+    if token.startswith('unestablished '):
         return token, detail
-    grade, payload, _agent_count = _grade_run_root_detail(run_root)
-    return _format_offline_grade(run_root, grade, payload, disproof)
+    blocks, unreadable = _phase3_block_files_missing(run_root)
+    if not blocks and not unreadable:
+        return token, detail
+    # Read the phase log only now: a complete lean root with a malformed log must still pass.
+    special = _special_record_grade(run_root)
+    if special is not None and special[0] == 'unestablished':
+        return _format_offline_grade(run_root, special[0], special[1])
+    if special is not None and special[1] == 'blocker-recheck-hit':
+        return token, detail
+    stat_note = _detail('review-evidence-gate: offline grading of run root ', run_root,
+                        ' could not stat Phase 3 block file(s): ', ', '.join(unreadable), '.')
+    if grade == 'fail':
+        # An established checklist failure beats an unreadable block file.
+        token, detail = _format_offline_grade(run_root, 'fail', payload + blocks, disproof)
+        return token, detail + (stat_note if unreadable else [])
+    if unreadable:
+        return 'unestablished phase3-block-file-unreadable', stat_note
+    return _format_offline_grade(run_root, 'fail', blocks)
 
 
 def grade_run_root_offline(run_root_dir):
     """Public offline run-wide grade for the producer helpers (post-review-verdict.sh via
     subprocess, loop-verdict-marker.py via install-relative import) — issue #193 AC3/AC5, and
-    the legacy interface issue #516 preserves unchanged. Returns (token, [detail...]); the
-    token's first field is `pass`/`fail`/`unestablished` exactly as the CLI emits, so a caller
-    admits only an explicit `pass ` result."""
+    the legacy interface issue #516 keeps; issue #1156 adds its Phase 3 block-file
+    requirement. Returns (token, [detail...]); the token's first field is
+    `pass`/`fail`/`unestablished` exactly as the CLI emits, so a caller admits only an
+    explicit `pass ` result."""
     return _decide_offline(run_root_dir)
 
 

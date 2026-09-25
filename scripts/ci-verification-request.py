@@ -27,7 +27,15 @@ command that owns that lifecycle:
                    supersession, and exhausted budget are non-passing terminals carrying
                    the run URL and cause — none of them prints a passing outcome. Exit 0
                    is reserved for an established PASSED; a PENDING exits 3, so a caller
-                   routing on the exit code alone cannot read it as a pass.
+                   routing on the exit code alone cannot read it as a pass. A
+                   CANCELLED, SUPERSEDED or STALLED wait (exit 6) ends with no verdict and
+                   settles the record `no-verdict`: `request` never REUSEs or
+                   RECONCILEs it and a later wait leaves it settled, but once that
+                   request's run completes with a pass or fail, `request` may adopt it,
+                   rewriting the record as `dispatched` and so reusable again. With `--cancel-queued-after <seconds>`, a
+                   not-completed run whose jobs all read cleanly, one of them queued at
+                   least that long, gets a `gh run cancel` and is reported STALLED
+                   (`cancel=ok|failed`).
   collect-evidence build the versioned `cloud_ci_evidence` record for
                    `check-completion-evidence.py` from the run's shard-tally artifacts
                    (downloaded by the caller with `gh run download --dir <dir>`, named by
@@ -80,6 +88,7 @@ import tempfile
 import time
 import unicodedata
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Resolve the state-config path through the shared #295/#1002 contract so a consumer
@@ -135,6 +144,13 @@ _FAILURE_CONCLUSION = "failure"
 # `wait` exit codes; the contract is stated in the module docstring.
 _EXIT_PASSED = 0
 _EXIT_PENDING = 3
+_EXIT_NO_VERDICT = 6
+# The record state a no-verdict wait terminal settles; `_request_for_candidate` skips it.
+_STATE_NO_VERDICT = "no-verdict"
+# Completed-run conclusions that end `wait` with no verdict, mapped to the line they print.
+_NO_VERDICT_CONCLUSIONS = {"cancelled": "CANCELLED", "canceled": "CANCELLED",
+                           "skipped": "SUPERSEDED"}
+_STALL_JOB_NAME_MAX_CHARS = 200
 
 # Failure-recap parse (issue #603). Reimplemented rather than imported: shard-tally.py, whose
 # recap header/bullet rule this matches, lives under lib/test/ (pruned from the vendored
@@ -341,7 +357,8 @@ def _request_for_candidate(repo: str, head_sha: str, *, correlated: bool) -> dic
     requires that state so a never-accepted `pending-dispatch` record — persisted before
     dispatch and left behind when `gh workflow run` raised — is NOT read as an accepted
     dispatch to reconcile; it falls through to a fresh dispatch instead, and a transient
-    dispatch failure does not wedge the candidate at RECONCILE forever."""
+    dispatch failure does not wedge the candidate at RECONCILE forever. A `no-verdict`
+    record (its run was cancelled, skipped or stalled) is never returned by either arm."""
     best = None
     for path in sorted(_request_dir().glob("*.json")):
         try:
@@ -352,6 +369,7 @@ def _request_for_candidate(repo: str, head_sha: str, *, correlated: bool) -> dic
         if not isinstance(rec, dict):
             continue
         if rec.get("repo") == repo and rec.get("source_head_sha") == head_sha \
+                and rec.get("state") != _STATE_NO_VERDICT \
                 and bool(rec.get("run_id")) == correlated \
                 and (correlated or rec.get("state") == "dispatched-uncorrelated") \
                 and (best is None
@@ -428,7 +446,8 @@ def _correlate_run(repo: str, request_id: str, head_sha: str) -> tuple[int | Non
 
 def _adopt_completed_dispatch_run(repo: str, head_sha: str) -> dict | None:
     """A prior attempt's already-completed ci.yml dispatch run for this same head, adoptable
-    by a resume on a fresh runner that holds no local request record (issue #545). Returns
+    by a resume on a fresh runner that holds no local request record (issue #545), or by a
+    runner whose only record for this head is settled `no-verdict`. Returns
     {request_id, run_id, run_attempt, run_url} for a completed workflow_dispatch run at
     head_sha whose title carries a single request-id token, else None. A green run wins; with
     none, a run that concluded `failure` is adopted too, so the resume's `wait` reports that
@@ -677,8 +696,8 @@ def cmd_request(args) -> int:
                 print(f"RECONCILE {pending['request_id']} run=none "
                       "state=dispatched-uncorrelated reason=run-not-yet-visible")
             return 0
-        # No local record: adopt a prior attempt's already-completed same-head dispatch run
-        # (issue #545). A resume on a fresh runner holds no request record, so without this
+        # No reusable local record: adopt a prior attempt's already-completed same-head
+        # dispatch run (issue #545). A resume on a fresh runner holds no request record, so without this
         # it re-dispatches and re-waits a CI cycle this head already passed — or failed.
         adopt = _adopt_completed_dispatch_run(args.repo, args.head_sha)
         if adopt is not None:
@@ -879,10 +898,12 @@ def cmd_wait(args) -> int:
 
     deadline = time.monotonic() + max(1, args.deadline_seconds)
     transport_failures = 0
+    bound = args.cancel_queued_after
+    fields = "status,conclusion,url,attempt" + (",jobs,createdAt" if bound is not None else "")
+    stall_noted = False
     while True:
         rc, out, err = _gh([
-            "run", "view", str(record["run_id"]), "--repo", repo,
-            "--json", "status,conclusion,url,attempt",
+            "run", "view", str(record["run_id"]), "--repo", repo, "--json", fields,
         ])
         if rc != 0:
             # An authorization failure is a non-retryable terminal — report it at once
@@ -902,12 +923,22 @@ def cmd_wait(args) -> int:
             continue
         transport_failures = 0
         try:
-            view = json.loads(out) if out.strip() else {}
+            parsed = json.loads(out) if out.strip() else None
         except ValueError:
-            view = {}
-        status = (view.get("status") or "").lower()
-        conclusion = (view.get("conclusion") or "").lower()
+            parsed = None
+        view = parsed if isinstance(parsed, dict) else {}
+        status = view.get("status")
+        status = status.lower() if isinstance(status, str) else ""
+        conclusion = view.get("conclusion")
+        conclusion = conclusion.lower() if isinstance(conclusion, str) else ""
         run_url = view.get("url") or record.get("run_url", "")
+        if bound is not None and status != "completed":
+            reason, hit = _stalled_job(parsed, bound, datetime.now(timezone.utc))
+            if reason is not None and not stall_noted:
+                sys.stderr.write(f"stall-check: unestablished — {reason}\n")
+                stall_noted = True
+            if hit is not None:
+                return _emit_stalled(record, run_url, *hit)
         # Only a completed run is terminal. A conclusion seen alongside a not-completed
         # status (a transient/edge API state) is NOT honored — it falls through to the
         # deadline/sleep logic, so a `success` conclusion on a still-running status can
@@ -923,17 +954,20 @@ def cmd_wait(args) -> int:
                 view_attempt = view.get("attempt")
                 if _is_real_int(view_attempt):
                     record["run_attempt"] = view_attempt
+            no_verdict = _NO_VERDICT_CONCLUSIONS.get(conclusion)
+            if no_verdict is not None:
+                record["state"] = _STATE_NO_VERDICT
             _store_request(record)
             if conclusion == _SUCCESS_CONCLUSION:
                 print(f"PASSED {record['request_id']} run={record['run_id']} url={run_url}")
                 return _EXIT_PASSED
-            if conclusion in ("cancelled", "canceled"):
+            if no_verdict == "CANCELLED":
                 print(f"CANCELLED {record['request_id']} run={record['run_id']} url={run_url}")
-                return 6
-            if conclusion == "skipped":
+                return _EXIT_NO_VERDICT
+            if no_verdict == "SUPERSEDED":
                 print(f"SUPERSEDED {record['request_id']} run={record['run_id']} url={run_url} "
                       "reason=run-skipped")
-                return 6
+                return _EXIT_NO_VERDICT
             print(f"FAILED {record['request_id']} run={record['run_id']} url={run_url} "
                   f"conclusion={conclusion or 'unknown'}")
             _print_failure_recap(record)
@@ -941,6 +975,89 @@ def cmd_wait(args) -> int:
         if time.monotonic() >= deadline:
             return _emit_pending(record)
         _sleep_until(deadline)
+
+
+def _utc_timestamp(value) -> datetime | None:
+    """An aware datetime for an ISO-8601 string carrying a UTC offset, else None."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        # A trailing Z is spelled +00:00 because fromisoformat rejects Z before Python 3.11.
+        ts = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        return None
+    # Year 1 is gh's zero time, its unset value, never a real time.
+    return ts if ts.utcoffset() is not None and ts.year > 1 else None
+
+
+def _stalled_job(view, bound: int, now: datetime) -> tuple[str | None, tuple[dict, int] | None]:
+    """(unestablished reason, None) when any part of the run view the stall check reads is
+    malformed — one bad job makes the whole check unestablished, so it never cancels on a
+    partial read; else (None, (job, queued seconds)) for the first job queued at least
+    `bound` seconds, or (None, None).
+
+    The queue age assumes a queued job's startedAt is its queue time. A zero time or null in
+    startedAt or createdAt instead makes the check unestablished, and a future startedAt gives
+    a negative age, so none of them cancels."""
+    if not isinstance(view, dict):
+        return "run view is not a JSON object", None
+    if "jobs" not in view:
+        return "jobs missing", None
+    jobs = view["jobs"]
+    if not isinstance(jobs, list):
+        return "jobs is not an array", None
+    if not jobs:
+        return None, None
+    created = _utc_timestamp(view.get("createdAt"))
+    if created is None:
+        return "run createdAt missing, zero or not a UTC-offset timestamp", None
+    hit = None
+    for job in jobs:
+        if not isinstance(job, dict):
+            return "job entry is not an object", None
+        status = job.get("status")
+        if not isinstance(status, str) or not status:
+            return "job status missing or not a non-empty string", None
+        started = _utc_timestamp(job.get("startedAt"))
+        if started is None:
+            return "job startedAt missing, zero or not a UTC-offset timestamp", None
+        if started < created:
+            return "job startedAt earlier than run createdAt", None
+        age = int((now - started).total_seconds())
+        if hit is None and status.lower() == "queued" and age >= bound:
+            hit = (job, age)
+    return None, hit
+
+
+def _spaced_controls(text: str) -> str:
+    """`text` with every control character (newlines included) replaced by a space."""
+    return "".join(" " if unicodedata.category(ch).startswith("C") else ch for ch in text)
+
+
+def _emit_stalled(record: dict, run_url: str, job: dict, age: int) -> int:
+    rc, _out, err = _gh(["run", "cancel", str(record["run_id"]), "--repo", record["repo"]])
+    if rc != 0:
+        sys.stderr.write(f"stall-cancel: gh run cancel exited {rc}: "
+                         f"{_spaced_controls(err.strip())[:200]}\n")
+    # Settled either way.
+    record["state"] = _STATE_NO_VERDICT
+    record["run_url"] = run_url
+    _store_request(record)
+    name = _spaced_controls(job.get("name") if isinstance(job.get("name"), str) else "<unnamed>")
+    print(f"STALLED {record['request_id']} run={record['run_id']} url={run_url} "
+          f"queued-for={age}s cancel={'ok' if rc == 0 else 'failed'} "
+          f"job={name[:_STALL_JOB_NAME_MAX_CHARS]}")
+    return _EXIT_NO_VERDICT
+
+
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a positive integer")
+    if value <= 0:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a positive integer")
+    return value
 
 
 def _poll_interval() -> float:
@@ -967,7 +1084,9 @@ def _sleep_until(deadline: float) -> None:
 
 
 def _emit_pending(record: dict) -> int:
-    record["state"] = "pending"
+    # Never un-settle a no-verdict record.
+    if record.get("state") != _STATE_NO_VERDICT:
+        record["state"] = "pending"
     _store_request(record)
     print(f"PENDING {record['request_id']} run={record.get('run_id')} "
           f"url={record.get('run_url','')} reason=deadline-reached")
@@ -1379,6 +1498,11 @@ def _build_parser() -> argparse.ArgumentParser:
     w = sub.add_parser("wait", help="bounded foreground poll of a dispatched run")
     w.add_argument("--request-id", required=True)
     w.add_argument("--deadline-seconds", type=int, default=_DEFAULT_DEADLINE_SECONDS)
+    # Never rename to a `-seconds`/`-ms` suffix: the tier-timeout lint reads those as wait bounds.
+    w.add_argument("--cancel-queued-after", type=_positive_int, default=None,
+                   metavar="SECONDS",
+                   help="cancel a not-completed run and print STALLED (exit 6) once one "
+                        "of its jobs has been queued this many seconds")
     w.set_defaults(func=cmd_wait)
 
     c = sub.add_parser("collect-evidence", help="build the cloud_ci_evidence record")

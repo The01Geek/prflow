@@ -7,13 +7,14 @@
 # the job fails, is cancelled, the runner is lost, or the step exits cleanly
 # having written no verdict at all — leave THIS run's `prflow:review-progress`
 # comment in the terminal `❌ Review failed` state so the pull request stops
-# reading as a clean pass. This is the workflow-level mirror of the agent-side
-# fatal-abort rule in skills/review/SKILL.md (the "Fatal review abort after
-# seeding" clause). The `❌ Review failed` literal mirrors that skill. Marker
-# ownership is split: seed-review-progress.sh derives the cloud marker, the
-# skill composes only the local and helper-absent recovery forms, and the
-# workflow rebuilds the cloud form passed here. Runtime parity tests keep those
-# cloud forms aligned.
+# reading as a clean pass. It mirrors the `**Status:**` flip of the agent-side
+# no-verdict stamp in skills/review/SKILL.md (the `❌ Review failed` literal)
+# and adds a cause line above the trailing lint-adjudications sentinel pair (at
+# the end when the body does not end in one); only the evidence-gate arm (below) also
+# replaces the `## Verdict` section. Marker ownership is split:
+# seed-review-progress.sh derives the cloud marker, the skill composes only the
+# local and helper-absent recovery forms, and the workflow rebuilds the cloud
+# form passed here. Runtime parity tests keep those cloud forms aligned.
 #
 # The write is an UPSERT, not an update (issue #1154). A run that dies BEFORE
 # the engine reaches its Phase 0.3.5 seed leaves no comment to flip, and the
@@ -43,13 +44,15 @@
 #     the second invocation resolves the comment the first one created, reads
 #     its terminal Status, and writes nothing.
 #   - The `--evidence-gate-fail` 4th argument (issue #2075) is the review-evidence
-#     gate's arm: it overrides the interim-only guard for the evidence-gate case — a
-#     run that DID write a terminal verdict but whose posted verdict lacks
-#     phase-execution evidence — rewriting that terminal Status to `❌ Review
-#     failed` and reporting the `evidence-gate-flip` arm. Without it a hollow
-#     verdict's terminal comment would keep reading as a pass. A re-run finds the
-#     Status already `❌ Review failed` and leaves it failed (the Status is
-#     convergent; the appended cause line is best-effort and not deduped).
+#     gate's arm, for a run whose posted verdict lacks phase-execution evidence.
+#     Whatever the Status (interim, terminal or absent), it rewrites any Status
+#     line to `❌ Review failed`, replaces the first `## Verdict` section with
+#     `## Verdict: REVIEW INCOMPLETE — <cause>`, blanks (never deletes) any
+#     `prflow:review-verdict` marker line in the first two lines and indents every
+#     column-0 `## Verdict: APPROVE|REJECT` line one space (issue #1270); a terminal
+#     Status reports the `evidence-gate-flip` arm. Without it a hollow verdict would
+#     keep reading as a pass. A re-run converges on the same Status and Verdict
+#     line (the cause line is best-effort and not deduped).
 #   - The run-keyed marker (`<!-- prflow:review-progress run=<id>-<attempt> -->`)
 #     matches ONLY the current run's comment, so an earlier run's comment is
 #     never read or modified — on the create path too, where the marker is
@@ -110,7 +113,7 @@ esac
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKPAD="$HERE/workpad.py"
 
-# Run link for the appended cause line (standard runner env; a local run leaves
+# Run link for the cause line (standard runner env; a local run leaves
 # these empty). The reusable runner shares GITHUB_RUN_ID/ATTEMPT with the caller,
 # so the URL points at the dead run.
 if [ -n "${GITHUB_SERVER_URL:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_RUN_ID:-}" ]; then
@@ -238,19 +241,20 @@ if [ "$BODY_RC" -ne 0 ] || [ -z "$BODY" ]; then
   _wp_err_cleanup
   exit 0
 fi
-_wp_err_cleanup
 
-# 3. Transform: flip the Status line ONLY when it begins with 🚀, and append a
-#    one-line cause with the run link. Done in python3 (a hard dependency) so no
-#    shell quoting traverses the markdown body and the 🚀 test is a literal byte
-#    match, not a locale-dependent sed alternation. Prints a result token.
+# 3. Transform: flip the Status line ONLY when it begins with 🚀 (or under
+#    --evidence-gate-fail), and add a one-line cause with the run link. Done in
+#    python3 (a hard dependency) so no shell quoting traverses the markdown body
+#    and the 🚀 test is a literal byte match, not a locale-dependent sed
+#    alternation. Prints a result token.
 TMP="$(mktemp 2>/dev/null)" || {
   echo "flip-review-progress-failed: mktemp failed for PR #${PR} comment #${CID} — read/patch-failure no-op" >&2
+  _wp_err_cleanup
   exit 0
 }
-RESULT="$(DEVFLOW_BODY="$BODY" DEVFLOW_CAUSE="$CAUSE" DEVFLOW_RUN_URL="$RUN_URL" \
-  DEVFLOW_EVIDENCE_GATE_FAIL="$EVIDENCE_GATE_FAIL" \
-  python3 - "$TMP" <<'PYEOF'
+# The program is read before the `$(…)`: bash 3.2 misparses a heredoc inside one whose
+# body holds an unbalanced quote or backtick. `read -d ''` returns 1 at end of input.
+IFS= read -r -d '' FLIP_PY <<'PYEOF' || true
 import os, re, sys
 sys.stdout.reconfigure(newline="\n")
 body = os.environ.get('DEVFLOW_BODY', '')
@@ -259,10 +263,11 @@ run_url = os.environ.get('DEVFLOW_RUN_URL', '')
 evidence_gate_fail = os.environ.get('DEVFLOW_EVIDENCE_GATE_FAIL', '') != ''
 out_path = sys.argv[1]
 m = re.search(r'^\*\*Status:\*\*[ \t]*(.*)$', body, re.MULTILINE)
-if not m:
+# The evidence-gate arm still neutralizes the verdict of a comment with no Status line.
+if not m and not evidence_gate_fail:
     print('NOSTATUS')
     sys.exit(0)
-interim = m.group(1).lstrip().startswith('🚀')
+interim = bool(m) and m.group(1).lstrip().startswith('🚀')
 # Default (dead-run backstop): fail closed and flip ONLY an interim (🚀) Status;
 # anything else — a written verdict, an agent-side ❌ Review failed, any terminal
 # glyph — is treated as terminal and left untouched. The --evidence-gate-fail arm
@@ -273,28 +278,65 @@ if not interim and not evidence_gate_fail:
     print('TERMINAL')
     sys.exit(0)
 one_line_cause = ' '.join(cause.splitlines())
-new_body = body[:m.start()] + '**Status:** ❌ Review failed' + body[m.end():]
-new_body = new_body.rstrip('\n') + '\n\n' + \
-    f'_Review run failed: {one_line_cause} — {run_url}_\n'
+new_body = body[:m.start()] + '**Status:** ❌ Review failed' + body[m.end():] if m else body
+if evidence_gate_fail:
+    # Evidence-gate arm: the posted verdict lacks its evidence, so replace the first column-0
+    # `## Verdict` section, up to the next `## ` heading or the sentinel pair, with REVIEW INCOMPLETE.
+    v = re.search(r'^## Verdict(?=[:\s]|$).*$', new_body, re.MULTILINE)
+    if v:
+        nxt = re.search(r'^(## |<!-- prflow:lint-adjudications-start -->)', new_body[v.end():], re.MULTILINE)
+        end = v.end() + nxt.start() if nxt else len(new_body)
+        new_body = (new_body[:v.start()] + f'## Verdict: REVIEW INCOMPLETE — {one_line_cause}\n'
+                    + ('\n' if nxt else '') + new_body[end:])
+    # derive-review-verdict.sh reads a verdict marker in lines 1-2 before this Verdict line,
+    # so a surviving one re-approves the voided run. Blank a stripped line, never delete it:
+    # deleting shifts a line-3 marker into lines 1-2, where the deriver reads it.
+    # With no marker the deriver matches its APPROVE_RE/REJECT_RE on any line, so indent
+    # every such heading one space: it still renders as a heading but no longer matches.
+    marker = re.compile(r'<!-- prflow:review-verdict[ >]')
+    heading = re.compile(r'##\s+Verdict:\s*(APPROVE|REJECT)')
+    lines = new_body.split('\n')
+    new_body = '\n'.join('' if i < 2 and marker.match(l) else ' ' + l if heading.match(l) else l
+                         for i, l in enumerate(lines))
+cause_line = f'_Review run failed: {one_line_cause} — {run_url}_\n'
+# The lint-adjudications sentinel pair stays the comment's last block, so the cause
+# line goes above its column-0 START sentinel. Only a START before a body-final END
+# counts, so a START quoted above the pair never draws it; a body not ending in the pair appends.
+end_sentinel = '<!-- prflow:lint-adjudications-end -->'
+tail = new_body.rstrip()
+cut = -1
+if tail.endswith(end_sentinel):
+    cut = new_body.rfind('\n<!-- prflow:lint-adjudications-start -->', 0, len(tail) - len(end_sentinel))
+if cut == -1:
+    new_body = new_body.rstrip('\n') + '\n\n' + cause_line
+else:
+    new_body = new_body[:cut].rstrip('\n') + '\n\n' + cause_line + new_body[cut:]
 with open(out_path, 'w', encoding='utf-8') as f:
     f.write(new_body)
-print('EVIDENCE_GATE_FLIP' if (not interim and evidence_gate_fail) else 'FLIP')
+print('FLIP' if interim else 'EVIDENCE_GATE_FLIP' if m else 'EVIDENCE_GATE_NOSTATUS')
 PYEOF
-)"
+RESULT="$(DEVFLOW_BODY="$BODY" DEVFLOW_CAUSE="$CAUSE" DEVFLOW_RUN_URL="$RUN_URL" \
+  DEVFLOW_EVIDENCE_GATE_FAIL="$EVIDENCE_GATE_FAIL" \
+  python3 - "$TMP" <<<"$FLIP_PY")"
 
+# Without the drop flag, patch re-inserts the live verdict marker the transform removed.
+PATCH_ARGS=()
+[ -n "$EVIDENCE_GATE_FAIL" ] && PATCH_ARGS=(--drop-leading-marker review-verdict)
 case "$RESULT" in
   FLIP)
-    if python3 "$WORKPAD" patch "$CID" "$TMP" >/dev/null 2>&1; then
+    if python3 "$WORKPAD" patch "$CID" "$TMP" ${PATCH_ARGS[@]+"${PATCH_ARGS[@]}"} >/dev/null 2>"${WP_ERR:-/dev/null}"; then
       echo "flip-review-progress-failed: flipped PR #${PR} review-progress comment #${CID} to '❌ Review failed' (${CAUSE})" >&2
     else
-      echo "flip-review-progress-failed: patch of comment #${CID} for PR #${PR} failed — read/patch-failure no-op (Status left unchanged)" >&2
+      echo "::warning::flip-review-progress-failed: patch of comment #${CID} for PR #${PR} failed — read/patch-failure no-op (comment left unchanged). Cause: $(_wp_cause)" >&2
     fi
     ;;
-  EVIDENCE_GATE_FLIP)
-    if python3 "$WORKPAD" patch "$CID" "$TMP" >/dev/null 2>&1; then
+  EVIDENCE_GATE_FLIP|EVIDENCE_GATE_NOSTATUS)
+    if ! python3 "$WORKPAD" patch "$CID" "$TMP" ${PATCH_ARGS[@]+"${PATCH_ARGS[@]}"} >/dev/null 2>"${WP_ERR:-/dev/null}"; then
+      echo "::warning::flip-review-progress-failed: evidence-gate patch of comment #${CID} for PR #${PR} failed — read/patch-failure no-op (comment left unchanged). Cause: $(_wp_cause)" >&2
+    elif [ "$RESULT" = EVIDENCE_GATE_FLIP ]; then
       echo "flip-review-progress-failed: flipped PR #${PR} review-progress comment #${CID} from a terminal verdict to '❌ Review failed' via the evidence-gate arm (${CAUSE})" >&2
     else
-      echo "flip-review-progress-failed: evidence-gate patch of comment #${CID} for PR #${PR} failed — read/patch-failure no-op (Status left unchanged)" >&2
+      echo "flip-review-progress-failed: PR #${PR} comment #${CID} has no Status line — neutralized its verdict via the evidence-gate arm (${CAUSE})" >&2
     fi
     ;;
   TERMINAL)
@@ -309,4 +351,5 @@ case "$RESULT" in
 esac
 
 rm -f "$TMP"
+_wp_err_cleanup
 exit 0
