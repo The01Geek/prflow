@@ -798,6 +798,8 @@ def _run_invocation(inv: Invocation, top: str, tool_cache: dict,
 #   2  population or manifest unestablished (an unknown set is not a clean empty one), or,
 #      under `--fail-on-findings`, an invocation whose outcome is not `ran`
 #   3  no repository root, or a named receipt non-success
+# A `lint-changed` ruff invocation that ran with `ruff_family` `skew` never counts toward 1;
+# it prints `LINT-CHANGED unverified ops=<ids> ...` instead (issue #1199).
 LINT_OK = 0
 LINT_FINDINGS = 1
 LINT_UNESTABLISHED = 2
@@ -899,14 +901,16 @@ def _emit_invocations(invocations, pop, top, writer, base_fields, examined,
     family). A named receipt non-success raises `ReceiptError` to the caller. The distilled
     family (issue #603) summarizes the run's ruff invocations for the caller's summary line;
     it is `none` when no ruff family was recorded (no ruff invocation, or none requested).
-    When `outcomes` is a list, each invocation's (op id, outcome, exit) is appended to it."""
+    When `outcomes` is a list, each invocation's (op id, outcome, exit, ruff_family or None,
+    reported family or None) is appended to it."""
     written = 0
     tool_cache: dict = {}
     ruff_families: list[str] = []
     for inv in invocations:
         outcome = _run_invocation(inv, top, tool_cache, ruff_family_pinned)
         if outcomes is not None:
-            outcomes.append((inv.op_id, outcome["outcome"], outcome["exit"]))
+            outcomes.append((inv.op_id, outcome["outcome"], outcome["exit"],
+                             outcome.get("ruff_family"), _minor_family(tool_cache[inv.tool][1])))
         if "ruff_family" in outcome:
             ruff_families.append(outcome["ruff_family"])
         fields = dict(base_fields)
@@ -965,16 +969,25 @@ def cmd_lint_changed(args) -> int:
         print(f"LINT-CHANGED receipt-non-success {exc}", file=sys.stderr)
         return LINT_ERROR
     rc = LINT_OK
+    # issue #1199: a ruff outside the pinned family reports another rule set, so its findings
+    # are unverified and never gate. Only a positive `skew` that ran is excluded: an unknown
+    # family, or a skewed ruff that timed out or never launched, still gates.
+    skewed, gated = [], []
+    for row in outcomes:
+        (skewed if row[3] == "skew" and row[1] == "ran" else gated).append(row)
     if getattr(args, "fail_on_findings", False):
         # issue #870: opt-in exit status for a caller that gates on this lint. A not-`ran`
         # outcome (tool absent, timeout, launch error) is unknown, which outranks a finding.
-        failing = [op for op, outcome, code in outcomes if outcome != "ran" or code != 0]
-        if any(outcome != "ran" for _op, outcome, _code in outcomes):
+        failing = [op for op, outcome, code, _fam, _rep in gated if outcome != "ran" or code != 0]
+        if any(outcome != "ran" for _op, outcome, _code, _fam, _rep in gated):
             rc = LINT_UNESTABLISHED
         elif failing:
             rc = LINT_FINDINGS
         if failing:
             print(f"LINT-CHANGED findings ops={','.join(failing)}")
+    if skewed:
+        print(f"LINT-CHANGED unverified ops={','.join(row[0] for row in skewed)} "
+              f"reason=ruff-family-skew reported={skewed[0][4]} pinned={ruff_family_pinned}")
     print(
         f"LINT-CHANGED established-{pop.status} population={len(pop.records)} "
         f"run={len(pop.run_paths())} invocations={len(invocations)} receipts={written} "

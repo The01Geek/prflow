@@ -46,7 +46,7 @@ Add one of these as a comment on the pull request's **Conversation** tab:
 /prflow:pr-description
 ```
 
-`/prflow:review` and `/prflow:review-and-fix` post a single progress comment that PRFlow rewrites as it works, ending with the full report and an APPROVE or REJECT verdict. `/prflow:review-and-fix` also pushes its fixes to the pull-request branch. `/prflow:pr-description` updates the description in place and keeps content a person added.
+`/prflow:review` and `/prflow:review-and-fix` post a single progress comment that PRFlow rewrites as it works; the finished comment holds the full report, which opens with the verdict. `/prflow:review-and-fix` also pushes its fixes to the pull-request branch. `/prflow:pr-description` updates the description in place and keeps content a person added.
 
 <Warning>
   The shipped workflows listen to issue comments only. Text typed into GitHub's review-submission box, or into an inline comment on a diff, does not start a run. Post on the **Conversation** tab.

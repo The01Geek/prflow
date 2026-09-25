@@ -119,11 +119,13 @@ _select_session_files() {
   SELECTED_REL=()
   REJECTED=0
   FIRST_CWD=""
-  local SEL abspath cwd ncwd rel
+  local SEL abspath cwd ncwd rel sel_py
   # python3 (a preflight-guaranteed tool, never `find`) selects regular `.jsonl` files newer
   # than the stamp and reads each one's first `cwd`-bearing record; the workspace match is
   # decided in bash so both cwd forms pass through devflow_normalize_path identically.
-  SEL="$(STORE_ROOT="$STORE_ROOT" STAMP="$STAMP" python3 - <<'PY'
+  # The program is read before the `$(…)`: bash 3.2 misparses a heredoc inside one whose
+  # body holds an unbalanced quote or backtick. `read -d ''` returns 1 at end of input.
+  IFS= read -r -d '' sel_py <<'PY' || true
 import os, json, sys
 sys.stdout.reconfigure(newline="\n")
 root = os.environ["STORE_ROOT"]
@@ -164,7 +166,7 @@ for dirpath, dirnames, filenames in os.walk(root):
         # joins with `\`, so bash rebuilds the absolute path in its own form below.
         sys.stdout.write(os.path.relpath(full, root).replace(os.sep, "/") + "\t" + cwd + "\n")
 PY
-)"
+  SEL="$(STORE_ROOT="$STORE_ROOT" STAMP="$STAMP" python3 - <<<"$sel_py")"
   while IFS=$'\t' read -r rel cwd; do
     [ -z "$rel" ] && continue
     abspath="${STORE_ROOT%/}/$rel"

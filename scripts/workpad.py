@@ -25,7 +25,7 @@ Usage:
                                [--emit-source-token]
     workpad.py acs-resolve ISSUE [--pr N]
     workpad.py body      COMMENT_ID | --issue ISSUE [--marker M]
-    workpad.py patch     COMMENT_ID BODY_FILE
+    workpad.py patch     COMMENT_ID BODY_FILE [--drop-leading-marker KIND]...
     workpad.py create    ISSUE BODY_FILE
     workpad.py new-body  ISSUE [--run-link V] [--branch V] [--marker M]
     workpad.py now
@@ -1645,7 +1645,7 @@ def _leading_markers(body):
     return found, lines[len(found):]
 
 
-def _merge_leading_markers(live_body, new_body):
+def _merge_leading_markers(live_body, new_body, drop=()):
     """Re-insert into `new_body` any leading marker `live_body` carries.
 
     Returns `(body, reinserted_kinds)`. When anything is re-inserted the live
@@ -1658,8 +1658,9 @@ def _merge_leading_markers(live_body, new_body):
     caller supplied every live kind nothing is re-inserted and its own body —
     and its own order — is returned untouched. The consequence a caller must
     know: this can CHANGE a leading marker of a kind the live body already
-    carries, but never REMOVE one it holds, so a deliberate removal, and a
-    migration that changes a marker's KIND, go through a different write path.
+    carries, but never REMOVE one it holds unless the caller names its kind in
+    `drop` (`patch --drop-leading-marker`); a migration that changes a marker's
+    KIND goes through a different write path.
     A same-kind marker the CALLER placed out of position — behind a blank line
     rather than at line 1 — is dropped rather than duplicated.
 
@@ -1668,7 +1669,7 @@ def _merge_leading_markers(live_body, new_body):
     line 2 — and their matching and precedence rules differ, so a change to
     either position must be made in both.
     """
-    live, _ = _leading_markers(live_body)
+    live = [(k, l) for k, l in _leading_markers(live_body)[0] if k not in drop]
     if not live:
         return new_body, []
     supplied, tail = _leading_markers(new_body)
@@ -1817,7 +1818,8 @@ def cmd_patch(args):
                 're-author the body with its marker as line 1.\n'
             )
             sys.exit(1)
-    merged, reinserted = _merge_leading_markers(live, composed)
+    merged, reinserted = _merge_leading_markers(
+        live, composed, drop=set(getattr(args, 'drop_leading_marker', None) or ()))
     if reinserted:
         sys.stderr.write(
             'workpad.py patch: re-inserted leading marker(s) the composed body '
@@ -10396,6 +10398,9 @@ def main():
     s = sub.add_parser('patch', help='PATCH a workpad comment from a body file.')
     s.add_argument('comment_id', type=int)
     s.add_argument('body_file')
+    s.add_argument('--drop-leading-marker', action='append', default=[], metavar='KIND',
+                   help='Do not re-insert a live leading marker of this kind '
+                        '(e.g. review-verdict) the body file omits. Repeatable.')
     s.set_defaults(func=cmd_patch)
 
     s = sub.add_parser(

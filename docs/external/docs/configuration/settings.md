@@ -85,7 +85,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow_review.stale_prose.severity` | [Review](/docs/configuration/review) | The severity a stale-prose finding carries. |
 | `prflow_review.stall_backstop.enabled` | [Review](/docs/configuration/review) | Whether the live no-verdict stall backstop is enabled (retained; not part of the removed tier). |
 | `prflow_review.stall_backstop.max_resume_attempts` | [Review](/docs/configuration/review) | How many times a stalled review may be resumed. |
-| `prflow_review.verdict_severity_threshold` | [Review](/docs/configuration/review) | The severity at which findings turn the verdict into a rejection. |
+| `prflow_review.verdict_severity_threshold` | [Review](/docs/configuration/review) | The severity at which findings and failed or inconclusive checklist items turn the verdict into a rejection. |
 | `prflow_review_and_fix.efficiency_cut_candidate_min_dispatch` | [Review](/docs/configuration/review) | A threshold recorded for later cross-run analysis. |
 | `prflow_review_and_fix.efficiency_telemetry_enabled` | [Review](/docs/configuration/review) and [Observability and Privacy](/docs/configuration/observability-and-privacy) | Whether the effectiveness record is written. |
 | `prflow_review_and_fix.fix_severity_threshold` | [Review](/docs/configuration/review) | The severity at which a finding is eligible for a fix. |

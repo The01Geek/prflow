@@ -42,8 +42,10 @@ gh run list --branch <feature-branch> --limit 30 --json databaseId,headSha,workf
 A completed run settles a verdict only through its jobs. A repository may suppress its own suite on a bot's mid-run push, and such a run still reports `success` with its expensive jobs `skipped` — so the newest *apparent* state can be green while the newest real one is a failure several commits back. Group the listed runs by workflow name, then classify them newest-first — at most five in total — until every group has settled or that budget is spent, substituting the run id as a literal:
 
 ```bash
-gh run view <run-id> --json jobs --jq '(if any(.jobs[]; .conclusion=="failure" or .conclusion=="timed_out") then "verdict=failed" elif (.jobs|length)==0 or any(.jobs[]; .conclusion==null or .conclusion=="skipped" or .conclusion=="cancelled" or .conclusion=="neutral" or .conclusion=="action_required" or .conclusion=="stale") then "verdict=none" elif all(.jobs[]; .conclusion=="success") then "verdict=passed" else "verdict=none" end), (.jobs[]|select(.conclusion=="failure" or .conclusion=="timed_out")|"failed-job: "+.name)'
+gh run view <run-id> --json jobs --jq '(if any(.jobs[]; .conclusion=="failure" or .conclusion=="timed_out") then "verdict=failed" elif (.jobs|length)==0 or any(.jobs[]; .conclusion!="success" and .conclusion!="skipped") then "verdict=none" elif all(.jobs[]; .conclusion=="success") then "verdict=passed" elif any(.jobs[]; .conclusion=="success") then "verdict=passed-with-skips" else "verdict=none" end), (.jobs[]|select(.conclusion=="failure" or .conclusion=="timed_out")|"failed-job: "+.name), (.jobs[]|select(.conclusion=="skipped")|"skipped-job: "+.name)'
 ```
+
+Read a `verdict=passed-with-skips` run as `verdict=passed` — its note naming a pass with by-design skips — only when every `skipped-job:` name exactly equals (case-sensitive; a substring or prefix does not match) a job name the loaded implement prompt extension lists as skipped by design, as `gh run view` prints it, a skipped matrix job keeping its unexpanded `${{ matrix.* }}` name; otherwise read it as `verdict=none`.
 
 Each arm below ends in one workpad `note` reflection naming what it read or left unestablished, and then continues to Phase 3.4 or takes the repair arm; this read writes no status, launches no suite, and dispatches no CI run.
 

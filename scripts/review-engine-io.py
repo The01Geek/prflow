@@ -74,11 +74,11 @@ RETURN_REQUIRED = (
     'cap_drops', 'acceptance_criteria', 'verdict', 'report')
 RETURN_LISTS = ('phase3_findings', 'phase3_dispatched', 'expected_reviewers',
                 'plan_eligible', 'plan_exclusions', 'phase3_failed_agents')
-# view_revision joins the verdict fields spliced into the engine-return checklist so the
-# per-item commit provenance (issue #851) survives cmd_return's join by id, exactly like
-# every other verdict field — a rename here silently drops the collector's provenance input.
+# The verdict fields spliced into the engine-return checklist by cmd_return's join by id. A
+# field missing here is silently dropped: view_revision is the collector's provenance input
+# (issue #851), and a dropped severity fails closed to critical downstream (issue #1220).
 VERDICT_KEYS = ('verdict', 'raw_verdict', 'normalized', 'evidence', 'file_checked',
-                'normalization_ineligible', 'view_revision', 'demoted')
+                'normalization_ineligible', 'view_revision', 'demoted', 'severity')
 RETURN_SPLICED = ('dispatch_mode', 'diff_produced_at_head', 'checklist')
 
 # Harness-instruction files (issue #851 AC8): the harness loads a nested CLAUDE.md/AGENTS.md
@@ -613,7 +613,9 @@ def cmd_return(args):
             if row:
                 merged += 1
                 for key in VERDICT_KEYS:
-                    if key in row:
+                    if key in ('verdict', 'severity') and key in row:
+                        item[key] = row[key]  # the stored (gated, fail-closed) value beats a preset one
+                    elif key in row:
                         item.setdefault(key, row[key])
         result['checklist'] = checklist
         checklist_items = len(checklist)

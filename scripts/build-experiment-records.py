@@ -104,10 +104,11 @@ VERDICT_MARKER_RE = re.compile(
 )
 REVIEWED_HEAD_RE = re.compile(r"^\*\*Reviewed HEAD:\*\*\s*(\S+)", re.MULTILINE)
 # The Important-findings sub-heading in the engine's `## Code Review Findings`
-# section (skills/review/SKILL.md renders "### 🟠 Important / Major"). Match on the
+# section (skills/review/phases/phase-4-verdict.md renders "### 🟠 Important / Major"). Match on the
 # stable "Important" word so a future icon/label tweak degrades gracefully.
 FINDINGS_SECTION_RE = re.compile(r"^##\s+Code Review Findings\s*$", re.MULTILINE)
 IMPORTANT_HEADING_RE = re.compile(r"^###\s+.*Important", re.MULTILINE)
+NEXT_SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
 NUMBERED_ITEM_RE = re.compile(r"^\s*\d+\.\s")
 # Line-bound (issue #435): `[ \t]*` admits only space/tab between the label and its token,
 # so the capture stays on the label's own line under EVERY line terminator — deliberately
@@ -905,7 +906,7 @@ def _parse_verdict(body):
         return None
     raw = m.group(1).strip()
     # Drop the stub-body suffix the engine appends on the pr-review surface when a live
-    # progress comment is active (skills/review/SKILL.md Phase 4.4 stub form:
+    # progress comment is active (skills/review/phases/phase-4-4-github-post.md stub form:
     # "## Verdict: {VERDICT} — full report in PR comment"). This is the DEFAULT cloud
     # path, so without this strip the primary outcome variable stores
     # "APPROVE — full report in PR comment" instead of "APPROVE" (issue #431 review).
@@ -967,22 +968,32 @@ def _count_important(body):
     section = FINDINGS_SECTION_RE.search(body)
     if not section:
         return None
-    # Scope the Important-heading search to the findings section. Searching the WHOLE body
-    # would let an "### … Important …" heading elsewhere in the comment supply the count —
-    # latent today (the engine emits that heading only here), but this is the record's key
-    # outcome variable, so it should not depend on the rest of the template staying quiet.
-    tail = body[section.end():]
-    imp = IMPORTANT_HEADING_RE.search(tail)
-    if not imp:
-        return 0
-    # Walk lines from just after the Important heading until the next heading of any depth
-    # (`##`+). `^###?\s` would not stop at a `####` sub-heading, so a future nested heading
-    # inside the section would let items below it be counted as Important.
+    # Walk the section to the next `## ` heading (the finalized comment's collapsed agent
+    # reports follow it and can carry their own Important heading), counting items from the
+    # first Important heading to the next heading of any depth (`##`+, so a nested `####`
+    # also ends the group). Lines inside a fenced code block are never headings or items.
     count = 0
-    for line in tail[imp.end():].splitlines():
-        if re.match(r"^#{2,}\s", line):  # next sub-heading or section — stop
-            break
-        if NUMBERED_ITEM_RE.match(line):
+    in_important = False
+    fence = None  # (char, length) of the open fence
+    for line in body[section.end():].splitlines():
+        stripped = line.lstrip()
+        if fence:
+            # CommonMark closer: the same character, at least as long, nothing after it.
+            closer = stripped.rstrip(" \t")
+            if len(closer) >= fence[1] and closer == fence[0] * len(closer):
+                fence = None
+            continue
+        opener = re.match(r"(`{3,}|~{3,})(.*)$", stripped)
+        # A backtick fence's info string holds no backtick, so "```x```" is inline code.
+        if opener and not (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+            fence = (opener.group(1)[0], len(opener.group(1)))
+            continue
+        if re.match(r"^#{2,}\s", line):
+            if in_important or NEXT_SECTION_RE.match(line):
+                break
+            in_important = bool(IMPORTANT_HEADING_RE.match(line))
+            continue
+        if in_important and NUMBERED_ITEM_RE.match(line):
             count += 1
     return count
 

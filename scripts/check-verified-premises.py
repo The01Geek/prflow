@@ -679,9 +679,22 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
         # files reports `holds`. A MISS reports `unestablished`, never `refuted` —
         # a code literal is re-spaced and paraphrased far more often than quoted
         # prose, so a miss on one is a guess, not evidence of a stale premise.
-        missed = [lit for lit in code_literals
-                  if not _literal_resolves(lit, readable)]
+        # A literal that misses verbatim is retried with `\"` unescaped (#1194):
+        # an author backslash-escaping a quoted code line's double quotes is an
+        # authoring artifact, not drift. Verbatim is tried first, so a source
+        # that really contains `\"` still matches as written.
+        missed, unescaped = [], []
+        for lit in code_literals:
+            if _literal_resolves(lit, readable):
+                continue
+            if '\\"' in lit and _literal_resolves(lit.replace('\\"', '"'), readable):
+                unescaped.append(lit)
+            else:
+                missed.append(lit)
         skip_note = ('; not adjudicated: ' + ','.join(skipped)) if skipped else ''
+        if unescaped:
+            skip_note += ('; resolved only with \\" unescaped to ": '
+                          + ' | '.join(unescaped))
         if not missed:
             if located:
                 # The literal resolves, but the bullet also cites a location

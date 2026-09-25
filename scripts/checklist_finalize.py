@@ -27,6 +27,7 @@ carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
     carry    <work-dir> <N> <prior-head> [--prior FILE]
     raw      <work-dir> <B>
     finalize <work-dir> <N> <B> [--no-groups]
+    match    <work-dir> <N> <prior-head> <shadow-head>
 
 ``carry`` reads the prior iteration's Step 1.8 snapshot pair at the run root —
 ``checklist-step1-iter-<N-1>.json`` joined by ``id`` with the verdict rows of
@@ -36,7 +37,9 @@ that file as already-joined items; an unusable snapshot carries nothing.
 ``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array). It reads
 the acceptance criteria from ``<run-dir>/criteria.json`` (written by Phase 0.4's
 ``acs-resolve --criteria-out``) and creates one ``issue_acceptance`` item per criterion
-after the cap, so acceptance items never take a cap slot; a criteria file present but
+after the cap, so acceptance items never take a cap slot. Before the cap it drops each new
+item that ``same_claim`` finds restating a carried item (``counts.same_claim_dropped``);
+the carried item stays as carried. A criteria file present but
 malformed sets ``criteria_error`` and writes no acceptance item, still ``ok: true``, and
 an absent file creates no acceptance item and no error. It fails closed — ``ok: false``,
 no checklist written — on:
@@ -48,10 +51,23 @@ no checklist written — on:
                                the batch files
     bad_carried                carried.json present but not an array of objects with string ids
     merge_invariant_violation  some raw id is not in exactly one merged row's ``merged_from``
-    conservation_violation     the array about to be written, plus the capped rows, does not
+    conservation_violation     the array about to be written, plus the capped and same-claim-dropped rows, does not
                                account for every raw id exactly once; or the carried tail is
                                not the carried input; or two final ids collide
     artifact_write_unverified  a written file did not read back as the value written
+
+``match`` joins the ``step1`` and ``shadow`` snapshot pairs of iteration ``<N>`` at the run
+root and labels each non-acceptance shadow FAIL ``overlap`` — the same claim as a step1 FAIL
+or INCONCLUSIVE, prior lines mapped to ``<shadow-head>`` through ``git diff -U0`` — or ``new``.
+An unresolvable head or a failing diff leaves rule 1 only, and a path whose diff prints more
+than header lines yet no hunk (a binary diff) leaves rule 1 only for that file. An unusable
+step1 snapshot pair labels every shadow FAIL ``new``. An unusable shadow snapshot pair leaves
+no FAIL to label: ``ok`` is false with ``shadow_snapshot_unusable``, so the consumer treats
+every shadow FAIL as new.
+
+``same_claim`` is a mechanical identity, not a defect judgment: a distinct claim of the same
+category in the same file on overlapping lines is dropped as a restatement of the carried
+item (an accepted risk).
 
 What it does NOT decide: whether two claims state the same defect. A merge group is
 applied only when its members are connected by ``plausible_duplicates`` — the
@@ -86,7 +102,7 @@ _THEME_CATEGORIES = ("api_contract", "string_presence")
 # The verdict fields a carried PASS keeps, joined from its verification row. Must equal the
 # engine-return join's key set (review-engine-io.py VERDICT_KEYS) or a carried item drops a field.
 _PRIOR_VERDICT_FIELDS = ("verdict", "raw_verdict", "normalized", "evidence", "file_checked",
-                         "normalization_ineligible", "view_revision", "demoted")
+                         "normalization_ineligible", "view_revision", "demoted", "severity")
 
 
 def _shape(value):
@@ -184,15 +200,25 @@ def _diff_paths(diff_text):
     return paths
 
 
+def _resolve_commit(head):
+    """(commit id, None), or (None, cause): ``not-id``, ``unresolved``, or ``git unavailable (<exception class>)``."""
+    if not isinstance(head, str) or not re.fullmatch(r"[0-9a-fA-F]{7,64}", head):
+        return None, "not-id"
+    try:
+        probe = subprocess.run(["git", "rev-parse", "--verify", "--quiet", head + "^{commit}"],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return None, f"git unavailable ({type(exc).__name__})"
+    return (probe.stdout.strip(), None) if probe.returncode == 0 else (None, "unresolved")
+
+
 def _changed_since(prior_head):
     """(set | None, cause). None means the changed set could not be established."""
-    if not isinstance(prior_head, str) or not re.fullmatch(r"[0-9a-fA-F]{7,64}", prior_head):
-        return None, "prior_diff_head is not a commit id"
+    _, cause = _resolve_commit(prior_head)
+    if cause:
+        return None, {"not-id": "prior_diff_head is not a commit id",
+                      "unresolved": "prior_diff_head does not resolve"}.get(cause, cause)
     try:
-        probe = subprocess.run(["git", "rev-parse", "--verify", "--quiet", prior_head + "^{commit}"],
-                               capture_output=True)
-        if probe.returncode != 0:
-            return None, "prior_diff_head does not resolve"
         diff = subprocess.run(["git", "diff", "--name-only", "--no-renames", "-z", prior_head, "HEAD"],
                               capture_output=True)
     except OSError as exc:
@@ -363,25 +389,28 @@ def _read_items(path, label):
     return items, None
 
 
-def _join_snapshot_pair(run_dir, iteration):
-    """(items, cause): the Step 1.8 snapshot pair joined by id. Every verdict field comes from
-    the item's verification row (a field the row lacks is dropped) — the row may carry a
-    demotion the item's copied ``verdict: "PASS"`` predates — and an item with no row keeps
-    none, so it verifies fresh."""
-    items, cause = _read_items(os.path.join(run_dir, f"checklist-step1-iter-{iteration - 1}.json"),
-                               "checklist snapshot")
+def _join_snapshot_pair(run_dir, entry, n, labels=("checklist snapshot", "verification snapshot"),
+                        rowless=None):
+    """(items, cause): the ``entry`` Step 1.8 snapshot pair of iteration ``n`` joined by id.
+    Every verdict field comes from the item's verification row (a field the row lacks is
+    dropped) — the row may carry a demotion the item's copied ``verdict: "PASS"`` predates —
+    and an item with no row keeps no verdict field; its id is added to ``rowless`` when given."""
+    items, cause = _read_items(os.path.join(run_dir, f"checklist-{entry}-iter-{n}.json"), labels[0])
     if cause:
         return None, cause
-    status, rows = _read_json(os.path.join(run_dir, f"verification-step1-iter-{iteration - 1}.json"))
+    status, rows = _read_json(os.path.join(run_dir, f"verification-{entry}-iter-{n}.json"))
     if status != "ok":
-        return None, f"verification snapshot {status}"
+        return None, f"{labels[1]} {status}"
     if not isinstance(rows, list):
-        return None, f"verification snapshot root is {_shape(rows)}, not an array"
+        return None, f"{labels[1]} root is {_shape(rows)}, not an array"
     by_id = {r["id"]: r for r in rows if isinstance(r, dict) and isinstance(r.get("id"), str)}
     joined = []
     for item in items:
         if isinstance(item, dict):
-            row = by_id.get(item.get("id"), {})
+            ident = item.get("id")
+            row = by_id.get(ident, {}) if isinstance(ident, str) else {}
+            if isinstance(ident, str) and ident not in by_id and rowless is not None:
+                rowless.add(ident)
             item = dict(item)
             for key in _PRIOR_VERDICT_FIELDS:
                 if key in row:
@@ -414,7 +443,7 @@ def op_carry(work, run_dir, iteration, prior_head, prior_path):
     if prior_path:
         items, cause = _read_items(prior_path, source)
     else:
-        items, cause = _join_snapshot_pair(run_dir, iteration)
+        items, cause = _join_snapshot_pair(run_dir, "step1", iteration - 1)
     if cause:
         return none(cause)
     result["prior"] = len(items)
@@ -776,10 +805,6 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     if ledger != other_ids:
         return {"op": "finalize", "ok": False, "error": "merge_invariant_violation",
                 "detail": _ledger_diff(other_ids, ledger)}
-    kept, dropped = cap_items(merged)
-
-    criteria, criteria_error = _read_criteria(run_dir)
-    acceptance_items = _build_acceptance_items(criteria, hint_items, run_dir, crumbs)
 
     carried = []
     carried_path = os.path.join(work, "carried.json")
@@ -792,6 +817,15 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     elif status != "missing":
         return {"op": "finalize", "ok": False, "error": "bad_carried",
                 "detail": f"carried.json {status}" if status != "ok" else f"carried.json root is {_shape(doc)}"}
+
+    # The identity line map holds only because carry keeps items whose file is unchanged since the
+    # prior head; carrying an item from a changed file needs a real line map here.
+    restates = [any(same_claim(c, it, _same_lines) for c in carried) for it in merged]
+    restated = [it for it, dup in zip(merged, restates) if dup]
+    kept, dropped = cap_items([it for it, dup in zip(merged, restates) if not dup])
+
+    criteria, criteria_error = _read_criteria(run_dir)
+    acceptance_items = _build_acceptance_items(criteria, hint_items, run_dir, crumbs)
 
     taken = {c["id"] for c in carried}
     final, n = [], 0
@@ -808,14 +842,15 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     fresh = len(final)
     final.extend(carried)
 
-    # Every raw id is traced: kept and capped rows by merged_from, hints by the hint-id term.
+    # Every raw id is traced: kept, capped and same-claim-dropped rows by merged_from, hints by the hint-id term.
     merged_away = sum(len(row["merged_from"]) - 1 for row in final[:fresh] if "merged_from" in row)
     ids = [it["id"] for it in final]
-    traced = sorted(_id_ledger(final[:fresh]) + _id_ledger(dropped) + hint_ids)
+    traced = sorted(_id_ledger(final[:fresh]) + _id_ledger(dropped) + _id_ledger(restated) + hint_ids)
     if traced != raw_ids or final[fresh:] != carried or len(set(ids)) != len(ids):
         return {"op": "finalize", "ok": False, "error": "conservation_violation",
                 "detail": dict(_ledger_diff(raw_ids, traced), generated=generated, fresh=fresh,
-                               capped=len(dropped), carried=len(carried), final=len(final),
+                               capped=len(dropped), same_claim_dropped=len(restated),
+                               carried=len(carried), final=len(final),
                                acceptance=len(acceptance_items), unique_ids=len(set(ids)))}
     if batches == 1:
         for row in final[:fresh]:
@@ -826,8 +861,13 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
         cat = it.get("category") if isinstance(it.get("category"), str) else "uncategorized"
         by_category[cat] = by_category.get(cat, 0) + 1
 
-    # A hint never ships as an item; its problems are the "hint ... unused" breadcrumbs.
-    flagged = [f for f in flagged if f["id"] not in hint_id_set]
+    # A hint, same-claim-dropped or cap-dropped item is not flagged; a hint's problems are its
+    # "hint ... unused" breadcrumbs.
+    unshipped = hint_id_set | set(_id_ledger(restated)) | set(_id_ledger(dropped))
+    flagged = [f for f in flagged if f["id"] not in unshipped]
+    restated_items = [{"merged_from": it["merged_from"], "claim_signature": it.get("claim_signature"),
+                       "carried_id": next(c["id"] for c in carried if same_claim(c, it, _same_lines))}
+                      for it in restated]
 
     checklist_path = os.path.join(run_dir, f"checklist-iter-{iteration}.json")
     _write_json(checklist_path, final)
@@ -836,9 +876,11 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     if batches > 1:
         announce.append(f"Deduped to {len(merged)} of {len(other_items)} items.")
     crumbs.extend(f"item {f['id']} kept but lacks a usable {', '.join(f['fields'])}" for f in flagged)
+    if restated:
+        announce.append(f"Dropped {len(restated)} new item(s) restating a carried item.")
     if dropped:
         cats = ", ".join(f"{c}: {k}" for c, k in sorted(by_category.items()))
-        announce.append(f"Capped checklist at {CAP} of {len(merged)} items (dropped {len(dropped)} items by "
+        announce.append(f"Capped checklist at {CAP} of {len(kept) + len(dropped)} items (dropped {len(dropped)} items by "
                         f"category: {cats}; priority kept: {', '.join(PRIORITY)}).")
     if criteria is not None:
         announce.append(f"Itemized {len(acceptance_items)} acceptance criteria (no cap).")
@@ -849,21 +891,220 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
         "criteria_error": criteria_error, "issue_acceptance_count": len(acceptance_items),
         "counts": {"generated": generated, "batches": counts, "merged_away": merged_away,
                    "groups_refused": sum(1 for c in crumbs if " not merged: " in c),
-                   "capped": len(dropped), "new": len(kept), "carried": len(carried),
+                   "capped": len(dropped), "same_claim_dropped": len(restated),
+                   "new": len(kept), "carried": len(carried),
                    "acceptance": len(acceptance_items),
                    "reused_pass": sum(1 for c in carried if c.get("reused_from_iter_prev") is True),
                    "final": len(final),
                    "lite": sum(1 for it in final if it.get("verification_mode") == "lite"),
                    "agent": sum(1 for it in final if it.get("verification_mode") != "lite")},
         "cap_drops": {"count": len(dropped), "by_category": by_category},
+        "same_claim_dropped_items": restated_items,
         "flagged_items": flagged, "announce": announce, "breadcrumbs": crumbs,
     }
+
+
+# ── same claim (§1.6 carried-duplicate drop, shadow comparison) ──────────────
+
+_HUNK_RE = re.compile(r"@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@")
+_VERDICTS = ("PASS", "FAIL", "INCONCLUSIVE")
+
+
+def _valid_line(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _claim_range(item):
+    """(category, source_file, lo, hi) when rule 2 can apply, else None. Not ``_effective_range``
+    or ``_has_line``: unifying them would read ``lite_probe`` and accept ``source_line`` 0."""
+    cat, src, line = item.get("category"), item.get("source_file"), item.get("source_line")
+    if not (isinstance(cat, str) and cat and isinstance(src, str) and src and _valid_line(line)):
+        return None
+    end = item.get("source_line_end")
+    return cat, src, line, end if _valid_line(end) and end >= line else line
+
+
+def same_claim(prior, current, line_map):
+    """Whether two checklist items state the same claim. Rule 1: equal non-empty
+    ``claim_signature``. Rule 2: equal ``category`` and ``source_file``, and line ranges that
+    overlap once ``line_map(source_file, lo, hi)`` maps the prior range to the current head
+    (None: unmappable, so rule 1 alone applies). An ``issue_acceptance`` item never matches."""
+    if "issue_acceptance" in (prior.get("category"), current.get("category")):
+        return False
+    sig = prior.get("claim_signature")
+    if isinstance(sig, str) and sig and sig == current.get("claim_signature"):
+        return True
+    a, b = _claim_range(prior), _claim_range(current)
+    if a is None or b is None or a[:2] != b[:2]:
+        return False
+    mapped = line_map(a[1], a[2], a[3])
+    return mapped is not None and mapped[0] <= b[3] and b[2] <= mapped[1]
+
+
+def _same_lines(_path, lo, hi):
+    return lo, hi
+
+
+def _no_lines(_path, _lo, _hi):
+    return None
+
+
+def _hunks(diff_text):
+    """[(old_start, old_count, new_count)] from `-U0` hunk headers; an omitted count is 1."""
+    out = []
+    for line in diff_text.splitlines():
+        m = _HUNK_RE.match(line)
+        if m:
+            out.append((int(m.group(1)), 1 if m.group(2) is None else int(m.group(2)),
+                        1 if m.group(3) is None else int(m.group(3))))
+    return out
+
+
+def _map_range(hunks, lo, hi):
+    """The prior range at the new head, or None when a hunk's old range overlaps it. A pure
+    insertion (old count 0) follows old line ``start`` and removes no line."""
+    if any(old and start <= hi and lo <= start + old - 1 for start, old, _ in hunks):
+        return None
+
+    def at(line):
+        return line + sum(new - old for start, old, new in hunks if line > (start + old - 1 if old else start))
+    return at(lo), at(hi)
+
+
+_HEADER_ONLY = ("diff --git ", "index ", "old mode ", "new mode ", "new file mode ", "deleted file mode ")
+
+
+def _git_line_map(prior, current, paths, crumbs):
+    """(line_map, cause): each path's prior→current line map from its `-U0` hunk headers, or
+    (None, cause) when a diff cannot be read. A diff printing more than headers yet no hunk (a
+    binary diff) leaves that path unmappable, never read as unchanged."""
+    if prior == current:
+        return _same_lines, None
+    hunks = {}
+    for path in sorted(paths):
+        try:
+            diff = subprocess.run(["git", "--literal-pathspecs", "diff", "--no-color", "-U0",
+                                   "--inter-hunk-context=0", "--no-renames",
+                                   "--no-ext-diff", "--no-textconv", prior, current, "--", path],
+                                  capture_output=True)
+        except OSError as exc:
+            return None, f"git unavailable ({type(exc).__name__})"
+        except ValueError:  # a NUL byte in the path
+            return None, f"source_file {path!r} cannot be passed to git diff"
+        if diff.returncode != 0:
+            return None, f"git diff exited {diff.returncode} for {path}"
+        text = diff.stdout.decode("utf-8", "surrogateescape")
+        parsed = _hunks(text)
+        if not parsed and any(not line.startswith(_HEADER_ONLY) for line in text.splitlines()):
+            crumbs.append(f"git diff for {path} has no hunk header; rule 1 only for that file")
+            continue
+        hunks[path] = parsed
+    return (lambda path, lo, hi: _map_range(hunks[path], lo, hi) if path in hunks else None), None
+
+
+def _state(item, key):
+    if key not in item:
+        return "absent"
+    value = item[key]
+    if isinstance(value, bool):
+        return f"boolean {'true' if value else 'false'}"
+    if isinstance(value, (int, float)):
+        return f"number {value}"
+    if value == "":
+        return "empty string"
+    return _shape(value)
+
+
+def _rule_crumbs(entry, item, crumbs):
+    """One breadcrumb per field shape that turns a rule off for ``item`` (an absent line is by design)."""
+    def say(key, effect):
+        crumbs.append(f"{entry} {item['id']}: {key} is {_state(item, key)}, {effect}")
+    if not (isinstance(item.get("claim_signature"), str) and item["claim_signature"]):
+        say("claim_signature", "rule 1 off")
+    for key in ("category", "source_file"):
+        if not (isinstance(item.get(key), str) and item[key]):
+            say(key, "rule 2 off")
+    line = item.get("source_line")
+    if "source_line" in item and not _valid_line(line):
+        say("source_line", "rule 2 off")
+    elif _valid_line(line) and "source_line_end" in item:
+        end = item["source_line_end"]
+        if not (_valid_line(end) and end >= line):
+            say("source_line_end", "range is source_line alone")
+
+
+def _entry_items(run_dir, entry, n, crumbs):
+    """(items, rowless ids) from the ``entry`` snapshot pair — objects with a string id, never
+    ``issue_acceptance`` — or (None, None) when the pair is unusable."""
+    names = (f"checklist-{entry}-iter-{n}.json", f"verification-{entry}-iter-{n}.json")
+    rowless = set()
+    joined, cause = _join_snapshot_pair(run_dir, entry, n, names, rowless)
+    if cause:
+        crumbs.append(f"{entry} snapshot pair unusable ({cause}); every shadow FAIL is new")
+        return None, None
+    items = []
+    for i, it in enumerate(joined, 1):
+        if not isinstance(it, dict):
+            crumbs.append(f"{names[0]} item {i} is {_shape(it)}, skipped")
+        elif not isinstance(it.get("id"), str):
+            crumbs.append(f"{names[0]} item {i} id is {'absent' if 'id' not in it else _shape(it['id'])}, skipped")
+        elif it.get("category") != "issue_acceptance":
+            items.append(it)
+    return items, rowless
+
+
+def op_match(run_dir, n, prior_head, shadow_head):
+    """Label each non-acceptance shadow checklist FAIL ``overlap`` (the same claim as a last-iteration FAIL or
+    INCONCLUSIVE) or ``new``. An unusable step1 input only narrows what can overlap (an unusable step1 pair
+    leaves none); an unusable shadow pair returns ``ok`` false, since its FAILs cannot be read to label."""
+    crumbs, labels = [], {}
+    prior_items, rowless = _entry_items(run_dir, "step1", n, crumbs)
+    shadow_items, _ = _entry_items(run_dir, "shadow", n, crumbs)
+    if shadow_items is None:
+        return {"op": "match", "ok": False, "error": "shadow_snapshot_unusable", "detail": crumbs[-1],
+                "labels": {}, "counts": {"overlap": 0, "new": 0}, "breadcrumbs": crumbs}
+    candidates = []
+    for it in prior_items or []:
+        verdict = it.get("verdict")
+        if it["id"] in rowless:
+            crumbs.append(f"step1 {it['id']}: no verification row, cannot make an overlap")
+        elif verdict in ("FAIL", "INCONCLUSIVE"):
+            _rule_crumbs("step1", it, crumbs)
+            candidates.append(it)
+        elif verdict not in _VERDICTS:
+            shown = f"string {verdict!r}" if isinstance(verdict, str) and verdict else _state(it, "verdict")
+            crumbs.append(f"step1 {it['id']}: verdict is {shown}, cannot make an overlap")
+    if prior_items is not None and not candidates:
+        crumbs.append("no prior FAIL or INCONCLUSIVE item")
+    fails = [it for it in shadow_items or [] if it.get("verdict") == "FAIL"]
+    for it in fails:
+        _rule_crumbs("shadow", it, crumbs)
+
+    heads = [_resolve_commit(prior_head), _resolve_commit(shadow_head)]
+    cause = next(({"not-id": f"{label} {head!r} is not a commit id",
+                   "unresolved": f"{label} {head} does not resolve to a commit"}.get(c, c)
+                  for (_, c), label, head in zip(heads, ("prior-head", "shadow-head"), (prior_head, shadow_head))
+                  if c), None)
+    line_map = None
+    if cause is None:
+        ranges = [[r[1] for r in map(_claim_range, group) if r] for group in (candidates, fails)]
+        line_map, cause = _git_line_map(heads[0][0], heads[1][0], set(ranges[0]) & set(ranges[1]), crumbs)
+    if cause:
+        crumbs.append(f"{cause}; rule 2 off, rule 1 only for every item")
+    for it in fails:
+        labels[it["id"]] = ("overlap" if any(same_claim(c, it, line_map or _no_lines) for c in candidates)
+                            else "new")
+    return {"op": "match", "ok": True, "labels": labels,
+            "counts": {"overlap": sum(v == "overlap" for v in labels.values()),
+                       "new": sum(v == "new" for v in labels.values())},
+            "breadcrumbs": crumbs}
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 _USAGE = ("usage: checklist carry <work-dir> <N> <prior-head> [--prior FILE] | "
-          "checklist raw <work-dir> <B> | checklist finalize <work-dir> <N> <B> [--no-groups]")
+          "checklist raw <work-dir> <B> | checklist finalize <work-dir> <N> <B> [--no-groups] | "
+          "checklist match <work-dir> <N> <prior-head> <shadow-head>")
 
 
 def main(argv):
@@ -899,6 +1140,10 @@ def main(argv):
             if len(rest) != 2 or None in (_positive_int(rest[0]), _positive_int(rest[1])):
                 return usage("finalize takes <N> <B>")
             out = op_finalize(work, run_dir, _positive_int(rest[0]), _positive_int(rest[1]), no_groups)
+        elif op == "match":
+            if len(rest) != 3 or _positive_int(rest[0]) is None:
+                return usage("match takes <N> <prior-head> <shadow-head>")
+            out = op_match(run_dir, _positive_int(rest[0]), rest[1], rest[2])
         else:
             return usage(f"unknown op {op!r}")
     except WriteUnverified as exc:

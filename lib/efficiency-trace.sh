@@ -193,9 +193,10 @@ esac
 # ── Derivation helpers (shared by --mode and --persist) ──────────────────────
 
 # Populate the VALID_FILES global with the readable iter-*.json OBJECTS in $1.
-# Skips unreadable / non-object files (best-effort), logging a ::warning:: each.
+# Skips unreadable / non-object files (best-effort), logging a ::warning:: each
+# that names the file under $2 when $1 is a filled copy of run dir $2.
 collect_valid_files() {
-  local dir="$1" f
+  local dir="$1" shown="${2:-$1}" f
   VALID_FILES=()
   # Count iter files skipped for being unreadable/non-object, so --persist can report
   # incomplete effectiveness derivation (issue #520 AC1): an iter file whose bytes are
@@ -212,7 +213,7 @@ collect_valid_files() {
         VALID_FILES+=("$f")
       else
         VALID_FILES_SKIPPED=$(( VALID_FILES_SKIPPED + 1 ))
-        echo "::warning::efficiency-trace.sh: skipping unreadable/malformed workpad '$f'" >&2
+        echo "::warning::efficiency-trace.sh: skipping unreadable/malformed workpad '${shown}/${f##*/}'" >&2
       fi
     done
   fi
@@ -301,6 +302,7 @@ classify_return_file() {
   if ! mode="$("$DEVFLOW_JQ" -r 'if type != "object" then "malformed" elif (.dispatch_mode == "fanned-out" or .dispatch_mode == "unavailable") then .dispatch_mode else "malformed" end' "$file" 2>/dev/null)"; then
     mode="malformed"
   fi
+  mode="${mode//$'\r'/}"  # a native Windows jq.exe ends the line with CR (#1050)
   [ -n "$mode" ] || mode="malformed"
   printf '%s' "$mode"
 }
@@ -337,6 +339,164 @@ build_return_file_map() {
     done
   done
   printf '%s' "$obj"
+}
+
+# Print the files commit $2 changes in repo $1, one per line: against its first
+# parent (bare diff-tree prints nothing for a merge), or every file it adds for a
+# root commit. Returns non-zero, git's stderr passing through, on any git failure, a
+# sha naming no commit, or a parentless commit unless the clone is provably not
+# shallow. The parent list is split with builtins
+# (bash 3.2), not --diff-merges=first-parent (git 2.31+).
+commit_files() {
+  local root="$1" sha="$2" line parents=()
+  line="$(git -C "$root" rev-list --parents -n 1 "$sha")" || return 1
+  line="${line//$'\r'/}"
+  read -r -a parents <<<"$line" || true
+  if [ "${#parents[@]}" -eq 0 ]; then
+    echo "git rev-list printed no commit for ${sha}" >&2
+    return 1
+  elif [ "${#parents[@]}" -eq 1 ]; then
+    # A shallow clone reports its boundary commit as parentless: only a full
+    # history proves a root commit.
+    local shallow
+    shallow="$(git -C "$root" rev-parse --is-shallow-repository 2>/dev/null)" || shallow=""
+    shallow="${shallow//$'\r'/}"
+    if [ "$shallow" != false ]; then
+      echo "commit ${parents[0]} lists no parent but git rev-parse --is-shallow-repository reads '${shallow:-unavailable}', so its parents are unknown" >&2
+      return 1
+    fi
+    git -C "$root" diff-tree --root --no-commit-id --name-only -r "${parents[0]}"
+  else
+    git -C "$root" diff-tree --no-commit-id --name-only -r "${parents[1]}" "${parents[0]}"
+  fi
+}
+
+# Print iter record $1 with each absent fill key added: the telemetry-only engine
+# keys from its step1 return in run dir $2 and fix_files from fix_commit_sha via git
+# in repo $3. The return is trusted only as a fanned-out object beside a record with
+# no dispatch_disposition and a dispatch_mode absent or fanned-out. A record whose
+# restored_from is a directory name other than . or .. reads its return from that
+# sibling of run dir $2. A key the record carries is never overwritten; never fill
+# dispatch_mode: --self-check's dispatch corroboration compares it with the return
+# file. Returns 2, after warning, when the eligibility jq or the fill's jq fails on a
+# parseable file; otherwise returns 1, printing nothing, unless the file holds exactly
+# one JSON object that is neither synthesized nor a standalone review record.
+# Warnings name FILL_WHO's flag.
+# A jq capture this function compares or prints drops CR: a native Windows jq.exe
+# ends each line with one (#1050).
+FILL_WHO="--persist"
+fill_iter_record() {
+  local iter="$1" dir="$2" root="$3" n ret ret_label rf state eligible reads shape sha_kind sha files err ff="null" trc=0
+  "$DEVFLOW_JQ" -s -e 'length == 1 and (.[0] | type == "object" and .synthesized != true and .source != "review")' "$iter" >/dev/null 2>&1 || trc=$?
+  case "$trc" in
+    0) ;;
+    1) return 1 ;;
+    *) "$DEVFLOW_JQ" empty "$iter" >/dev/null 2>&1 || return 1
+       echo "::warning::efficiency-trace.sh ${FILL_WHO}: could not fill '${iter##*/}' (jq failed, rc=${trc}); left unfilled" >&2
+       return 2 ;;
+  esac
+  n="${iter##*/iter-}"; n="${n%.json}"
+  ret="$dir/engine-return-step1-iter-${n}.json"; ret_label="${ret##*/}"
+  rf="$("$DEVFLOW_JQ" -r '.restored_from | strings' "$iter" 2>/dev/null)" || rf=""
+  rf="${rf//$'\r'/}"
+  case "$rf" in
+    ''|.|..|*/*) ;;
+    *) ret="${dir}/../${rf}/${ret_label}"; ret_label="${rf}/${ret_label}" ;;
+  esac
+  state="$(classify_return_file "$ret")"
+  eligible=1
+  "$DEVFLOW_JQ" -e '.dispatch_disposition == null and ((has("dispatch_mode") | not) or .dispatch_mode == "fanned-out")' "$iter" >/dev/null 2>&1 || eligible=0
+  if [ "$state" = "fanned-out" ] && [ "$eligible" = 0 ]; then
+    state="untrusted"
+  fi
+  if [ "$state" != "fanned-out" ] \
+    && ! "$DEVFLOW_JQ" -e 'has("diff_profile") and has("phase3_dispatched") and has("expected_reviewers") and has("cap_drops") and has("checklist")' "$iter" >/dev/null 2>&1; then
+    if [ "$state" = untrusted ]; then
+      shape="fanned-out"
+    elif [ "$state" = absent ]; then
+      shape=absent
+    elif ! shape="$("$DEVFLOW_JQ" -s -r 'if length != 1 then "\(length) JSON values" elif (.[0] | type) == "object" then "dispatch_mode \(.[0].dispatch_mode | tojson)" else (.[0] | type) end' "$ret" 2>/dev/null)"; then
+      shape=""
+    fi
+    shape="${shape//$'\r'/}"
+    [ -n "$shape" ] || shape="invalid JSON"
+    # An ineligible record's own dispatch fields explain the no-fill whatever the
+    # return file's state.
+    if [ "$eligible" = 0 ]; then
+      reads="$("$DEVFLOW_JQ" -r '"dispatch_mode \(.dispatch_mode | tojson), dispatch_disposition \(.dispatch_disposition | tojson)"' "$iter" 2>/dev/null)" || reads=""
+      reads="${reads//$'\r'/}"
+      shape="${shape} but the record reads ${reads:-unreadable dispatch fields}"
+    fi
+    echo "::warning::efficiency-trace.sh ${FILL_WHO}: no engine key filled for '${iter##*/}': ${ret_label} is ${shape}" >&2
+  fi
+  # Same derivation as synthesize_iter_workpads: commit-anchored, so a later merge
+  # moving HEAD cannot change it.
+  sha_kind="$("$DEVFLOW_JQ" -r 'if has("fix_files") then "present" elif (has("fix_commit_sha") | not) then "absent"
+    elif (.fix_commit_sha | type) != "string" then (.fix_commit_sha | type)
+    elif (.fix_commit_sha | test("\\A([0-9a-fA-F]{40}|[0-9a-fA-F]{64})\\z")) then "sha" else "not-sha" end' "$iter" 2>/dev/null)" || sha_kind=""
+  sha_kind="${sha_kind//$'\r'/}"
+  err=""
+  case "$sha_kind" in
+    present) ;;
+    null) ff="[]" ;;
+    not-sha) err="fix_commit_sha $("$DEVFLOW_JQ" -c '.fix_commit_sha' "$iter" 2>/dev/null) is not a commit sha" ;;
+    sha)
+      sha="$("$DEVFLOW_JQ" -r '.fix_commit_sha' "$iter" 2>/dev/null)" || sha=""
+      sha="${sha%$'\r'}"
+      if ! [[ "$sha" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]]; then
+        err="fix_commit_sha could not be read"
+      elif ! files="$(commit_files "$root" "$sha" 2>/dev/null)"; then
+        err="$(commit_files "$root" "$sha" 2>&1 >/dev/null)" || true
+        err="git could not list the files of ${sha}: ${err%%$'\n'*}"
+      elif ! ff="$(printf '%s' "$files" | "$DEVFLOW_JQ" -Rsc 'split("\n") | map(select(length > 0))')"; then
+        ff="null"; err="jq could not list the commit's files"
+      fi ;;
+    *) err="fix_commit_sha is ${sha_kind:-unreadable}" ;;
+  esac
+  [ -z "$err" ] || echo "::warning::efficiency-trace.sh ${FILL_WHO}: could not derive fix_files for '${iter##*/}': ${err//$'\r'/}; fix_files left absent" >&2
+  # --slurpfile, not --argjson, for the return: one past the per-argument limit (128
+  # KiB on Linux) would fail exec. Any other state binds $e to [].
+  local ret_arg=(--argjson e '[]')
+  [ "$state" = "fanned-out" ] && ret_arg=(--slurpfile e "$ret")
+  local filled missing
+  filled="$("$DEVFLOW_JQ" -c "${ret_arg[@]}" --argjson ff "$ff" '
+    def fill($k; $v): if has($k) then . else .[$k] = $v end;
+    $e[0] as $e
+    | reduce ("diff_profile", "phase3_dispatched", "expected_reviewers", "cap_drops") as $k
+      (.; if ($e | type) == "object" and ($e | has($k)) then fill($k; $e[$k]) else . end)
+    | if ($e | type) == "object" and (($e.checklist | type) == "array") then
+        fill("checklist"; [$e.checklist[] | select(type == "object")
+          | with_entries(select(.key | IN("id", "verification_mode", "verdict", "severity", "claim_signature", "reused_from_iter_prev", "reused_from_iter")))])
+      else . end
+    | if $ff != null then fill("fix_files"; $ff) else . end' "$iter")" || {
+    echo "::warning::efficiency-trace.sh ${FILL_WHO}: could not fill '${iter##*/}' (jq failed); left unfilled" >&2
+    return 2
+  }
+  filled="${filled%$'\r'}"
+  if [ "$state" = "fanned-out" ]; then
+    missing="$(printf '%s' "$filled" | "$DEVFLOW_JQ" -r '[("diff_profile", "phase3_dispatched", "expected_reviewers", "cap_drops", "checklist") as $k | select(has($k) | not) | $k] | join(", ")' 2>/dev/null)"
+    missing="${missing//$'\r'/}"
+    [ -n "$missing" ] && echo "::warning::efficiency-trace.sh ${FILL_WHO}: '${iter##*/}' still lacks ${missing}: ${ret_label} carries no usable value" >&2
+  fi
+  printf '%s\n' "$filled"
+}
+
+# Copy run dir $1 into $2 with every iter record filled by fill_iter_record (repo
+# $3), re-serialized compact; a record fill_iter_record declines or fails to fill
+# keeps its copied bytes. Returns 1 when the copy cannot be staged, 2 when a
+# record's fill failed.
+fill_run_copy() {
+  local dir="$1" out="$2" root="$3" iter filled rc=0 frc
+  mkdir -p "$out" && cp -p "$dir"/*.json "$out"/ || return 1
+  for iter in "$out"/iter-*.json; do
+    [ -e "$iter" ] || continue
+    frc=0; filled="$(fill_iter_record "$iter" "$dir" "$root")" || frc=$?
+    case "$frc" in
+      0) printf '%s\n' "$filled" > "$iter" || return 1 ;;
+      2) rc=2 ;;
+    esac
+  done
+  return "$rc"
 }
 
 # Run the jq derivation over VALID_FILES for $1 mode ("trace"|"record") and the
@@ -386,25 +546,26 @@ emit_jq() {
 
 # Single source of truth for the iter-<N>.json expected field set (issue #170).
 # Kept in sync with the iter-<N>.json schema block in skills/review-and-fix/SKILL.md;
-# a lib/test/run.sh assertion FAILs if the two diverge. The CONDITIONAL schema
+# a lib/test/modules/efficiency-trace-telemetry.sh assertion FAILs if the two diverge. The CONDITIONAL schema
 # fields are intentionally excluded — `shadow` (Step 2.6 appends it later, so it is
 # legitimately absent on iters that ran no shadow pass) and `reference_reads` (issue
 # #541: Step 3.5's fix-delta gate appends it, so it is legitimately absent on iters
 # where that gate did not run). `sweep_defs_read`/`sweep_evidence` are NOT conditional:
 # fixing.md item 7 mandates them on every iteration (a no-fix iteration writes the
 # explicit `[]` / `not-run` pair rather than omitting them), which is why they belong
-# in this unconditional set. `dispatched_effort` (issue #609) is likewise unconditional:
-# fixing.md item 7 mandates it on every iteration Phase 1+2 ran. `expected_reviewers`
-# (issue #1904) is likewise unconditional: the engine records its own Phase 3.1 gate
+# in this unconditional set. `dispatched_effort` (issue #609) is expected except on a record
+# whose `dispatch_mode` is exactly "fanned-out" (issue #1166: the engine subagent does not
+# return it); do_self_check applies that exemption. `expected_reviewers`
+# (issue #1904) is unconditional: the engine records its own Phase 3.1 gate
 # decisions on every iteration alongside `phase3_dispatched`, and the Step 1
 # roster-coverage check reads it. `phase3_failed_agents` (issue #1849) is likewise
 # unconditional: the engine records the dispatched agents that returned no usable result
 # on every iteration (explicit `[]` when none failed), and the trace reads it to assign a
 # `failed` per-agent disposition. --self-check warns
 # (best-effort) when any of these is missing from a persisted iter workpad. Plain
-# (non-readonly) single-line assignment so the run.sh divergence guard can grep
+# (non-readonly) single-line assignment so that divergence guard can grep
 # `^ITER_EXPECTED_FIELDS=` to extract it.
-ITER_EXPECTED_FIELDS="iter started_at fix_commit_sha fix_files loop_role sweep_defs_read sweep_evidence checklist phase3_dispatched phase3_failed_agents expected_reviewers dispatched_effort diff_profile phase3_findings fix_decisions convergence_inputs cap_drops telemetry"
+ITER_EXPECTED_FIELDS="iter fix_commit_sha fix_files loop_role sweep_defs_read sweep_evidence checklist phase3_dispatched phase3_failed_agents expected_reviewers dispatched_effort diff_profile phase3_findings fix_decisions convergence_inputs cap_drops telemetry"
 # The synthesized-record minimal field set (issue #381): what synthesize_iter_workpads
 # writes, and what --self-check validates a synthesized:true record against (a
 # synthesized record is a recognized degraded class, exempt from the full set above
@@ -639,7 +800,7 @@ select_fix_commits() {
 # arm-specific warning names which); 4 when commits WERE selected but every record write
 # failed (per-commit warnings already emitted).
 synthesize_iter_workpads() {
-  local dir="$1" root="$2" n sha files files_ok base excl log_out jq_err tab attempted=0 wrote=0
+  local dir="$1" root="$2" n sha files files_ok err base excl log_out jq_err tab attempted=0 wrote=0
   tab="$(printf '\t')"
   # The target dir can be absent on the one shape this floor exists for — a
   # fully-degraded run that never created its tmp dir, reached via the
@@ -729,13 +890,15 @@ synthesize_iter_workpads() {
   while IFS="$tab" read -r n sha; do
     [ -n "$n" ] && [ -n "$sha" ] || continue
     attempted=$((attempted + 1))
-    # Guard the fix_files derivation: a failed diff-tree must record
+    # Guard the fix_files derivation: a failed git call must record
     # fix_files: null (unestablished — distinguishable from a genuine
     # empty/--allow-empty commit's []) with a breadcrumb, never a silent
     # fabricated "this commit touched no files".
     files_ok=1
-    if ! files="$(git -C "$root" diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null)"; then
-      echo "::warning::efficiency-trace.sh --persist: could not derive fix_files for ${sha} (git diff-tree failed; stderr suppressed to keep the data stream pure); recording fix_files as null (unestablished)" >&2
+    if ! files="$(commit_files "$root" "$sha" 2>/dev/null)"; then
+      err="$(commit_files "$root" "$sha" 2>&1 >/dev/null)" || true
+      err="${err%%$'\n'*}"
+      echo "::warning::efficiency-trace.sh --persist: could not derive fix_files for ${sha} (${err//$'\r'/}); recording fix_files as null (unestablished)" >&2
       files_ok=0
       files=""
     fi
@@ -986,7 +1149,7 @@ do_self_check() {
   #       and skips — otherwise a wrong-shape workpad masquerades as complete.
   # An object yields its missing-field names; field names are bare identifiers, so
   # the `for field in $missing` word-split is safe (and emits one warning line each).
-  local iter field missing shadow_missing provenance_state provenance_value evidence_bad
+  local iter field missing filled input shadow_missing provenance_state provenance_value evidence_bad
   for iter in "$WORKPAD_DIR"/iter-*.json; do
     [ -e "$iter" ] || continue
     # A synthesized record (issue #381) is a recognized degraded class — it
@@ -997,9 +1160,13 @@ do_self_check() {
     # operators to ignore the self-check) — and not against nothing, or a
     # truncated/hand-edited synthesized record would validate silently (the
     # writer-controlled flag must not buy a total exemption).
+    # Validate the record as fill_iter_record fills it: a key the fill supplies is not
+    # missing. An unfilled record is read from its file, so an unreadable one still warns below.
+    input=("$iter"); filled=""
+    if filled="$(fill_iter_record "$iter" "$WORKPAD_DIR" "$root" 2>/dev/null)"; then input=(); fi
     if ! missing="$("$DEVFLOW_JQ" -r --arg fields "$ITER_EXPECTED_FIELDS" --arg synth_fields "$ITER_SYNTH_EXPECTED_FIELDS" \
-                      'if type == "object" then (if (.synthesized == true) then (($synth_fields | split(" ")) - keys)[] else (($fields | split(" ")) - keys)[] end) else "__non_object__" end' \
-                      "$iter" 2>/dev/null)"; then
+                      'if type == "object" then (if (.synthesized == true) then (($synth_fields | split(" ")) - keys)[] else (($fields | split(" ")) - keys - (if .dispatch_mode == "fanned-out" then ["dispatched_effort"] else [] end))[] end) else "__non_object__" end' \
+                      ${input[@]+"${input[@]}"} <<<"$filled" 2>/dev/null)"; then
       echo "::warning::devflow review-and-fix self-check: iter workpad '$(basename "$iter")' is unreadable or not valid JSON — cannot validate its fields" >&2
       continue
     fi
@@ -1299,11 +1466,23 @@ persist_one() {
   # .prflow/logs/… layout the branch commit will carry. ────────────────────────
 
   # Durable workpad copy — NOT telemetry-gated (runs on every writable run).
-  # Copies every *.json in the run dir (iter-*.json + deferrals.json), mirroring
-  # the review-and-fix Loop Exit durable-copy (references/loop-exit.md). Content-idempotent: the branch write's
-  # tree-equality no-op guard emits no commit when the bytes are unchanged.
+  # Copies every *.json (iter-*.json, deferrals.json and the rest) from the filled
+  # copy of the run dir, or the run dir itself when staging fails, mirroring the review-and-fix
+  # Loop Exit durable-copy (references/loop-exit.md). Content-idempotent: the branch
+  # write's tree-equality no-op guard emits no commit when the bytes are unchanged.
+  # Never fill the run dir in place. A record whose fill fails, or a run dir that
+  # cannot be staged, sets po_partial (an incomplete derivation).
+  local fill_root="${root}/.prflow/tmp/efficiency-fill-$$-${RANDOM}" fill_rc=0
+  local src="${fill_root}/${slug}/${run_id}"
+  fill_run_copy "$dir" "$src" "$root" || fill_rc=$?
+  case "$fill_rc" in
+    0) ;;
+    2) po_partial=1 ;;
+    *) echo "::warning::efficiency-trace.sh --persist: could not stage the filled copy of ${dir}; persisting the run dir unfilled" >&2
+       src="$dir"; po_partial=1 ;;
+  esac
   durable="${_TELEMETRY_STAGE}/.prflow/logs/review/${slug}/${run_id}"
-  if ! cp_err="$( { mkdir -p "$durable" && cp -p "$dir"/*.json "$durable"/; } 2>&1 )"; then
+  if ! cp_err="$( { mkdir -p "$durable" && cp -p "$src"/*.json "$durable"/; } 2>&1 )"; then
     echo "::warning::efficiency-trace.sh --persist: durable workpad copy failed (${dir} -> ${durable}): ${cp_err:-unknown}; best-effort, continuing" >&2
     po_lost=1   # a durable-copy write failed → class lost (issue #344)
   else
@@ -1397,7 +1576,7 @@ persist_one() {
     rel_record=".prflow/logs/efficiency/${slug}-${run_id}.json"
     if ! devflow_telemetry_blob_exists "$root" "$ref" "$rel_record"; then
       record="${_TELEMETRY_STAGE}/${rel_record}"
-      collect_valid_files "$dir"
+      collect_valid_files "$src" "$dir"
       if [ "${VALID_FILES_SKIPPED:-0}" -gt 0 ] && [ "${#VALID_FILES[@]}" -gt 0 ]; then
         # Issue #520 AC1: at least one iter file's bytes were stored (the durable copy
         # above) yet omitted from this effectiveness derivation — an INCOMPLETE
@@ -1461,6 +1640,7 @@ persist_one() {
   else
     _PERSIST_ONE_CLASS=ok; _PERSIST_ONE_REASON="$po_reason"
   fi
+  rm -rf "$fill_root" 2>/dev/null || true
   return 0
 }
 
@@ -2912,6 +3092,24 @@ if [ "$ENABLED" != "true" ]; then
   exit 0
 fi
 
-collect_valid_files "$WORKPAD_DIR"
+# Render a filled copy of the run dir, staged under an existing .prflow/tmp; never
+# fill the run dir. When no copy can be staged, render the run dir unfilled.
+TRACE_SRC="$WORKPAD_DIR"
+if [ -n "$WORKPAD_DIR" ] && compgen -G "$WORKPAD_DIR"/iter-*.json >/dev/null 2>&1; then
+  TRACE_ROOT="$(devflow_repo_root)"
+  if [ -d "${TRACE_ROOT}/.prflow/tmp" ]; then
+    TRACE_FILL="${TRACE_ROOT}/.prflow/tmp/efficiency-fill-$$-${RANDOM}"
+    trap 'rm -rf "$TRACE_FILL"' EXIT
+    FILL_WHO="--mode ${MODE}"; TRACE_RC=0
+    fill_run_copy "$WORKPAD_DIR" "$TRACE_FILL/run" "$TRACE_ROOT" || TRACE_RC=$?
+    case "$TRACE_RC" in
+      1) echo "::warning::efficiency-trace.sh: could not stage the filled copy of ${WORKPAD_DIR}; rendering it unfilled" >&2 ;;
+      *) TRACE_SRC="$TRACE_FILL/run" ;;
+    esac
+  else
+    echo "::warning::efficiency-trace.sh: no ${TRACE_ROOT}/.prflow/tmp to stage a filled copy in; rendering ${WORKPAD_DIR} unfilled" >&2
+  fi
+fi
+collect_valid_files "$TRACE_SRC" "$WORKPAD_DIR"
 warn_on_mixed_source
 emit_jq "$MODE" "$SLUG"

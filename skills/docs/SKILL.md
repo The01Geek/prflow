@@ -95,3 +95,4 @@ After the last step, provide a brief summary listing:
 - Release note entry added or skipped with reason (Step 3)
 - Any config gate whose read was refused, reported as `unestablished`
 - Every `prflow-docs-outcome: ` line a step printed, verbatim
+- Every line your caller's instruction asked you to return, verbatim
