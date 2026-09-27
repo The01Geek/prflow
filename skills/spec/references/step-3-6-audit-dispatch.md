@@ -23,7 +23,7 @@ It answers `kind=discovery|targeted reason=<token> …`. Obey the answer, never 
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py write-dispatch-scope "<slug>" --nonce "<nonce>" --draft-file "<canonical>" --path "<bound-root>/.prflow/tmp/spec/<slug>/issue-audit-scope-<slug>.<digest>.md"
 ```
 
-It prints `scope_path= scope_digest= basis_digest=`. Pass `--scope-file "<scope_path>"` to the renderer. `record-dispatch` requires `--kind <the kind query-round-kind answered>` on every round, plus `--scope-file` on a targeted one.
+It prints `scope_path= scope_digest= basis_digest=`. `record-dispatch` requires `--kind <the kind query-round-kind answered>` on every round, plus `--scope-file` on a targeted one.
 
 A scoped round re-checks resolved claims. A targeted round enumerates *every* finding raised in an earlier round, regardless of resolved status. Only the claim id and its one-line summary travel to the auditor — never the status, prior verdict, disposition or rationale. The tool selects the cold whole-draft kind when there are no earlier-round findings.
 
@@ -83,6 +83,8 @@ Generate the canonical dispatch instructions, then write them (file arm). Substi
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-audit-prompt.py dispatch-instructions --slug "<slug>" --draft-path "<absolute issue-draft-<slug>.md path>" --instructions-path "<instructions path>" > "<instructions path>" && test -s "<instructions path>"
 ```
+
+On a `kind=targeted` round the same call adds `--scope-file "<scope_path>"`, the `scope_path=` value `write-dispatch-scope` printed.
 
 `test -s` observes that landed criterion's second conjunct — a bash builtin, no external tool — so an empty file routes to the pre-dispatch `instructions-generation-failed` arm rather than a burned round.
 

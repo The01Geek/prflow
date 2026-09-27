@@ -1,9 +1,9 @@
 {
   "exporter_policy_version": "1.0.0",
-  "payload_byte_count": 9824419,
-  "payload_file_count": 474,
-  "plugin_version": "2.51.0",
+  "payload_byte_count": 9883416,
+  "payload_file_count": 475,
+  "plugin_version": "2.52.0",
   "schema_version": 1,
-  "source_commit": "65adc2df8d022d63a6693c8c2b474ac11e843eb7",
-  "source_commit_time": "2026-09-25T05:41:53Z"
+  "source_commit": "d9f356f3264c5fb8121fd0baa051c16508c5c278",
+  "source_commit_time": "2026-09-27T02:22:24Z"
 }

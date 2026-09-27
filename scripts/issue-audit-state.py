@@ -322,8 +322,8 @@ def build_parser():
                         'coverage offer).')
     s.add_argument('--expected-keys', required=True,
                    help="The AUTHORITATIVE enumerated dimension keys, comma-separated, as "
-                        "printed by `render-audit-prompt.py enumerate-dimensions` (issue "
-                        "#708). Coverage must be TOTAL over this set: an enumerated key "
+                        "printed on the keys= line of `render-audit-prompt.py "
+                        "enumerate-dimensions --keys-only` (issues #708, #1327). Coverage must be TOTAL over this set: an enumerated key "
                         "the auditor returned no line for is synthesized as unestablished "
                         "(unknown is not zero), and a returned key outside the set is "
                         "refused. Without it a truncated return would derive `backed` "

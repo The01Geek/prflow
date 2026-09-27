@@ -32,8 +32,6 @@ Primary goal: Create a domain-based categorization through subdirectories — no
 
 ## Core Principles
 
-<!-- Coupled pair: the taxonomy rules in this section are stated identically in the docs-sync-internal skill's Structure Contract, which maintains the structure this skill creates. Edit both skills together. -->
-
 ### Domain-First, Not Code-Layer-First
 
 Organize by business domain and feature area, not by technical layer.
@@ -200,8 +198,6 @@ The index also records two things only this run knows:
 - On each category you deliberately seeded lightly, the marker `(deliberately thin)` — so a later maintenance run can tell an intentionally sparse category from one whose docs are missing, instead of treating every thin category as a gap to fill.
 
 ### Step 7: Verify Every Factual Claim Against the Codebase
-
-<!-- Coupled sibling: mirrors Step 5 of the docs-sync-internal skill, which applies the same discipline to incremental updates. Edit the two steps together. -->
 
 ⚠️ **MANDATORY — do not skip. Write docs from the code, never from your survey notes or your memory of what the codebase "should" contain.** This run writes the largest volume of fresh prose the documentation tree will ever receive in one pass, all of it from a first read of an unfamiliar codebase — exactly the conditions under which plausible-but-wrong claims ship.
 

@@ -222,7 +222,7 @@ The first `FAILED` line and exit status 7 are unchanged. `PASSED`, `CANCELLED`, 
 
 <Accordion title="CI verification wait printed CANCELLED, SUPERSEDED or STALLED">
 
-**Symptom:** `wait` exits 6 with a `CANCELLED`, `SUPERSEDED` or `STALLED` line. `STALLED <request-id> run=<run-id> url=<url> queued-for=<n>s cancel=ok job=<job name>` means a job waited for a runner for at least the `--cancel-queued-after` bound, so PRFlow cancelled the run (`cancel=failed` when the cancel call did not succeed; if the run is still going, cancel it from the run URL).
+**Symptom:** `wait` exits 6 with a `CANCELLED`, `SUPERSEDED` or `STALLED` line. `STALLED <request-id> run=<run-id> url=<url> queued-for=<n>s cancel=ok job=<job name>` means a job waited for a runner for at least the `--cancel-queued-after` bound, so PRFlow cancelled the run. `cancel=failed` means the cancel call did not succeed: unless an earlier `wait` for that request printed `CANCELLED`, `SUPERSEDED` or `STALLED … cancel=ok`, a later `request` without `--force-dispatch` reuses the newest unsettled run it has correlated for that head, normally that same run, and the next `wait --cancel-queued-after` retries the cancel if a job is still queued past the bound. You can also cancel the run yourself from its URL.
 
 None of these carries a verdict on the change. Request CI again for the same head.
 

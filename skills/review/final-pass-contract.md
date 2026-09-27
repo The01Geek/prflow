@@ -4,8 +4,6 @@ The review engine's final-pass reviewer follows this file with `code-reviewer.md
 
 ## Prompt-extension status
 
-<!-- Coupled: the review engine's phase-3-agents.md routes these three tokens, and the refusal message matches the note in the implement skill. Edit together. -->
-
 Run the prompt-extension command your dispatch supplies as your first step, verbatim, as its own leading token; the orchestrator already resolved its path, so do not resolve the skill-directory anchor for it yourself.
 
 Report its outcome as exactly one of three status tokens on its own status line in your return: `EXTENSION-STATUS: loaded-with-content` (the command exited 0 and printed text **on stdout**), `EXTENSION-STATUS: loaded-empty` (the command exited 0 and printed nothing **on stdout**), or `EXTENSION-STATUS: load-prompt-extension.sh was refused by the matcher; the consumer prompt extension could not be loaded` (the command produced no output and no exit status was observed, i.e. it was refused; OR it exited non-zero for a reason other than the helper path not existing). **Classify on stdout alone — a stderr breadcrumb is not stdout content.** On a tier that points the helper at a trusted extension directory the helper also writes a stderr breadcrumb naming the directory it *selected*, so an exit-0 run whose only output is that breadcrumb is `loaded-empty`, never `loaded-with-content`. **The discriminator you can actually apply:** your Bash tool returns stdout and stderr merged with no stream labels, so treat any output line beginning `load-prompt-extension.sh: ` as the helper's own diagnostic — never extension content — and classify on what remains. An exit-0 run producing no output is `loaded-empty`, NOT a failure; a helper-path-does-not-exist result (`No such file`, exit 127, or the platform equivalent) is NOT a failure either — it is an anchor-resolution miss; report `EXTENSION-STATUS: loaded-empty`. Also state, on the same line or the next, whether you ran the supplied command verbatim; if you ran anything other than the supplied command verbatim, that is a refusal-class outcome — emit the refusal token, never a loaded token.
@@ -15,8 +13,6 @@ Report its outcome as exactly one of three status tokens on its own status line 
 ## Findings
 
 Return your findings in the standard Phase-3 output format: ### Issues (grouped by Critical / Important / Suggestion) / ### Assessment. Every issue MUST carry a `defect_signature` block per this contract:
-
-<!-- Canonical copy of this fenced block; the "Phase-3 findings contract" section of the five first-party reviewer agents (code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, type-design-analyzer) mirrors it byte-identically. Edit all six together. -->
 
 ```
 For every finding you report, include a `defect_signature` field with the following shape:

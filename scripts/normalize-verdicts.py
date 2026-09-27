@@ -55,7 +55,8 @@ carried through for the build-mode provenance gate below; a non-string is droppe
 ``critical``, ``important`` or ``suggestion`` stores that form, and every other value stores ``critical``,
 as do a verdict defect and a reply read after its trusted file proved unreadable. Build mode,
 the mode that writes the stored artifact, also stores ``critical`` for a lite item, an
-``issue_acceptance`` item and an item whose ``view_state`` is not ``ok`` (pairs mode keeps the
+``issue_acceptance`` item and an item whose ``view_state`` is ``absent``, ``wrong-revision``,
+``views-unusable`` or ``path-outside-view`` (pairs mode keeps the
 verifier's grade on these), and adds an ``input_warnings`` line for an invalid grade, for no
 usable verifier verdict and for an item the helper itself failed on.
 
@@ -158,11 +159,15 @@ writes the combined verification array, so the orchestrator types only judgment:
 
 ``views`` (issue #851) binds the run's head and base source-view inventories. When present,
 the collector runs a provenance gate before the tally: a verdict whose ``view_revision`` is
-not the bound head or base, is absent, or whose ``file_checked`` path is absent from that
-view's inventory and not recorded there as ``deleted`` (a bare directory holding a present
-entry counts as present), is left unestablished and cannot earn
-PASS (a raw PASS is forced to INCONCLUSIVE with a ``view_ineligible`` marker; cited evidence
-text is never byte-compared). A 12-39 lowercase-hex ``view_revision`` prefixing exactly one bound
+not the bound head or base or is absent, or whose ``file_checked`` provably names a path the
+view did not supply (``path-outside-view``: an unwritten path, a cited path not in the view
+that is itself absolute, drive-lettered or home-relative (``~`` or ``~user/``), a path
+climbing above its root (``..``), or a path under the other bound view's directory), is
+left unestablished,
+stored ``critical``, and cannot earn PASS (a raw PASS is forced to INCONCLUSIVE with a
+``view_ineligible`` marker; cited evidence text is never byte-compared). Any other citation
+missing from the inventory (``path-not-in-inventory``) is recorded in ``view_state`` only and
+changes no verdict, severity or evidence. A 12-39 lowercase-hex ``view_revision`` prefixing exactly one bound
 revision is first replaced by that revision, with an ``input_warnings`` line. The gate is inert when ``views`` is absent, so a legacy run is
 unaffected and the wording-only normalization contract is unchanged. The summary carries a
 ``view_check`` object ``{bound_revisions, states}``.
@@ -870,12 +875,36 @@ def _bare_key(text, prefixes):
     key = _strip_line_anchor(text.replace("\\", "/").strip())
     forms = [key]
     if prefixes and os.path.isabs(key):
-        forms.append(posixpath.normpath(os.path.realpath(key).replace("\\", "/")))
+        resolved = _resolved(key)
+        if resolved is not None:  # None (a NUL byte): the literal form alone, which misses
+            forms.append(resolved)
     for form in forms:
-        for prefix in prefixes:
-            if form.startswith(prefix + "/"):
-                return _ViewStripped(form[len(prefix) + 1:])
+        stripped = _strip_view_prefix(form, prefixes)
+        if stripped is not None:
+            return _ViewStripped(stripped)
     return key
+
+
+def _resolved(path):
+    """``path`` symlink-resolved with ``/`` separators, or ``None`` when this host cannot resolve
+    it (a NUL byte, an unrepresentable name)."""
+    try:
+        return posixpath.normpath(os.path.realpath(path).replace("\\", "/"))
+    except (OSError, ValueError):
+        return None
+
+
+def _strip_view_prefix(form, prefixes):
+    """``form`` with its leading bound-view directory removed, or ``None`` when none leads it."""
+    for prefix in prefixes:
+        if form.startswith(prefix + "/"):
+            return form[len(prefix) + 1:]
+    return None
+
+
+def _citation_parts(fc):
+    """The citations one ``file_checked`` joins with ``;`` / `` and `` / ``,``, unstripped."""
+    return fc.replace(" and ", ";").replace(",", ";").split(";")
 
 
 class _ViewStripped(str):
@@ -885,15 +914,110 @@ class _ViewStripped(str):
 
 class _ViewInventory(frozenset):
     """One bound view's inventory keys, plus ``has_dir``: whether a key is a directory holding at
-    least one present (not ``deleted``) entry."""
+    least one present (not ``deleted``) entry, ``unwritten``: the paths a Read cannot open as
+    themselves (``_load_view_index`` supplies them), and ``unwritten_aliases``: the
+    ``_windows_alias`` of each unwritten path and each of its folders. All are fixed at
+    construction, so the aliases cannot drift from ``unwritten``."""
 
-    def __new__(cls, paths, dirs=()):
+    __slots__ = ("_dirs", "_unwritten", "_unwritten_aliases")
+
+    def __new__(cls, paths, dirs=(), unwritten=()):
         inv = super().__new__(cls, paths)
         inv._dirs = frozenset(dirs)
+        inv._unwritten = frozenset(unwritten)
+        inv._unwritten_aliases = frozenset(
+            _windows_alias(u.rsplit("/", i)[0]) for u in inv._unwritten for i in range(u.count("/") + 1)
+        ) - {""}
         return inv
+
+    @property
+    def unwritten(self):
+        return self._unwritten
+
+    @property
+    def unwritten_aliases(self):
+        return self._unwritten_aliases
 
     def has_dir(self, key):
         return key in self._dirs
+
+
+def _windows_alias(path, folds_case=True, strips_trailing=True):
+    """The name a plain path opens for ``path``: each component's trailing spaces and periods
+    dropped when ``strips_trailing`` (Windows), letter case folded by ``str.casefold`` (which
+    folds more than Windows or macOS) when ``folds_case``, and the trailing tab, newline, CR, VT
+    and FF that citation stripping removes always dropped."""
+    tail = "\t\n\r\x0b\x0c" + (" ." if strips_trailing else "")
+    name = "/".join(c.rstrip(tail) for c in path.split("/"))
+    return name.casefold() if folds_case else name
+
+
+def _name_lookup(inv_path):
+    """``(folds_case, strips_trailing)`` for the directory holding ``inv_path`` (the view's root):
+    whether it opens the inventory file under its swapped letter case, and with a trailing period
+    added. Asks the filesystem rather than the OS, since a Linux mount can fold case. A probe that
+    cannot run — no cased letter to swap, or an error other than the variant being absent —
+    answers True, the reading that refuses more PASSes."""
+    head, name = os.path.split(inv_path)
+    try:
+        os.stat(inv_path)
+    except (OSError, ValueError):
+        return True, True
+
+    def opens(variant):
+        if variant == name:
+            return True
+        try:
+            return os.path.samefile(inv_path, os.path.join(head, variant))
+        except (FileNotFoundError, NotADirectoryError):
+            return False
+        except (OSError, ValueError):
+            return True
+    return opens(name.swapcase()), opens(name + ".")
+
+
+def _view_tail(form, prefixes):
+    """``form`` relative to its bound view, whitespace kept, or ``None`` when no view leads it. An
+    absolute form whose view directory is spelled another way (drive-letter case, 8.3 name,
+    junction) is matched by resolving its leading directories, as ``_bare_key`` resolves it."""
+    tail = _strip_view_prefix(form, prefixes)
+    if tail is not None or not prefixes or not os.path.isabs(form):
+        return tail
+    parts = form.split("/")
+    for i in range(len(parts) - 1, 1, -1):  # never parts[:1]: "" or "C:" resolves to the cwd
+        head = _resolved("/".join(parts[:i]))
+        if head is not None and head.rstrip("/") in prefixes:
+            return "/".join(parts[i:])
+    return None
+
+
+def _cites_unwritten(fc, prefixes, inventory):
+    """Whether ``file_checked`` names an unwritten path (``_ViewInventory``), compared before
+    ``_bare_key`` strips whitespace: ``y `` must not reduce onto a written ``y``. A citation not
+    itself in the view that Windows opens as an unwritten path or folder (``y  ``, ``Y .``) counts."""
+    if not isinstance(inventory, _ViewInventory) or not inventory.unwritten or not isinstance(fc, str):
+        return False
+    unwritten, aliases = inventory.unwritten, inventory.unwritten_aliases
+    text = fc.replace("\\", "/")
+    parts = [text, text.lstrip()]
+    if not _in_view(_bare_key(fc, prefixes), inventory):  # a written key cited whole is never split
+        for p in _citation_parts(text):
+            p = p.lstrip()
+            parts.append(p)
+            if len(p.split()) > 1:  # one whitespace character separates tokens; more stays in the name
+                parts += [m.group() if m.end() == len(p) else m.group()[:-1]
+                          for m in re.finditer(r"\S+\s*", p)]
+    for part in parts:
+        forms = [part]
+        idx = part.rfind(":")
+        if idx > 0 and _strip_line_anchor(part) != part:
+            forms.append(part[:idx])
+        for form in forms:
+            for cand in (form, _view_tail(form, prefixes)):
+                if cand is not None and (cand in unwritten or (
+                        not _in_view(cand, inventory) and _windows_alias(cand) in aliases)):
+                    return True
+    return False
 
 
 def _in_view(key, inventory):
@@ -928,8 +1052,7 @@ def _cited_paths(fc, prefixes, inventory):
     anchored piece), so ``a.py 12`` keeps ``12`` as a piece and misses.
     Membership is ``_in_view`` (a path, or a tracked directory): carry passes a membership-only object. A part that
     reduces to nothing (the view directory alone) keeps its original text, and a value that yields no part at all (anchor items only, a
-    separator alone) is returned as itself — both are non-members, so a citation that names no
-    file demotes exactly as before. Only a non-string or the empty string ``""`` returns ``[]``
+    separator alone) is returned as itself — both are non-members. Only a non-string or the empty string ``""`` returns ``[]``
     (unchanged: those were never path-checked)."""
     if not isinstance(fc, str) or fc == "":
         return []
@@ -937,7 +1060,7 @@ def _cited_paths(fc, prefixes, inventory):
     if _in_view(whole, inventory):
         return [whole]
     keys = []
-    for part in fc.replace(" and ", ";").replace(",", ";").split(";"):
+    for part in _citation_parts(fc):
         raw = part.strip()
         if raw and _strip_line_anchor("x:" + raw) != "x":
             key = _bare_key(raw, prefixes) or raw
@@ -999,13 +1122,30 @@ def _load_view_index(views):
         # An entry's stored_path (a harness-instruction file under its ``.src`` suffix) is the
         # name the verifier Reads, so it is a key of this view alongside the original path.
         # A path-too-long entry was never written, so it is neither a key nor present.
+        unwritten = set()
+        for e in entries:
+            if isinstance(e, dict) and e.get("kind") == "path-too-long":
+                p = e.get("path")
+                if isinstance(p, str) and p:
+                    unwritten.add(p)
+                else:
+                    warnings.append(f"views[{slot}]: a path-too-long entry's path is "
+                                    f"{'empty' if p == '' else _shape('path' in e, p)} -- ignored")
         entries = [e for e in entries if isinstance(e, dict) and e.get("kind") != "path-too-long"]
+        written = {e["stored_path"] for e in entries if isinstance(e.get("stored_path"), str)}
+        # A symlink, submodule or deleted path this view's filesystem opens as a written file.
+        lookup = _name_lookup(inv_path)
+        if any(lookup):
+            written_aliases = {_windows_alias(s, *lookup) for s in written}
+            unwritten |= {e["path"] for e in entries
+                          if e.get("kind") in ("symlink", "submodule", "deleted") and isinstance(e.get("path"), str)
+                          and e["path"] not in written and _windows_alias(e["path"], *lookup) in written_aliases}
         paths = {e[k] for e in entries
                  for k in ("path", "stored_path") if isinstance(e.get(k), str)}
         present = {e["path"] for e in entries
                    if isinstance(e.get("path"), str) and e.get("kind") != "deleted"}
         index[revision] = _ViewInventory(paths, {p.rsplit("/", i)[0] for p in present
-                                                 for i in range(1, p.count("/") + 1)})
+                                                 for i in range(1, p.count("/") + 1)}, unwritten)
         dirs[revision] = _view_prefixes(inv_path)
         bound.add(revision)
         if slot == "head":
@@ -1022,19 +1162,57 @@ def _expand_view_prefix(vr, bound):
     return matches[0] if len(matches) == 1 else None
 
 
+def _outside_view(key, prefixes, other_prefixes, inventory):
+    """Whether one ``_cited_paths`` key provably names a file the named view did not supply: a
+    key under another bound view's directory (relative or absolute spelling); a key no view
+    prefix was stripped from that is not in the view (``_in_view``) and is absolute, drive-lettered
+    (``X:``, on every host) or home-relative (``~`` or ``~user/``); or any key that climbs
+    above its root (``..``) — the checkout, or the view directory a stripped key was cited
+    under. The other view's directory, and the named view's directory cited alone (not outside),
+    match in any letter case; a path under the named view's directory is stripped only in a
+    spelling ``_bare_key`` matches, so a mis-cased absolute one it does not resolve is outside.
+    An absolute path embedded in free text is not split out, so it is only unmatched."""
+    if not isinstance(key, str):
+        return False
+    text = _strip_line_anchor(key.replace("\\", "/").strip())
+    depth = 0
+    for part in text.split("/"):
+        depth += -1 if part == ".." else (0 if part in ("", ".") else 1)
+        if depth < 0:
+            return True
+    folded = text.casefold()
+    if isinstance(key, _ViewStripped) or folded.rstrip("/") in {p.casefold() for p in prefixes}:
+        return False
+    if any(folded == p or folded.startswith(p + "/") for p in (o.casefold() for o in other_prefixes)):
+        return True
+    if _in_view(key, inventory):
+        return False
+    if text.startswith("/") or (text.startswith("~") and "/" in text) or text == "~":
+        return True
+    return len(text) >= 2 and text[0].isascii() and text[0].isalpha() and text[1] == ":"
+
+
 def _view_state(entry, index, bound, dirs):
     """Classify a verification entry's view provenance against the bound inventories.
-    Returns ``"ok"`` | ``"absent"`` | ``"wrong-revision"`` | ``"path-not-in-inventory"``.
-    Cited evidence text is never inspected — only ``view_revision`` and ``file_checked``;
-    every path ``file_checked`` cites (``_cited_paths``) must be in that view (``_in_view``)."""
+    Returns ``"ok"`` | ``"absent"`` | ``"wrong-revision"`` | ``"path-outside-view"`` |
+    ``"path-not-in-inventory"``. Cited evidence text is never inspected — only ``view_revision``
+    and ``file_checked``. ``path-outside-view``: a citation names an unwritten path
+    (``_cites_unwritten``) or a key ``_outside_view`` refuses; ``path-not-in-inventory``: any
+    other cited key missing from that view (``_in_view``)."""
     vr = entry.get("view_revision")
     if not _is_hex40(vr):
         return "absent"
     if vr not in bound:
         return "wrong-revision"
     inventory = index.get(vr, set())
-    if any(not _in_view(key, inventory)
-           for key in _cited_paths(entry.get("file_checked"), dirs.get(vr, ()), inventory)):
+    fc, prefixes = entry.get("file_checked"), dirs.get(vr, ())
+    if _cites_unwritten(fc, prefixes, inventory):
+        return "path-outside-view"
+    keys = _cited_paths(fc, prefixes, inventory)
+    others = tuple(p for rev, forms in dirs.items() if rev != vr for p in forms)
+    if any(_outside_view(key, prefixes, others, inventory) for key in keys):
+        return "path-outside-view"
+    if any(not _in_view(key, inventory) for key in keys):
         return "path-not-in-inventory"
     return "ok"
 
@@ -1280,9 +1458,9 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
         verification[slot] = result
 
     # issue #851 collector view-provenance gate: when the run supplies commit-bound views, a
-    # verdict whose provenance the bound inventories cannot confirm (a revision other than the
-    # run's head/base, an absent view_revision, or a file_checked path absent from that view's
-    # inventory and not recorded deleted) is left unestablished and cannot earn PASS. The gate
+    # verdict whose revision is unproven (other than the run's head/base, or absent) or whose
+    # file_checked provably names a path outside that view (path-outside-view) is left
+    # unestablished and cannot earn PASS; any other unmatched citation is only recorded. The gate
     # is inert when no views are supplied (legacy runs), so it never weakens the existing
     # wording-only normalization (AC6). Cited evidence text is never byte-compared (AC3).
     # Read "were views supplied?" from the RAW input, not the coerced inp["views"] (a wrong-typed
@@ -1296,8 +1474,8 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
                       or ("views" in inputs and not isinstance(_raw_views, dict)))
     view_index, bound_revisions, head_revision, view_warnings, view_dirs = _load_view_index(inp["views"])
     warnings.extend(view_warnings)
-    view_states = {"ok": 0, "absent": 0, "wrong-revision": 0, "path-not-in-inventory": 0,
-                   "views-unusable": 0}
+    view_states = {"ok": 0, "absent": 0, "wrong-revision": 0, "path-outside-view": 0,
+                   "path-not-in-inventory": 0, "views-unusable": 0}
     if bound_revisions:
         head_paths = view_index.get(head_revision, set()) if head_revision else set()
         for entry in verification:
@@ -1305,7 +1483,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             # variance recovery (Phase 1.0 only carries an item whose source file is byte-identical
             # HEAD-to-HEAD), so its provenance IS the current head. Re-stamp its stale prior
             # view_revision to the head revision when its (anchor-stripped) path is in the head
-            # inventory; a reused item whose path is absent from the head view is left to demote.
+            # inventory; a reused item whose path is absent from the head view is left unstamped.
             if entry.get("reused_from_iter_prev") is True and head_revision is not None:
                 keys = _cited_paths(entry.get("file_checked"), view_dirs.get(head_revision, ()),
                                     head_paths)
@@ -1319,7 +1497,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             state = _view_state(entry, view_index, bound_revisions, view_dirs)
             entry["view_state"] = state
             view_states[state] = view_states.get(state, 0) + 1
-            if state != "ok":
+            if state not in ("ok", "path-not-in-inventory"):  # an unmatched citation is information only
                 entry["severity"] = "critical"
                 if _view_gated(entry):
                     _demote_pass(entry, state)

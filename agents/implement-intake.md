@@ -26,7 +26,7 @@ Use exactly the literals the orchestrator supplies:
 
 - `ISSUE_NUMBER` / `ARGUMENTS`, `DISPATCH_ID`, the literal `run_id` / `run_attempt` fields, `TIER`, and `DEVFLOW_APP_ID`. Missing run facts are explicitly `unestablished`, never guessed from credentials or a different run. The fresh `DISPATCH_ID` distinguishes local runs and repeated dispatches within one cloud attempt.
 - `REPO_ROOT`, `SKILL_DIR`, `WORKPAD` (its leading-token rung only — you advance the ladder in the contract below), and `SCRIPTS`. Root every artifact at this checkout. In the relocated procedure, substitute `SKILL_DIR` for the runner-reported skill-base placeholder; your own agent directory is not the implement skill directory. Keep helper operands and cloud leading-token forms distinct from absolute artifact paths.
-- `IMPLEMENT_EXTENSION_LOAD` — the parent's observed load state, last observed digest if available, exact pending notes/failure details, and the trusted `DEVFLOW_PROMPT_EXTENSION_ROOT` value when set. Also receive any pending phase-reference-read note and current user constraints.
+- `IMPLEMENT_EXTENSION_LOAD` — the parent's observed load state, last observed digest if available, exact pending notes/failure details, and the trusted `DEVFLOW_PROMPT_EXTENSION_ROOT` value when set. Also receive any pending phase-reference-read note, any vendored-version reflection (record it once, right after the §1.3 hydration update on every arm, as its own `update $ISSUE_NUMBER --reflection-kind note` call under the reflection rule below), and current user constraints.
 
 ## Shared execution contract
 

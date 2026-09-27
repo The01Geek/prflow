@@ -12,8 +12,12 @@ to demote matched findings to Informational.
 
 Guards (any failing guard rejects the deferral — finding flows through as
 normal):
-    1. Trusted filer:     PR author is in `prflow.allowed_bots` from
-                          .prflow/config.json.
+    1. Trusted filer:     the PR author passes one arm (see _filer_trust):
+                          a non-wildcard `prflow.allowed_bots` entry; a bot on a
+                          same-repository head when `allowed_bots` holds `*`;
+                          or a human passing the trigger gate's user rule
+                          (`prflow.allowed_users` plus write, maintain or admin
+                          permission, through scripts/authorize-actor.sh).
     2. Mutual cross-link: follow-up issue exists, is open, and its body
                           contains the substring "PR #<N>" (where N is the
                           current PR number). Applies to ordinary deferrals
@@ -57,6 +61,8 @@ Output (JSON to stdout, always exit 0 when the helper itself ran):
     {
       "block_present": true | false,
       "pr_author_trusted": true | false | null,
+      "trust_failure": null | "permission-lookup-failed" | "allowed-bots-unreadable" |
+                       "allowed-users-unreadable" | "pr-fields-malformed",
       "honored": [
         {"finding_index": 0, "deferral_id": "dfr-...",
          "follow_up_issue": 47, "category": "out-of-scope"}
@@ -70,6 +76,9 @@ Output (JSON to stdout, always exit 0 when the helper itself ran):
       }
     }
 
+`trust_failure` is non-null only when no arm trusted the author and at least one arm
+could not be decided; `pr_author_trusted` is then false.
+
 Exit codes:
     0  Helper ran successfully (regardless of match results).
     2  Bad arguments / unrecoverable input error.
@@ -81,6 +90,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path, PurePosixPath
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
@@ -137,6 +147,16 @@ except Exception as _login_import_err:
         f"({_login_import_err}); degrading to the pre-#157 exact match (fail-closed)\n")
     _login_matches = None
 
+# Spells authorize-actor.sh's path for the selected bash (issue #430). Without it the
+# authorized-human trust arm cannot run and fails closed with a breadcrumb.
+_BL_IMPORT_ERROR = None
+try:
+    import bash_launch as _bl
+    if not callable(getattr(_bl, "command", None)):
+        raise ImportError("it has no command()")
+except Exception as _bl_err:
+    _bl, _BL_IMPORT_ERROR = None, str(_bl_err)
+
 # The gh binary to shell out to. `DEVFLOW_GH` (the documented override the shell
 # helpers resolve via lib/resolve-gh.sh) wins when set and non-empty; else `gh`.
 GH = os.environ.get("DEVFLOW_GH") or "gh"
@@ -171,6 +191,15 @@ REASON_UNMATCHED = "unmatched"
 REASON_DISCLOSURE_UNVERIFIED = "disclosure-unverified"
 # issue #974: an entry with a wrong-typed field; `detail` names the field.
 REASON_MALFORMED_ENTRY = "malformed-entry"
+
+# `trust_failure` values (issue #1078): the filer-trust check could not complete.
+# skills/review/phases/phase-4-verdict.md renders them as data.
+TRUST_FAILURE_PERMISSION_LOOKUP = "permission-lookup-failed"
+TRUST_FAILURE_ALLOWED_BOTS = "allowed-bots-unreadable"
+TRUST_FAILURE_ALLOWED_USERS = "allowed-users-unreadable"
+TRUST_FAILURE_PR_FIELDS = "pr-fields-malformed"
+# The stdout verdicts scripts/authorize-actor.sh prints when executed.
+_AUTHORIZE_VERDICTS = {"authorized", "denied", "lookup-failed"}
 
 # The per-entry reason.category value that marks a settled-by-disclosure
 # foreclosure (issue #621). A foreclosure has no follow-up issue — the
@@ -263,15 +292,18 @@ def _fail(msg, code=2):
     sys.exit(code)
 
 
-def _run(cmd, *, check=True):
+def _run(cmd, *, check=True, bash_line=False):
     # `encoding="utf-8"` pins the gh-output decode: this wrapper reads PR and
     # issue *bodies* (`gh pr view --json body`, `gh issue view --json body`),
     # which are routinely non-ASCII, so decoding through the locale codec would
     # raise UnicodeDecodeError under a non-UTF-8 ambient codec (Windows' cp1252).
     # Implies text mode, so `text=True` is dropped (passing both is redundant).
-    # An OSError (ENOEXEC from a non-executable `gh` shim, or gh absent — the
-    # host class DEVFLOW_GH exists for) is converted into the same structured
+    # An OSError (ENOEXEC from a non-executable `gh` shim — the host class DEVFLOW_GH
+    # exists for — or gh or bash absent) is converted into the same structured
     # surface as a non-zero exit, so callers get a breadcrumb, not a traceback.
+    program = cmd[0]
+    if bash_line:
+        cmd = _bl.command(cmd)
     try:
         return subprocess.run(
             cmd, check=check,
@@ -279,7 +311,7 @@ def _run(cmd, *, check=True):
         )
     except OSError as e:
         if check:
-            _fail(f"could not execute {cmd[0]!r}: {e} "
+            _fail(f"could not execute {program!r}: {e} "
                   f"(set DEVFLOW_GH to a working GitHub CLI)")
         return subprocess.CompletedProcess(cmd, 127, stdout="", stderr=str(e))
 
@@ -331,27 +363,35 @@ def _default_config_path() -> str:
     return str(Path(_resolve_state_dir(str(cwd))) / "config.json")
 
 
-def _config_get(key: str, default: str = "", config_path: str | None = None) -> str:
+def _config_read(key: str, default: str, config_path: str | None = None) -> str | None:
+    """The value at `key` through config-get.sh; None (with a breadcrumb) when it fails.
+
+    An absent key is a clean read of `default`.
+    """
     if config_path is None:
         config_path = _default_config_path()
-    here = Path(__file__).resolve().parent
-    helper = here / "config-get.sh"
-    r = _run([str(helper), key, default, config_path], check=False)
+    helper = Path(__file__).resolve().parent / "config-get.sh"
+    # Through bash, never the .sh path itself: Windows cannot exec a .sh ([WinError 193]);
+    # `command` keeps Git Bash from glob-expanding a `*` default (issue #1353).
+    bash = os.environ.get("DEVFLOW_BASH") or "bash"
+    if _bl is None:
+        r = subprocess.CompletedProcess(
+            [], 127, stdout="", stderr=f"lib/bash_launch.py could not be imported ({_BL_IMPORT_ERROR})")
+    else:
+        try:
+            argument = _bl.script_argument(helper, cwd=Path.cwd(), bash=bash)
+        except (ValueError, OSError) as e:  # OSError: cwd deleted or unreadable
+            r = subprocess.CompletedProcess([], 127, stdout="", stderr=str(e))
+        else:
+            if _bl.is_wsl_interpreter(bash):  # WSL cannot open a drive-letter path
+                config_path = _bl.convert_absolute(config_path, bash)
+            r = _run([bash, argument, key, default, config_path], check=False, bash_line=True)
     if r.returncode != 0:
-        # rc=127 with empty stdout is _run's OSError sentinel (config-get.sh could
-        # not execute at all — e.g. it lost its exec bit on a Windows checkout, or
-        # a bad shebang) — a genuinely broken helper, not "the key is unset". The
-        # two are otherwise indistinguishable to this caller (allowed_bots_raw
-        # silently resolving to "" makes pr_author_trusted False, which rejects
-        # every deferral as untrusted-filer with no clue the real cause is a
-        # broken helper, not policy). Log a breadcrumb so it's diagnosable.
-        if r.returncode == 127 and not r.stdout:
-            sys.stderr.write(
-                f"match-deferrals.py: could not execute {str(helper)!r} "
-                f"({r.stderr.strip()}); falling back to default {default!r} for "
-                f"{key!r}\n"
-            )
-        return default
+        cause = ((r.stderr or "").strip().splitlines() or ["no stderr"])[0]
+        sys.stderr.write(
+            f"match-deferrals.py: could not read {key.lstrip('.')!r} through "
+            f"config-get.sh under {bash!r} (rc {r.returncode}: {cause})\n")
+        return None
     return r.stdout.strip()
 
 
@@ -413,17 +453,163 @@ def _parse_yaml_payload(block: str) -> dict:
     return loaded
 
 
-def _get_pr_body_and_author(pr_number: int) -> tuple[str, str]:
+def _get_pr_view(pr_number: int) -> dict:
+    """Return gh's `pr view` object; its fields are validated where they are read."""
     r = _run(
         [GH, "pr", "view", str(pr_number),
-         "--json", "body,author", "--jq",
-         "[.body, (.author.login // \"\")] | @json"],
+         "--json", "body,author,isCrossRepository,url"],
         check=False,
     )
     if r.returncode != 0:
         _fail(f"could not read PR #{pr_number}: {r.stderr.strip()}")
-    body, author = json.loads(r.stdout.strip())
-    return body, author
+    try:
+        view = json.loads(r.stdout)
+    except json.JSONDecodeError as e:
+        _fail(f"could not parse PR #{pr_number}: {e}")
+    if not isinstance(view, dict):
+        _fail(f"PR #{pr_number} read as {_shape(view)}, not an object")
+    return view
+
+
+_MISSING = object()
+
+
+def _shape(value) -> str:
+    """Name a JSON value's shape for a breadcrumb."""
+    if value is _MISSING:
+        return "missing"
+    if value is None:
+        return "null"
+    for kind, name in ((bool, "a boolean"), (int, "an integer"), (float, "a number"),
+                       (str, "a string"), (list, "an array"), (dict, "an object")):
+        if isinstance(value, kind):
+            return name
+    return f"a {type(value).__name__}"
+
+
+def _malformed(field: str, value, want: str) -> None:
+    sys.stderr.write(
+        f"match-deferrals.py: gh's PR view field {field} is {_shape(value)}, not {want}; "
+        "the PR author is untrusted as a deferral filer\n")
+
+
+def _gh_bool(obj: dict, key: str, field: str) -> bool | None:
+    """The boolean at obj[key], or None (with a breadcrumb) when it is anything else."""
+    value = obj.get(key, _MISSING)
+    if isinstance(value, bool):
+        return value
+    _malformed(field, value, "a boolean")
+    return None
+
+
+def _repo_slug(url) -> str | None:
+    """`owner/repo` from a pull-request URL (`https://<host>/<owner>/<repo>/pull/<n>`)."""
+    if not isinstance(url, str):
+        return None
+    parts = [p for p in urllib.parse.urlsplit(url).path.split("/") if p]
+    if len(parts) < 4 or parts[-2] != "pull":
+        return None
+    return f"{parts[-4]}/{parts[-3]}"
+
+
+def _listed_bot(login: str, entries: list[str]) -> bool:
+    """Arm 1: the login matches a non-wildcard allowed_bots entry."""
+    if _login_matches is not None:
+        return _login_matches(login, entries)
+    # Import fallback: exact membership, the pre-#157 rule (fail-closed).
+    return login in {e.strip() for e in entries if e.strip()}
+
+
+def _authorized_human(login: str, view: dict, config_path: str | None) -> tuple[bool, str | None]:
+    """Arm 3: the trigger gate's user rule, run through authorize_actor.
+
+    Returns (trusted, trust_failure). A policy denial is (False, None).
+    """
+    # A failed read must never reach authorize_actor, which reads an empty
+    # ALLOWED_USERS as '*'. An absent, empty or null value reads as the '*' default.
+    users = _config_read(".prflow.allowed_users", "*", config_path)
+    if users is None:
+        sys.stderr.write("match-deferrals.py: prflow.allowed_users could not be read; "
+                         "the PR author is untrusted as a deferral filer\n")
+        return False, TRUST_FAILURE_ALLOWED_USERS
+    if not users:  # Whitespace only, stripped: the trigger gate matches no one.
+        sys.stderr.write("match-deferrals.py: prflow.allowed_users is whitespace only and "
+                         "matches no one; the PR author is untrusted as a deferral filer\n")
+        return False, None
+    url = view.get("url", _MISSING)
+    repo = _repo_slug(url)
+    if repo is None:
+        _malformed("url", url, "a pull-request URL")
+        return False, TRUST_FAILURE_PR_FIELDS
+    script = Path(__file__).resolve().parent / "authorize-actor.sh"
+    # `bash` stays a literal here, not a shared resolver call: cloud_writer_deps.py
+    # verifies this file's declared exec edge from a statically resolvable binding.
+    bash = os.environ.get("DEVFLOW_BASH") or "bash"
+    env = dict(os.environ, ACTOR=login, ALLOWED_BOTS="", ALLOWED_USERS=users, REPO=repo)
+    verdict, cause = "", f"lib/bash_launch.py could not be imported ({_BL_IMPORT_ERROR})"
+    if _bl is not None:
+        try:
+            r = subprocess.run(
+                [bash, _bl.script_argument(script, cwd=Path.cwd(), bash=bash)],
+                capture_output=True, encoding="utf-8", env=fresh_gh_env(env), check=False,
+            )
+            verdict = r.stdout.strip() if r.returncode == 0 else ""
+            last = ((r.stderr or "").strip().splitlines() or ["no stderr"])[-1]
+            cause = last if r.returncode == 0 else f"rc {r.returncode}: {last}"
+        except (OSError, ValueError) as e:
+            cause = f"could not launch {bash!r}: {e}"
+    if verdict == "authorized":
+        return True, None
+    if verdict == "denied":
+        sys.stderr.write(f"match-deferrals.py: authorize-actor.sh denied {login!r} ({cause})\n")
+        return False, None
+    if verdict not in _AUTHORIZE_VERDICTS:
+        cause = f"authorize-actor.sh reported no verdict ({cause})"
+    sys.stderr.write(
+        f"match-deferrals.py: collaborator-permission lookup for {login!r} failed "
+        f"({cause}); the author is untrusted as a deferral filer\n")
+    return False, TRUST_FAILURE_PERMISSION_LOOKUP
+
+
+def _filer_trust(view: dict, config_path: str | None) -> tuple[bool, str | None]:
+    """Guard 1: is the PR author a trusted deferral filer? Returns (trusted, trust_failure).
+
+    Arms, in order, first pass wins: (1) a non-wildcard `prflow.allowed_bots` entry; (2) a
+    bot whose head branch is in this repository, when `allowed_bots` holds `*` — gh
+    reports every bot's collaborator permission as `none`, so a same-repository head
+    is its proof of write access; (3) a human passing the trigger gate's user rule.
+    The author is the PR's, never the payload's `filed_by`, which the body's editors
+    control. The PRFlow trigger gate reads a `*` in `allowed_bots` as a literal login, not
+    a wildcard.
+    """
+    author = view.get("author", _MISSING)
+    if not isinstance(author, dict):
+        _malformed("author", author, "an object")
+        return False, TRUST_FAILURE_PR_FIELDS
+    login = author.get("login", _MISSING)
+    if not isinstance(login, str) or not login.strip():
+        _malformed("author.login", login, "a non-empty string")
+        return False, TRUST_FAILURE_PR_FIELDS
+    bots = _config_read(".prflow.allowed_bots", "", config_path)
+    bot_entries = [] if bots is None else bots.split(",")
+    if _listed_bot(login, bot_entries):
+        return True, None
+    is_bot = _gh_bool(author, "is_bot", "author.is_bot")
+    if is_bot is None:
+        return False, TRUST_FAILURE_PR_FIELDS
+    if is_bot:
+        if bots is None:
+            return False, TRUST_FAILURE_ALLOWED_BOTS
+        if not any(e.strip() == "*" for e in bot_entries):
+            return False, None
+        cross_repo = _gh_bool(view, "isCrossRepository", "isCrossRepository")
+        if cross_repo is None:
+            return False, TRUST_FAILURE_PR_FIELDS
+        return not cross_repo, None
+    trusted, failure = _authorized_human(login, view, config_path)
+    if not trusted and failure is None and bots is None:  # arm 1 was never decided
+        failure = TRUST_FAILURE_ALLOWED_BOTS
+    return trusted, failure
 
 
 def _check_issue_cross_link(issue_number: int, pr_number: int) -> str | None:
@@ -624,12 +810,18 @@ def main(argv=None):
     if not isinstance(findings, list):
         _fail("findings input must be a JSON array")
 
-    pr_body, pr_author = _get_pr_body_and_author(args.pr)
+    view = _get_pr_view(args.pr)
+    pr_body = view.get("body", _MISSING)
+    if not isinstance(pr_body, str):
+        sys.stderr.write(f"match-deferrals.py: gh's PR view field body is "
+                         f"{_shape(pr_body)}, not a string; reading no deferrals block\n")
+        pr_body = ""
     block = _extract_block(pr_body)
 
     result = {
         "block_present": block is not None,
         "pr_author_trusted": None,
+        "trust_failure": None,
         "honored": [],
         "rejected_deferrals": [],
         "stats": {"total_deferrals": 0, "valid_after_guards": 0,
@@ -656,15 +848,9 @@ def main(argv=None):
         print(json.dumps(result, indent=2, default=str))
         return 0
 
-    allowed_bots_raw = _config_get(".prflow.allowed_bots", "", args.config)
-    if _login_matches is not None:
-        # Normalized membership (issue #157): an empty/unreadable allowlist yields
-        # no non-empty comparand, so login_matches returns False — the same
-        # fail-closed direction the exact test had.
-        pr_author_trusted = _login_matches(pr_author, allowed_bots_raw.split(","))
-    else:
-        allowed_bots = {b.strip() for b in allowed_bots_raw.split(",") if b.strip()}
-        pr_author_trusted = pr_author in allowed_bots if allowed_bots else False
+    # Only here, past the no-deferrals return, so a PR without deferrals costs no
+    # permission lookup.
+    pr_author_trusted, result["trust_failure"] = _filer_trust(view, args.config)
     result["pr_author_trusted"] = pr_author_trusted
 
     if not pr_author_trusted:

@@ -53,7 +53,11 @@ PRFlow compares the current branch against the base branch and reads the commit 
 
 ## Refreshing an Existing Body
 
-Regenerated every run, from the current diff: Summary, Changes, Visual Changes, Breaking Changes, Post-Merge Verification and Deferred Findings.
+Regenerated every run, from the current diff: Summary, Changes, Visual Changes and Breaking Changes.
+
+Post-Merge Verification is rebuilt from the implement run's workpad. When the workpad read fails, the existing section is kept instead of being dropped. The run's final message reports the lookup outcome: `read` with its post-merge row count, `no-workpad`, `no-issue` or `failed`.
+
+Deferred Findings is rebuilt from the review deferral manifest, and entries whose manifest is absent are carried forward from the existing body.
 
 Your own content survives:
 

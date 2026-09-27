@@ -205,6 +205,14 @@ def _check_extension(ext, offending):
         offending.append("extension.pending_notes: must be an array of strings or null")
 
 
+def _realpath(path):
+    """os.path.realpath that raises ValueError on a str path with an embedded NUL byte on every
+    host: Windows CPython 3.12+ realpath returns such a path unchanged instead of raising."""
+    if "\x00" in os.fspath(path):
+        raise ValueError("embedded null byte")
+    return os.path.realpath(path)
+
+
 def _within_checkout(path, checkout_real, offending, field):
     """Append an offender when `path` does not resolve inside `checkout_real`. Return True when the
     path is contained (no offender appended) and False otherwise, so a caller can gate a subsequent
@@ -217,8 +225,8 @@ def _within_checkout(path, checkout_real, offending, field):
     trailing separator, so a sibling sharing a name prefix cannot masquerade as contained.
     """
     try:
-        resolved = os.path.realpath(os.path.join(checkout_real, path)) if not os.path.isabs(path) \
-            else os.path.realpath(path)
+        resolved = _realpath(os.path.join(checkout_real, path)) if not os.path.isabs(path) \
+            else _realpath(path)
     except ValueError:
         # A path carrying an embedded NUL byte makes realpath raise; refuse it as an offender
         # rather than letting the traceback break the fail-closed "refuse, never detonate" contract.
@@ -256,7 +264,7 @@ def _check_repo_root_identity(data, checkout_root, offending):
     if not _is_str(data.get("repo_root")):
         return
     try:
-        matches = os.path.realpath(data["repo_root"]) == os.path.realpath(checkout_root)
+        matches = _realpath(data["repo_root"]) == os.path.realpath(checkout_root)
     except ValueError:
         offending.append("repo_root: is not a resolvable path (embedded NUL byte)")
         return
@@ -509,9 +517,13 @@ def _read_secondary(path, field, offending, *, binary=False):
                 return fh.read()
         with open(path, encoding="utf-8") as fh:
             return fh.read()
-    except IsADirectoryError:
-        offending.append(f"{field}: {path!r} is a directory, not a readable file")
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
+    except OSError as exc:
+        # Windows raises PermissionError, not IsADirectoryError, when opening a directory.
+        if isinstance(exc, IsADirectoryError) or os.path.isdir(path):
+            offending.append(f"{field}: {path!r} is a directory, not a readable file")
+        else:
+            offending.append(f"{field}: could not read {path!r} ({exc})")
+    except (UnicodeDecodeError, ValueError) as exc:
         offending.append(f"{field}: could not read {path!r} ({exc})")
     return None
 
@@ -530,7 +542,7 @@ def _resolves_within(path, root_real, offending, field):
     """Append an offender when `path` does not resolve inside `root_real`; return the resolved
     path, or None when it could not be resolved (embedded NUL byte)."""
     try:
-        resolved = os.path.realpath(path)
+        resolved = _realpath(path)
     except ValueError:
         offending.append(f"{field}: {path!r} is not a resolvable path (embedded NUL byte)")
         return None
@@ -544,7 +556,7 @@ def _handoff_resolves_to(handoff_file, expected_hf, offending, mismatch_note):
     """Append an offender when `handoff_file` does not resolve to `expected_hf`; a NUL byte in the
     path refuses rather than detonates. Shared by both Phase 1 schemas' home checks."""
     try:
-        actual_hf = os.path.realpath(handoff_file)
+        actual_hf = _realpath(handoff_file)
     except ValueError:
         offending.append("handoff-file: is not a resolvable path (embedded NUL byte)")
         return
@@ -703,7 +715,7 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
         rs = scratch.get("run_scratch") if scratch is not None else None
         if _is_str(rs):
             try:
-                if os.path.realpath(rs) != os.path.realpath(home):
+                if _realpath(rs) != os.path.realpath(home):
                     offending.append(
                         f"scratch.run_scratch: {rs!r} does not resolve to the {arm} intake home")
             except ValueError:

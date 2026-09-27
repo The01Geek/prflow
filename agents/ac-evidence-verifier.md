@@ -166,15 +166,18 @@ Independently of the two verification types above, decide whether the criterion 
 quantifier, a scope, or a literal value or set** — a count, a named file set, an enumerated
 set of handled cases, or a specific string or number the shipped artifact must carry.
 
-- **It does** — record `stated_terms` (the value or set the criterion states) and
-  `observed_value` (the value you observed in the shipped artifact; for a bound such as "at most
-  N", the bound verbatim when your measurement meets it, else the measurement) as two strings in
-  the same form — units, number formatting, phrasing — with any commentary and the measurement
-  in `evidence`, and set your `status` from their comparison: `satisfied` only when they are
-  non-blank and byte-equal, `unmet` when they differ. A pointer plus a fit judgment with no such
-  recorded match is not `satisfied` — the reconciler sets the gate status from this pair. A
-  match is necessary, not sufficient: it never lifts a status your pointer, slot, or executed
-  command already puts below `satisfied`.
+- **It does** — record `stated_terms` (the value or set the criterion states; the bound verbatim
+  when it states both a bound and enumerated cases) and `observed_value` (the value you observed
+  in the shipped artifact; when your measurement meets a bound of any direction or wording —
+  e.g. "at most N", "no fewer than five thousand" — a byte-identical copy of `stated_terms`, else
+  the measurement) as two strings in the same form — units, number formatting, phrasing — with
+  any commentary, the measurement and case coverage in `evidence`, and set your `status` from
+  their comparison:
+  `satisfied` only when they are non-blank and byte-equal, `unmet` when they differ — or, whatever
+  the pair says, when your evidence shows an enumerated case uncovered. A pointer plus a fit
+  judgment with no such recorded match is not `satisfied` — the reconciler sets the gate status
+  from this pair. A match is necessary, not sufficient: it never lifts a status your pointer,
+  slot, or executed command already puts below `satisfied`.
 - **It does not** — set `quantified` to the JSON boolean `false` (not the string `"false"`),
   and omit the pair; your `satisfied` then rests on the pointer/fit and executed-command
   rules above.

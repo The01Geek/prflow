@@ -108,12 +108,12 @@
         },
         "allowed_bots": {
           "type": "string",
-          "description": "Bot logins allowed to trigger PRFlow workflows (comma-separated). 'claude' is Anthropic's GitHub App identity; add your own bot/automation logins (e.g. dependabot). Each entry may be written as the bare slug, '<slug>[bot]', or 'app/<slug>', and comparison ignores case. Beyond triggering, this key also governs deferral-filer trust (scripts/match-deferrals.py) and is the default set of watched authors for the weekly retrospective.",
+          "description": "Bot logins allowed to trigger PRFlow workflows (comma-separated). 'claude' is Anthropic's GitHub App identity; add your own bot/automation logins (e.g. dependabot). Each entry may be written as the bare slug, '<slug>[bot]', or 'app/<slug>', and comparison ignores case. Beyond triggering, it is the default set of watched authors for the weekly retrospective and decides two deferral-filer trust arms (scripts/match-deferrals.py): a listed author is trusted, and a '*' entry trusts any bot whose pull-request head branch is in this repository, not a fork. For triggering, PRFlow's own gate reads a '*' entry as a literal login, not a wildcard, but claude-code-action's allowed_bots input, which receives the same value, reads it as all bots.",
           "default": "claude,dependabot"
         },
         "allowed_users": {
           "type": "string",
-          "description": "Human logins allowed to trigger PRFlow command/implement workflows (comma-separated), in addition to the write/admin/maintain collaborator requirement. '*' (default) allows any collaborator; narrow it to restrict to specific logins. Bots are governed separately by allowed_bots.",
+          "description": "Human logins allowed to trigger PRFlow command/implement workflows (comma-separated), in addition to the write/admin/maintain collaborator requirement. '*' (default) allows any collaborator; narrow it to restrict to specific logins. Bots are governed separately by allowed_bots. The same rule decides the human deferral-filer trust arm (scripts/match-deferrals.py): a human pull-request author who passes it is trusted.",
           "default": "*"
         },
         "workpad_marker": {

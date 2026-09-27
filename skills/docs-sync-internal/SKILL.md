@@ -56,8 +56,6 @@ Both actions are mandatory. If you only provide analysis without making file edi
 
 ## Structure Contract
 
-<!-- Coupled pair: the taxonomy rules in this section are stated identically in the docs-bootstrap-internal skill, which creates the structure this skill maintains. Edit both skills together. -->
-
 The documentation tree has a stated shape; every write this skill makes preserves it.
 
 - **`index.md` at the root of `[[INTERNAL_DOC_LOCATION]]` is the routing map.** Read it FIRST, before any other documentation file — it tells you which page owns which topic, so a write routed without it lands in the wrong file and the map silently falls behind the corpus. If it does not exist in a tree the Bootstrap boundary below admitted, create it: one line per page — relative path, what the page covers, who should read it. When this run adds, renames, or deletes a page, update `index.md` in the same pass.

@@ -123,6 +123,7 @@ import argparse
 import base64
 import binascii
 import json
+import os
 import re
 import subprocess
 import sys
@@ -169,6 +170,16 @@ except Exception as _login_import_err:
         "match-lint-adjudications.py: could not import lib/login_normalize.py "
         f"({_login_import_err}); degrading to the pre-#157 exact match (fail-closed)\n")
     _login_matches = None
+
+# Launches config-get.sh under bash (issue #1353); without it every config read degrades
+# to its default with a breadcrumb.
+_BL_IMPORT_ERROR = None
+try:
+    import bash_launch as _bl
+    if not callable(getattr(_bl, "command", None)):
+        raise ImportError("it has no command()")
+except Exception as _bl_err:
+    _bl, _BL_IMPORT_ERROR = None, str(_bl_err)
 
 
 def _author_trusted(author: str, allowed_bots_raw: str) -> bool:
@@ -275,11 +286,14 @@ def _fail(msg, code=2):
     sys.exit(code)
 
 
-def _run(cmd, *, check=True):
-    # Mirror of match-deferrals.py's _run: an OSError (a non-executable config-get.sh
-    # shim, or git absent) is converted into the same structured surface as a
-    # non-zero exit, so callers get a breadcrumb, not a traceback. encoding="utf-8"
-    # pins the decode against a non-UTF-8 ambient codec (Windows cp1252).
+def _run(cmd, *, check=True, bash_line=False):
+    # Mirror of match-deferrals.py's _run: an OSError (bash or git absent) is converted
+    # into the same structured surface as a non-zero exit, so callers get a breadcrumb,
+    # not a traceback. encoding="utf-8" pins the decode against a non-UTF-8 ambient
+    # codec (Windows cp1252).
+    program = cmd[0]
+    if bash_line:
+        cmd = _bl.command(cmd)
     try:
         return subprocess.run(
             cmd, check=check,
@@ -287,7 +301,7 @@ def _run(cmd, *, check=True):
         )
     except OSError as e:
         if check:
-            _fail(f"could not execute {cmd[0]!r}: {e}")
+            _fail(f"could not execute {program!r}: {e}")
         return subprocess.CompletedProcess(cmd, 127, stdout="", stderr=str(e))
 
 
@@ -332,19 +346,35 @@ def _config_get(key: str, default: str = "", config_path: str | None = None) -> 
         config_path = _default_config_path()
     here = Path(__file__).resolve().parent
     helper = here / "config-get.sh"
-    r = _run([str(helper), key, default, config_path], check=False)
+    # Through bash, never the .sh path itself: Windows cannot exec a .sh ([WinError 193]);
+    # `command` keeps Git Bash from glob-expanding a `*` argument (issue #1353).
+    bash = os.environ.get("DEVFLOW_BASH") or "bash"
+    if _bl is None:
+        r = subprocess.CompletedProcess(
+            [], 127, stdout="", stderr=f"lib/bash_launch.py could not be imported ({_BL_IMPORT_ERROR})")
+    else:
+        try:
+            argument = _bl.script_argument(helper, cwd=Path.cwd(), bash=bash)
+        except (ValueError, OSError) as e:  # OSError: cwd deleted or unreadable
+            r = subprocess.CompletedProcess([], 127, stdout="", stderr=str(e))
+        else:
+            if _bl.is_wsl_interpreter(bash):  # WSL cannot open a drive-letter path
+                config_path = _bl.convert_absolute(config_path, bash)
+            r = _run([bash, argument, key, default, config_path], check=False, bash_line=True)
     if r.returncode != 0:
-        # ANY non-zero exit means config-get.sh could not return a value — the rc=127
-        # OSError sentinel (broken helper: lost exec bit / bad shebang) AND its own rc=2
-        # on a malformed/unparseable .prflow/config.json or a missing python3 (whose
-        # own diagnostic it already wrote to stderr). Surface that stderr on every arm,
-        # not just 127 — otherwise a hand-corrupted config silently empties allowed_bots
-        # (which fails trust CLOSED) with the one string naming the real cause discarded.
+        # ANY non-zero exit means config-get.sh could not return a value — rc=127 (bash
+        # unlaunchable or unable to open config-get.sh, bash_launch unimportable, or
+        # script_argument failing on an unreadable working directory or an unspellable
+        # path) AND its own rc=2 on a malformed/unparseable .prflow/config.json or a
+        # missing python3 (whose own diagnostic it already wrote to stderr). Surface that
+        # stderr on every arm, not just 127 — otherwise a hand-corrupted config silently
+        # empties allowed_bots (which fails trust CLOSED) with the one string naming the
+        # real cause discarded.
         detail = (r.stderr or "").strip()
         sys.stderr.write(
-            f"match-lint-adjudications.py: config-get.sh exited {r.returncode} for "
-            f"{key!r}{f' ({detail})' if detail else ''}; falling back to default "
-            f"{default!r}\n"
+            f"match-lint-adjudications.py: could not read {key!r} through config-get.sh "
+            f"under {bash!r} (rc {r.returncode}{f': {detail}' if detail else ''}); "
+            f"falling back to default {default!r}\n"
         )
         return default
     return r.stdout.strip()

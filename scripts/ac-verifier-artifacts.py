@@ -526,16 +526,20 @@ def _cmd_check(args) -> int:
         print(f"ac-verifier-artifacts: check: could not write the dispositions record: "
               f"{dispositions_path}: {exc}", file=sys.stderr)
         return 3
-    routing = {
+    print(_routing_payload(result, dispositions_path))
+    return 0
+
+
+def _routing_payload(result, dispositions_path) -> str:
+    """`check`'s routing line, its dispositions path forward-slashed."""
+    return json.dumps({
         "all_satisfied": result["all_satisfied"],
         "blocking": result["blocking"],
         "criteria": [{"criterion": c["criterion"], "status": c["status"],
                       "remedy": c["remedy"], "reason": c["reason"]}
                      for c in result["criteria"]],
-        "dispositions_path": dispositions_path,
-    }
-    print(json.dumps(routing, sort_keys=True))
-    return 0
+        "dispositions_path": _fwd(dispositions_path),
+    }, sort_keys=True)
 
 
 def _build_parser() -> argparse.ArgumentParser:

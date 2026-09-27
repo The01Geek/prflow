@@ -98,8 +98,6 @@ On cloud runs a permission layer silently refuses any command outside its allowl
 
 ## Phase-3 findings contract
 
-<!-- Coupled copy of the fenced `defect_signature` block in skills/review/final-pass-contract.md, mirrored in all five first-party reviewer agents. Edit all six together. -->
-
 When the review engine dispatches you to review its cached diff, every finding you return follows this contract:
 
 ```

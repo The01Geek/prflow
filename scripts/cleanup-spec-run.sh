@@ -5,7 +5,7 @@
 # Single owner of a spec run's identity registry and its per-run scratch.
 # The run's identity is its run directory, not a session id (issue #198, supersedes
 # the session-keyed pointer of issue #153). Modes:
-#   --register-slug <slug> --topic <one line> --root <path>  write run-meta.json
+#   --register-slug <slug> --topic <one line> --root <path>  write run-meta.json (topic normalized)
 #   --resolve-slug --root <path>                             read back the run's slug
 #   --adopt-slug <slug> --root <path>                        touch a resolved run
 #   --slug <slug> --root <path>|--resolve cwd|main-root …    remove the run dir + legacy pointers
@@ -27,19 +27,6 @@ set -u
 
 prog=cleanup-spec-run.sh
 safe_slug='^[A-Za-z0-9][A-Za-z0-9._-]*$'
-# A topic is safe when it is non-empty, at most 120 chars, and uses only letters,
-# digits, space and the punctuation `. , : - _ /`. Anything else (a quote, `$`, a
-# backtick, `|`, `;`, a newline) is refused so it can never reach a shell or split
-# a candidate field.
-safe_topic='^[A-Za-z0-9 ._,:/-]+$'
-
-is_safe_topic() {
-  local _t="$1"
-  # safe_topic's `+` already rejects the empty string — no separate non-empty guard needed.
-  [ "${#_t}" -le 120 ] || return 1
-  [[ "$_t" =~ $safe_topic ]] || return 1
-  return 0
-}
 
 # Own directory, so `--resolve main-root` reaches its sibling resolver without a
 # caller-supplied path. `${BASH_SOURCE[0]}` is the file even when sourced.
@@ -126,13 +113,22 @@ if [ "$mode" = register ]; then
   if [ -z "$register_slug" ] || ! [[ "$register_slug" =~ $safe_slug ]]; then
     printf 'registered=no reason=unsafe-slug\n'; exit 0
   fi
-  if ! is_safe_topic "$topic"; then printf 'registered=no reason=unsafe-topic\n'; exit 0; fi
-  # python3 (preflight-guaranteed) writes the JSON registry and the ISO-8601 UTC
-  # times. The run directory is created under the literal --root operand; the
-  # `root` field records its symlink-resolved absolute path.
-  if python3 - "$register_slug" "$topic" "$root" <<'PY'
-import datetime, json, os, sys
-slug, topic, root_op = sys.argv[1], sys.argv[2], sys.argv[3]
+  # python3 (preflight-guaranteed) normalizes the topic, then writes the JSON registry
+  # and the ISO-8601 UTC times. Normalization stays out of bash: its bracket ranges and
+  # ${#…} follow the locale. Each char outside ASCII letters, digits, space and
+  # `. , : - _ /` becomes a space; space runs collapse; the result is trimmed and cut
+  # to 120 chars. An empty result exits 10 (unsafe-topic) before anything is created.
+  # The topic rides last, so an argv split in transit can only reach the topic. The run
+  # directory is created under the literal --root operand; the `root` field records
+  # its symlink-resolved absolute path.
+  _rc=0
+  python3 - "$register_slug" "$root" "$topic" <<'PY' || _rc=$?
+import datetime, json, os, re, sys
+slug, root_op = sys.argv[1], sys.argv[2]
+topic = re.sub(r"[^A-Za-z0-9 ._,:/-]", " ", " ".join(sys.argv[3:]))
+topic = re.sub(r" +", " ", topic).strip(" ")[:120].rstrip(" ")
+if not topic:
+    sys.exit(10)
 try:
     d = os.path.join(root_op, ".prflow", "tmp", "spec", slug)
     os.makedirs(d, exist_ok=True)
@@ -145,11 +141,11 @@ except Exception as exc:
     print("register: could not write run-meta.json: %r" % exc, file=sys.stderr)
     sys.exit(1)
 PY
-  then
-    printf 'registered=yes slug=%s\n' "$register_slug"
-  else
-    printf 'registered=no reason=write-failed\n'
-  fi
+  case "$_rc" in
+    0) printf 'registered=yes slug=%s\n' "$register_slug" ;;
+    10) printf 'registered=no reason=unsafe-topic\n' ;;
+    *) printf 'registered=no reason=write-failed\n' ;;
+  esac
   exit 0
 fi
 

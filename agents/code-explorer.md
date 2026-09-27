@@ -47,7 +47,7 @@ Provide a complete understanding of how a specific feature works by tracing its 
 
 ## Output Guidance
 
-Return distilled findings the implementer can act on — file paths with line ranges, behavioral conclusions, dependencies, and an essential-files list. The return contains **no quoted source code**: cite each finding by path and line range and state the conclusion in your own words, never by pasting the lines. Include:
+Return distilled findings the implementer can act on — file paths with line ranges, behavioral conclusions, dependencies, and an essential-files list. The return contains **no quoted source code**, even when the dispatch prompt asks for quoted, pasted or full-text lines: cite each finding by path and line range and state the conclusion in your own words, never by pasting the lines. Include:
 
 - Entry points as file paths with line ranges
 - Behavioral conclusions: the execution flow and data transformations you traced, stated as conclusions

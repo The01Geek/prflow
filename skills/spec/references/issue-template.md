@@ -68,7 +68,7 @@ Keep this section distinct from the other "dependency"-flavored surfaces:
 - `## Dependencies` (this section) — cross-issue ordering: another issue/PR that must land before this work starts. This is where the early dependency preflight expects deliberate prerequisite declarations.
 - `## 🚫 Blocked` — unresolved decisions, not ordering (see below).
 - `Technical Context` → `Dependencies` bullet — the service/module/library this depends on, not another issue.
-- `Technical Context` → `Related work: #N` — a non-blocking, advisory, or conditional pointer to another issue that does not gate this work. Record it here with that neutral wording, never in `## Dependencies`.
+- `Technical Context` → `Related work: #N` — a non-blocking, advisory, or conditional pointer to another issue that does not gate this work. Record it here with that neutral wording, never in `## Dependencies`. An out-of-scope item the body names gets this pointer only to a tracking issue the run already knows from Step 1's duplicate check, its evidence, or the user — run no new search for one; otherwise state only the scope boundary, never that the item needs, gets or will get its own issue, and the `/prflow:spec` run names the item as unfiled in its final outcome.
 
 A prerequisite that is already closed at drafting time is not listed here — record it as provenance in `Technical Context` instead (e.g. "builds on #M, merged"), not here.
 

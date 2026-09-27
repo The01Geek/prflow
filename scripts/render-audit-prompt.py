@@ -71,7 +71,8 @@ Contract (issue #600):
   ``{CONSUMER_DIMENSIONS}``, not via a standalone ``extract`` call),
   ``status-only`` (the orchestrator's fail-fast one-line probe),
   ``enumerate-dimensions`` (the issue #708 keyed dimension enumeration the
-  Step 3.6 coverage join reads as its authoritative operand), and
+  Step 3.6 coverage join reads as its authoritative operand; ``--keys-only``
+  projects it to one ``keys=`` line, the only flag no other mode accepts), and
   ``dispatch-instructions`` (issue #709 — the canonical, file-arm-only
   audit-DISPATCH instructions the auditor is pointed at and hashes).
 - Determinism (issue #709, load-bearing): ``dispatch-instructions`` is a pure
@@ -1067,8 +1068,12 @@ def instructions_bytes(*args, **kwargs) -> bytes:
 #   dim key=<key> text=<single-line rendered dimension text>
 #   ...
 #   render-end:
+# `--keys-only` (issue #1327) replaces the `dim` lines with ONE `keys=` line: every
+# key above, comma-joined in the same order (no key can contain a comma), so the
+# orchestrator holds the operand without a second copy of the dimension text.
 # --------------------------------------------------------------------------
 _DIM_LINE_PREFIX = "dim key="
+_KEYS_LINE_PREFIX = "keys="
 _DIM_TEXT_SEP = " text="
 # A dimension's bold lead: `**Name**` at the start of the bullet's TEXT (the bullet's
 # `- ` marker already stripped). Since #729 this drives the CONSUMER fallback key
@@ -1356,11 +1361,16 @@ def enumerate_dimensions(
     return status, entries
 
 
-def render_enumerate(template_path: Path, ext_path: Path) -> str:
+def render_enumerate(
+    template_path: Path, ext_path: Path, keys_only: bool = False
+) -> str:
     status, entries = enumerate_dimensions(template_path, ext_path)
     lines = [f"{STATUS_PREFIX} {status}"]
-    for key, text in entries:
-        lines.append(f"{_DIM_LINE_PREFIX}{key}{_DIM_TEXT_SEP}{text}")
+    if keys_only:
+        lines.append(_KEYS_LINE_PREFIX + ",".join(key for key, _ in entries))
+    else:
+        for key, text in entries:
+            lines.append(f"{_DIM_LINE_PREFIX}{key}{_DIM_TEXT_SEP}{text}")
     lines.append(END_MARKER)
     return "\n".join(lines)
 
@@ -1470,6 +1480,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sentinel-open", type=_sentinel)
     parser.add_argument("--sentinel-close", type=_sentinel)
     parser.add_argument("--hook", choices=tuple(_HOOKS))
+    # issue #1327: enumerate-dimensions only; main() refuses it beside any other mode.
+    parser.add_argument("--keys-only", action="store_true")
     # NOT typed with _abs_path: the #295 shared contract says an explicit EMPTY
     # value still selects the root-anchored default, and an argparse type would
     # reject "" at rc 2 before main() could apply that default (and rc 2 is not
@@ -1507,6 +1519,10 @@ def main(argv: list[str]) -> int:
     )
 
     try:
+        if args.keys_only and args.mode != "enumerate-dimensions":
+            raise RenderError(
+                f"--keys-only applies only to enumerate-dimensions, not {args.mode}"
+            )
         if args.mode in _DISPATCH_ARMS:
             if args.slug is None:
                 raise RenderError(f"--slug is required for the {args.mode} arm")
@@ -1545,7 +1561,7 @@ def main(argv: list[str]) -> int:
         elif args.mode == "status-only":
             out = render_status_only(ext_path)
         elif args.mode == "enumerate-dimensions":
-            out = render_enumerate(template_path, ext_path)
+            out = render_enumerate(template_path, ext_path, args.keys_only)
         elif args.mode == "dispatch-instructions":
             if args.slug is None:
                 raise RenderError("--slug is required for dispatch-instructions")

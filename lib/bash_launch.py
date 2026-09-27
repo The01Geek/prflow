@@ -128,3 +128,27 @@ def script_argument(path, cwd=None, bash=None):
         # basename itself when there is no slash, and then cd's into its own filename.
         return f"./{spelled}"
     return convert_absolute(Path(path).resolve(), resolved_bash)
+
+
+def _quote_windows_argument(arg):
+    """Double-quote `arg` so the MSYS2 runtime rebuilds it verbatim and never globs it.
+
+    Inside double quotes that runtime reads a backslash before a quote or a backslash as an
+    escape, so both are escaped.
+    """
+    return '"' + arg.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def command(argv, os_name=None):
+    """Return `argv` in the form `subprocess` should get for a bash launch.
+
+    On native Windows the MSYS2 runtime behind Git Bash glob-expands an argument its command
+    line leaves unquoted, so a `*` argument arrives as the directory listing; `subprocess`
+    quotes only empty arguments and those holding whitespace. There the argv becomes one
+    command line: the program double-quoted, every argument quoted by that runtime's rules.
+    Elsewhere it is returned unchanged as a list.
+    """
+    if (os.name if os_name is None else os_name) != "nt":
+        return list(argv)
+    program, *args = (str(a) for a in argv)
+    return " ".join([f'"{program}"', *map(_quote_windows_argument, args)])
