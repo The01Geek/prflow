@@ -331,7 +331,7 @@ as a literal path where the anchor stood, in the same single statement and with 
 
 Normalize a Windows-form base directory before substituting it: run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2), in that order, and
 use its output only if the command succeeds and prints a non-empty path — otherwise substitute the
-runner-reported path unchanged. This `wslpath`/`cygpath` probe mirrors the tool-first tier of `lib/normalize-path.sh`.
+runner-reported path unchanged.
 
 State-owner invocation form. Invoke the audit-lifecycle state owner as `python3` plus the inline
 anchor plus `scripts/issue-audit-state.py`, carrying the run nonce as a value — never captured into

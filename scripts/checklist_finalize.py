@@ -333,8 +333,9 @@ def tracked_at_head():
 def _reusable(item, changed, tracked, errors=None):
     """Whether a carried PASS is reused: every path its ``file_checked`` cites is a regular
     file HEAD records under that exact spelling (``tracked``) and outside the changed-file set.
-    The collector's head view is materialized from that same HEAD, so its gate admits every
-    path carry reuses. A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, a
+    The collector re-gates a reused PASS against the view its ``view_revision`` names, so one citing
+    a path that view recorded ``path-too-long`` grades INCONCLUSIVE.
+    A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, a
     directory (the collector admits one, but a fix may have changed a file under it), or any
     changed or untracked path verifies fresh."""
     if item.get("verdict") != "PASS":
@@ -750,12 +751,13 @@ def _build_acceptance_items(criteria, hints, run_dir, crumbs):
         else:
             by_criterion[c] = [h]
     diff_path = os.path.join(run_dir, "diff.patch")
+    criteria_path = os.path.join(run_dir, "criteria.json")
     items = []
     for spec in criteria or []:
         n = spec["criterion"]
         row = {"category": "issue_acceptance", "verification_mode": "agent",
                "claim_provenance": "generated_paraphrase", "claim": spec["text"],
-               "claim_signature": f"issue-acceptance-{n}"}
+               "claim_signature": f"issue-acceptance-{n}", "criteria_file": criteria_path}
         hint = (by_criterion.get(n) or [None])[0]
         if hint is not None:
             if isinstance(hint.get("source_file"), str) and hint["source_file"]:

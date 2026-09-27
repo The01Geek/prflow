@@ -47,7 +47,6 @@ import json
 import os
 import re
 import shlex
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -60,6 +59,7 @@ from typing import NoReturn
 # sibling imports would fail without this.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gh_fresh_env import fresh_gh_env
+from tree_removal import describe, remove_tree
 
 
 def _force_utf8_streams():
@@ -1761,8 +1761,7 @@ def _validate_scratch_issue(raw: "str | None") -> "str | None":
 
 
 def _scratch_dir(top: str) -> str:
-    # normpath: git prints `C:/x` on Windows, so a bare join yields mixed separators
-    # that never equal commonpath's normalized result.
+    # normpath: git prints `C:/x` on Windows; derived scratch paths use native separators.
     return os.path.normpath(os.path.join(top, ".prflow", "tmp"))
 
 
@@ -1778,17 +1777,19 @@ def _scratch_intake_body_file(top: str, issue: str) -> str:
     return os.path.join(_scratch_dir(top), f"intake-issue-body-{issue}.md")
 
 
-def _scratch_symlink_offender(top: str, folder: str) -> "str | None":
+def _scratch_symlink_offender(top: str, folder: str, boundary: "str | None" = None) -> "str | None":
     """The first symlinked intermediate directory between .prflow/tmp and folder's
     parent, or None. A symlinked component (e.g. .prflow/tmp/implement) would let
-    makedirs/rmtree act on a location OUTSIDE the intended .prflow/tmp scope — a
+    makedirs/remove_tree act on a location OUTSIDE the intended .prflow/tmp scope — a
     fail-open out-of-scope deletion the mirror guard in ac-verifier-artifacts.py's
     _reject_symlink_path closes for its own tree. The trusted boundary itself is not
-    checked; the leaf is not checked here because a symlinked leaf makes rmtree raise
-    (→ UNAVAILABLE create / REMOVE_FAILED), which is already safe.
+    checked; the leaf is not checked here because remove_tree refuses a symlinked or
+    junction leaf (→ UNAVAILABLE create / REMOVE_FAILED), which is already safe.
+    A `boundary` override (an alias spelling of .prflow/tmp) must be an ancestor of
+    `folder`: a non-ancestor yields `..` parts and the walk checks the wrong components.
     """
-    boundary = _scratch_dir(top)
-    parts = [p for p in os.path.relpath(folder, boundary).split(os.sep) if p not in ("", os.curdir)]
+    boundary = boundary or _scratch_dir(top)
+    parts = [p for p in os.path.relpath(folder, boundary).split(os.path.sep) if p not in ("", os.curdir)]
     prefix = boundary
     for part in parts[:-1]:
         prefix = os.path.join(prefix, part)
@@ -1901,6 +1902,22 @@ def _scratch_issue_resolve(args: argparse.Namespace) -> "tuple[str, str] | tuple
     return issue, top
 
 
+def _scratch_remove_folder(folder: str) -> bool:
+    """Remove the per-issue folder; on failure name the first undeleted path (or the folder)
+    on stderr and return False."""
+    reasons: dict = {}
+    failures = remove_tree(folder, reasons)
+    if failures or os.path.lexists(folder):
+        if failures:
+            failing, cause = failures[0], describe(reasons.get(failures[0]))
+        else:
+            failing, cause = folder, "still present after a removal that reported no failure"
+        cause = f" ({cause})" if cause else ""
+        print(f"preflight.py: scratch-issue could not remove {failing}{cause}", file=sys.stderr)
+        return False
+    return True
+
+
 def scratch_issue(args: argparse.Namespace) -> int:
     issue, top = _scratch_issue_resolve(args)
     if issue is None:
@@ -1908,7 +1925,7 @@ def scratch_issue(args: argparse.Namespace) -> int:
     # Route the two fixed-file actions BEFORE the folder computation and the recursive
     # `remove` fallthrough (issue #505): each derives its own fixed target from the
     # validated issue and root and removes one file nonrecursively, so a run must not fall
-    # through to the whole-folder rmtree below.
+    # through to the whole-folder removal below.
     if args.action == "remove-cache":
         return _scratch_remove_file(top, _scratch_cache_file(top, issue))
     if args.action == "remove-intake-body":
@@ -1924,9 +1941,10 @@ def scratch_issue(args: argparse.Namespace) -> int:
         print("UNAVAILABLE create" if args.action == "prepare" else "REMOVE_FAILED", flush=True)
         return UNAVAILABLE_EXIT
     if args.action == "prepare":
+        if not _scratch_remove_folder(folder):
+            print("UNAVAILABLE create", flush=True)
+            return UNAVAILABLE_EXIT
         try:
-            if os.path.lexists(folder):
-                shutil.rmtree(folder)
             os.makedirs(folder)
         except OSError as exc:
             print(
@@ -1941,21 +1959,8 @@ def scratch_issue(args: argparse.Namespace) -> int:
         _sweep_flat_leftovers(_scratch_dir(top), issue)
         print(f"PREPARED {folder}", flush=True)
         return PROCEED_EXIT
-    # args.action == "remove": idempotent — an absent folder is a REMOVED success.
-    if not os.path.lexists(folder):
-        print(f"REMOVED {folder}", flush=True)
-        return PROCEED_EXIT
-    failures: list[str] = []
-    try:
-        shutil.rmtree(folder, onerror=lambda _func, path, _exc: failures.append(path))
-    except OSError:
-        failures.append(folder)
-    if failures or os.path.lexists(folder):
-        failing = failures[0] if failures else folder
-        print(
-            f"preflight.py: scratch-issue could not remove {failing}",
-            file=sys.stderr,
-        )
+    # args.action == "remove": idempotent — remove_tree returns [] for a folder os.lstat reports missing.
+    if not _scratch_remove_folder(folder):
         print("REMOVE_FAILED", flush=True)
         return UNAVAILABLE_EXIT
     print(f"REMOVED {folder}", flush=True)
@@ -1971,25 +1976,42 @@ def scratch_issue(args: argparse.Namespace) -> int:
 def _issue_body_out_offender(top: str, out: str) -> "str | None":
     """A refusal reason for an --out that escapes .prflow/tmp, or None when safe.
 
-    `out` is already absolute and normalized. Three ways it is refused, each the
-    `path` cause: it resolves outside <top>/.prflow/tmp (component-wise, so a sibling
-    like .prflow/tmpx never passes); it passes through a symlinked intermediate
+    `out` is already absolute and normalized. Each refusal is the `path` cause: a path
+    cannot be resolved (realpath raised OSError); no ancestor of it resolves to
+    <top>/.prflow/tmp (component-wise, so a sibling like .prflow/tmpx never passes); it passes through a symlinked intermediate
     directory below .prflow/tmp (reusing scratch-issue's own guard, which would let a
-    write act outside the intended scope); or the leaf itself is a symlink (refused,
-    never followed, exactly as _scratch_remove_file refuses a symlinked target).
+    write act outside the intended scope); the leaf itself is a symlink (refused,
+    never followed, exactly as _scratch_remove_file refuses a symlinked target); or its
+    resolved path lands outside .prflow/tmp or on another drive (a junction below it,
+    which islink misses).
     """
-    scratch = _scratch_dir(top)
+    # --out may spell an alias of git's long-name root. The boundary is the SHORTEST
+    # ancestor resolving to .prflow/tmp: the nearest would let a directory linking back
+    # to .prflow/tmp become the boundary and skip the symlink walk.
+    ancestors = []
+    cur = out
+    while os.path.dirname(cur) != cur:
+        cur = os.path.dirname(cur)
+        ancestors.append(cur)
     try:
-        if os.path.commonpath([scratch, out]) != scratch:
-            return f"--out {out!r} resolves outside {scratch}"
-    except ValueError:
-        # Different drives / a mix argparse cannot produce here, but fail closed.
-        return f"--out {out!r} is not comparable to {scratch}"
-    offender = _scratch_symlink_offender(top, out)
+        scratch = os.path.realpath(_scratch_dir(top))
+        key = os.path.normcase(scratch)
+        boundary = next((a for a in reversed(ancestors) if os.path.normcase(os.path.realpath(a)) == key), None)
+        real_out = os.path.realpath(out)
+    except OSError as exc:
+        return f"--out {out!r} could not be resolved ({exc})"
+    if boundary is None:
+        return f"--out {out!r} resolves outside {scratch}"
+    offender = _scratch_symlink_offender(top, out, boundary)
     if offender is not None:
         return f"--out passes through the symlinked directory {offender}"
     if os.path.islink(out):
         return f"--out {out!r} is a symlink; not following the referent"
+    try:
+        if os.path.commonpath([scratch, real_out]) != scratch:
+            return f"--out {out!r} resolves outside {scratch}"
+    except ValueError:
+        return f"--out {out!r} is not comparable to {scratch}"
     return None
 
 

@@ -4,10 +4,12 @@
 # Shared actor-authorization gate for AGENT-mode PRFlow workflows
 # (resolve-implement-trigger.sh, resolve-command-trigger.sh). AGENT mode runs
 # claude-code-action for ANY actor, so callers MUST gate on this before the
-# billable run. Source it, then call `authorize_actor`; it sets two variables
-# in the caller's scope:
-#   authorized   "true" | "false"
-#   deny_reason  human-readable reason when not authorized
+# billable run. Source it, then call `authorize_actor`; it sets three variables
+# in the caller's scope (executing the file instead prints the verdict; see its end):
+#   authorized          "true" | "false"
+#   deny_reason         human-readable reason when not authorized
+#   perm_lookup_failed  "true" when the collaborator-permission lookup failed or
+#                       returned an unrecognized value
 #
 # Inputs (env, same contract as the resolvers):
 #   ACTOR, ALLOWED_BOTS, REPO, GH_TOKEN  (+ optional RESOLVE_RETRY_DELAY)
@@ -42,6 +44,7 @@ authorize_actor() {
   authorized=false
   # shellcheck disable=SC2034
   deny_reason="is not an allowed bot or write/admin/maintain collaborator"
+  perm_lookup_failed=false
 
   # Allowed-bot arm through the shared resolver (issue #157). It normalizes both
   # the actor and every allowlist entry, so trimming/`[bot]`/`app/`/case handling
@@ -86,9 +89,15 @@ authorize_actor() {
       rm -f "$err_file"
       case "$perm" in
         admin|write|maintain) authorized=true ;;
+        none|read|triage) ;;
         __lookup_failed__)
+          perm_lookup_failed=true
           # shellcheck disable=SC2034
           deny_reason="collaborator-permission lookup failed after retry; failing closed${last_err:+ (gh: $last_err)}" ;;
+        *)
+          perm_lookup_failed=true
+          # shellcheck disable=SC2034
+          deny_reason="collaborator-permission lookup returned an unrecognized value '${perm}'; failing closed" ;;
       esac
     else
       # shellcheck disable=SC2034
@@ -98,19 +107,33 @@ authorize_actor() {
 }
 
 # Case-insensitive membership test against human logins; '*' anywhere in the
-# list = wildcard.  Bots go through the ALLOWED_BOTS loop above and never reach
-# this function.
+# list = wildcard. Case folds through nocasematch: bash 3.2 has no ${x,,}.
 _actor_in_allowed_users() {
-  local actor="$1" list="$2" entry e
-  local la="${actor,,}"
+  local actor="$1" list="$2" entry e rc=1 restore=0
   local -a entries
+  shopt -q nocasematch || { shopt -s nocasematch; restore=1; }
   IFS=',' read -ra entries <<< "$list"
   for entry in "${entries[@]}"; do
     e="${entry#"${entry%%[![:space:]]*}"}"
     e="${e%"${e##*[![:space:]]}"}"
-    e="${e,,}"
-    [ "$e" = "*" ] && return 0
-    [ -n "$e" ] && [ "$e" = "$la" ] && return 0
+    if [ "$e" = "*" ] || { [ -n "$e" ] && [[ "$e" == "$actor" ]]; }; then
+      rc=0
+      break
+    fi
   done
-  return 1
+  if [ "$restore" = 1 ]; then shopt -u nocasematch; fi
+  return "$rc"
 }
+
+# Executed rather than sourced (scripts/match-deferrals.py's deferral-filer check): run
+# the gate once and print its verdict — authorized, denied or lookup-failed — on
+# stdout; a denied or lookup-failed verdict also puts the actor and deny_reason on stderr.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  authorize_actor
+  if [ "$authorized" = true ]; then
+    echo authorized
+  else
+    printf '%s %s\n' "${ACTOR:-}" "$deny_reason" >&2
+    if [ "$perm_lookup_failed" = true ]; then echo lookup-failed; else echo denied; fi
+  fi
+fi

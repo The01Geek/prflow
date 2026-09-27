@@ -2235,7 +2235,8 @@ def cmd_record_coverage(args):
     if not expected:
         _fail('record-coverage', '--expected-keys named no dimension keys '
                                  '(coverage-expected-empty); pass the enumerated keyset '
-                                 'from `render-audit-prompt.py enumerate-dimensions`')
+                                 'from `render-audit-prompt.py enumerate-dimensions '
+                                 '--keys-only`')
     if len(set(expected)) != len(expected):
         _fail('record-coverage', '--expected-keys repeats a dimension key '
                                  '(coverage-expected-duplicate); the enumeration is keyed '
@@ -2270,9 +2271,9 @@ def _ingest_coverage(args, expected_keys):
     outcome are the first two whitespace-delimited tokens; the anchor is the rest of the
     line (a quoted draft line plus one concern clause, for `exercised`; a one-line reason,
     for `valid-N/A`). Mirrors `_ingest_ledger`'s byte-read + fail-closed decode/empty arms;
-    its own `--coverage-stdin` quoted-heredoc transport keeps auditor-derived anchor text
-    from traversing shell quoting (the ledger moved to `--ledger-file` in issue #200; coverage
-    keeps the stdin transport). An `exercised`/`valid-N/A` line whose anchor FAILS the text-only floor is
+    its `--coverage-stdin` transport, fed by a `<` redirect from a file the orchestrator
+    writes (issue #1327), keeps auditor-derived anchor text out of shell quoting (the ledger
+    moved to `--ledger-file` in issue #200; coverage keeps the stdin transport). An `exercised`/`valid-N/A` line whose anchor FAILS the text-only floor is
     DOWNGRADED to `unestablished` with its anchor dropped — never rejected (unknown is not
     zero, and the coverage record must stay total over required dimensions).
     """

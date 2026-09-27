@@ -25,8 +25,8 @@
 # degrade-never-block carve-out instead of validating — so this helper's
 # tool-less drive-letter arithmetic is no longer mirrored in either and changing
 # it obliges no edit to those copies. The wslpath/cygpath tool-first tier stays
-# loosely mirrored (spec names it; run.sh's T5/T5c pin it), so a change
-# to THAT tier still touches spec.
+# loosely mirrored by spec's Runner setup probe, so a change to THAT tier
+# still touches spec.
 #
 # Defines a function only; it deliberately does NOT set -e/-u so it is safe to
 # source into a caller with its own shell options.

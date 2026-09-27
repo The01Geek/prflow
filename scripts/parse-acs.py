@@ -65,7 +65,8 @@ Exit codes:
   0  parsed and printed (INCLUDING the present-but-unreadable-section case)
   1  the body could not be established — a failed fetch, or an `--anchor-repo-root`
      run whose repository root would not resolve (issue #1633; fail closed rather
-     than silently anchoring the repo-relative `--body-file` to the process cwd)
+     than silently anchoring the repo-relative `--body-file` to the process cwd) —
+     or `--out` was refused or could not be resolved or written
   2  bad arguments
 """
 
@@ -340,8 +341,8 @@ def _resolve_repo_root() -> "tuple[int, str]":
 def _resolve_out(out: str) -> "str | int":
     """The absolute --out path to write, or an int exit code after printing a
     diagnostic (issue #891). A relative --out anchors on the repository root exactly
-    as --body-file does; the resolved target must sit below <top>/.prflow/tmp, else
-    the run writes nothing and fails with a non-zero exit naming the path."""
+    as --body-file does; the target, its parent canonicalized, must sit below the canonical
+    <top>/.prflow/tmp, else the run writes nothing and fails with a non-zero exit naming the path."""
     rc, root = _resolve_repo_root()
     if rc != 0 or not root:
         print(f"parse-acs.py: --out: could not resolve the repository root to "
@@ -350,13 +351,27 @@ def _resolve_out(out: str) -> "str | int":
     resolved = out if os.path.isabs(out) else os.path.join(root, out)
     resolved = os.path.normpath(resolved)
     scratch = os.path.normpath(os.path.join(root, ".prflow", "tmp"))
+    # Compare realpath forms, so a symlink or Windows 8.3 alias of the repo passes; normcase
+    # folds case on Windows only.
+    # Canonicalize the parent, not the file: os.replace swaps a final-component symlink
+    # rather than following it, so the write lands in the parent directory. A parent swapped
+    # for a symlink after this check is out of scope: whoever can do that already owns the checkout.
     try:
-        contained = os.path.commonpath([scratch, resolved]) == scratch
+        real_scratch = os.path.realpath(scratch)
+        real_target = os.path.join(os.path.realpath(os.path.dirname(resolved)),
+                                   os.path.basename(resolved))
+    except (OSError, ValueError) as exc:
+        print(f"parse-acs.py: --out {out!r} cannot be resolved ({exc}); writing nothing",
+              file=sys.stderr)
+        return 1
+    try:
+        folded = os.path.normcase(real_scratch)
+        contained = os.path.commonpath([folded, os.path.normcase(real_target)]) == folded
     except ValueError:
         contained = False
     if not contained:
-        print(f"parse-acs.py: --out {out!r} resolves outside {scratch}; writing "
-              f"nothing", file=sys.stderr)
+        print(f"parse-acs.py: --out {out!r} resolves to {real_target}, outside "
+              f"{real_scratch}; writing nothing", file=sys.stderr)
         return 1
     return resolved
 

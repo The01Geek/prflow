@@ -28,14 +28,20 @@ command that owns that lifecycle:
                    the run URL and cause — none of them prints a passing outcome. Exit 0
                    is reserved for an established PASSED; a PENDING exits 3, so a caller
                    routing on the exit code alone cannot read it as a pass. A
-                   CANCELLED, SUPERSEDED or STALLED wait (exit 6) ends with no verdict and
-                   settles the record `no-verdict`: `request` never REUSEs or
-                   RECONCILEs it and a later wait leaves it settled, but once that
-                   request's run completes with a pass or fail, `request` may adopt it,
-                   rewriting the record as `dispatched` and so reusable again. With `--cancel-queued-after <seconds>`, a
+                   CANCELLED, SUPERSEDED or STALLED wait (exit 6) ends with no verdict.
+                   CANCELLED and SUPERSEDED always settle the record `no-verdict`; STALLED
+                   settles it only when its cancel succeeded (after `cancel=failed` the
+                   state is unchanged, so `request` REUSEs an unsettled record's run and
+                   the next `--cancel-queued-after` wait retries the cancel while a job
+                   is still queued past the bound). `request`
+                   never REUSEs or RECONCILEs a settled record and a later wait leaves it
+                   settled, but once that request's run completes with a pass or fail,
+                   `request` may adopt it, rewriting the record as `dispatched` and so
+                   reusable again. With `--cancel-queued-after <seconds>`, a
                    not-completed run whose jobs all read cleanly, one of them queued at
                    least that long, gets a `gh run cancel` and is reported STALLED
-                   (`cancel=ok|failed`).
+                   (`cancel=ok|failed`); a PENDING after any unestablished stall read in
+                   that call ends ` stall-check=unestablished`.
   collect-evidence build the versioned `cloud_ci_evidence` record for
                    `check-completion-evidence.py` from the run's shard-tally artifacts
                    (downloaded by the caller with `gh run download --dir <dir>`, named by
@@ -145,7 +151,7 @@ _FAILURE_CONCLUSION = "failure"
 _EXIT_PASSED = 0
 _EXIT_PENDING = 3
 _EXIT_NO_VERDICT = 6
-# The record state a no-verdict wait terminal settles; `_request_for_candidate` skips it.
+# The settled record state; `_request_for_candidate` skips it.
 _STATE_NO_VERDICT = "no-verdict"
 # Completed-run conclusions that end `wait` with no verdict, mapped to the line they print.
 _NO_VERDICT_CONCLUSIONS = {"cancelled": "CANCELLED", "canceled": "CANCELLED",
@@ -358,7 +364,7 @@ def _request_for_candidate(repo: str, head_sha: str, *, correlated: bool) -> dic
     dispatch and left behind when `gh workflow run` raised — is NOT read as an accepted
     dispatch to reconcile; it falls through to a fresh dispatch instead, and a transient
     dispatch failure does not wedge the candidate at RECONCILE forever. A `no-verdict`
-    record (its run was cancelled, skipped or stalled) is never returned by either arm."""
+    record is never returned by either arm."""
     best = None
     for path in sorted(_request_dir().glob("*.json")):
         try:
@@ -919,7 +925,7 @@ def cmd_wait(args) -> int:
                 return 5
             _sleep_until(deadline)
             if time.monotonic() >= deadline:
-                return _emit_pending(record)
+                return _emit_pending(record, stall_noted)
             continue
         transport_failures = 0
         try:
@@ -973,7 +979,7 @@ def cmd_wait(args) -> int:
             _print_failure_recap(record)
             return 7
         if time.monotonic() >= deadline:
-            return _emit_pending(record)
+            return _emit_pending(record, stall_noted)
         _sleep_until(deadline)
 
 
@@ -1039,8 +1045,10 @@ def _emit_stalled(record: dict, run_url: str, job: dict, age: int) -> int:
     if rc != 0:
         sys.stderr.write(f"stall-cancel: gh run cancel exited {rc}: "
                          f"{_spaced_controls(err.strip())[:200]}\n")
-    # Settled either way.
-    record["state"] = _STATE_NO_VERDICT
+    # Settling after a failed cancel would make the next request dispatch a second run beside
+    # this possibly-live one. A record already settled no-verdict intentionally stays settled.
+    if rc == 0:
+        record["state"] = _STATE_NO_VERDICT
     record["run_url"] = run_url
     _store_request(record)
     name = _spaced_controls(job.get("name") if isinstance(job.get("name"), str) else "<unnamed>")
@@ -1083,13 +1091,14 @@ def _sleep_until(deadline: float) -> None:
     time.sleep(min(_poll_interval(), remaining))
 
 
-def _emit_pending(record: dict) -> int:
+def _emit_pending(record: dict, stall_unestablished: bool) -> int:
     # Never un-settle a no-verdict record.
     if record.get("state") != _STATE_NO_VERDICT:
         record["state"] = "pending"
     _store_request(record)
     print(f"PENDING {record['request_id']} run={record.get('run_id')} "
-          f"url={record.get('run_url','')} reason=deadline-reached")
+          f"url={record.get('run_url','')} reason=deadline-reached"
+          + (" stall-check=unestablished" if stall_unestablished else ""))
     return _EXIT_PENDING
 
 

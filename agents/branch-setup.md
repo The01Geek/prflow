@@ -22,7 +22,7 @@ The dispatch prompt supplies literal values for:
 
 - `ISSUE_NUMBER`, the GitHub issue this run implements
 - `WORKPAD`, the runnable `workpad.py` leading token — the ladder's first rung, the only one passed. When a rung does not run, advance the next: the same file under `SKILL_DIR`, then `python3` against each in that order.
-- `SCRIPTS`, the bundled helper directory
+- `SCRIPTS`, the bundled helper directory. In commands below, `<SCRIPTS>` and `<WORKPAD>` stand for the `SCRIPTS` (no trailing `/`) and `WORKPAD` literals, each double-quoted when it contains a space or backslash.
 - `SKILL_DIR`, the resolved implement-skill base directory, whose `../../scripts/` spells the ladder's anchor rung; your own agent directory is not it
 - `WORKPAD_FILE`, normally the intake worker's exact UTF-8 workpad snapshot path. Older callers may instead supply `WORKPAD_BODY` inline or as an explicit path; read a supplied path, or use the Write tool once to place inline body at `$RUN_SCRATCH/branch-setup-workpad-$ISSUE_NUMBER.md`. An unreadable or empty body stops as `resume-precheck-probe-failed`; never re-fetch it.
 - `TITLE_FILE`, a UTF-8 file containing the issue title
@@ -36,7 +36,7 @@ The dispatch prompt supplies literal values for:
 1. Read the configured base once:
 
    ```bash
-   "$SCRIPTS"/config-get.sh .base_branch main
+   <SCRIPTS>/config-get.sh .base_branch main
    ```
 
    Read stdout from the tool result. Use `main` when the command fails or prints an empty value.
@@ -44,13 +44,13 @@ The dispatch prompt supplies literal values for:
 2. Invoke the deterministic setup mode through this two-arm resolution boundary, substituting every operand as a literal. Omit `--branch` unless the dispatch supplied `BRANCH`; never derive that optional operand yourself.
 
    ```bash
-   "$SCRIPTS"/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file>
+   <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file>
    ```
 
    With the consumer-supplied optional branch, append `--branch <branch>` to that same call. Retry the identical invocation once through the existing local interpreter fallback when the direct call prints no `branch-setup` record or when the tool result establishes that the direct leading token did not execute (`command not found`, `No such file`, exit 126, or exit 127):
 
    ```bash
-   python3 "$SCRIPTS"/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file>
+   python3 <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file>
    ```
 
    If the fallback also prints no `branch-setup` record, stop without another retry. Do not reproduce the helper's PR selection, checkout, freshness, branch creation, or Verdict-B logic in this prompt.
@@ -67,7 +67,7 @@ The dispatch prompt supplies literal values for:
    Re-invoke the helper exactly once. `adopt` carries `--branch <the branch you read from disk>`, so the helper adopts no branch you never inspected; it stops with `invalid-recover-operand` when that operand is missing or names a branch `HEAD` is not on, so an empty `git branch --show-current` takes `fork` whatever the table said. `fork` omits the operand and lets the helper derive an unused name:
 
    ```bash
-   "$SCRIPTS"/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file> --recover <adopt|fork> --branch <the branch you read from disk — omit this whole operand on fork>
+   <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file> --recover <adopt|fork> --branch <the branch you read from disk — omit this whole operand on fork>
    ```
 
    This re-invocation runs once and is never retried — step 2's interpreter fallback does not apply to it. Take its result as final: `outcome=proceed` continues at step 5, and a second `outcome=stop` is terminal for the run, recorded by step 6. `stop_kind=invalid-recover-operand` means this adopt call's `--branch` was missing, malformed, or not confirmed to be the branch `HEAD` is on — its `reason` says which; it is a defect in the call above, not a branch problem, so step 6 records it as such rather than leaving the human an unexplained token.
@@ -78,9 +78,9 @@ The dispatch prompt supplies literal values for:
 
 6. Write the workpad exactly once, using the final record — the recovery invocation's when step 4 ran one:
 
-   - `outcome=proceed` carrying in no ahead-of-base history — `arm=fresh-create` **or** `verdict_b=FRESH`: invoke `"$WORKPAD" update <issue> --branch-from-head --note "Branch-state: VALIDATED_RESUME proceed-verdict for branch <branch>"`. This is the branch-qualified proceed verdict that lets an interruption after a Phase-2 durability push resume safely before a PR exists; `ahead == 0` is what both arms vouch for. A recovery fork lands here too — it carries `arm=fresh-create` — so when the record carries `recovery=fork` append `recovery=fork left-behind=<each branch step 4 names>` to this same note; make no second workpad mutation.
-   - any other `outcome=proceed`: invoke `"$WORKPAD" update <issue> --branch-from-head --note "Branch-setup: proceed — <the record's fields, omitting every field whose value is `n/a` or `not-run`>"`. When step 4 recovered, that field list carries `recovery=adopt-unvouched` (a recovery fork carries `arm=fresh-create` and is recorded by the bullet above, not here).
-   - `outcome=stop` or an unusable result: invoke `"$WORKPAD" update <issue> --status Blocked --reflection-kind blocked --reflection "Branch setup stopped: <recovery invocation also stopped | no usable record returned>: <stop_kind>; <reason or unavailable-result><; payload_file=<payload-file> when present>" --note "Branch-setup record: <complete branch-setup record, or the unusable-result observation>"`. A record carrying `payload_file` must name that exact path in the reflection. Naming which of the two cases fired tells the human reading `Blocked` whether the branch or the worker boundary failed.
+   - `outcome=proceed` carrying in no ahead-of-base history — `arm=fresh-create` **or** `verdict_b=FRESH`: invoke `<WORKPAD> update <issue> --branch-from-head --note "Branch-state: VALIDATED_RESUME proceed-verdict for branch <branch>"`. This is the branch-qualified proceed verdict that lets an interruption after a Phase-2 durability push resume safely before a PR exists; `ahead == 0` is what both arms vouch for. A recovery fork lands here too — it carries `arm=fresh-create` — so when the record carries `recovery=fork` append `recovery=fork left-behind=<each branch step 4 names>` to this same note; make no second workpad mutation.
+   - any other `outcome=proceed`: invoke `<WORKPAD> update <issue> --branch-from-head --note "Branch-setup: proceed — <the record's fields, omitting every field whose value is `n/a` or `not-run`>"`. When step 4 recovered, that field list carries `recovery=adopt-unvouched` (a recovery fork carries `arm=fresh-create` and is recorded by the bullet above, not here).
+   - `outcome=stop` or an unusable result: invoke `<WORKPAD> update <issue> --status Blocked --reflection-kind blocked --reflection "Branch setup stopped: <recovery invocation also stopped | no usable record returned>: <stop_kind>; <reason or unavailable-result><; payload_file=<payload-file> when present>" --note "Branch-setup record: <complete branch-setup record, or the unusable-result observation>"`. A record carrying `payload_file` must name that exact path in the reflection. Naming which of the two cases fired tells the human reading `Blocked` whether the branch or the worker boundary failed.
 
    Never make a second workpad mutation; multiple `--note` operands above belong to the same call. Add no separate freshness note.
 

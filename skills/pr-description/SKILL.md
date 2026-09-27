@@ -69,20 +69,31 @@ gh pr view HEAD --json number,body,title 2>/dev/null
 
 If this succeeds, an existing PR was found. Save the PR number and body for Step 2.
 
-Best-effort: pull post-merge acceptance criteria from the /prflow:implement workpad. When `/prflow:implement` parses a related issue's Acceptance Criteria (its Phase 1.4), it tags items that can only be verified after merge with a trailing `(post-merge)` marker on the checkbox line. Surface those items in the PR body so the merger sees them and can tick them off after deploy.
+Pull post-merge acceptance criteria from the /prflow:implement workpad: `/prflow:implement` tags each criterion verifiable only after merge with a trailing `(post-merge)` marker, and the PR body lists them so the merger can tick them off after deploy.
 
-If an issue number is available (from `$ARGUMENTS` or extracted from the existing PR body via `(?i)(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)` — mirroring GitHub's own case-insensitive closes-keyword detection), look up the workpad and read its body:
+Workpad lookup. With no issue number available (from `$ARGUMENTS` or extracted from the existing PR body via `(?i)(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)` — mirroring GitHub's own case-insensitive closes-keyword detection), the outcome is `no-issue` and no call runs. Otherwise emit this plain call, the number substituted as a literal:
 
 ```bash
-ISSUE_NUMBER=$ARGUMENTS  # or the extracted number
-WORKPAD_BODY=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body --issue "$ISSUE_NUMBER" 2>/dev/null || true)
+.prflow/vendor/prflow/scripts/workpad.py body --issue <issue-number>
 ```
 
-If `WORKPAD_BODY` is set, scan its `## Acceptance Criteria` section for lines matching `^[-*]\s+\[[ x]\]\s+.*\(post-merge\)\s*$`. Strip the leading checkbox and the trailing `(post-merge)` tag from each match; collect them as `POST_MERGE_ITEMS` for Step 2's template.
+Only its exit 0, or its exit 2 with no output, is final. Any other result — not found, rc 127, a usage error (a vendored copy without `body --issue`), another non-zero status, a harness refusal — falls through to the portable anchor form, whose result is final:
 
-If no workpad exists, no issue number is available, or no `(post-merge)`-tagged items are found, `POST_MERGE_ITEMS` stays empty and the template's Post-Merge Verification section is omitted entirely. The lookup is best-effort — never fail the run on a missing workpad.
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body --issue <issue-number>
+```
 
-Also scan `WORKPAD_BODY`'s `## Progress` notes for any note whose text begins with the marker `test-authoring-waiver:` (the /prflow:implement run records one per §2.3 test-authoring proportionality waiver it took, naming what was waived and why). Strip the rendered timestamp prefix and the `test-authoring-waiver:` marker, and collect each remainder as `TEST_AUTHORING_WAIVER_ITEMS` for Step 2's Test Plan. If no workpad exists, no issue number is available, or no such note is found, `TEST_AUTHORING_WAIVER_ITEMS` stays empty. Best-effort — never fail the run on a missing workpad.
+Read each form's exit status and output (stdout and stderr merged) from the tool result, and map the final result to one of four outcomes (`no-issue` above, or):
+
+- `read` — exit 0 with non-empty output; the output is the workpad body. A `workpad.py` warning line in it is not body content: report it as a note beside `read`.
+- `no-workpad` — exit 2 with no output at all.
+- `failed` — anything else: exit 0 with empty output; exit 2 with any output (a warning there means the scan may have used the wrong workpad marker); exit 1; exit 3; any other status; a harness refusal. Name the observed cause and each form's output.
+
+Report the outcome in your final message as `workpad lookup: <read, <n> post-merge rows[, note: <warning>] | no-workpad | no-issue | failed: <cause>>`, never inside the PR body. The lookup never fails the run.
+
+On `read`, a tagged row is a `## Acceptance Criteria` checkbox row `section_parse` parses — optionally indented `-` or `*`, then `[ ]`, `[x]` or `[X]` — whose text, joined with indented non-blank continuation lines and right-stripped, `is_post_merge_tagged` accepts: ending in ` (post-merge)`, leading space included. Ticked and unticked rows both count. Strip the checkbox and the tag from each and collect them as `POST_MERGE_ITEMS`; their number is the tagged-row count. When `POST_MERGE_ITEMS` is empty, the Post-Merge Verification section is omitted — except that `failed` in Mode B keeps the existing body's section verbatim.
+
+On `read`, also scan the body's `## Progress` notes for any note whose text begins with the marker `test-authoring-waiver:` (the /prflow:implement run records one per test-authoring proportionality waiver it took, naming what was waived and why). Strip the rendered timestamp prefix and the marker, and collect each remainder as `TEST_AUTHORING_WAIVER_ITEMS` for Step 2's Test Plan; on any other outcome, or with no such note, it stays empty.
 
 Best-effort: pull deferred review findings from the manifest. /prflow:review-and-fix writes each run's manifest run-scoped (`.prflow/tmp/review/<slug>/<run-id>/deferrals.json`), and /prflow:implement Phase 4.0.5 merges every run-scoped manifest into one slug-level aggregate at `.prflow/tmp/review/pr-<N>/deferrals.json`, then files follow-up issues and updates that aggregate in place with `id` and `follow_up` fields per entry. Read the slug-level aggregate and surface its entries in the PR body as a Scope-Acknowledged Findings block so /prflow:review (run later as a formal merge signal) can match them and demote the corresponding findings to Informational.
 
@@ -122,7 +133,7 @@ Re-generate from the diff (always overwrite — these reflect current state):
 - Changes
 - Visual Changes
 - Breaking Changes
-- Post-Merge Verification (when `POST_MERGE_ITEMS` is non-empty — re-derived from the workpad on every run so the list stays in sync with the latest /prflow:implement parse)
+- Post-Merge Verification (when `POST_MERGE_ITEMS` is non-empty — re-derived from the workpad on every run so the list stays in sync with the latest /prflow:implement parse; on a `failed` workpad lookup, keep the existing section verbatim instead)
 - Deferred Findings (when there is at least one renderable entry, as defined in Step 1 — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; carry-forward-safe: a regeneration with no manifest present preserves the existing block's entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
 
 Merge (keep existing items that are still relevant, add new ones, remove stale ones):
@@ -165,7 +176,7 @@ Resolves #[issue number, or omit this section if no issue number was provided]
 - [ ] [Concrete verification step]
 
 ## Post-Merge Verification
-[Omit this entire section when POST_MERGE_ITEMS is empty. When non-empty, render as:]
+[Omit this entire section when POST_MERGE_ITEMS is empty, except that a `failed` workpad lookup in Mode B keeps the existing section verbatim. When non-empty, render as:]
 The following items can only be verified after this PR is merged or deployed. Tick each after performing the check.
 - [ ] [Post-merge AC text, with the trailing (post-merge) tag stripped]
 - [ ] [...]

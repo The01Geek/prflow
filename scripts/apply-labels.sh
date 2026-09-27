@@ -4,7 +4,7 @@
 # apply-labels.sh <number> <label…>
 # apply-labels.sh <number> --config-key <key> --config-fallback <value>
 #
-# Best-effort apply one or more labels to a GitHub issue or PR (a PR is an issue,
+# Best-effort applies one or more labels to a GitHub issue or PR (a PR is an issue,
 # so the same REST endpoint serves both). Labels come either as positional args
 # (separate, comma-separated, or a mix) or — with `--config-key`/`--config-fallback`
 # — resolved by the helper itself from `.prflow/config.json` (the caller names the

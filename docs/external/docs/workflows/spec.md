@@ -91,7 +91,7 @@ These are two different sections and they mean different things.
 
 `## Dependencies` lists open prerequisite issues as `Blocked by #N`. The [implement workflow](/docs/workflows/implement) reads those declarations and stops while a prerequisite is still open, or when it cannot establish whether it is open. It recognizes prerequisite phrasing — `depends on`, `blocked by`, a line-leading `After #N` — wherever it appears, not only under this heading, so reserve that wording for real prerequisites.
 
-To point at a related issue that does *not* gate the work, record it in `Technical Context` as `Related work: #N` rather than under `## Dependencies`. The neutral wording keeps an advisory reference from being read as an execution prerequisite.
+To point at a related issue that does *not* gate the work, record it in `Technical Context` as `Related work: #N` rather than under `## Dependencies`. The neutral wording keeps an advisory reference from being read as an execution prerequisite. A scoped-out item gets that pointer only when the run already knows its tracking issue; otherwise the body states just the scope boundary, never a promise of a future issue, and the run names each such item as unfiled in its final outcome.
 
 `## 🚫 Blocked — resolve before implementation` lists unresolved product or implementation decisions. If you decline to settle a blocking decision, PRFlow records it here rather than inventing a default. Settle those before implementation starts.
 

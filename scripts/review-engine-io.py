@@ -51,6 +51,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# A test loader using importlib.util.spec_from_file_location does not put scripts/ on
+# sys.path, so the sibling import below would fail without this.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tree_removal import _extended_path
+
 CONFIG_ONLY_EXTS = {'.yml', '.yaml', '.json', '.md', '.toml', '.ini', '.lock', '.txt'}
 # Phase 1.1's batching rule: at most this many changed files per checklist-generator batch.
 BATCH_SIZE = 10
@@ -95,6 +100,10 @@ GIT_MODE_SUBMODULE = '160000'
 # A Git LFS pointer blob opens with this spec line; it is recorded as a pointer, its small
 # pointer bytes stored, never resolved to the large object it names.
 LFS_POINTER_PREFIX = b'version https://git-lfs.github.com/spec/'
+# The view's name rule. Only the rule gate reads this, never _fs_path, so a test
+# can switch the rule on for any host without changing how the view is written.
+WINDOWS_NAME_RULE = os.name == 'nt'
+WINDOWS_RESERVED_CHARS = frozenset('<>:"|?*') | frozenset(map(chr, range(32)))
 
 
 STOP_STEPS = frozenset((
@@ -638,34 +647,49 @@ def _is_harness_instruction(path):
     return '.claude' in parts[:-1]
 
 
-def _safe_view_path(path, view_dir):
-    """Resolve a repo-relative entry path under `view_dir`, rejecting any escape (an
-    absolute component, a `..` hop, or a join that resolves outside the view). The
-    harness-instruction `.src` rename is applied to the stored name, never to the
-    inventory's original `path`. Returns (stored_relpath, target_Path, renamed_bool)."""
+def _stored_view_rel(path):
+    """The name a repo-relative entry path is stored under in the view, after refusing an
+    absolute, backslash, empty, `.` or `..` component. The harness-instruction `.src` rename is
+    applied to the stored name, never to the inventory's original `path`. Returns
+    (stored_relpath, renamed_bool)."""
     if not path or path.startswith('/') or '\\' in path:
         raise Stop('view-path', f'unsafe entry path {path!r}: absolute or backslash component')
     parts = path.split('/')
     if any(p in ('', '.', '..') for p in parts):
         raise Stop('view-path', f'unsafe entry path {path!r}: empty or parent-hop component')
     renamed = _is_harness_instruction(path)
-    stored_rel = path + SRC_SUFFIX if renamed else path
+    return (path + SRC_SUFFIX if renamed else path), renamed
+
+
+def _breaks_windows_name_rule(component):
+    """True when Windows cannot store `component`, or cannot read it back by a plain path: over
+    255 UTF-16 code units, one of `<>:"|?*` or a character with code 0-31, a trailing space or period, or bare
+    `NUL`. Do not add the other device names (CON, COM1, aux.c, ...): they round-trip on current
+    Windows, and rejecting them drops reviewable evidence."""
+    return (len(component.encode('utf-16-le')) // 2 > 255
+            or any(c in WINDOWS_RESERVED_CHARS for c in component)
+            or component.endswith((' ', '.'))
+            or component.upper() == 'NUL')
+
+
+def _view_target(path, stored_rel, view_dir):
+    """Where `stored_rel` is written under `view_dir`, or None when the Windows name rule is on
+    and a component breaks it. The rule runs first because resolve() reads `a:b` as a path
+    relative to drive A:."""
+    if WINDOWS_NAME_RULE and any(map(_breaks_windows_name_rule, stored_rel.split('/'))):
+        return None
+    return _resolve_view_path(path, stored_rel, view_dir)
+
+
+def _resolve_view_path(path, stored_rel, view_dir):
+    """`stored_rel` resolved under `view_dir`, refusing a join that resolves outside the view.
+    Callers go through _view_target."""
     target = (view_dir / stored_rel).resolve()
     try:
         target.relative_to(view_dir.resolve())
     except ValueError as exc:
         raise Stop('view-path', f'entry path {path!r} escapes the view directory') from exc
-    return stored_rel, target, renamed
-
-
-def _extended_path(text):
-    r"""`text`, an absolute Windows path, in its extended-length form: `\\?\<drive path>`, or
-    `\\?\UNC\<server\share...>` for a UNC path. An already-extended path is returned unchanged."""
-    if text.startswith('\\\\?\\'):
-        return text
-    if text.startswith('\\\\'):
-        return '\\\\?\\UNC\\' + text[2:]
-    return '\\\\?\\' + text
+    return target
 
 
 def _fs_path(path):
@@ -793,13 +817,14 @@ def _view_materialize(args):
                      if gtype == 'blob' and mode != GIT_MODE_SYMLINK]
         blobs = _cat_file_batch(blob_oids, root)
         blob_iter = iter(blobs)
-        inventory_entries, total_bytes, too_long = [], 0, 0
+        inventory_entries, total_bytes, too_long, name_ruled = [], 0, 0, 0
         for mode, gtype, oid, path in raw_entries:
             if mode == GIT_MODE_SUBMODULE or gtype == 'commit':
                 inventory_entries.append({'path': path, 'stored_path': None,
                                           'kind': 'submodule', 'size': None, 'sha': oid})
                 continue
-            stored_rel, target, renamed = _safe_view_path(path, tmp_dir)
+            stored_rel, renamed = _stored_view_rel(path)
+            target = _view_target(path, stored_rel, tmp_dir)
             if mode == GIT_MODE_SYMLINK:
                 # Recorded, never written as a followable link (AC8 unsafe-path).
                 inventory_entries.append({'path': path, 'stored_path': None,
@@ -813,30 +838,35 @@ def _view_materialize(args):
                 # main() handlers into a fail-open 'no JSON' (capability-absent) read.
                 raise Stop('view-catfile', 'cat-file returned fewer blobs than ls-tree '
                                            'listed blob oids (oid/entry skew)') from None
-            kind = 'lfs-pointer' if content.startswith(LFS_POINTER_PREFIX) else 'blob'
-            # One try covers the parent mkdir and the write: ENAMETOOLONG from either records the
-            # entry unwritten and the view goes on; any other OSError still stops as view-write.
-            try:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                # Two entries must never materialize to one file: a harness `.src` rename can
-                # collide with a really-tracked `<name>.src` blob, and the later write_bytes would
-                # clobber the earlier — a silent wrong-bytes read in the evidence path. Key the
-                # check on the consumer's own namespace (the filesystem target), not a re-derived
-                # string, so a case-fold collision on a case-insensitive filesystem is caught too:
-                # tmp_dir starts empty, so an already-existing target means a prior entry wrote it
-                # this run. Fail closed rather than materialize an ambiguous view (AC8).
-                if target.exists():
-                    raise Stop('view-path', f'stored path {stored_rel!r} collides with an already-'
-                                            f'materialized entry (a harness .src rename may collide '
-                                            f'with a real .src blob)')
-                target.write_bytes(content)
-            except OSError as exc:
-                if exc.errno != errno.ENAMETOOLONG:
-                    raise Stop('view-write', f'could not write {stored_rel}: {exc}') from exc
+            unstorable = target is None
+            name_ruled += unstorable
+            if not unstorable:
+                # One try covers the parent mkdir and the write: ENAMETOOLONG from either records
+                # the entry unwritten and the view goes on; any other OSError still stops as view-write.
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    # Two entries must never materialize to one file: a harness `.src` rename can
+                    # collide with a really-tracked `<name>.src` blob, and the later write_bytes
+                    # would clobber the earlier — a silent wrong-bytes read in the evidence path. Key
+                    # the check on the consumer's own namespace (the filesystem target), not a
+                    # re-derived string, so a case-fold collision on a case-insensitive filesystem is
+                    # caught too: tmp_dir starts empty, so an already-existing target means a prior
+                    # entry wrote it this run. Fail closed rather than materialize an ambiguous view (AC8).
+                    if target.exists():
+                        raise Stop('view-path', f'stored path {stored_rel!r} collides with an already-'
+                                                f'materialized entry (a harness .src rename may collide '
+                                                f'with a real .src blob)')
+                    target.write_bytes(content)
+                except OSError as exc:
+                    if exc.errno != errno.ENAMETOOLONG:
+                        raise Stop('view-write', f'could not write {stored_rel}: {exc}') from exc
+                    unstorable = True
+            if unstorable:
                 too_long += 1
                 inventory_entries.append({'path': path, 'stored_path': None,
                                           'kind': 'path-too-long', 'size': None, 'sha': oid})
                 continue
+            kind = 'lfs-pointer' if content.startswith(LFS_POINTER_PREFIX) else 'blob'
             total_bytes += len(content)
             entry = {'path': path, 'stored_path': stored_rel, 'kind': kind,
                      'size': len(content), 'sha': oid}
@@ -878,7 +908,7 @@ def _view_materialize(args):
         raise Stop('view-write', str(exc)) from exc
     rel = view_dir.relative_to(root).as_posix() if view_dir.is_relative_to(root) else view_dir.as_posix()
     sys.stderr.write(f'view-materialize: revision={commit} file_count={blob_count} bytes={total_bytes} '
-                     f'path_too_long={too_long}\n')
+                     f'path_too_long={too_long} (name_rule={name_ruled})\n')
     return {'status': 'ok', 'revision': commit, 'view_dir': rel,
             'inventory_path': f'{rel}/inventory.json', 'file_count': blob_count,
             'bytes': total_bytes, 'path_too_long_count': too_long}

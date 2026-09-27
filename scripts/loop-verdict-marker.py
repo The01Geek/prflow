@@ -522,6 +522,11 @@ def _unrecovered_gate(run_root: str, exclude: tuple[str, int] | None = None) -> 
     return None
 
 
+def _verdicts_subdir(entry: str, n: int) -> str:
+    """The binding's emitted `verdicts_subdir`: forward slash on every host."""
+    return f"verdicts-{entry}/iter-{n}"
+
+
 def _cmd_write_active_entry_binding(args: argparse.Namespace) -> int:
     """Producer emission (issue #516): snapshot this entry's checklist, verification and
     verifier-file evidence into ENTRY-SCOPED copies and write a binding naming them (by path
@@ -558,7 +563,7 @@ def _cmd_write_active_entry_binding(args: argparse.Namespace) -> int:
     src_verification = os.path.join(root, f"verification-iter-{n}.json")
     dst_checklist_name = f"checklist-{entry}-iter-{n}.json"
     dst_verification_name = f"verification-{entry}-iter-{n}.json"
-    dst_verdicts_subdir = os.path.join(f"verdicts-{entry}", f"iter-{n}")
+    dst_verdicts_subdir = _verdicts_subdir(entry, n)
     _snapshot_file(src_checklist, os.path.join(root, dst_checklist_name))
     _snapshot_file(src_verification, os.path.join(root, dst_verification_name))
     # The shadow re-binds on recovery, and its snapshot must then hold exactly what
@@ -1146,6 +1151,12 @@ class _Source:
         return max(self.candidates) if self.candidates else None
 
 
+def _os_reason(e: OSError) -> str:
+    """An OSError's reason without its filename (whose repr carries host-form separators):
+    its strerror, else a message-only error's text, else the exception type name."""
+    return e.strerror or (str(e) if e.filename is None and len(e.args) == 1 else "") or type(e).__name__
+
+
 def _scan_disk(review_dir: str, own_run_id: str, head: str) -> _Source | None:
     """Every sibling run directory under `review_dir` except this run's own; None when the
     slug directory itself cannot be listed (an unestablished answer, never an empty one)."""
@@ -1155,7 +1166,7 @@ def _scan_disk(review_dir: str, own_run_id: str, head: str) -> _Source | None:
     except FileNotFoundError:
         return source
     except OSError as e:
-        sys.stderr.write(f"continue-run: cannot list {review_dir}: {e}\n")
+        sys.stderr.write(f"continue-run: cannot list {review_dir.replace(os.path.sep, '/')}: {_os_reason(e)}\n")
         return None
     for run_id in entries:
         run_dir = os.path.join(review_dir, run_id)
@@ -1164,7 +1175,7 @@ def _scan_disk(review_dir: str, own_run_id: str, head: str) -> _Source | None:
         try:
             names = sorted(os.listdir(run_dir))
         except OSError as e:
-            sys.stderr.write(f"continue-run: cannot list on-disk {run_id}: {e}\n")
+            sys.stderr.write(f"continue-run: cannot list on-disk {run_id}: {_os_reason(e)}\n")
             continue
         source.records.setdefault(run_id, {})
         for name in names:
@@ -1176,7 +1187,7 @@ def _scan_disk(review_dir: str, own_run_id: str, head: str) -> _Source | None:
                 with open(os.path.join(run_dir, name), "rb") as fh:
                     raw = fh.read()
             except OSError as e:
-                source.consider(run_id, k, None, head, str(e))
+                source.consider(run_id, k, None, head, _os_reason(e))
                 continue
             source.consider(run_id, k, raw, head)
     return source
@@ -1347,7 +1358,7 @@ def _cmd_continue_run(args: argparse.Namespace) -> int:
 
 # ── eval-extension-shadow-trigger (issue #580) ────────────────────────────────────────────
 # The Iteration Start early-shadow question. Outcome set closed by construction: OWED / NOT_OWED.
-_ES_PATH_SET_REL = os.path.join("skill-extensions", "early-shadow-path-set.json")
+_ES_PATH_SET_REL = "skill-extensions/early-shadow-path-set.json"  # stamped repo-relative: forward slash
 _ES_STATE_DIRS = (".prflow", ".devflow")          # canonical, then the superseded spelling
 _ES_EXTENSION_DIRS = frozenset({"skill-extensions", "prompt-extensions"})
 _ES_STAMP = "early-shadow-eval.json"
@@ -1450,15 +1461,17 @@ def _es_prior_shadow(run_root: str, iteration: int) -> str | None:
 
 def _es_resolve_path_set(explicit: str | None) -> tuple[str, str] | None:
     """(path to read, path to stamp) of the path-set file, or None when none exists. An
-    explicit --path-set is used as given; otherwise the first existing candidate under the
-    repo root (`git rev-parse --show-toplevel`, else the cwd) wins, canonical spelling first,
-    and the stamp carries its repo-relative name."""
+    explicit --path-set is read as given and stamped forward-slashed; otherwise the first
+    existing candidate under the repo root (`git rev-parse --show-toplevel`, else the cwd)
+    wins, canonical spelling first, and the stamp carries its repo-relative name."""
     if explicit is not None:
-        return (explicit, explicit) if os.path.exists(explicit) else None
+        if not os.path.exists(explicit):
+            return None
+        return explicit, explicit.replace(os.path.sep, "/")
     rc, out, _err = _git(["rev-parse", "--show-toplevel"])
     root = out.strip() if rc == 0 and out.strip() else os.getcwd()
     for state_dir in _ES_STATE_DIRS:
-        rel = os.path.join(state_dir, _ES_PATH_SET_REL)
+        rel = f"{state_dir}/{_ES_PATH_SET_REL}"
         if os.path.exists(os.path.join(root, rel)):
             return os.path.join(root, rel), rel
     return None
@@ -1471,7 +1484,7 @@ def _cmd_eval_extension_shadow_trigger(args: argparse.Namespace) -> int:
     stamp = {
         "dispatch": None, "owed": None, "pass_ran": False, "reason": None,
         "iteration": iteration, "matched_paths": [], "changed_paths": None,
-        "path_set": None, "diff_patch": os.path.join(run_root, "diff.patch"),
+        "path_set": None, "diff_patch": os.path.join(run_root, "diff.patch").replace(os.path.sep, "/"),
         "prior_shadow": None, "evaluated_at": None,
     }
 
