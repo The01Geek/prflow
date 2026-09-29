@@ -41,9 +41,9 @@ The report is one Markdown document with a fixed set of sections, in this order:
 
 - **`## Verdict:`** — one of the five verdicts below with a short summary naming what drives it, then a one-line reason and a `Rule applied:` line naming the rule that produced the verdict.
 - **`## Code Review Findings`** — findings grouped under `### 🔴 Critical`, `### 🟠 Important / Major`, `### 🟡 Suggestion / Minor` and `### ℹ️ Informational — Deferred`. Empty groups are omitted. Each finding says how many of the dispatched agents raised it, so you can tell a corroborated finding from a single-source one. A lower-severity group with no verdict-driving item is collapsed behind an expandable block.
-- **`## Verification Checklist Results`** — a single tally line in the form "*N* passed, *N* failed, *N* inconclusive", then one visible line per failing or inconclusive item, naming its severity and quoting the claim and the file and line it came from, with its raw evidence collapsed beneath it. Passing items are collapsed behind an expandable block.
+- **`## Verification Checklist Results`** — a single tally line in the form "*N* passed, *N* failed, *N* inconclusive", then one visible line per failing item and, under an `### Unverified` sub-heading, one per inconclusive item, each naming its severity and quoting the claim and the file and line it came from, with its raw evidence collapsed beneath it. Passing items are collapsed behind an expandable block.
 - **`## Deferrals`** — shown only when the pull request body carries a scope-acknowledged deferred-findings block: which deferrals were honored (with their follow-up issues) and which were rejected, with a reason.
-- **`## Issue Compliance`** — shown when the review found a related issue, unless the acceptance criteria came unchanged from the implement workpad or, with no workpad criteria, from the issue body, and no criterion was dropped without a recorded decision: which issue the change was checked against, where the acceptance criteria came from, and whether this run narrowed the scope or dropped a criterion. Otherwise its one-line summary moves into Run details.
+- **`## Issue Compliance`** — shown when the review found a related issue, unless the acceptance criteria came unchanged from the implement workpad or, with no workpad criteria, from the issue body: which issue the change was checked against, where the acceptance criteria came from, whether this run narrowed the scope, and which issue criteria the workpad lacks. Otherwise its one-line summary moves into Run details. A workpad that lacks issue criteria with no recorded decision means the issue was amended after the run mirrored its criteria, or another run overwrote them; the review grades the issue body's criteria either way, and after an amendment `workpad.py acs-remirror <issue>` re-mirrors them (see [Workpads and Resume](/docs/concepts/workpads-and-resume)).
 - **`## Run details`** — a collapsed block holding the run's self-audit lines, such as the diff profile and the `Acceptance coverage:` line.
 
 Every heading, tally line and verdict-driving finding stays visible; only supporting detail is collapsed.
@@ -63,9 +63,9 @@ The engine emits one of five verdicts.
 | Verdict | Meaning |
 | --- | --- |
 | APPROVE | No findings, and every checklist item passed. |
-| APPROVE with notes | Findings or failed or inconclusive checklist items exist, but all of them are below the configured severity threshold. |
+| APPROVE with notes | Findings or failed checklist items exist, but all of them are below the configured severity threshold, or some checklist items are inconclusive at any severity. |
 | APPROVE WITH ADVISORY NOTES | Approved, with findings deliberately parked for a human to judge. |
-| APPROVE WITH CAVEAT | Approved, but verification coverage was incomplete — for example, the verification checklist could not be generated. |
+| APPROVE WITH CAVEAT | Approved, but verification coverage was incomplete: the verification checklist could not be generated, the checklist holds at least one item and every item is inconclusive, or an item is inconclusive because verification itself failed, such as a verifier that timed out. It takes precedence over APPROVE with notes. |
 | REJECT | At least one blocking problem. On a pull request this posts a request for changes. |
 
 <Note>
@@ -76,12 +76,12 @@ The engine emits one of five verdicts.
 
 Any one of these drives a REJECT.
 
-1. **A failed or inconclusive verification-checklist item at or above the severity threshold.** Each item is graded `critical`, `important` or `suggestion` by how much would break if its claim were false; an item without a trustworthy grade counts as `critical`.
-2. **A finding at or above the configured severity threshold.** The default threshold is `critical`, so by default only Critical findings and checklist items block. Set `prflow_review.verdict_severity_threshold` to `important` or `suggestion` to make the line stricter. Findings and checklist items below the line stay visible as notes, with an inconclusive item marked "manual check needed".
+1. **A failed verification-checklist item at or above the severity threshold.** Each item is graded `critical`, `important` or `suggestion` by how much would break if its claim were false; an item without a trustworthy grade counts as `critical`. At a `critical` or `important` threshold, a failed item about an untrue sentence in internal documentation — one no tool or agent reads to decide behavior and nobody outside the repository reads — counts as a note instead; the report still lists it.
+2. **A finding at or above the configured severity threshold.** The default threshold is `critical`, so by default only Critical findings and critical checklist failures block, less the internal-documentation exception above. Set `prflow_review.verdict_severity_threshold` to `important` or `suggestion` to make the line stricter. Findings and checklist failures below the line stay visible as notes. An inconclusive checklist item never blocks; the report lists it under Unverified.
 
 ### The Rules That Surprise People
 
-Further rejection rules do not read the severity threshold at all.
+Further rejection rules do not read the severity threshold, except for untrue internal documentation, described below.
 
 <Warning>
   If the change's own diff added or modified a documentation line, a code comment or a test that is **untrue**, that alone causes a REJECT — at every threshold setting, and whatever severity the finding was graded. Severity settings cannot lower it, deferring it does not clear it, and one agent raising it is enough. Only correcting the untrue claim, or the code it describes, clears the REJECT.
@@ -89,7 +89,7 @@ Further rejection rules do not read the severity threshold at all.
 
 "Untrue" means the claim is stale, contradicts the code as it now stands, or contradicts another part of the same change. The rule covers the change's own additions and edits, not prose that was already there.
 
-The narrow exception is wording that cannot affect behavior in either direction — a purely cosmetic phrasing problem in a message or a comment with no wrong output, no corrupted state and no skipped guard. That is capped as a Suggestion and does not block at the default threshold. A false claim is never treated as a wording problem.
+The narrow exception is wording that cannot affect behavior in either direction — a purely cosmetic phrasing problem in a message or a comment with no wrong output, no corrupted state and no skipped guard. That is capped as a Suggestion and does not block at the default threshold. A false claim is never treated as a wording problem, except an untrue line in internal documentation that no tool or agent reads to decide behavior and nobody outside the repository reads: it is capped at Suggestion too, so it rejects only at a `suggestion` threshold.
 
 <Accordion title="Why this rule exists">
   A change that ships a comment or a doc line describing behavior it does not have is worse than one that ships no comment at all: the next reader trusts it. The same applies to a test whose assertion does not match what the change claims to guarantee.
@@ -98,7 +98,7 @@ The narrow exception is wording that cannot affect behavior in either direction 
 </Accordion>
 
 <Warning>
-  If a finding shows the change does not meet a **decided acceptance criterion** of the linked issue, that alone causes a REJECT — at every threshold setting, and whatever severity the finding was graded. Deferring it does not clear it, and a limitation the change discloses about itself that contradicts a criterion counts as that criterion being unmet, not as honest disclosure. Only meeting the criterion, or recording that it was genuinely out of scope, clears it.
+  If a finding shows the change does not meet a **decided acceptance criterion** of the linked issue, that alone causes a REJECT — at every threshold setting, and whatever severity the finding was graded. Deferring it does not clear it, and a limitation the change discloses about itself that contradicts a criterion counts as that criterion being unmet, not as honest disclosure. Only meeting the criterion, or recording that it was genuinely out of scope, clears it. The exception is a criterion whose subject is such an internal-documentation sentence: its finding is capped at Suggestion, so it rejects only at a `suggestion` threshold.
 </Warning>
 
 A general quality or test-coverage finding that establishes no unmet criterion is unaffected and stays weighed by the severity threshold. Separately, on every run that builds a checklist, every decided acceptance criterion gets its own checklist item, however many the issue carries; the report's Run details show an `Acceptance coverage: <itemized> of <resolved> decided criteria itemized` line, and if any criterion is left without one, the review rejects with a coverage shortfall. A criterion ending in the `(post-merge)` tag is excluded from the reviewer-facing set, so tag a criterion the code alone cannot establish. A run whose checklist generation failed caps that run's verdict at `APPROVE WITH CAVEAT`, because no checklist was generated.

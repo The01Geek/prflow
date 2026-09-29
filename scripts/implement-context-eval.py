@@ -112,7 +112,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import datetime
 import importlib.util
 import json
 import os
@@ -137,6 +136,7 @@ from context_eval_shared import (  # noqa: F401
     _is_main_thread_record,
     _iter_session_files,
     _median,
+    _parse_timestamp,
     _phase_read_label,
     _usage_value,
     read_and_tally,
@@ -313,28 +313,6 @@ def _sum_or_unestablished(values):
     their sum in `round(..., GAP_DECIMALS)`.
     """
     return sum(values) if values else UNESTABLISHED
-
-
-def _parse_timestamp(value):
-    """Epoch seconds for an ISO-8601 record timestamp, or None when unusable.
-
-    None is the *unestablished* answer — the caller tallies it into the skip accounting
-    and drops the turn from the gap population rather than contributing a zero gap
-    (issue #1209 AC11). A naive (offset-less) stamp is read as UTC so two stamps parsed
-    here are always differenced on the same clock.
-    """
-    if not isinstance(value, str) or not value.strip():
-        return None
-    text = value.strip()
-    if text.endswith(("Z", "z")):
-        text = text[:-1] + "+00:00"
-    try:
-        parsed = datetime.datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
-    return parsed.timestamp()
 
 
 def _tool_category(name):

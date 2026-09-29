@@ -61,7 +61,7 @@ This is what one looks like partway through a run:
 
 - **Progress** — the run's own checklist, one row per stage. The `reproduction captured` row appears only on issues classified as bug reports.
 - **Plan** — the implementation plan, ticked as it is carried out.
-- **Acceptance Criteria** — the issue's criteria, mirrored here and ticked as each one is verified.
+- **Acceptance Criteria** — the issue's criteria, mirrored here when an implementation run starts and ticked as each one is verified; review reads its criteria from here. To amend an issue's criteria mid-PR: edit the issue, run `workpad.py acs-remirror <issue>` (the helper in the plugin's `scripts/` directory, vendored at `.prflow/vendor/prflow/scripts/workpad.py` in a cloud-tier repo) while no implementation run is live on the issue, then re-review. It refuses unless the workpad's Status is Complete, re-mirrors from the issue body only, replaces the run's ticks with the issue's, and records one progress note. It restores every issue criterion, including ones the run deferred or rewrote, so the next review grades them.
 - **PRFlow Reflections** — blockers, deferrals, dropped work and anything else a person should read before merging. Its bullets are shown directly under the heading. The section reader also still accepts the older `Devflow Reflection` heading, so a workpad written before the rename stays readable.
 - **Reproduction** — reproduction evidence, on bug issues.
 

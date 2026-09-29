@@ -18,7 +18,7 @@
     "claude_model": {
       "type": "string",
       "description": "Claude model for AI-powered workflows (individual workflows may override).",
-      "default": "claude-opus-5"
+      "default": "claude-opus-5-5"
     },
     "prflow_version": {
       "type": "string",
@@ -334,7 +334,7 @@
             "important",
             "suggestion"
           ],
-          "description": "Moves the REJECT line of the shared review engine's Phase 4.2 verdict computation and, as its complement, the APPROVE-with-notes boundary: a finding, or a verification-checklist FAIL or INCONCLUSIVE item by its stored severity, at or above this severity (severity ordering: critical > important > suggestion), excluding deferral-demoted findings, drives REJECT; one below it does not reject on its own and lands in the report as a note. Both standalone /prflow:review and the Phase-3 pass of /prflow:review-and-fix inherit this. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
+          "description": "Moves the REJECT line of the shared review engine's Phase 4.2 verdict computation and, as its complement, the APPROVE-with-notes boundary: a finding, or a verification-checklist FAIL item by its stored severity (at critical or important, one the behavior-inert prose cap covers weighs as suggestion), at or above this severity (severity ordering: critical > important > suggestion), excluding deferral-demoted findings, drives REJECT; one below it does not reject on its own and lands in the report as a note. A checklist INCONCLUSIVE item never rejects at any value; the report lists it under Unverified. Both standalone /prflow:review and the Phase-3 pass of /prflow:review-and-fix inherit this. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
           "default": "critical"
         },
         "live_progress_comment_enabled": {

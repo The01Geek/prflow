@@ -36,6 +36,8 @@
 #     failure, never as a read failure. Only `cmd_id`'s OWN rc 2 means "scanned
 #     cleanly, none present" — `python3` also exits 2 when it cannot open the
 #     script, and that is screened out below.
+#   - Failure breadcrumbs prefix ::warning::; success, usage and no-flip
+#     breadcrumbs stay plain.
 #   - Flips an EXISTING comment ONLY when its `**Status:**` line begins with
 #     🚀 (interim) — anything else (a written verdict, an agent-side
 #     `❌ Review failed`, any terminal glyph) is treated as terminal and left
@@ -174,14 +176,14 @@ _wp_err_cleanup() { [ -n "$WP_ERR" ] && rm -f "$WP_ERR"; return 0; }
 # (2) degrades to (1) alone when $WP_ERR could not be allocated and stderr went to
 # /dev/null — the common deploy case is still caught, and the residual is a no-flip no-op.
 if [ ! -f "$WORKPAD" ] || [ ! -r "$WORKPAD" ]; then
-  echo "flip-review-progress-failed: cannot read the helper's workpad.py sibling at '${WORKPAD}' (missing or unreadable — a partial vendor copy?) — read-failure no-op; PR #${PR}'s comment was never looked up, so its absence was NOT established" >&2
+  echo "::warning::flip-review-progress-failed: cannot read the helper's workpad.py sibling at '${WORKPAD}' (missing or unreadable — a partial vendor copy?) — read-failure no-op; PR #${PR}'s comment was never looked up, so its absence was NOT established" >&2
   _wp_err_cleanup
   exit 0
 fi
 CID="$(python3 "$WORKPAD" id "$PR" --marker "$MARKER" 2>"${WP_ERR:-/dev/null}")"
 ID_RC=$?
 if [ "$ID_RC" -eq 2 ] && [ -n "$WP_ERR" ] && [ -s "$WP_ERR" ]; then
-  echo "flip-review-progress-failed: python3 exited 2 while looking up PR #${PR}'s review-progress comment, but wrote a diagnostic — an interpreter-level failure, not workpad.py's clean 'no match' (which exits 2 silently) — read-failure no-op; the comment's absence was NOT established. Cause: $(_wp_cause)" >&2
+  echo "::warning::flip-review-progress-failed: python3 exited 2 while looking up PR #${PR}'s review-progress comment, but wrote a diagnostic — an interpreter-level failure, not workpad.py's clean 'no match' (which exits 2 silently) — read-failure no-op; the comment's absence was NOT established. Cause: $(_wp_cause)" >&2
   _wp_err_cleanup
   exit 0
 elif [ "$ID_RC" -eq 2 ]; then
@@ -197,7 +199,7 @@ elif [ "$ID_RC" -eq 2 ]; then
   #     the body is authored verbatim here exactly as the flip path rewrites it.
   _wp_err_cleanup
   NEWBODY="$(mktemp 2>/dev/null)" || {
-    echo "flip-review-progress-failed: mktemp failed while composing the terminal review-progress comment for PR #${PR} — create-failure no-op; the dead run is NOT recorded on the pull request" >&2
+    echo "::warning::flip-review-progress-failed: mktemp failed while composing the terminal review-progress comment for PR #${PR} — create-failure no-op; the dead run is NOT recorded on the pull request" >&2
     exit 0
   }
   {
@@ -206,7 +208,7 @@ elif [ "$ID_RC" -eq 2 ]; then
     printf '%s\n\n' '**Status:** ❌ Review failed'
     printf '_Review run failed: %s — %s_\n' "${CAUSE//$'\n'/ }" "$RUN_URL"
   } > "$NEWBODY" || {
-    echo "flip-review-progress-failed: could not write the terminal review-progress body for PR #${PR} — create-failure no-op; the dead run is NOT recorded on the pull request" >&2
+    echo "::warning::flip-review-progress-failed: could not write the terminal review-progress body for PR #${PR} — create-failure no-op; the dead run is NOT recorded on the pull request" >&2
     rm -f "$NEWBODY"
     exit 0
   }
@@ -222,13 +224,13 @@ elif [ "$ID_RC" -eq 2 ]; then
     # `cat` here is COSMETIC only — it folds workpad.py's own cause into the
     # breadcrumb. No arm was selected by it, and its absence on a stripped PATH
     # empties the clause rather than changing an outcome.
-    echo "flip-review-progress-failed: no prflow:review-progress comment for PR #${PR} (marker '${MARKER}', scanned cleanly, none present) and workpad.py create failed or printed no comment id — create-failure no-op; the dead run is NOT recorded on the pull request. Cause: $(cat "$CREATE_ERR" 2>/dev/null)" >&2
+    echo "::warning::flip-review-progress-failed: no prflow:review-progress comment for PR #${PR} (marker '${MARKER}', scanned cleanly, none present) and workpad.py create failed or printed no comment id — create-failure no-op; the dead run is NOT recorded on the pull request. Cause: $(cat "$CREATE_ERR" 2>/dev/null)" >&2
   fi
   [ "$CREATE_ERR" = /dev/null ] || rm -f "$CREATE_ERR"
   rm -f "$NEWBODY"
   exit 0
 elif [ "$ID_RC" -ne 0 ] || [ -z "$CID" ]; then
-  echo "flip-review-progress-failed: could not look up PR #${PR}'s review-progress comment (marker '${MARKER}', workpad.py id rc=${ID_RC}) — read-failure no-op; the comment's absence was NOT established. Cause: $(_wp_cause)" >&2
+  echo "::warning::flip-review-progress-failed: could not look up PR #${PR}'s review-progress comment (marker '${MARKER}', workpad.py id rc=${ID_RC}) — read-failure no-op; the comment's absence was NOT established. Cause: $(_wp_cause)" >&2
   _wp_err_cleanup
   exit 0
 fi
@@ -237,7 +239,7 @@ fi
 BODY="$(python3 "$WORKPAD" body "$CID" 2>"${WP_ERR:-/dev/null}")"
 BODY_RC=$?
 if [ "$BODY_RC" -ne 0 ] || [ -z "$BODY" ]; then
-  echo "flip-review-progress-failed: could not read body of comment #${CID} for PR #${PR} (workpad.py body rc=${BODY_RC}) — read-failure no-op. Cause: $(_wp_cause)" >&2
+  echo "::warning::flip-review-progress-failed: could not read body of comment #${CID} for PR #${PR} (workpad.py body rc=${BODY_RC}) — read-failure no-op. Cause: $(_wp_cause)" >&2
   _wp_err_cleanup
   exit 0
 fi
@@ -248,7 +250,7 @@ fi
 #    and the 🚀 test is a literal byte match, not a locale-dependent sed
 #    alternation. Prints a result token.
 TMP="$(mktemp 2>/dev/null)" || {
-  echo "flip-review-progress-failed: mktemp failed for PR #${PR} comment #${CID} — read/patch-failure no-op" >&2
+  echo "::warning::flip-review-progress-failed: mktemp failed for PR #${PR} comment #${CID} — read/patch-failure no-op" >&2
   _wp_err_cleanup
   exit 0
 }
@@ -346,7 +348,7 @@ case "$RESULT" in
     echo "flip-review-progress-failed: PR #${PR} comment #${CID} has no Status line — no flip" >&2
     ;;
   *)
-    echo "flip-review-progress-failed: transform of comment #${CID} for PR #${PR} produced no result — read/patch-failure no-op" >&2
+    echo "::warning::flip-review-progress-failed: transform of comment #${CID} for PR #${PR} produced no result — read/patch-failure no-op" >&2
     ;;
 esac
 

@@ -57,7 +57,9 @@ Use [Review](/docs/workflows/review) when you do not want your branch changed.
 
 ## Iterations and What Gets Fixed
 
-The default iteration cap is five. Change it with `prflow_review_and_fix.max_iterations`. The loop also exits early when it converges.
+The default iteration cap is five. Change it with `prflow_review_and_fix.max_iterations`. The loop also exits early when it converges, except after an iteration that ends in REJECT and fixed a REJECT driver or any finding or failed checklist item at or above the fix threshold, or whose fix records cannot be confirmed: it then runs one more iteration to review the fixes, up to the cap.
+
+When the same finding is skipped in two consecutive iterations, PRFlow reports "Finding persists after pushback: *finding*. Manual review needed." once for that finding and keeps going: the message never ends the loop. A finding the earlier iteration settled by disclosure does not trigger it, unless it drives the current iteration's REJECT.
 
 Which findings reach the fixer is set by `prflow_review_and_fix.fix_severity_threshold`, which defaults to `important`:
 
@@ -67,7 +69,7 @@ Which findings reach the fixer is set by `prflow_review_and_fix.fix_severity_thr
 | `important` (default) | Critical, Important, Major | Suggestion, Minor |
 | `suggestion` | Everything | Nothing |
 
-Any finding or failed checklist item that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore. An inconclusive checklist item gives the fixer nothing to fix, so it is never sent.
+Any finding or failed checklist item that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore. An inconclusive checklist item never drives a REJECT and gives the fixer nothing to fix, so it is never sent; the report lists it under Unverified.
 
 PRFlow can push back on a finding when the code disproves it, rather than "fixing" something that was never wrong. It can also defer a genuine finding when the deferral rules apply. A test broken by one of its own fixes must be repaired before the loop continues.
 

@@ -16,9 +16,10 @@
 # post-ci-review-trigger.sh precedent), rather than in an untestable `if:`.
 #
 # The two suppression cases, and why each is safe:
-#   R1  a cloud-implement bot mid-run push (`synchronize` by the implement App):
-#       the PR is a draft for the whole run, so no merge gate is in play; the
-#       suite runs once at the end when `gh pr ready` fires `ready_for_review`.
+#   R1  an implement App push to a DRAFT PR (`synchronize` by the implement App
+#       with DRAFT=true): no merge gate is in play on a draft; the suite runs
+#       once at the end when `gh pr ready` fires `ready_for_review`. An App push
+#       to a published PR (a branch update, a fix-loop push) runs the suite.
 #       R1 emits NO success status, so a draft's head never looks "already green"
 #       and the ready toggle always runs the real suite.
 #   R2  a `ready_for_review` toggle whose head SHA ALREADY has a real green run of
@@ -51,6 +52,8 @@ REQUIRED_CHECK_LINT='lint (shellcheck + actionlint + ruff)'
 EVENT_NAME="${EVENT_NAME:-}"
 EVENT_ACTION="${EVENT_ACTION:-}"
 ACTOR="${ACTOR:-}"
+# github.event.pull_request.draft; any value but `true` runs the suite.
+DRAFT="${DRAFT:-}"
 HEAD_SHA="${HEAD_SHA:-}"
 REPO="${REPO:-}"
 
@@ -66,9 +69,9 @@ if [ "$EVENT_NAME" != "pull_request" ]; then
   exit 0
 fi
 
-# R1 — the implement bot's mid-run push. Pure GitHub-context decision, no query.
-if [ "$EVENT_ACTION" = "synchronize" ] && [ "$ACTOR" = "$IMPLEMENT_BOT_LOGIN" ]; then
-  echo "ci-precheck: R1 — implement-bot mid-run push ($ACTOR), suite suppressed (PR is a draft; the ready toggle runs it)" >&2
+# R1 — the implement bot's push to a draft. Pure GitHub-context decision, no query.
+if [ "$EVENT_ACTION" = "synchronize" ] && [ "$ACTOR" = "$IMPLEMENT_BOT_LOGIN" ] && [ "$DRAFT" = "true" ]; then
+  echo "ci-precheck: R1 — implement-bot push to a draft PR ($ACTOR), suite suppressed (the ready toggle runs it)" >&2
   emit false false false
   exit 0
 fi

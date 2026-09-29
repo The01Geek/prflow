@@ -79,7 +79,8 @@
 #   head-sha-absent          HEAD_SHA was empty
 #   reviewer-login-absent    REVIEWER_LOGIN was empty
 #   payload-unreadable       the payload path is not a readable file
-#   payload-unparseable      the payload is not valid JSON
+#   marker-module-unavailable the shared marker grammar is absent or unreadable
+#   payload-unparseable      jq could not compile or process the payload
 #   payload-not-an-array     the payload parsed but its top level is not an array
 #   body-not-a-string        an own-identity review has a non-string body (every own review
 #                            is body-read to place it, so this is not head-scoped)
@@ -110,8 +111,14 @@ set -u
 
 # jq binary: resolved once via the single-source resolver (execution-verified); an
 # explicit DEVFLOW_JQ still wins, so test stubs are untouched.
+_CHR_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib"
 # shellcheck source=../lib/resolve-jq.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh"
+. "$_CHR_LIB/resolve-jq.sh"
+
+if [ ! -f "$_CHR_LIB/review-verdict-marker.jq" ] || [ ! -r "$_CHR_LIB/review-verdict-marker.jq" ]; then
+  echo "unestablished marker-module-unavailable"
+  exit 0
+fi
 
 PAYLOAD="${1:-}"
 HEAD="${2:-}"
@@ -145,7 +152,7 @@ fi
 
 # (3) Classify in jq. The program emits `none`, `marked`, `unmarked <ids>`, or an
 #     `ERR <reason>` token that bash maps to a closed UNESTABLISHED reason. A jq parse
-#     failure (invalid JSON) exits non-zero and is caught below as payload-unparseable.
+#     or execution failure exits non-zero and is caught below as payload-unparseable.
 #     `.user.login`/`.commit_id`/`.body` are indexed defensively: a missing object
 #     yields null (jq does not error), and select() drops a review by another login. The
 #     body-type check runs BEFORE any string op and short-circuits, so a non-string body
@@ -157,15 +164,11 @@ fi
 #     and never with `tr`, which lib/preflight.sh does not guarantee and whose absence would
 #     empty the value and select the wrong arm.
 _CHR_PROG='
-  # The line-1 producer marker'"'"'s own head=, ascii_downcase-d — or "" when line 1 carries
-  # no well-formed marker. Readers scan line 1 ONLY, so a marker a finding quotes deeper in
-  # the body is prose and yields "". The shape test runs first and capture() re-reads the
-  # same line, so no head value ever enters a regex as data.
+  include "review-verdict-marker";
+  # Only a complete line-1 stamp supplies authoritative placement.
   def marker_head:
-    (.body | split("\n") | (.[0] // "")) as $l1
-    | if ($l1 | test("^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=(APPROVE|REJECT) -->"))
-      then ($l1 | capture("^<!-- prflow:review-verdict head=(?<h>[0-9a-fA-F]{40}) verdict=(APPROVE|REJECT) -->") | .h | ascii_downcase)
-      else "" end;
+    (.body | verdict_marker_scan(1) | .markers) as $markers
+    | if ($markers | length) == 1 then $markers[0].head else "" end;
   # `commit_id` as a lowercase string, or "" for null/absent/non-string. Type-checked before
   # ascii_downcase so a shape this helper does not produce cannot abort the whole filter.
   def commit_key:
@@ -208,10 +211,10 @@ _CHR_PROG='
 
 _CHR_OUT=""
 if [ "$_CHR_SRC" = "-" ]; then
-  _CHR_OUT="$("$DEVFLOW_JQ" -r --arg head "$HEAD" --arg login "$LOGIN" "$_CHR_PROG" 2>/dev/null)" \
+  _CHR_OUT="$("$DEVFLOW_JQ" -r -L "$_CHR_LIB" --arg head "$HEAD" --arg login "$LOGIN" "$_CHR_PROG" 2>/dev/null)" \
     || { echo "unestablished payload-unparseable"; exit 0; }
 else
-  _CHR_OUT="$("$DEVFLOW_JQ" -r --arg head "$HEAD" --arg login "$LOGIN" "$_CHR_PROG" "$_CHR_SRC" 2>/dev/null)" \
+  _CHR_OUT="$("$DEVFLOW_JQ" -r -L "$_CHR_LIB" --arg head "$HEAD" --arg login "$LOGIN" "$_CHR_PROG" "$_CHR_SRC" 2>/dev/null)" \
     || { echo "unestablished payload-unparseable"; exit 0; }
 fi
 

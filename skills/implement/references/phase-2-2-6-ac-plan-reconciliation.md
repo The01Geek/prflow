@@ -17,7 +17,7 @@ Pass `--scope-decision-rewritten` in the same call as `--rewrite-ac`, so the tex
 Why the workpad criterion set is trustworthy as a review comparand, and what falsifies it. The review engine may treat the workpad's `## Acceptance Criteria` as authoritative because every writer that changes the set's membership or a criterion's text either emits a scope-decision record or can only ever widen the set — never narrow it:
 
 - Record-emitting writers: §2.2.5's `--replace-acs-file` narrowing, and the `--rewrite-ac` call sites (this one, and phase-3-ac-gate.md §3.4's retroactive `(post-merge)` retag in post-merge-tagging.md).
-- Widening-only writers: phase-1-intake.md §1.3's two `--replace-acs-file` mirrors — the fresh-workpad mirror and the resume-path mirror — which need no record because each sets the workpad's section equal to the issue body's criteria; that is never a narrowing, so `_acs_pr_identity_ok`'s superset early-return (`workpad_norm >= issue_norm`) accepts it with no record to explain.
+- Widening-only writers: phase-1-intake.md §1.3's two `--replace-acs-file` mirrors — the fresh-workpad mirror and the resume-path mirror — and `workpad.py acs-remirror`, which need no record because each sets the workpad's section equal to the issue body's criteria; that is never a narrowing, so `_acs_pr_identity_ok`'s superset early-return (`workpad_norm >= issue_norm`) accepts it with no record to explain.
 - No record needed: `--tick-ac` and `--tick-ac-n` change only box state, which the engine's normalized comparison already ignores.
 
 The assumption is falsified if any writer path can change the set's membership or a criterion's text without emitting a scope-decision record.

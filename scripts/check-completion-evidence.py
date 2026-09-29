@@ -921,8 +921,8 @@ def _expected_shards(repo_root: str | None) -> frozenset[str]:
     list. An absent ci.yml declares no shards (empty set — the caller refuses a record
     whose population disagrees); an unreadable one is an internal failure of the check
     itself (`_Internal`, exit 2), never a silent empty set that would un-gate the
-    population comparison. Coupled with lib/test/run-shard.sh's SHARD_NAMES and the
-    ci.yml matrix, in the same order — but this parse is set-valued, so order is ignored."""
+    population comparison. The matrix order follows lib/test/module_catalog.py's
+    SHARD_NAMES, exposed by run-shard.sh --list-shards; this parse is set-valued."""
     path = Path(repo_root or os.getcwd()) / ".github" / "workflows" / "ci.yml"
     try:
         text = path.read_text(encoding="utf-8")

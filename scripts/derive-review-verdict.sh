@@ -163,68 +163,25 @@ RUN_ID="${GITHUB_RUN_ID:-}"
 REJECT_RE='^##[[:space:]]+Verdict:[[:space:]]*REJECT'
 APPROVE_RE='^##[[:space:]]+Verdict:[[:space:]]*APPROVE'
 
-# The producer marker (issue #1030). MARKER_STRICT_RE is the exact literal shape
-# post-review-verdict.sh emits; MARKER_LOOSE_RE is anything CLAIMING to be one, so a
-# malformed marker is caught and refused rather than silently ignored. Both are matched
-# with bash's `[[ =~ ]]` — a builtin, so this SELECTION never depends on a
-# non-preflight PATH tool (CLAUDE.md guard-class 2), and BASH_REMATCH does the field
-# extraction with no `sed`/`cut` hop.
-MARKER_STRICT_RE='^<!-- prflow:review-verdict head=([0-9a-fA-F]{40}) verdict=(APPROVE|REJECT) -->$'
-MARKER_LOOSE_RE='^<!-- prflow:review-verdict[ >]'
-
 emit() { printf 'verdict=%s\nverdict_determined=%s\n' "$1" "$2"; exit 0; }
 
-# Read the producer marker out of a body, scanning ONLY its first two lines (see the
-# header). Echoes exactly one token: the empty string (no marker — the caller falls
-# through to the state/prose signals), `APPROVE`, `REJECT`, or one of the three
-# unestablished tokens `ambiguous` / `malformed` / `head-mismatch`.
-# Line splitting is pure parameter expansion for the same builtin-only reason.
+DRV_LIB="$_DRV_DIR/../lib"
+if [ ! -f "$DRV_LIB/review-verdict-marker.jq" ] || [ ! -r "$DRV_LIB/review-verdict-marker.jq" ]; then
+  echo "derive-review-verdict: review-verdict-marker.jq missing or unreadable — failing closed (incomplete)." >&2
+  emit incomplete false
+fi
+
+# The shared grammar scans two lines; this reader owns ambiguity, head matching,
+# and the token policy. A parser failure must never become markerless approval.
 drv_marker_verdict() {
-  local body="$1" line1 line2 rest hits="" found=""
-  line1="${body%%$'\n'*}"
-  if [ "$body" = "$line1" ]; then
-    line2=""
-  else
-    rest="${body#*$'\n'}"
-    line2="${rest%%$'\n'*}"
-  fi
-  # A native Windows jq.exe (or a CRLF body) ends each line with CR, which `-->$` rejects.
-  line1="${line1%$'\r'}"
-  line2="${line2%$'\r'}"
-  local l
-  for l in "$line1" "$line2"; do
-    [[ "$l" =~ $MARKER_LOOSE_RE ]] || continue
-    hits="${hits}x"
-    found="$l"
-  done
-  case "$hits" in
-    '')  printf ''; return 0 ;;
-    x)   ;;
-    *)   printf 'ambiguous'; return 0 ;;
-  esac
-  if [[ ! "$found" =~ $MARKER_STRICT_RE ]]; then
-    printf 'malformed'
-    return 0
-  fi
-  local mhead="${BASH_REMATCH[1]}" mverdict="${BASH_REMATCH[2]}"
-  # Normalize the head comparison to the jq selection's ascii_downcase (issue #433): a
-  # hand-authored uppercase marker head must compare equal to the lowercase HEAD_SHA the
-  # API returns, or a legitimately on-head review is wrongly refused. bash 3.2 has no
-  # ${x,,} and the preflight does not guarantee `tr`, so use the nocasematch builtin.
-  # This arm is now unreachable by any selected review — the jq DRV_STATE_FILTER admits a
-  # marked review only when its marker head already equals HEAD_SHA (case-insensitively) —
-  # but is retained as a fail-closed backstop, since the strict parser still yields a head
-  # token and an unmatched one would otherwise fall through to the state checks.
-  local _drv_ncm; _drv_ncm=$(shopt -p nocasematch)
-  shopt -s nocasematch
-  local _drv_head_ok=0
-  [[ "$mhead" == "$HEAD_SHA" ]] || _drv_head_ok=1
-  eval "$_drv_ncm"
-  if [ "$_drv_head_ok" -ne 0 ]; then
-    printf 'head-mismatch'
-    return 0
-  fi
-  printf '%s' "$mverdict"
+  printf '%s' "$1" | "$DEVFLOW_JQ" -Rrs -L "$DRV_LIB" --arg h "$HEAD_SHA" '
+    include "review-verdict-marker";
+    verdict_marker_scan(2)
+    | if .loose == 0 then "none"
+      elif .loose > 1 then "ambiguous"
+      elif (.markers | length) == 0 then "malformed"
+      elif .markers[0].head != ($h | ascii_downcase) then "head-mismatch"
+      else .markers[0].verdict end'
 }
 
 # 1. Engine execution ended in error -> no verdict for HEAD, regardless of any
@@ -291,28 +248,25 @@ fi
 #    Only VERDICT-BEARING states are candidates: a DISMISSED review is a human override
 #    whose stale body must not resurrect; a PENDING (or other non-verdict) review must not
 #    mask a real APPROVED/CHANGES_REQUESTED; and a COMMENTED review counts only when its
-#    body carries the producer marker (Phase 4.4's approve-with-notes channel) or the
+#    body claims a marker on line 1 (even malformed) or carries the
 #    transitional `## Verdict:` heading. Excluded reviews fall through like an empty set.
 #    The leading `-s`/`add` normalizes the `--paginate` shape: slurp turns one array into
 #    [[...]] and concatenated pages into [[...],[...]], and `add` flattens both to one
 #    review list (a non-array payload still errors in `map()`, keeping the parse guard
 #    live; an all-empty input slurps to [] whose `add` yields null and `map` then errors —
-#    fail-closed either way). marker_head/commit_key adapt scripts/classify-head-reviews.sh's
-#    idiom (that helper scans line 1; this one scans the deriver's two-line window),
-#    ascii_downcase-normalized so an uppercase marker head compares byte-exact.
-# The producer marker's own head=, ascii_downcase-normalized (or "" when the deriver's
-# two-line marker window carries no single well-formed marker). Hoisted to ONE definition so the marker-shape
-# regex lives once rather than once per filter; both filters below prepend it. Adapts
-# scripts/classify-head-reviews.sh's marker_head idiom — same capture+ascii_downcase, but
-# scans this deriver's two-line marker window where that helper scans line 1 only.
+#    fail-closed either way). Marker heads are normalized by the shared scanner;
+#    this reader scans two lines and falls back to commit_id under its own policy.
+# Selection uses the strict marker count, independently of the loose-marker
+# ambiguity policy applied to the selected body below. Preserve the existing
+# non-dismissed body-type rejection before the scanner normalizes non-strings.
 DRV_MARKER_HEAD_JQDEF='
+  include "review-verdict-marker";
+  def review_body:
+    (.body // "")
+    | if type == "string" then . else error("review body is not a string") end;
   def marker_head:
-    (.body // "") as $b
-    | (($b | split("\n"))[0:2]
-       | map(select(test("^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=(APPROVE|REJECT) -->$")))) as $hits
-    | if ($hits | length) == 1
-      then ($hits[0] | capture("head=(?<hh>[0-9a-fA-F]{40})") | .hh | ascii_downcase)
-      else "" end;
+    (review_body | verdict_marker_scan(2) | .markers) as $hits
+    | if ($hits | length) == 1 then $hits[0].head else "" end;
   def off_head_markers($H):
     [ .[] | select((.state // "") != "DISMISSED") | marker_head as $mh | select($mh != "" and $mh != $H) | $mh ];'
 DRV_STATE_FILTER="$DRV_MARKER_HEAD_JQDEF"'
@@ -322,7 +276,7 @@ DRV_STATE_FILTER="$DRV_MARKER_HEAD_JQDEF"'
   def verdict_bearing:
     (((.state // "") | IN("APPROVED","CHANGES_REQUESTED"))
      or (((.state // "") == "COMMENTED")
-         and ((.body // "") | (test("(?:^|\\n)##[[:space:]]+Verdict:") or test("^<!-- prflow:review-verdict ")))));
+         and (review_body | (test("(?:^|\\n)##[[:space:]]+Verdict:") or (verdict_marker_scan(1) | .loose >= 1)))));
   ($h | ascii_downcase) as $H
   | add
   | . as $all
@@ -343,12 +297,12 @@ DRV_OFF_HEAD_FILTER="$DRV_MARKER_HEAD_JQDEF"'
   | add
   | off_head_markers($H)
   | unique | join(" ")'
-if ! STATE=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs --arg h "$HEAD_SHA" \
+if ! STATE=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs -L "$DRV_LIB" --arg h "$HEAD_SHA" \
           "$DRV_STATE_FILTER | (.state // \"\")" 2>/dev/null); then
   echo "derive-review-verdict: reviews JSON could not be parsed (jq failed or the reviews payload was not an array) — verdict unverifiable; failing closed (incomplete)." >&2
   emit incomplete false
 fi
-if ! RBODY=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs --arg h "$HEAD_SHA" \
+if ! RBODY=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs -L "$DRV_LIB" --arg h "$HEAD_SHA" \
           "$DRV_STATE_FILTER | (.body // \"\")" 2>/dev/null); then
   echo "derive-review-verdict: reviews JSON could not be parsed (jq failed or the reviews payload was not an array) — verdict unverifiable; failing closed (incomplete)." >&2
   emit incomplete false
@@ -363,7 +317,7 @@ fi
 #    diagnostic, not a decision. An empty STATE means the candidate set was empty (a
 #    verdict-bearing selected review always has a non-empty state).
 if [ -z "$STATE" ]; then
-  OFFHEADS=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs --arg h "$HEAD_SHA" "$DRV_OFF_HEAD_FILTER" 2>/dev/null) || OFFHEADS=""
+  OFFHEADS=$(printf '%s' "$REVIEWS_JSON" | "$DEVFLOW_JQ" -rs -L "$DRV_LIB" --arg h "$HEAD_SHA" "$DRV_OFF_HEAD_FILTER" 2>/dev/null) || OFFHEADS=""
   if [ -n "$OFFHEADS" ]; then
     echo "derive-review-verdict: no marked review names HEAD ($HEAD_SHA) — the payload's marked review(s) name other heads ($OFFHEADS); a markerless review's reviews-API commit_id is the re-pointed key this ignores (GitHub moves it to the current head on a branch update); continuing to this run's progress-comment fallback." >&2
   fi
@@ -375,7 +329,11 @@ fi
 #     reading — two markers, a shape that does not parse, a head naming another commit,
 #     or a reviews-API state that contradicts it — emits `incomplete`/`false` with its
 #     own breadcrumb rather than a guess, exactly like every other arm in this helper.
-RMARKER="$(drv_marker_verdict "$RBODY")"
+if ! RMARKER="$(drv_marker_verdict "$RBODY")"; then
+  echo "derive-review-verdict: marker parse failed — failing closed (incomplete)." >&2
+  emit incomplete false
+fi
+RMARKER="${RMARKER%$'\r'}"
 case "$RMARKER" in
   ambiguous)
     echo "derive-review-verdict: the HEAD review body carries TWO prflow:review-verdict marker lines — which one states the verdict cannot be established; failing closed (incomplete)." >&2
@@ -398,6 +356,10 @@ case "$RMARKER" in
       emit incomplete false
     fi
     emit approve true ;;
+  none) ;;
+  *)
+    echo "derive-review-verdict: marker parse returned an empty or unrecognized token — failing closed (incomplete)." >&2
+    emit incomplete false ;;
 esac
 
 # REJECT first (fail toward blocking): a CHANGES_REQUESTED, or a REJECT verdict
@@ -447,7 +409,11 @@ fi
 #     commit other than the HEAD under consideration means this run's comment describes a
 #     different commit, and joining on it would publish a stale verdict. There is no state
 #     to contradict the marker on this surface, so no contradiction arm applies.
-CMARKER="$(drv_marker_verdict "$CBODY")"
+if ! CMARKER="$(drv_marker_verdict "$CBODY")"; then
+  echo "derive-review-verdict: marker parse failed — failing closed (incomplete)." >&2
+  emit incomplete false
+fi
+CMARKER="${CMARKER%$'\r'}"
 case "$CMARKER" in
   ambiguous)
     echo "derive-review-verdict: this run's progress comment carries TWO prflow:review-verdict marker lines — which one states the verdict cannot be established; failing closed (incomplete)." >&2
@@ -460,6 +426,10 @@ case "$CMARKER" in
     emit incomplete false ;;
   REJECT) emit reject true ;;
   APPROVE) emit approve true ;;
+  none) ;;
+  *)
+    echo "derive-review-verdict: marker parse returned an empty or unrecognized token — failing closed (incomplete)." >&2
+    emit incomplete false ;;
 esac
 
 # Herestrings for the same SIGPIPE/pipefail reason as the review-body greps.

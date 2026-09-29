@@ -79,6 +79,7 @@ Both signals mean the same thing: the review found nothing that blocks the merge
 The common causes are:
 
 - The verification checklist could not be generated, so the phases that check each claim were skipped. That caps the verdict at `APPROVE WITH CAVEAT` and never lets it be a clean `APPROVE`.
+- The checklist holds at least one item and every item is inconclusive, or an item is inconclusive because verification itself failed, such as a verifier that timed out or returned no usable verdict. The report lists those items under `### Unverified`.
 - Every finding sat below the fix loop's severity threshold, so the findings were parked as advisory rather than fixed.
 - The second, independent pass did not record that it ran with full coverage. The summary then reads `shadow agreement not verified`, sometimes with the reason in parentheses.
 
@@ -98,7 +99,7 @@ jq '{verdict: .prflow_review.verdict_severity_threshold, fix: .prflow_review_and
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `prflow_review.verdict_severity_threshold` | `critical` | A finding, or a failed or inconclusive checklist item, at or above this severity causes REJECT. Set it to `important` to make Important ones block the merge too. Both `/prflow:review` and the review pass inside `/prflow:review-and-fix` use it. |
+| `prflow_review.verdict_severity_threshold` | `critical` | A finding, or a failed checklist item, at or above this severity causes REJECT; at `critical` or `important`, a failed item about an untrue internal-documentation sentence counts as a note instead. Set it to `important` to make Important ones block the merge too. Both `/prflow:review` and the review pass inside `/prflow:review-and-fix` use it. |
 | `prflow_review_and_fix.fix_severity_threshold` | `important` | The fix loop sends every finding and failed checklist item at or above this severity to the fixer, subject to `fix_below_threshold_iterations`. Anything below it stays advisory, and an inconclusive checklist item is never sent. Set `suggestion` for a more aggressive fixer, or `critical` for a conservative one. |
 
 Severity runs `critical`, then `important`, then `suggestion`. An unknown or wrongly typed value falls back to the default with a note, and never stops the run. Any finding or failed checklist item that would cause REJECT is always fixable, whatever the fix threshold says.

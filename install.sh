@@ -938,10 +938,9 @@ devflow_report_env_identifier_freeze() {
   [ "$state" = "an existing" ] || return 0
   log "NOTICE: PRFlow's DEVFLOW_* names are unchanged and must stay that way. The repository rename did not touch the GitHub variables and secrets (DEVFLOW_APP_ID, DEVFLOW_RUNNER, ...) or the environment overrides (DEVFLOW_GH, DEVFLOW_REF, ...) — nothing here reads a PRFLOW_* equivalent, so renaming one removes the setting instead of moving it, and most do so SILENTLY (an unresolvable GitHub variable is indistinguishable from one you never set: the run stays green with a degraded identity, or on a runner you did not choose). Do not rename them. The full list, with what each rename actually does, is in https://prflow.ai/docs/runs/cloud/setup under 'Why these settings are still called DEVFLOW_*'."
 }
-# INSTALL-TIME HALF of the #1041 silent-disable skew guard. The trigger-time ::error::
-# baked into both shipped workflows is the AUTHORITATIVE signal — it fires on every later
-# trigger and needs no installer run to reach the operator. This warns at the moment the
-# skew is CREATED, which is the one moment somebody is actually watching output.
+# INSTALL-TIME HALF of the #1041 silent-disable skew guard. At trigger time, the
+# projector reports key skew; a preserved pre-projection action instead fails the
+# workflow Verify step with an upgrade instruction. This warns during installation.
 #
 # Strictly READ-ONLY, and deliberately so. It never edits a workflow, never edits the
 # config, and above all never couples the workflow refresh to the config migration: the
@@ -954,7 +953,7 @@ devflow_report_env_identifier_freeze() {
 # result, and an unresolvable python3 here simply emits nothing while the trigger-time
 # guard still reports the skew.
 DEVFLOW_ENABLE_SKEW_PY='
-import json, os, sys
+import json, os, re, sys
 sys.stdout.reconfigure(newline="\n")
 try:
     with open(".prflow/config.json", encoding="utf-8") as fh:
@@ -966,6 +965,148 @@ wf = cfg.get("workflows") if isinstance(cfg, dict) else None
 # value, and the skew is about which KEY exists, not what it holds.
 if not isinstance(wf, dict) or "prflow" in wf or "devflow" not in wf:
     sys.exit(0)
+def uses_projection(text):
+    # Recognize literal action paths in block steps with block/flow input maps.
+    # Ambiguous nonempty command scalars count as dependencies; this is not a YAML loader.
+    # Mirrored in install.sh / scaffold-config.sh: the standalone installer cannot
+    # import a repository helper or require PyYAML.
+    def uncomment(line):
+        quote = None
+        escaped = False
+        comment = False
+        kept = []
+        for pos, char in enumerate(line):
+            if comment:
+                if char != chr(10):
+                    continue
+                comment = False
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == chr(92) and quote == chr(34):
+                    escaped = True
+                elif char == quote:
+                    if quote == chr(39) and line[pos + 1:pos + 2] == quote:
+                        escaped = True
+                    else:
+                        quote = None
+            elif char in (chr(34), chr(39)) and (not line[:pos].rstrip() or line[:pos].rstrip()[-1] in "[{,:"):
+                quote = char
+            elif char == "#" and (pos == 0 or line[pos - 1].isspace()):
+                comment = True
+                continue
+            kept.append(char)
+        return "".join(kept).rstrip()
+
+    def scalar(value, following, depth):
+        if re.fullmatch(r"[|>][1-9+-]*", value):
+            content = []
+            for child in following:
+                if child.strip() and len(child) - len(child.lstrip()) <= depth:
+                    break
+                content.append(child.strip())
+            result = " ".join(content).strip()
+            if not result and "+" in value and content and (len(following) > len(content) or text.endswith(chr(10))):
+                return chr(10)
+            return result
+        result = value.strip(chr(34) + chr(39))
+        if not result and value not in (chr(34) * 2, chr(39) * 2):
+            for child in following:
+                if child.strip() and len(child) - len(child.lstrip()) <= depth:
+                    break
+                if uncomment(child).strip():
+                    return child.strip()
+        return result
+
+    def flow_command(value):
+        value = uncomment(value)
+        # Split only direct mapping entries; quoted/nested commas are values.
+        entries = []
+        start = 1
+        nesting = 0
+        quote = None
+        escaped = False
+        for pos, char in enumerate(value[1:], 1):
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == chr(92) and quote == chr(34):
+                    escaped = True
+                elif char == quote:
+                    if quote == chr(39) and value[pos + 1:pos + 2] == quote:
+                        escaped = True
+                    else:
+                        quote = None
+            elif char in (chr(34), chr(39)) and value[:pos].rstrip()[-1] in "[{,:":
+                quote = char
+            elif char in "{[":
+                nesting += 1
+            elif char in "}]":
+                if nesting:
+                    nesting -= 1
+                else:
+                    entries.append(value[start:pos])
+                    break
+            elif char == "," and nesting == 0:
+                entries.append(value[start:pos])
+                start = pos + 1
+        for entry in entries:
+            field = re.match(r"[\x22\x27]?command[\x22\x27]?:\s*(.*?)\s*$", entry.strip(), re.DOTALL)
+            if field:
+                return field[1].strip().strip(chr(34) + chr(39))
+        return None
+
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        start = re.match(r"^( *)- ", line)
+        if not start:
+            continue
+        indent = len(start[1])
+        uses = None
+        command = None
+        in_with = False
+        input_depth = None
+        flow_inputs = []
+        for offset, child in enumerate(lines[index:]):
+            if not child.strip() or child.lstrip().startswith("#"):
+                if in_with and flow_inputs:
+                    flow_inputs.append(child)
+                continue
+            depth = len(child) - len(child.lstrip())
+            if offset == 0:
+                child = " " * (indent + 2) + child[indent + 2:]
+                depth = indent + 2
+            elif depth <= indent:
+                break
+            if in_with and flow_inputs and (depth > indent + 2 or child.lstrip().startswith("}")):
+                flow_inputs.append(child.strip())
+                continue
+            if in_with and depth > indent + 2:
+                if input_depth is None:
+                    input_depth = depth
+            child = uncomment(child)
+            field = re.match(r"[\x22\x27]?(\w+)[\x22\x27]?:\s*(.*?)\s*$", child.strip())
+            if not field:
+                continue
+            key, value = field.groups()
+            value = value.strip()
+            if depth == indent + 2:
+                in_with = key == "with" and (not value or value.startswith("{"))
+                input_depth = None
+                if key == "uses":
+                    uses = scalar(value, lines[index + offset + 1:], depth)
+                elif key == "with" and value.startswith("{"):
+                    flow_inputs = [value]
+            elif depth == input_depth and in_with and key == "command":
+                command = scalar(value, lines[index + offset + 1:], depth)
+        if flow_inputs:
+            command = flow_command("\n".join(flow_inputs))
+        # A trailing slash names the same local action. Treat an @ suffix
+        # conservatively as a dependency too, even though local actions need no ref.
+        if uses and re.fullmatch(r"\./\.github/actions/read-project-config/*(?:@[^\s]+)?", uses) and command:
+            return True
+    return False
+
 skewed = []
 for name in sys.argv[1:]:
     try:
@@ -973,17 +1114,41 @@ for name in sys.argv[1:]:
             body = fh.read()
     except Exception:
         continue
-    if ".workflows.prflow" in body:
+    reader = body
+    if uses_projection(body):
+        try:
+            action_dir = os.path.join(".github", "actions", "read-project-config")
+            with open(os.path.join(action_dir, "action.yml"), encoding="utf-8") as fh:
+                action = fh.read()
+            # A preserved old JSON-only action does not invoke the new reader.
+            if "project.sh" not in action:
+                raise ValueError("installed config action predates projection")
+            with open(os.path.join(action_dir, "project.sh"), encoding="utf-8") as fh:
+                reader += "\n" + fh.read()
+        except (OSError, UnicodeError, ValueError) as exc:
+            sys.stdout.write("WARNING: PARTIAL UPGRADE check could not inspect shared config projection for "
+                             + name + ": " + str(exc) + ". Run install.sh --apply; merge any "
+                             + ".github/actions/read-project-config.prflow-new directory into the installed action, then re-run.\n")
+    if ".workflows.prflow" in reader:
         skewed.append(name)
 if skewed:
     sys.stdout.write(" ".join(skewed))
 '
 devflow_warn_enable_key_skew() {
-  local skewed
+  local skewed="" result line
   devflow_resolve_python || return 0
-  skewed="$("$DEVFLOW_PY" -c "$DEVFLOW_ENABLE_SKEW_PY" devflow.yml devflow-implement.yml 2>/dev/null)" || return 0
+  if ! result="$("$DEVFLOW_PY" -c "$DEVFLOW_ENABLE_SKEW_PY" devflow.yml devflow-implement.yml)"; then
+    log "WARNING: PARTIAL UPGRADE check could not inspect installed workflow configuration. Run install.sh --apply and merge any workflow or shared-action .prflow-new sidecars before retrying."
+    return 0
+  fi
+  while IFS= read -r line; do
+    case "$line" in
+      WARNING:*) log "$line" ;;
+      *) skewed="$line" ;;
+    esac
+  done <<< "$result"
   [ -n "$skewed" ] || return 0
-  log "WARNING: PARTIAL UPGRADE — these shipped workflows now read the renamed enable key workflows.prflow, but .prflow/config.json still carries only the superseded workflows.devflow: $skewed. They resolve as DISABLED and every trigger will silently do nothing. The config-key migration was refused because another shipped workflow still reads the superseded key — merge any .github/workflows/*.prflow-new sidecar left beside a hand-edited workflow, then re-run install.sh --apply so the workflow reads and the config key move together."
+  log "WARNING: PARTIAL UPGRADE — these shipped workflows now read the renamed enable key workflows.prflow, but .prflow/config.json still carries only the superseded workflows.devflow: $skewed. Older inline readers can resolve as DISABLED; the shared projector fails for true; other values resolve as DISABLED (with a warning unless empty). The installed readers and config have not migrated together — merge any .github/workflows/*.prflow-new sidecar or .github/actions/read-project-config.prflow-new directory left beside a hand-edited installed copy, then re-run install.sh --apply so the workflow reads and the config key move together."
 }
 # ── Identifier migration ────────────────────────────────────────────────────
 # When the published plugin/marketplace identifier changes, the previous id is declared

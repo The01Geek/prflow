@@ -495,7 +495,8 @@ fi
 # python3. It does NOT cover an unusable jq, because that skips the whole backfill
 # below and there is then no graft to guard against (restated at the guard itself).
 #
-# The gate reads the two workflow files install.sh SHIPS and can therefore refresh.
+# The gate reads the two workflow files install.sh SHIPS and can therefore refresh,
+# plus the action and projector when a workflow opts into shared projection.
 # Its permissive answer is "no superseded reads found", which is exactly what a
 # missing or failing scanner also produces, so it fails CLOSED: only a scan that
 # ran AND came back empty allows the migration. The three retained withheld-tier
@@ -503,7 +504,7 @@ fi
 # blocking forever on one would be worse than reporting it) — they are reported by
 # name instead, further down.
 PRFLOW_WORKFLOW_SCAN_PY='
-import re, sys
+import pathlib, re, sys
 sys.stdout.reconfigure(newline="\n")
 
 # A superseded read is either a brand-named config key or the superseded vendored
@@ -514,25 +515,179 @@ sys.stdout.reconfigure(newline="\n")
 # shipped workflow still reading `.workflows.devflow` now DOES count as staleness:
 # the enable read would resolve absent -> false and silently disable the workflow
 # the migrated config just re-keyed. There is therefore no `workflows` lookbehind
-# any more -- a fresh shipped workflow reads `.workflows.prflow` and carries no
-# `.devflow` at all, so it still passes clean.
+# any more -- the shared projector reads `.workflows.prflow`; its migration guards
+# use bracketed superseded keys so current dependencies pass this dotted-read scan.
 KEY = re.compile(r"\.devflow(?![A-Za-z])")
 BARE = re.compile(r"\bdevflow_(version|implement|runner|review_and_fix|review|retrospective)(?![A-Za-z0-9_])")
 
+def uses_projection(text):
+    # Recognize literal action paths in block steps with block/flow input maps.
+    # Ambiguous nonempty command scalars count as dependencies; this is not a YAML loader.
+    # Mirrored in install.sh / scaffold-config.sh: the standalone installer cannot
+    # import a repository helper or require PyYAML.
+    def uncomment(line):
+        quote = None
+        escaped = False
+        comment = False
+        kept = []
+        for pos, char in enumerate(line):
+            if comment:
+                if char != chr(10):
+                    continue
+                comment = False
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == chr(92) and quote == chr(34):
+                    escaped = True
+                elif char == quote:
+                    if quote == chr(39) and line[pos + 1:pos + 2] == quote:
+                        escaped = True
+                    else:
+                        quote = None
+            elif char in (chr(34), chr(39)) and (not line[:pos].rstrip() or line[:pos].rstrip()[-1] in "[{,:"):
+                quote = char
+            elif char == "#" and (pos == 0 or line[pos - 1].isspace()):
+                comment = True
+                continue
+            kept.append(char)
+        return "".join(kept).rstrip()
+
+    def scalar(value, following, depth):
+        if re.fullmatch(r"[|>][1-9+-]*", value):
+            content = []
+            for child in following:
+                if child.strip() and len(child) - len(child.lstrip()) <= depth:
+                    break
+                content.append(child.strip())
+            result = " ".join(content).strip()
+            if not result and "+" in value and content and (len(following) > len(content) or text.endswith(chr(10))):
+                return chr(10)
+            return result
+        result = value.strip(chr(34) + chr(39))
+        if not result and value not in (chr(34) * 2, chr(39) * 2):
+            for child in following:
+                if child.strip() and len(child) - len(child.lstrip()) <= depth:
+                    break
+                if uncomment(child).strip():
+                    return child.strip()
+        return result
+
+    def flow_command(value):
+        value = uncomment(value)
+        # Split only direct mapping entries; quoted/nested commas are values.
+        entries = []
+        start = 1
+        nesting = 0
+        quote = None
+        escaped = False
+        for pos, char in enumerate(value[1:], 1):
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == chr(92) and quote == chr(34):
+                    escaped = True
+                elif char == quote:
+                    if quote == chr(39) and value[pos + 1:pos + 2] == quote:
+                        escaped = True
+                    else:
+                        quote = None
+            elif char in (chr(34), chr(39)) and value[:pos].rstrip()[-1] in "[{,:":
+                quote = char
+            elif char in "{[":
+                nesting += 1
+            elif char in "}]":
+                if nesting:
+                    nesting -= 1
+                else:
+                    entries.append(value[start:pos])
+                    break
+            elif char == "," and nesting == 0:
+                entries.append(value[start:pos])
+                start = pos + 1
+        for entry in entries:
+            field = re.match(r"[\x22\x27]?command[\x22\x27]?:\s*(.*?)\s*$", entry.strip(), re.DOTALL)
+            if field:
+                return field[1].strip().strip(chr(34) + chr(39))
+        return None
+
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        start = re.match(r"^( *)- ", line)
+        if not start:
+            continue
+        indent = len(start[1])
+        uses = None
+        command = None
+        in_with = False
+        input_depth = None
+        flow_inputs = []
+        for offset, child in enumerate(lines[index:]):
+            if not child.strip() or child.lstrip().startswith("#"):
+                if in_with and flow_inputs:
+                    flow_inputs.append(child)
+                continue
+            depth = len(child) - len(child.lstrip())
+            if offset == 0:
+                child = " " * (indent + 2) + child[indent + 2:]
+                depth = indent + 2
+            elif depth <= indent:
+                break
+            if in_with and flow_inputs and (depth > indent + 2 or child.lstrip().startswith("}")):
+                flow_inputs.append(child.strip())
+                continue
+            if in_with and depth > indent + 2:
+                if input_depth is None:
+                    input_depth = depth
+            child = uncomment(child)
+            field = re.match(r"[\x22\x27]?(\w+)[\x22\x27]?:\s*(.*?)\s*$", child.strip())
+            if not field:
+                continue
+            key, value = field.groups()
+            value = value.strip()
+            if depth == indent + 2:
+                in_with = key == "with" and (not value or value.startswith("{"))
+                input_depth = None
+                if key == "uses":
+                    uses = scalar(value, lines[index + offset + 1:], depth)
+                elif key == "with" and value.startswith("{"):
+                    flow_inputs = [value]
+            elif depth == input_depth and in_with and key == "command":
+                command = scalar(value, lines[index + offset + 1:], depth)
+        if flow_inputs:
+            command = flow_command("\n".join(flow_inputs))
+        # A trailing slash names the same local action. Treat an @ suffix
+        # conservatively as a dependency too, even though local actions need no ref.
+        if uses and re.fullmatch(r"\./\.github/actions/read-project-config/*(?:@[^\s]+)?", uses) and command:
+            return True
+    return False
+
+
 stale = []
-for path in sys.argv[1:]:
+checked = set()
+pending = [(path, False) for path in sys.argv[1:]]
+while pending:
+    path, required = pending.pop(0)
+    if path in checked:
+        continue
+    checked.add(path)
     try:
         with open(path, encoding="utf-8") as fh:
             text = fh.read()
     except FileNotFoundError:
-        # Absent is not stale: a consumer who never installed that workflow has
-        # nothing that could read the config out of date.
+        if required:
+            sys.stderr.write("required shared config projection file is missing: " + path + "\n")
+            sys.exit(2)
+        # An absent optional workflow has no reader. Required dependencies fail above.
         continue
     except Exception as exc:
         sys.stderr.write("could not read " + path + ": " + str(exc) + "\n")
         sys.exit(2)
     if KEY.search(text) or BARE.search(text):
         stale.append(path)
+    if not required and uses_projection(text):
+        action = pathlib.Path(path).parent.parent / "actions" / "read-project-config"
+        pending.extend((str(action / name), True) for name in ("action.yml", "project.sh"))
 if stale:
     sys.stdout.write("\n".join(stale))
     sys.exit(1)
@@ -719,9 +874,9 @@ PRFLOW_SKILL_MIG_REPORT
       "$TARGET_ROOT/.github/workflows/devflow.yml" \
       "$TARGET_ROOT/.github/workflows/devflow-implement.yml" 2>&1)" || gate_rc=$?
   if [ "$gate_rc" -eq 1 ]; then
-    log "NOT migrating superseded config keys: these shipped workflow files still read the superseded names and would be left reading a config that moved out from under them — $(printf '%s' "$gate_out" | tr '\n' ' '). Run install.sh --apply to refresh them, then re-run."
+    log "NOT migrating superseded config keys: these shipped workflow or shared-action files still read the superseded names and would be left reading a config that moved out from under them — $(printf '%s' "$gate_out" | tr '\n' ' '). Run install.sh --apply to refresh them; for kept local edits, merge the workflow .prflow-new sidecars or .github/actions/read-project-config.prflow-new directory into the installed copies, then re-run."
   elif [ "$gate_rc" -ne 0 ]; then
-    log "NOT migrating superseded config keys: the shipped-workflow freshness scan could not be performed${gate_out:+ ($gate_out)}. Refusing rather than reading a failed scan as a clean one."
+    log "NOT migrating superseded config keys: the shipped-workflow freshness scan could not be performed${gate_out:+ ($gate_out)}. Run install.sh --apply to restore required files; for kept local edits, merge the workflow .prflow-new sidecars or .github/actions/read-project-config.prflow-new directory into the installed copies, then re-run. Refusing rather than reading a failed scan as a clean one."
   else
     MIGRATE_TMP="$(mktemp)"; MIGRATE_ERR="$(mktemp)"
     trap 'rm -f "$MIGRATE_TMP" "$MIGRATE_ERR"' EXIT

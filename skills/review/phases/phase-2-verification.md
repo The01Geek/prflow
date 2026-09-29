@@ -37,7 +37,7 @@ Use fixed-string mode (`-F`); quote to escape shell-special characters.
 Edge cases:
 - File missing → record INCONCLUSIVE with `evidence: "file not found"`, unless the view's inventory records it deleted (Source view below): then `string_absent` PASS, `string_present` FAIL.
 - `lite_probe` field missing despite `verification_mode: "lite"` (malformed item) → promote the item to the agent path; do not silently PASS.
-- `grep` exit code 2 (real error, not just no-match) → INCONCLUSIVE with the stderr text in `evidence`.
+- `grep` exit code 2 (real error, not just no-match) → INCONCLUSIVE with `evidence` `lite probe error: ` followed by the stderr text.
 
 Source view. Grep the lite probe's `<file>` in the run's commit-bound source view, not the working tree: `<head-view-dir>/<stored_path>` (a base-state probe `<base-view-dir>/<stored_path>`), where `<stored_path>` is the repository path, plus `.src` for a harness-instruction file (`CLAUDE.md`, `AGENTS.md`, any path under a `.claude/` dir). Record the view's 40-hex `revision` as the lite result's `view_revision` so the collector can provenance-check it. For a missing file, run `grep -c -F '"path": "<JSON-escaped repository path>", "stored_path": null, "kind": "deleted"' <view-dir>/inventory.json` — never Read the inventory: a count above 0 records it deleted; anything else is unread, never a working-tree fallback. When §0.2.8 materialized no view, grep the working tree and omit `view_revision`.
 

@@ -597,7 +597,7 @@ TTM_HOURS="$(DEVFLOW_MERGED_AT="$MERGED_AT" DEVFLOW_CREATED_AT="$CREATED_AT" pyt
 # leg alongside the comments closes the fail-open hole where a /review run that left no
 # progress comment made review_reject_outstanding vacuously false (issue #895).
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
-REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" -f "$HERE/review-verdict-union.jq")"
+REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -L "$HERE" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" -f "$HERE/review-verdict-union.jq")"
 REVIEW_VERDICTS="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -c '.verdicts // []')"
 REVIEW_VERDICT_UNPARSED_COUNT="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -r '.unparsed // 0')"
 # Never leave either empty: REVIEW_REJECT_OUTSTANDING is derived from the array below and

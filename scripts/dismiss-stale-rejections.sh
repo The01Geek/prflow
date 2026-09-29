@@ -14,7 +14,7 @@
 # Scope: ONLY reviews whose body is a PRFlow Review formal verdict are
 # dismissed. Three body shapes are matched:
 #   1. PRODUCER MARKER (issue #1030, the authoritative shape): the review
-#      body's LINE 1 is exactly
+#      body's LINE 1, after removing one trailing CR, is
 #        <!-- prflow:review-verdict head=<40-hex> verdict=REJECT -->
 #      composed by scripts/post-review-verdict.sh — never by the reviewing
 #      agent. This is the only shape whose presence the producer guarantees.
@@ -87,15 +87,15 @@
 # Best-effort per review: a failed dismissal is logged and the rest still
 # run; the verdict never depends on this housekeeping.
 #
-# Requires: gh (authenticated), jq. Needs pull-requests:write — the
+# Requires: gh (authenticated), jq, and sibling lib/review-verdict-marker.jq.
+# Needs pull-requests:write — the
 # dismissals API can dismiss ANY reviewer's review (required for the
-# cross-identity case). $DEVFLOW_GH overrides the `gh` binary for tests
-# (same seam as the rest of devflow; see lib/fetch-pr-context.sh).
+# cross-identity case). $DEVFLOW_GH and $DEVFLOW_JQ override their binaries.
 #
 # Exit codes:
 #   0  all matching reviews dismissed, or none were outstanding (no-op)
-#   1  a query failed (the review list, or the current-head read), or one or
-#      more dismissals failed (caller may warn; never fatal there)
+#   1  the marker module is unavailable, a query failed, or a dismissal failed
+#      (caller may warn; never fatal there)
 #   2  bad arguments
 #   3  nothing failed, but at least one Devflow-report CHANGES_REQUESTED was
 #      left outstanding because it could not be shown superseded (issue
@@ -113,11 +113,24 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 
+_DSR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/resolve-jq.sh
+. "$_DSR_DIR/../lib/resolve-jq.sh" \
+  || { echo "prflow: resolve-jq.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
+if [ -z "${DEVFLOW_JQ:-}" ]; then
+  echo "prflow: resolve-jq.sh sourced but did not assign DEVFLOW_JQ — using bare 'jq' (set DEVFLOW_JQ to override)" >&2
+  DEVFLOW_JQ=jq
+fi
+
 if [ "$#" -lt 1 ] || [ -z "${1:-}" ]; then
   echo "usage: dismiss-stale-rejections.sh PR_NUMBER [REPO]" >&2
   exit 2
 fi
 PR="$1"
+if [ ! -f "$_DSR_DIR/../lib/review-verdict-marker.jq" ] || [ ! -r "$_DSR_DIR/../lib/review-verdict-marker.jq" ]; then
+  echo "WARNING: review-verdict-marker.jq is unavailable — dismissed nothing." >&2
+  exit 1
+fi
 REPO="${2:-$("$DEVFLOW_GH" repo view --json nameWithOwner --jq .nameWithOwner)}"
 
 # One paginated call (consistent with claude.yml Signal 1) so the loop runs
@@ -134,28 +147,24 @@ REPO="${2:-$("$DEVFLOW_GH" repo view --json nameWithOwner --jq .nameWithOwner)}"
 # #1030: before the marker, six of nine real REJECTs matched no body shape, so the
 # script reported a clean no-op on a wedged pull request and nothing recorded that
 # it had looked at anything at all.
-# The body type is tested BEFORE any string operation and `and` short-circuits, so a
-# non-string `body` (an API shape this script does not produce) grades `other`
-# instead of aborting the whole filter — CLAUDE.md's non-string-field guard.
-# The marker `head=` is captured by a SECOND, separately-guarded capture() over the
-# SAME line-1 string the ownership test() reads (not by extending that test(), which
-# yields a boolean and captures nothing), defaulted with `// "-"` so every row emits
-# exactly one line whatever its body shape — a body that carries no line-1 marker
-# (transitional prose, a human block, an APPROVE marker, a marker quoted below line 1)
-# yields the sentinel. The captured head is `ascii_downcase`d so it compares byte-exact
-# against the lowercase `.head.sha`/`commit_id` the API returns — the ownership regex is
-# case-tolerant, so a hand-authored uppercase marker head would otherwise read superseded
-# against a lowercase head and wave a live review through (guard-class-2: normalize in jq,
-# not with a bash-4 `${var,,}` that breaks on macOS bash 3.2, nor a non-preflight `tr`).
+# The scanner normalizes non-string bodies; the ownership type check keeps them
+# `other`. Only a line-1 REJECT marker supplies a head. Legacy-prose rows keep
+# the sentinel and fall back to commit_id; other marker verdicts are not owned.
 # `commit_id` is likewise encoded as the sentinel `-` (never a
 # valid SHA), so no field is ever positional-empty: default-IFS `read` collapses
 # whitespace runs, so an empty field in the MIDDLE of a row would shift the split.
 # Both `while read` loops map the sentinel back to the empty string with a `case`
 # builtin before use.
-if ! ROWS=$("$DEVFLOW_GH" api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" \
-             --jq 'def prflow_own_reject($b): ($b | type) == "string" and ((($b | split("\n") | (.[0] // "")) | test("^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=REJECT -->$")) or ($b | startswith("## Verdict: REJECT")) or ($b | startswith("# Review Report")));
-                   def marker_head($b): ((($b | if type == "string" then . else "" end | split("\n") | (.[0] // "")) | capture("^<!-- prflow:review-verdict head=(?<h>[0-9a-fA-F]{40}) verdict=REJECT -->$") | .h | ascii_downcase) // "-");
-                   .[] | select(.state=="CHANGES_REQUESTED") | (prflow_own_reject(.body // "")) as $own | "\(if $own then "own" else "other" end) \(.id) \(.commit_id // "-") \(marker_head(.body))"'); then
+if ! ROWS=$("$DEVFLOW_GH" api --paginate "repos/$REPO/pulls/$PR/reviews?per_page=100" |
+             "$DEVFLOW_JQ" -r -L "$_DSR_DIR/../lib" '
+               include "review-verdict-marker";
+               .[] | select(.state == "CHANGES_REQUESTED") |
+               (.body | verdict_marker_scan(1) | .markers |
+                if length == 1 and .[0].verdict == "REJECT" then .[0].head else "-" end) as $marker_head |
+               ((.body | type) == "string" and
+                ($marker_head != "-" or (.body | startswith("## Verdict: REJECT")) or
+                 (.body | startswith("# Review Report")))) as $own |
+               "\(if $own then "own" else "other" end) \(.id) \(.commit_id // "-") \($marker_head)"'); then
   echo "WARNING: could not list reviews for PR #$PR — dismiss manually." >&2
   exit 1
 fi
@@ -170,6 +179,8 @@ fi
 CANDIDATES=""
 UNSELECTED=0
 while read -r RKIND RID RCOMMIT RHEAD; do
+  RKIND="${RKIND%$'\r'}"; RID="${RID%$'\r'}"
+  RCOMMIT="${RCOMMIT%$'\r'}"; RHEAD="${RHEAD%$'\r'}"
   [ -n "$RID" ] || continue
   case "$RKIND" in
     own) CANDIDATES="${CANDIDATES}${RID} ${RCOMMIT} ${RHEAD}"$'\n' ;;

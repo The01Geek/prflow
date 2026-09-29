@@ -37,7 +37,7 @@ This is a complete, valid config file. It enables the cloud workflow, names the 
 {
   "$schema": "./config.schema.json",
   "base_branch": "main",
-  "claude_model": "claude-opus-5",
+  "claude_model": "claude-opus-5-5",
   "prflow_implement": {
     "allowed_tools": [
       "Bash(npm test:*)"

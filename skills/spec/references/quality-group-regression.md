@@ -1,8 +1,6 @@
 <!-- prflow:spec-ref step=quality-group-regression file=skills/spec/references/quality-group-regression.md start -->
 ## Quality group — regression reproduction and specialized test matrices
 
-Trigger (observable before this reference loads): the story reports a defect (a regression, failure, error, or wrong behavior — the signal that populates `Current Behavior`), or the Testing Strategy enumerates a case / input-shape matrix for a surface (a parser, a config consumer, a best-effort input handler), or the change introduces a reader of input the repo does not itself produce (historical records, user- or reporter-controlled text, an external structured format, agent- or human-mutable markdown). A pure feature request that adds no such reader and enumerates no matrix does not load this group; uncertain applicability loads it.
-
 Each obligation appears once, as its checklist row plus the rule text it carries.
 
 - [ ] **A defect-reporting body's `Current Behavior` carries the reproduction facts — triggering steps or input, observed result, expected result, and environment.** A bug ticket also retains a test-first **bug-reproduction** case in Testing Strategy that demonstrates the reported defect against today's code before the fix: the regression test fails by exhibiting the exact wrong behavior (the dropped last row, the off-by-one), then passes after the fix, building on those `Current Behavior` facts.

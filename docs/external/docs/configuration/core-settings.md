@@ -10,7 +10,7 @@ Configure the repository defaults, authorization rules and shared behavior used 
 | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
 | --- | --- | --- | --- | --- |
 | `base_branch` | String branch name | Runtime and scaffold: `main` | Review and implementation base. Confirm the branch exists. | `"base_branch": "main"` |
-| `claude_model` | String model identifier | Runtime and scaffold: `claude-opus-5` | Global model. Cloud workflows reject an empty value or one that begins with `-`. | `"claude_model": "claude-opus-5"` |
+| `claude_model` | String model identifier | Runtime and scaffold: `claude-opus-5-5` | Global model. Cloud workflows reject an empty value or one that begins with `-`. | `"claude_model": "claude-opus-5-5"` |
 | `prflow.allowed_bots` | Comma-separated string | `claude,dependabot` | All cloud gates. List only automation identities that may incur runs. Each entry may be written as the bare slug, `<slug>[bot]`, or `app/<slug>`, and comparison ignores case, so any of those spellings match the same identity. The review honors Scope-Acknowledged deferrals only when the pull-request author is (1) an identity listed here, (2) a bot whose head branch is in this repository, not a fork, while this list holds a `*` entry, or (3) a human who passes `prflow.allowed_users` with write, maintain or admin access. It rejects every other author's deferrals and counts those findings at full severity. The PRFlow trigger gate reads a `*` entry as a literal login, so an unlisted bot still cannot trigger a run; claude-code-action, which receives the same list, reads `*` as all bots and so stops checking bots itself. Set `prflow_retrospective.watched_authors` explicitly when using `*`, since the retrospective otherwise reads its authors from this list. | `"allowed_bots": "claude,dependabot,my-app"` |
 | `prflow.allowed_users` | `*` or comma-separated logins | `*` | All cloud gates. Humans must also have write, maintain or admin access. The same rule makes a human pull-request author a trusted deferral filer (see `prflow.allowed_bots`). | `"allowed_users": "octocat,maintainer"` |
 | `prflow.effort` | `low`, `medium`, `high`, `xhigh` or `max` | Scaffold: `low`; absent runtime fallback: `high` | General cloud command workflow. Provider routes omit effort unless the provider supports it. | `"effort": "low"` |
@@ -45,7 +45,7 @@ Configure the repository defaults, authorization rules and shared behavior used 
 {
   "$schema": "./config.schema.json",
   "base_branch": "main",
-  "claude_model": "claude-opus-5",
+  "claude_model": "claude-opus-5-5",
   "prflow_version": "v2.31.31",
   "prflow": {
     "allowed_bots": "claude,dependabot",
@@ -60,6 +60,6 @@ Configure the repository defaults, authorization rules and shared behavior used 
 }
 ```
 
-Expected result: cloud runs are enabled, only `octocat` and `maintainer` may trigger one, and every run works from `main` with `claude-opus-5` at low effort.
+Expected result: cloud runs are enabled, only `octocat` and `maintainer` may trigger one, and every run works from `main` with `claude-opus-5-5` at low effort.
 
 Use [Model Providers](/docs/configuration/providers) for `prflow.provider` and `prflow.claude_model`. Use [Tool Permissions](/docs/configuration/tool-permissions) for `prflow.allowed_tools`. To add house rules that no setting expresses, write a [prompt extension](/docs/configuration/skill-extensions).
