@@ -9,13 +9,15 @@
 # neither large GitHub payload reaches jq as an argv string; lint-argjson-transport.py
 # enforces this):
 #   printf '%s' "$PR_REVIEWS_RAW" > reviews.json
-#   echo "$PR_COMMENTS_RAW" | jq --slurpfile reviews reviews.json -f lib/review-verdict-union.jq
+#   echo "$PR_COMMENTS_RAW" | jq -L lib --slurpfile reviews reviews.json -f lib/review-verdict-union.jq
 #
 # Input: stdin is the comments array; $reviews[0] is the reviews array. Output:
 # {verdicts: [{verdict, createdAt, source}...], unparsed: <count>}. The array guards
 # and empty-document handling are a fail-closed floor no producer-driven test can
 # drive (the producer normalizes both payloads to arrays upstream); the focused test
 # lib/test/test_review_verdict_units.py drives them directly.
+include "review-verdict-marker";
+
     # Deliberately wider than rung 3 on the axes that matter — unmasked, a bare
     # substring, case-insensitive. Narrowing any axis onto rung 3 makes an artifact
     # rung 3 declined vanish from the count as well as the union, recreating the
@@ -105,10 +107,7 @@
         else [] end;
     def verdicts_in($body; $login):
         (($body | strings) | split("\n") | map(rtrimstr("\r"))) as $lines
-        | ([ $lines[0:2][]
-             | select(test("^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=(APPROVE|REJECT) -->$"))
-             | capture("verdict=(?<verdict>APPROVE|REJECT)")
-             | .verdict ]) as $marked
+        | ($body | verdict_marker_scan(2) | [.markers[].verdict]) as $marked
         | (if ($marked | length) == 1 then $marked
            else ([ $lines[]
                    | select(test("^#{1,6}[ \t]*(/review[ \t]*[—–-]+[ \t]*)?Verdict:[ \t]*\\**[ \t]*(APPROVE|REJECT)"; "i"))

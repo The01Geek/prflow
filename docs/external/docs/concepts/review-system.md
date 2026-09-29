@@ -60,8 +60,8 @@ Every review reports one of five verdicts.
 | Verdict | What it means |
 | --- | --- |
 | `APPROVE` | No findings and no failed or inconclusive checklist item. |
-| `APPROVE with notes` | Findings or failed or inconclusive checklist items exist, but all of them are below the configured severity threshold. |
-| `APPROVE WITH CAVEAT` | Approved, but part of the review could not be completed. It is never a clean approval. |
+| `APPROVE with notes` | Findings or failed checklist items exist, but all of them are below the configured severity threshold, or some checklist items are inconclusive at any severity. |
+| `APPROVE WITH CAVEAT` | Approved, but part of the review could not be completed: the checklist could not be generated, the checklist holds at least one item and every item is inconclusive, or an item is inconclusive because verification itself failed, such as a verifier that timed out. It takes precedence over `APPROVE with notes` and is never a clean approval. |
 | `APPROVE WITH ADVISORY NOTES` | The fix loop approved and parked findings it deliberately did not fix, for a person to read. |
 | `REJECT` | Something blocking was found. |
 
@@ -73,17 +73,17 @@ Every review reports one of five verdicts.
 
 Any one of these produces a `REJECT`:
 
-- A verification-checklist item that **failed** or was **inconclusive**, when its severity is at or above the configured severity threshold. The checker grades each item `critical`, `important` or `suggestion` by how much would break if the claim were false. An item without a trustworthy grade counts as `critical`.
+- A verification-checklist item that **failed**, when its severity is at or above the configured severity threshold. The checker grades each item `critical`, `important` or `suggestion` by how much would break if the claim were false. An item without a trustworthy grade counts as `critical`. At a `critical` or `important` threshold, a failed item about an untrue sentence in internal documentation — one no tool or agent reads to decide behavior and nobody outside the repository reads — counts as a note instead; the report still lists it.
 - A finding at or above the configured severity threshold.
 
-The default threshold is `critical`, so only critical findings and checklist items reject through it; the rules below reject at any threshold. A lower-graded one does not reject on its own and is listed in the report with its severity. Set `prflow_review.verdict_severity_threshold` to `important` or `suggestion` to make more of both reject. See [Review Settings](/docs/configuration/review).
+The default threshold is `critical`, so only critical findings and critical checklist failures (less the internal-documentation exception above) reject through it; the rules below reject at any threshold, except for untrue internal documentation as noted. A lower-graded one does not reject on its own and is listed in the report with its severity. Set `prflow_review.verdict_severity_threshold` to `important` or `suggestion` to make more of both reject. See [Review Settings](/docs/configuration/review).
 
 ### The Rules That Surprise People
 
-Further rejection rules do not read the severity threshold at all.
+Further rejection rules do not read the severity threshold, except for untrue internal documentation, described below.
 
 <Warning>
-  If the change's **own diff** added or modified a documentation line, a code comment or a test that is untrue, that alone produces a `REJECT`. It rejects at every threshold setting, including the default. It cannot be lowered by severity configuration and it cannot be waived by deferring the finding. Only fixing the untrue line clears it.
+  If the change's **own diff** added or modified a documentation line, a code comment or a test that is untrue, that alone produces a `REJECT`. It rejects at every threshold setting, including the default. It cannot be lowered by severity configuration and it cannot be waived by deferring the finding. Only fixing the untrue line clears it. The exception is an untrue line in internal documentation that no tool or agent reads to decide behavior and nobody outside the repository reads: it is capped at Suggestion, so it rejects only at a `suggestion` threshold.
 </Warning>
 
 "Untrue" here means the added or modified line contradicts the code as it now stands, is already stale or contradicts another part of the same change. PRFlow treats this as a correctness principle rather than a severity grade: a change that documents itself incorrectly is wrong regardless of how minor the wording looks.
@@ -93,7 +93,7 @@ Further rejection rules do not read the severity threshold at all.
 </Accordion>
 
 <Warning>
-  If a finding shows the change does not meet a decided acceptance criterion of the linked issue, that alone produces a `REJECT`, at every threshold setting and whatever severity the finding was graded. It cannot be waived by deferring the finding, and a limitation the change discloses about itself that contradicts a criterion counts as that criterion being unmet, not as honest disclosure that clears it. Only meeting the criterion — or recording that it was genuinely out of scope — clears it.
+  If a finding shows the change does not meet a decided acceptance criterion of the linked issue, that alone produces a `REJECT`, at every threshold setting and whatever severity the finding was graded. It cannot be waived by deferring the finding, and a limitation the change discloses about itself that contradicts a criterion counts as that criterion being unmet, not as honest disclosure that clears it. Only meeting the criterion — or recording that it was genuinely out of scope — clears it. The exception is a criterion whose subject is such an internal-documentation sentence: its finding is capped at Suggestion, so it rejects only at a `suggestion` threshold.
 </Warning>
 
 This closes a gap where a known-unmet criterion could ship as an "approve with notes" pull request for a person to finish by hand. A general test-coverage or quality finding that does not establish an unmet criterion is unaffected and stays weighed by the severity threshold. Separately, every decided acceptance criterion gets exactly one checklist item, however many the issue carries, and these items never count against the checklist's size cap. The report's Run details show an `Acceptance coverage: <itemized> of <resolved> decided criteria itemized` line; if any criterion is left without an item, the review rejects with a coverage shortfall. A run whose checklist generation failed caps that run's verdict at `APPROVE WITH CAVEAT`, because no checklist was generated.

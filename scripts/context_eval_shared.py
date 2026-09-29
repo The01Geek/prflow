@@ -6,9 +6,7 @@
 scripts/spec_eval.py, scripts/implement-context-eval.py and
 scripts/review-context-eval.py each measure the runtime main-thread context a run
 accumulates by walking a Claude Code transcript directory. This module is the single
-definition of the five helpers all three share — `_iter_session_files`, `_median`,
-`_context_tokens`, `_usage_value`, and the `UNESTABLISHED` sentinel — extracted (issue
-#1900) so a fix lands once.
+definition of the helpers they share, extracted (issue #1900) so a fix lands once.
 
 `_usage_value`, `_context_tokens` and `_median` keep issue #1899's strict discipline: an
 unmeasured turn, an empty population, and a non-finite number are reported unestablished
@@ -16,6 +14,7 @@ unmeasured turn, an empty population, and a non-finite number are reported unest
 shared `_context_tokens` ranges over.
 """
 
+import datetime
 import json
 import math
 import os
@@ -116,12 +115,16 @@ def _strip_caveat_lines(text):
     """(body, caveat_line_count): drop only the LEADING `#`-comment lines the scrub helper
     prepends. A `#` deeper in the file sits inside a JSON string value and must reach the
     parser, so stripping stops at the first line whose first non-blank character is not
-    `#` (issue #120 AC2)."""
-    lines = text.splitlines(keepends=True)
+    `#` (issue #120 AC2). Lines split on "\\n" only, as the JSONL path below does; a line
+    holding another line boundary (a lone CR, U+2028 and the rest `str.splitlines` breaks
+    on) also stops stripping, so a record behind it reaches the parser and is tallied
+    rather than dropped with the caveat."""
+    lines = text.split("\n")
     count = 0
-    while count < len(lines) and lines[count].lstrip().startswith("#"):
+    while (count < len(lines) and lines[count].lstrip().startswith("#")
+           and len(lines[count].rstrip("\r").splitlines()) == 1):
         count += 1
-    return "".join(lines[count:]), count
+    return "\n".join(lines[count:]), count
 
 
 def read_transcript_records(text):
@@ -192,12 +195,14 @@ def read_transcript_records(text):
         # A scalar parsed but carries no transcript record.
         return TranscriptRead(records=[], unparseable_lines=0, non_object_elements=0,
                               non_transcript_json=1, caveat_lines=caveat_lines, parsed=True)
-    # JSONL fallback: one JSON value per non-blank line.
+    # JSONL fallback: one JSON value per non-blank line. Split on "\n" only, never
+    # `splitlines()`: it also breaks on U+2028/U+2029/U+0085, which a JSON string may hold
+    # raw, turning one record into two unparseable fragments. A CRLF's "\r" is JSON whitespace.
     records = []
     unparseable = 0
     non_object = 0
     any_ok = False
-    for line in body.splitlines():
+    for line in body.split("\n"):
         if not line.strip():
             continue
         try:
@@ -412,6 +417,27 @@ def _context_tokens(usage):
     established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
                    if v is not None]
     return sum(established) if established else None
+
+
+def _parse_timestamp(value):
+    """Epoch seconds for an ISO-8601 record timestamp, or None when unusable.
+
+    None is the *unestablished* answer; callers account for it rather than reading it as a
+    time. A naive (offset-less) stamp is read as UTC so two stamps parsed here are always
+    compared on the same clock.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith(("Z", "z")):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+    return parsed.timestamp()
 
 
 def _iter_session_files(corpus_root, skipped):

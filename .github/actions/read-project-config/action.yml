@@ -4,12 +4,57 @@ description: |
   The config is already JSON, so this validates it with python3 (a hard PRFlow
   prerequisite) and passes it through — no yq, no PyYAML, no Node. Consumers read
   fields with `fromJSON(steps.<id>.outputs.json).path.to.field`. Repository must
-  already be checked out (typically via `actions/checkout@v6`).
+  already be checked out (typically via `actions/checkout@v6`). Set command to
+  command or implement to also project trigger-time workflow outputs. The caller
+  must select a trusted checkout; this action does not establish source trust.
+
+inputs:
+  command:
+    description: 'Optional trigger-time projection: command or implement. Empty reads JSON only.'
+    required: false
+    default: ''
 
 outputs:
+  projection_contract:
+    description: 'Internal compatibility marker after successful trigger-time projection.'
+    value: ${{ steps.project.outputs.projection_contract }}
   json:
     description: 'The entire .prflow/config.json as a compact JSON string.'
     value: ${{ steps.read.outputs.json }}
+
+  enabled:
+    description: 'Projected enabled; empty when command is omitted.'
+    value: ${{ steps.project.outputs.enabled }}
+  base_branch:
+    description: 'Projected base_branch; empty when command is omitted.'
+    value: ${{ steps.project.outputs.base_branch }}
+  claude_model:
+    description: 'Projected claude_model; empty when command is omitted.'
+    value: ${{ steps.project.outputs.claude_model }}
+  allowed_bots:
+    description: 'Projected allowed_bots; empty when command is omitted.'
+    value: ${{ steps.project.outputs.allowed_bots }}
+  allowed_users:
+    description: 'Projected allowed_users; empty when command is omitted.'
+    value: ${{ steps.project.outputs.allowed_users }}
+  effort:
+    description: 'Profile effort: prflow for command, prflow_implement for implement; empty without projection.'
+    value: ${{ steps.project.outputs.effort }}
+  allowed_tools_extra:
+    description: 'Profile-specific extra tool grants; implement reanchors hosted workspace paths. Empty without projection.'
+    value: ${{ steps.project.outputs.allowed_tools_extra }}
+  prflow_version:
+    description: 'Projected prflow_version; empty when command is omitted.'
+    value: ${{ steps.project.outputs.prflow_version }}
+  prflow_repo:
+    description: 'Projected prflow_repo; empty when command is omitted.'
+    value: ${{ steps.project.outputs.prflow_repo }}
+  workpad_marker:
+    description: 'Implement profile workpad marker; empty for command and JSON-only reads.'
+    value: ${{ steps.project.outputs.workpad_marker }}
+  claude_code_executable:
+    description: 'Projected claude_code_executable; empty when command is omitted.'
+    value: ${{ steps.project.outputs.claude_code_executable }}
 
 runs:
   using: composite
@@ -44,3 +89,18 @@ runs:
           printf '%s\n' "$JSON"
           printf '%s\n' "$delim"
         } >> "$GITHUB_OUTPUT"
+    - name: Project trigger-time config
+      id: project
+      if: inputs.command != ''
+      shell: bash
+      env:
+        CONFIG_JSON: ${{ steps.read.outputs.json }}
+        CONFIG_COMMAND: ${{ inputs.command }}
+      run: |
+        set -euo pipefail
+        if [ ! -f "$GITHUB_ACTION_PATH/project.sh" ] || [ ! -r "$GITHUB_ACTION_PATH/project.sh" ]; then
+          echo "::error::Shared config projection is missing or unreadable. Run install.sh --apply; if it leaves a .github/actions/read-project-config.prflow-new directory, merge that directory into the installed action, including project.sh."
+          exit 1
+        fi
+        bash "$GITHUB_ACTION_PATH/project.sh"
+        echo "projection_contract=1" >> "$GITHUB_OUTPUT"

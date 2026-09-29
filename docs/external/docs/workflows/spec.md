@@ -61,7 +61,7 @@ After creation you get the new issue's URL, and the `PRFlow` label is applied wh
 PRFlow splits its output into two artifacts, and you will see both.
 
 - **The issue body** is the implementer's brief. It holds only what a competent implementer cannot safely work out on their own: the problem, the desired behavior, non-obvious scope decisions, the acceptance criteria, real hazards and dependencies. It is the only channel an [implement](/docs/workflows/implement) run reads.
-- **The investigation record** is posted as the first comment on the created issue. It holds the narrative that produced those decisions: supporting evidence, audit history, lower-severity hazards, rejected alternatives and anything the repository would rediscover during implementation anyway.
+- **The investigation record** is posted as the first comment on the created issue. It holds the narrative that produced those decisions: supporting evidence, audit history, lower-severity hazards, rejected alternatives and anything the repository would rediscover during implementation anyway. It also carries whichever criterion disposition, steelman, self-audit and evidence-bundle sections PRFlow can read back from the run's scratch notes (self-audit is a planned new name for the steelman section; no spec step writes it yet). To fit GitHub's comment limit, the largest of those sections are cut first, then left out whole if needed, and the comment names each one. A record that still does not fit, or that cannot be built or saved, is not posted.
 
 So a newly created issue normally has one comment on it already. That comment is PRFlow's, and nothing is missing from the body because of it.
 

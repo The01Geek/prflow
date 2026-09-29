@@ -73,6 +73,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
     sys.stderr.write(
@@ -282,8 +283,8 @@ def _fail(prefix, exc, code=1):
     # `code` defaults to 1 (the historical contract for every subcommand). The
     # callers that override it to 3 are cmd_status (its gh-api/transport/auth
     # failure paths) and the acs surfaces — `_acs_read_workpad` (which passes
-    # api_fail_code=3) and `_acs_fetch_issue_body` (`_fail('acs-resolve', …,
-    # code=3)`). In every one of those the point is the same: the cloud stall
+    # api_fail_code=3) and `_acs_fetch_issue_body` (`_fail(cmd, …, code=3)`).
+    # In every one of those the point is the same: the cloud stall
     # backstop (and cmd_acs_resolve's SystemExit router) can tell an
     # auth/transport READ failure — the workpad or issue may be perfectly
     # healthy — apart from a genuinely unreadable/absent workpad. Callers that do
@@ -1397,7 +1398,9 @@ def _acs_pr_identity_ok(issue_items: list[dict], workpad_items: list[dict],
     A workpad is one comment per issue, and Phase 2.2.5 replaces its
     `## Acceptance Criteria` section WHOLESALE — so a second PR's run, or a
     re-triggered /devflow:implement on the same issue, overwrites the criteria
-    the first PR was reviewed against.
+    the first PR was reviewed against. An issue whose criteria were amended after
+    the mirror leaves the same narrower workpad, and this guard cannot tell the two
+    causes apart; `acs-remirror` repairs the amendment.
 
     Fails CLOSED on an absent comparand, and does so PER CRITERION — never at
     the level of the record set as a whole. Every criterion the issue body
@@ -1457,11 +1460,11 @@ def _acs_rewrite_walk(text: str, workpad_norm: set[str],
     return None if hit is None else ('deferred', hit)
 
 
-def _acs_fetch_issue_body(issue: str) -> str:
+def _acs_fetch_issue_body(issue: str, cmd: str = 'acs-resolve') -> str:
     try:
         r = _run([GH, 'issue', 'view', str(issue), '--json', 'body', '-q', '.body'])
     except (subprocess.CalledProcessError, OSError) as e:
-        _fail('acs-resolve', e, code=3)
+        _fail(cmd, e, code=3)
     return r.stdout
 
 
@@ -1607,15 +1610,65 @@ def cmd_acs_resolve(args):
         print('not-applicable')
 
 
+def cmd_acs_remirror(args):
+    """Re-mirror the issue body's criteria into the workpad (issue #1492).
+
+    Phase 1.2/1.3's mirror without the run: `parse-acs.py --body-file` over the body
+    fetched here, installed by `update --replace-acs-file` with one note, in one PATCH.
+    There is no criteria operand, so only the issue body can supply what lands. The body
+    is staged raw, so the mirror breaks lines where `acs-resolve` does. Refuses before
+    any write when `section_parse.py` is missing or the body is unreadable (exit 3), or
+    the body carries no checkbox criterion or `parse-acs.py` fails (exit 1); `update`
+    refuses an absent or unreadable workpad, or one without the section (exit 1), and,
+    through `--expect-status Complete`, a workpad whose Status is not Complete (exit 4).
+    """
+    _require_section_parse('acs-remirror')
+    body = _acs_fetch_issue_body(args.issue, 'acs-remirror')
+    if not parse_checkboxes(extract_section(body, _ACS_SECTION)):
+        sys.stderr.write(
+            f"workpad.py acs-remirror: issue #{args.issue} has no checkbox criterion "
+            f"under '## {_ACS_SECTION}'; nothing re-mirrored\n")
+        sys.exit(1)
+    staged = []
+    try:
+        staged.append(_stage_body_bytes(body))
+        parse_acs = str(Path(__file__).resolve().parent / 'parse-acs.py')
+        try:
+            r = subprocess.run(
+                [sys.executable, parse_acs, '--body-file', str(staged[0])],
+                capture_output=True, text=True, encoding='utf-8', check=False,
+            )
+            cause = f'exited {r.returncode}: {r.stderr.strip()}' if r.returncode else ''
+        except OSError as e:
+            cause = f'could not run: {e}'
+        if cause:
+            sys.stderr.write(
+                f"workpad.py acs-remirror: parse-acs.py {cause}; nothing re-mirrored\n")
+            sys.exit(1)
+        sys.stderr.write(r.stderr)
+        staged.append(_stage_body_bytes(r.stdout))
+        update_args = _build_parser().parse_args([
+            'update', str(args.issue), '--replace-acs-file', str(staged[1]),
+            '--expect-status', 'Complete',
+            '--note', ("Re-mirrored `## Acceptance Criteria` from the issue body "
+                       "(`workpad.py acs-remirror`)"),
+        ])
+        # The note claims the replacement, which a failed PATCH does not buffer.
+        update_args.unbuffered_notes = True
+        cmd_update(update_args)
+    finally:
+        for p in staged:
+            p.unlink(missing_ok=True)
+
+
 # ── Leading-marker preservation across a full-body rewrite (issue #1508) ────
 # A comment's identity is its line-1 marker, and a verdict stamp is the line
 # after it. A caller that re-authors the whole body from state it holds drops
 # whatever it does not retype, and a marker-resolving reader does not error on
 # the result: its scan finds nothing and reads "there was no such comment".
 #
-# The scan stops at two lines because that is the window every reader uses
-# (docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §8) — a marker deeper in a body is
-# prose, so hoisting one would invent a stamp the producer never made.
+# The two-line scan covers the leading run key and verdict stamp. A deeper
+# marker is prose; hoisting it would invent a stamp the producer never made.
 _LEADING_MARKER_SCAN = 2
 # Anchored at column 0, because that is where the readers' predicate anchors
 # (`_find_workpad_comment`'s `body.startswith(...)`): recognising an INDENTED marker
@@ -5122,8 +5175,11 @@ def _cmd_update_inner(args):
         # so the note/reflection the PATCH dropped survives to be replayed by the
         # next successful call. Any previously-buffered records stay buffered (the
         # buffer is only cleared on a successful PATCH), so no content is lost.
+        # `acs-remirror` sets `unbuffered_notes`: its note claims the criteria
+        # replacement, which is not buffered, so a replay would claim it.
         _buf_path = _buffer_failed_change(
-            comment_id, _own_notes, _own_reflections, _own_kind)
+            comment_id, [] if getattr(args, 'unbuffered_notes', False) else _own_notes,
+            _own_reflections, _own_kind)
         if _buf_path is not None:
             sys.stderr.write(
                 f"workpad.py update: buffered this call's note/reflection content "
@@ -6605,7 +6661,8 @@ _REVIEW_COVERAGE_GAPS = tuple(
 # (issue #1984). It rides the disposition marker key as `…:<gap>:<cause-class>`, so a
 # member must stay colon-free. Admissibility lives in
 # `_review_coverage_disposition_cause_rejection`; do not restate it here.
-_REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
+_REVIEW_COVERAGE_CAUSE_CLASSES = (
+    'environment-denial', 'dispatched-but-lost', 'extension-provenance')
 if any(':' in c for c in _REVIEW_COVERAGE_CAUSE_CLASSES):
     # An explicit raise (not a bare `assert`, which `python3 -O` strips) pins the
     # marker-key round-trip invariant for this producer/consumer contract.
@@ -7176,8 +7233,21 @@ def _review_coverage_dispatch_uncorroborated(record: dict, roster_members: dict)
     return not all_present or not any_dispatched
 
 
+def _review_coverage_roster_facts(roster_members: dict) -> tuple[bool, bool, bool]:
+    """`(has_missing, has_dispatched, is_full)` over the roster rows, shared by both
+    cause-class enforcement points. `is_full` is every always-on member `dispatched` and
+    no member `missing`."""
+    has_missing = any(s == 'missing' for s in roster_members.values())
+    has_dispatched = any(
+        roster_members.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
+    is_full = not has_missing and all(
+        roster_members.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
+    return has_missing, has_dispatched, is_full
+
+
 def _review_coverage_disposition_cause_rejection(
-        cause_class, *, has_missing_roster_row, has_dispatched_roster_row):
+        cause_class, *, gap, has_missing_roster_row, has_dispatched_roster_row,
+        has_full_roster_rows):
     """Why a disposition's cause class is inadmissible, or None (issue #1984).
 
     The single home of the cause-class rule, shared by the write-time
@@ -7195,7 +7265,9 @@ def _review_coverage_disposition_cause_rejection(
     member) can no longer finalize on it. A dispatched row can only exist on a measured
     (`complete`/`short`) roster — `_review_roster_incoherence` refuses rows on an
     `unestablished`/`not-applicable` roster — so this operand carries the roster-axis
-    condition too."""
+    condition too. `extension-provenance` (issue #1484) — a full-roster shadow whose only
+    prompt addenda are extension-provenance entries — discharges only `shadow-coverage`,
+    and only over the full roster."""
     if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
         return (f"carries cause class {cause_class!r}, which is not one of "
                 f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)}")
@@ -7205,6 +7277,13 @@ def _review_coverage_disposition_cause_rejection(
     if cause_class == 'dispatched-but-lost' and not has_dispatched_roster_row:
         return ("carries cause class 'dispatched-but-lost' but no always-on reviewer's "
                 "roster row records 'dispatched', so no dispatch is on record")
+    if cause_class == 'extension-provenance' and gap != 'shadow-coverage':
+        return (f"carries cause class 'extension-provenance', which explains only the "
+                f"shadow-coverage gap, not {gap!r}")
+    if cause_class == 'extension-provenance' and not has_full_roster_rows:
+        return ("carries cause class 'extension-provenance' but the roster rows do not "
+                "record every always-on reviewer 'dispatched' with no member 'missing', "
+                "so the full roster is uncorroborated")
     return None
 
 
@@ -7941,12 +8020,9 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "[review-coverage-undispatched]. Stop at a non-terminal or Blocked status "
             "naming the cause instead. No PATCH was made."
         )
-    # #1984: `environment-denial` is corroborated by a recorded `missing` roster row
-    # (the denied member); #181/13e: `dispatched-but-lost` by an always-on `dispatched`
-    # row. `roster_members` was read above for the roster cross-check.
-    has_missing_roster_row = any(s == 'missing' for s in roster_members.values())
-    has_dispatched_roster_row = any(
-        roster_members.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
+    # `roster_members` was read above for the roster cross-check.
+    (has_missing_roster_row, has_dispatched_roster_row,
+     has_full_roster_rows) = _review_coverage_roster_facts(roster_members)
     for gap in gaps:
         entry = dispositions[gap]
         if entry is _REVIEW_COVERAGE_DUPLICATE_DISPOSITION:
@@ -7961,8 +8037,9 @@ def _review_coverage_verdict(progress_content: str) -> None:
         # #1984: cause-class admissibility is defined once, in
         # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
-            cause_class, has_missing_roster_row=has_missing_roster_row,
-            has_dispatched_roster_row=has_dispatched_roster_row)
+            cause_class, gap=gap, has_missing_roster_row=has_missing_roster_row,
+            has_dispatched_roster_row=has_dispatched_roster_row,
+            has_full_roster_rows=has_full_roster_rows)
         if _cause_rej:
             raise _UpdateError(
                 "refusing to finalize Status: Complete — the disposition for gap "
@@ -8779,6 +8856,78 @@ def _resolve_head_branch() -> str:
     return name
 
 
+class _CompletionEvidencePlan(NamedTuple):
+    progress_rows: tuple[str, ...]
+    strip_all: bool
+    verification_row: str | None
+
+
+def _plan_completion_evidence(args, recorded_at: datetime.datetime) -> _CompletionEvidencePlan:
+    """Validate completion recording and compose its rows without inspecting the workpad."""
+    rows: list[str] = []
+    verification_row = None
+    flight_key = getattr(args, 'record_completion_evidence', None)
+    if flight_key:
+        _validate_flight_key(args, flight_key)
+        marker = _checkpoint_marker(_COMPLETION_MARKER_KEY_PREFIX + flight_key)
+        rows.append(
+            f'Completion verification recorded (flight {flight_key[:12]}…, '
+            f'validated) {marker}')
+
+    record_ci = getattr(args, 'record_completion_evidence_ci', None)
+    if record_ci:
+        _require_arity('--record-completion-evidence-ci', record_ci, 3,
+                       ('HEAD_SHA', 'TIER', 'RUN_URL'))
+        head, tier, url = record_ci
+        owner = _reserved_checkpoint_marker_owner(url)
+        if owner:
+            raise _reserved_marker_error('the --record-completion-evidence-ci run URL', owner)
+        checks = []
+        for pair in getattr(args, 'completion_ci_check', None) or []:
+            _require_arity('--completion-ci-check', pair, 2, ('NAME', 'CONCLUSION'))
+            checks.append({'name': pair[0], 'conclusion': pair[1]})
+        payload = _encode_ci_payload({
+            'head_sha': head, 'tier': tier, 'run_url': url, 'checks': checks,
+        })
+        _validate_ci_evidence(args, payload)
+        verification_row = _verification_evidence_row(
+            command='gh pr checks',
+            outcome=', '.join(f"{c['name']}={c['conclusion']}" for c in checks),
+            run_roots=[url], tallies=None, elapsed=None, started_at=None,
+            recorded_at=recorded_at.strftime('%Y-%m-%dT%H:%M:%SZ'), head=head)
+        marker = _checkpoint_marker(_COMPLETION_CI_MARKER_KEY_PREFIX + payload)
+        rows.append(
+            f'completion evidence recorded from CI reading '
+            f'(head {head[:12]}…, {url}, validated) {marker}')
+
+    cloud_file = getattr(args, 'record_completion_evidence_cloud_ci', None)
+    if cloud_file:
+        try:
+            with open(cloud_file, encoding='utf-8') as stream:
+                record = json.load(stream)
+        except (OSError, ValueError) as error:
+            raise _UpdateError(
+                f"--record-completion-evidence-cloud-ci: could not read a JSON record "
+                f"from {cloud_file!r} ({error.__class__.__name__}). No PATCH was made."
+            )
+        payload = _encode_ci_payload(record)
+        _validate_cloud_ci_evidence(args, payload)
+        # Validation establishes the record shape before any field is read.
+        url = str(record.get('run_url', ''))
+        owner = _reserved_checkpoint_marker_owner(url)
+        if owner:
+            raise _reserved_marker_error('the --record-completion-evidence-cloud-ci run_url', owner)
+        head = str(record.get('head_sha', ''))[:12]
+        marker = _checkpoint_marker(_COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX + payload)
+        rows.append(
+            f'completion evidence recorded from cloud CI '
+            f'(head {head}…, {url}, validated) {marker}')
+
+    return _CompletionEvidencePlan(
+        tuple(rows), bool(rows or getattr(args, 'invalidate_completion_evidence', False)),
+        verification_row)
+
+
 def _apply_mutations(body: str, args, failed_ticks) -> str:
     """Apply all mutations from args and return the new body.
 
@@ -8850,81 +8999,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if _is_satisfied_tick_replay(body, args):
         raise _NoOpReplay('satisfied-ticks')
 
-    # Completion verification-flight evidence recording (issue #1087). Validate the
-    # record BEFORE any body mutation so a non-pass key is a structural failure that
-    # changes nothing (all-or-nothing); the marker row is written below.
-    record_flight_key = getattr(args, 'record_completion_evidence', None)
-    if record_flight_key:
-        _validate_flight_key(args, record_flight_key)
-
-    # Verification-evidence rows (issue #2131): compose and validate BEFORE any body
-    # mutation so a refusal makes no PATCH; the rows are appended below.
-    verification_evidence_rows: list[str] = []
+    completion_plan = _plan_completion_evidence(args, now_dt)
+    verification_evidence_rows = (
+        [completion_plan.verification_row] if completion_plan.verification_row is not None else [])
     _ve_recorded_at = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    # CI-derived completion evidence recording (issue #1611). Validate the decoded
-    # record BEFORE any body mutation so a non-pass record is a structural failure
-    # that changes nothing (all-or-nothing), exactly like the flight key above; the
-    # marker row is written below. The four operands are the re-audit fields.
-    record_ci = getattr(args, 'record_completion_evidence_ci', None)
-    ci_payload = None
-    if record_ci:
-        _require_arity(
-            '--record-completion-evidence-ci', record_ci, 3,
-            ('HEAD_SHA', 'TIER', 'RUN_URL'))
-        _ci_head, _ci_tier, _ci_url = record_ci
-        # The run URL is caller-supplied and embedded verbatim in the CI producer row,
-        # so screen it for a reserved marker before that row is composed (issue #321).
-        _ci_owner = _reserved_checkpoint_marker_owner(_ci_url)
-        if _ci_owner:
-            raise _reserved_marker_error(
-                "the --record-completion-evidence-ci run URL", _ci_owner)
-        # Each --completion-ci-check pair becomes a {name, conclusion} check object; the
-        # validator refuses a record whose checks do not cover the required set or whose
-        # tier is not `local` (issue #1898). argparse's nargs=2 guarantees the pair arity
-        # from the CLI, but a programmatic caller can pass a short list, so re-check it.
-        ci_check_pairs = getattr(args, 'completion_ci_check', None) or []
-        checks = []
-        for _pair in ci_check_pairs:
-            _require_arity(
-                '--completion-ci-check', _pair, 2, ('NAME', 'CONCLUSION'))
-            checks.append({'name': _pair[0], 'conclusion': _pair[1]})
-        ci_record = {
-            'head_sha': _ci_head,
-            'tier': _ci_tier,
-            'run_url': _ci_url,
-            'checks': checks,
-        }
-        ci_payload = _encode_ci_payload(ci_record)
-        _validate_ci_evidence(args, ci_payload)
-        # A passing CI reading appends the same row here (issue #2131) so the local-tier
-        # reading has ONE producer — do not add a second writer for the CI path.
-        verification_evidence_rows.append(_verification_evidence_row(
-            command='gh pr checks',
-            outcome=', '.join(f"{c['name']}={c['conclusion']}" for c in checks),
-            run_roots=[_ci_url], tallies=None, elapsed=None, started_at=None,
-            recorded_at=_ve_recorded_at, head=_ci_head))
-
-    # Cloud-CI completion evidence recording (issue #403). The record is read from a
-    # FILE (the collector emits a JSON object too large for a CLI operand), decoded,
-    # re-encoded into the marker payload, and validated BEFORE any body mutation — a
-    # non-pass record is a structural failure that changes nothing (all-or-nothing),
-    # exactly like the flight key and local-CI record above. The run is NEVER labelled
-    # local: this family is its own, and its validator binds the record to this tree
-    # and the declared CI contract, not to a tier string.
-    record_cloud_ci_file = getattr(args, 'record_completion_evidence_cloud_ci', None)
-    cloud_ci_payload = None
-    if record_cloud_ci_file:
-        try:
-            with open(record_cloud_ci_file, encoding='utf-8') as _fh:
-                _cloud_ci_record = json.load(_fh)
-        except (OSError, ValueError) as e:
-            raise _UpdateError(
-                f"--record-completion-evidence-cloud-ci: could not read a JSON record "
-                f"from {record_cloud_ci_file!r} ({e.__class__.__name__}). No PATCH was made."
-            )
-        cloud_ci_payload = _encode_ci_payload(_cloud_ci_record)
-        _validate_cloud_ci_evidence(args, cloud_ci_payload)
 
     # Phase 2 sweep-evidence recording (issue #438). Read from a FILE (a JSON object
     # too large for a CLI operand), validated and size-checked BEFORE any body
@@ -8955,12 +9033,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"{len(sweep_evidence_payload)} bytes, over the {_NOTE_BYTE_BUDGET}-byte "
                 f"budget; shorten its evidence references. No PATCH was made."
             )
-
-    # Explicit invalidation of any recorded completion evidence (issue #403). A final
-    # edit, a base update that changes the candidate, or a repair must strip stale
-    # evidence before publication and Complete; this bare-strip-no-append flag does
-    # exactly that across all three families, needing no fresh record to carry it.
-    invalidate_completion = getattr(args, 'invalidate_completion_evidence', False)
 
     # Validate BEFORE any body mutation (no PATCH on refusal). The head is stamped here,
     # never caller-supplied: a passed-in head could name a commit the suite never ran on.
@@ -9291,8 +9363,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # this call's own rows, so a disposition recorded in a later call than the roster
     # enumeration still sees it. Guarded by `review_dispositions` so a note-only or
     # checkpoint update pays no extra section parse.
-    _disp_has_missing = False
-    _disp_has_dispatched = False
+    _disp_has_missing = _disp_has_dispatched = _disp_has_full = False
     if review_dispositions:
         if review_coverage_payload:
             # This call re-stamps coverage, which strips the prior roster rows before the
@@ -9309,12 +9380,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                     + _REVIEW_ROSTER_UNDECODABLE_TAIL)
             _disp_roster = dict(_disp_existing)
             _disp_roster.update(roster_members)
-        _disp_has_missing = any(s == 'missing' for s in _disp_roster.values())
-        # #181/13e: a `dispatched-but-lost` disposition requires a recorded dispatch —
-        # an always-on reviewer's row reading `dispatched` (roster-global, like the
-        # `missing` corroboration above).
-        _disp_has_dispatched = any(
-            _disp_roster.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
+        (_disp_has_missing, _disp_has_dispatched,
+         _disp_has_full) = _review_coverage_roster_facts(_disp_roster)
     for _triple in review_dispositions:
         # Arity is guaranteed by argparse's nargs=3 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass an element of any other
@@ -9349,8 +9416,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # #1984: cause-class admissibility is defined once, in
         # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
-            cause_class, has_missing_roster_row=_disp_has_missing,
-            has_dispatched_roster_row=_disp_has_dispatched)
+            cause_class, gap=gap, has_missing_roster_row=_disp_has_missing,
+            has_dispatched_roster_row=_disp_has_dispatched,
+            has_full_roster_rows=_disp_has_full)
         if _cause_rej:
             raise _UpdateError(
                 f"--review-coverage-disposition: gap {gap!r} {_cause_rej} "
@@ -9695,55 +9763,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     progress_notes = _notes + review_coverage_auto_notes + scope_decision_notes + deferred_filed_notes + [
         f'{text} {_checkpoint_marker(key)}' for key, text in checkpoint_inserts
     ]
-    # Completion-evidence marker (issue #1087): validated above; a later validated key
-    # REPLACES the prior one (unlike a plain checkpoint replay), so any existing
-    # completion-verification row is stripped before the new marker is appended.
-    # The tool-composed producer rows below carry a reserved marker themselves, so they
-    # are exempted from the note-text guard by provenance (issue #321); a caller operand
-    # one embeds verbatim is screened separately, before the row is composed.
-    _producer_reserved_rows: set[str] = set()
-    if record_flight_key:
-        _ck = _COMPLETION_MARKER_KEY_PREFIX + record_flight_key
-        _cv_row = (
-            f'Completion verification recorded (flight {record_flight_key[:12]}…, '
-            f'validated) {_checkpoint_marker(_ck)}'
-        )
-        progress_notes.append(_cv_row)
-        _producer_reserved_rows.add(_cv_row)
-    # CI-derived completion-evidence marker (issue #1611): validated above; a later
-    # validated record REPLACES the prior one, so any existing completion-ci row is
-    # stripped before this marker is appended (mirroring the flight family). The
-    # visible row names the head SHA and conclusion the reading rests on.
-    if ci_payload:
-        _ci_ck = _COMPLETION_CI_MARKER_KEY_PREFIX + ci_payload
-        _ci_row = (
-            f'completion evidence recorded from CI reading '
-            f'(head {record_ci[0][:12]}…, {record_ci[2]}, validated) '
-            f'{_checkpoint_marker(_ci_ck)}'
-        )
-        progress_notes.append(_ci_row)
-        _producer_reserved_rows.add(_ci_row)
-    # Cloud-CI completion-evidence marker (issue #403): validated above; a later
-    # validated record REPLACES the prior one and every other family's row (the
-    # combined strip below), so the terminal gate's exactly-one contract holds. The
-    # visible row names the head SHA and run URL the reading rests on.
-    if cloud_ci_payload:
-        _cc_ck = _COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX + cloud_ci_payload
-        _cc_head = str(_cloud_ci_record.get('head_sha', ''))[:12]
-        _cc_url = str(_cloud_ci_record.get('run_url', ''))
-        # The run URL is record-supplied and embedded verbatim in this producer row,
-        # so screen it for a reserved marker before the row is composed (issue #321).
-        _cc_owner = _reserved_checkpoint_marker_owner(_cc_url)
-        if _cc_owner:
-            raise _reserved_marker_error(
-                "the --record-completion-evidence-cloud-ci run_url", _cc_owner)
-        _cc_row = (
-            f'completion evidence recorded from cloud CI '
-            f'(head {_cc_head}…, {_cc_url}, validated) '
-            f'{_checkpoint_marker(_cc_ck)}'
-        )
-        progress_notes.append(_cc_row)
-        _producer_reserved_rows.add(_cc_row)
+    progress_notes.extend(completion_plan.progress_rows)
+    _producer_reserved_rows = set(completion_plan.progress_rows)
     # Mid-phase resume-point marker (issue #1876): a later record REPLACES the prior
     # one, so any existing resume-point row is stripped below before this is appended.
     if resume_point_payload:
@@ -9890,13 +9911,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             heading, content = sections[idx]
             sections[idx] = (heading, _strip_prior_status_marker_rows(content))
 
-    # Cross-family completion-evidence strip (issue #403). Recording ANY completion
-    # family — or an explicit --invalidate-completion-evidence — strips every family's
-    # rows so exactly one marker survives (the incoming producer row is appended AFTER
-    # this strip, below, and so is never removed here). This runs on its own condition
-    # rather than inside the `if progress_notes` block, so `--invalidate-completion-
-    # evidence` with no other mutation still clears the body.
-    if record_flight_key or ci_payload or cloud_ci_payload or invalidate_completion:
+    # Keep the strip outside the append guard so invalidation-only calls still clear old rows.
+    if completion_plan.strip_all:
         idx = _find_section(sections, 'Progress')
         if idx is not None:
             heading, content = sections[idx]
@@ -10131,6 +10147,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
 
 def main():
     _force_utf8_streams()
+    args = _build_parser().parse_args()
+    args.func(args)
+
+
+def _build_parser():
     p = argparse.ArgumentParser(prog='workpad.py')
     sub = p.add_subparsers(dest='cmd', required=True)
 
@@ -10297,6 +10318,20 @@ def main():
                         'refused path is left untouched; it or a failed write is named '
                         'on stderr and still exits 0.')
     s.set_defaults(func=cmd_acs_resolve)
+
+    s = sub.add_parser(
+        'acs-remirror',
+        help="Replace the workpad's ## Acceptance Criteria with a fresh mirror of the "
+             "issue body's (the implement mirror, run after amending the issue), "
+             'restoring criteria the run deferred or rewrote. Takes no criteria '
+             'operand. Refuses with no write: exit 3 when section_parse.py is missing '
+             'or the issue body is unreadable; exit 1 when the body has no checkbox '
+             'criterion or parse-acs.py fails. update then applies its own refusals, '
+             'including exit 1 for an absent, unreadable or section-less workpad and '
+             'exit 4 for a Status other than Complete.',
+    )
+    s.add_argument('issue', type=int)
+    s.set_defaults(func=cmd_acs_remirror)
 
     s = sub.add_parser(
         'deferred-presence',
@@ -10916,8 +10951,11 @@ def main():
                         + '|'.join(_REVIEW_COVERAGE_CAUSE_CLASSES)
                         + ' — environment-denial (a capability the runner did not '
                           'expose; must be corroborated by a recorded missing roster '
-                          'row) or dispatched-but-lost (a reviewer that was dispatched '
-                          'whose result was lost). A budget belief or a partial pass '
+                          'row), dispatched-but-lost (a reviewer that was dispatched '
+                          'whose result was lost) or extension-provenance (shadow-coverage '
+                          'only: a full-roster shadow whose only prompt addenda are '
+                          'extension-provenance entries; every always-on roster row '
+                          'dispatched, no member missing). A budget belief or a partial pass '
                           'judged adequate has no admissible class and stops the run at '
                           'Blocked. Repeatable — one per gap; every gap the record '
                           'reports must be dispositioned. Accepted ONLY over a record '
@@ -10990,9 +11028,7 @@ def main():
                    help='The current GITHUB_RUN_ATTEMPT (written as a string).')
     w.add_argument('gate', help='The gate-provided handoff token to normalize.')
     w.set_defaults(func=cmd_write_handoff_record)
-
-    args = p.parse_args()
-    args.func(args)
+    return p
 
 
 if __name__ == '__main__':

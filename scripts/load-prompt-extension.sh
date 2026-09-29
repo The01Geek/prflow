@@ -19,11 +19,9 @@
 #                repeated --digest is one --digest. An undeliverable extension, and a
 #                digest that cannot be computed, each exit 2 with empty stdout.
 #
-# The --section extraction rule (issue #611) is SPECIFIED in
-# skills/spec/references/step-2-clarify.md (the `## Evidence axes`
-# forwarding paragraph, moved there at issue #614) and IMPLEMENTED here; that
-# reference sentence is the specification of record and this helper is its single
-# implementation — a coupled pair, edited together. The rule:
+# The --section extraction rule is SPECIFIED in the `## Extraction rule` section of
+# skills/spec/references/audit-prompt-template.md and IMPLEMENTED here — a coupled
+# pair, edited together. The rule:
 #   * a section spans its heading line to the next line beginning '## ' (two hashes
 #     PLUS A SPACE, so a '###' sub-heading line is section content, not a
 #     terminator), else to end of file;

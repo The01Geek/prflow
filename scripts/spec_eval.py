@@ -37,41 +37,48 @@ reports a genuine, established `0`, since nothing can escape a scope that was ne
 dispatched. The other two proxies — the `record-reopen` count and the declared
 post-filing class — are unaffected.
 
-A "run" is bounded by `attributionSkill` matching any declared `<ns>:spec` on
-`type == "assistant"` records. A **main-thread** (non-`isSidechain`) attributed
-assistant record measures the ORCHESTRATOR's main-thread context — reported as a
-**secondary** axis (never the sole basis of a reduction claim). A **sidechain**
-attributed assistant record is the auditor's own turn; its total token cost is
-attributed to the round the most recent `record-dispatch --round N` marker opened.
-One session JSONL file that contains at least one main-thread attributed assistant
-record yields one run — so a run that RESUMES into a separate session file is reported
-as its own run (cross-session merging is out of scope, a disclosed proxy). That
-disclosure matters more since #889 than before it: a resumed run splits its
-`round_auditor_cost` across two run records, and `_paired_delta`'s round count sums
-`dispatch_rounds` per run, so a resumed before-corpus inflates the round-count delta.
+A "run" starts at the first main-thread (non-`isSidechain`) assistant record whose
+`attributionSkill` is an accepted spec id (`ATTRIBUTION`), and ends at the end of its
+session file, or in manifest mode of its declared event span (issue #1332): Claude Code
+stops stamping the label after the first subagent hand-back, so every later main-thread
+assistant record counts whatever its label, and records before the start count toward
+nothing. Those records measure the ORCHESTRATOR's
+main-thread context — reported as a **secondary** axis (never the sole basis of a
+reduction claim). A **sidechain** attributed assistant record in the run is the auditor's
+own turn; its total token cost is attributed to the round the most recent
+`record-dispatch --round N` marker opened. In corpus and paired mode one session file
+yields at most one run: work after the spec run in the same session is counted with it,
+and a second spec run in the same file joins the first. A session resumed or forked into a
+new file copies the earlier file's records; in those modes a turn several files of one
+corpus (in paired mode, of one side) share counts in no file but the one that owns it
+(`_foreign_message_ids`), so each file yields a run of the turns it owns only, and none
+when it carries no spec-labelled record or owns no turn. So a resumed run splits its
+`round_auditor_cost` across two run records, and the resumed file's record can carry
+cost for a round only the earlier file's `dispatch_rounds` lists.
 
-UNVERIFIED ASSUMPTION, disclosed rather than assumed away: that the harness stamps
-`attributionSkill` on an `isSidechain` assistant record at all. Nothing in this
-repository establishes it — the synthetic fixtures assert the attribution logic, not
-the harness's real emit shape. If the harness omits the field on sidechain records,
-`_observe_sidechain` returns early for every auditor turn and the whole auditor-cost
-axis reads a silent `0` that is indistinguishable from a genuinely free audit. The
-first real-corpus run is what settles it: read `total_unrounded_auditor_cost` and the
-per-round tallies together, and treat an all-zero auditor axis on a corpus that
-demonstrably ran audit rounds (`dispatch_rounds` non-empty) as evidence of this
-assumption failing, not as a measurement. Since issue #1751 made every fresh-context
-audit round user-elected, an EMPTY `dispatch_rounds` set is the expected default of a
-run that declined the audit — not evidence of anything — so the discriminator above is
-deliberately conditioned on `dispatch_rounds` non-empty and never reads a zero-round run
-as an attribution failure.
+When a run's `sidechain_records_seen` is 0, a zero auditor cost beside a non-empty
+`dispatch_rounds` is the cost of the skipped subagent files (or of an auditor that
+recorded no turn), not an attribution failure:
+Claude Code writes a subagent's turns to `<session-id>/subagents/*.jsonl`, which
+`eval_corpus` skips under `sidechain_only_file`. A `sidechain_records_attributed` below
+`sidechain_records_seen` means in-file sidechain records carried no spec
+`attributionSkill`. Counting auditor cost from the subagent files is out of scope here.
+An EMPTY `dispatch_rounds` set is the expected default of a run that declined the
+user-elected audit (issue #1751).
 
-Per-record token usage is read from `message.usage.{input_tokens,
-cache_read_input_tokens, cache_creation_input_tokens, output_tokens}`. Per-turn
-main-thread context (the RESIDENCY axis) is `input_tokens + cache_read_input_tokens +
-cache_creation_input_tokens`; a turn establishing none of those residency sub-fields (no
-usage object, or one carrying only absent, null, or non-finite counts) is an unmeasured turn —
-tallied in `usage_missing_turns` and excluded from the peak, never folded in as a
-real-looking 0 (issue #1899). The auditor's per-round cost is the full token total
+An API turn is one `message.id`, as in the implement context instrument (issue #694):
+consecutive main-thread assistant records sharing a non-empty string id are one turn,
+even with user, system or sidechain records between them; a record whose id is absent,
+empty or not a string is a turn of its own. Token usage is read from
+`message.usage.{input_tokens, cache_read_input_tokens, cache_creation_input_tokens,
+output_tokens}`. A turn's main-thread context (the RESIDENCY axis) is `input_tokens +
+cache_read_input_tokens + cache_creation_input_tokens` from its earliest record that
+establishes one of them; a turn none of whose records does (no usage object, or only
+absent, null, or non-finite counts) is an unmeasured turn — tallied in
+`usage_missing_turns` and excluded from the peak, never folded in as a real-looking 0
+(issue #1899) — and makes `cumulative_context`, the sum of the run's turn contexts,
+`unestablished`. A turn adds its largest established `output_tokens` once to
+`total_output_tokens`. The auditor's per-round cost is the full token total
 (context sub-fields + output) on the SPEND axis, where an unmeasured sub-field stays a
 summable 0 so the cost arithmetic is never handed an unestablished value. Compaction is
 observed as `type == "system", subtype == "compact_boundary"` and only counted.
@@ -126,13 +133,15 @@ from context_eval_shared import (
     _context_tokens,
     _iter_session_files,
     _median,
+    _parse_timestamp,
     _usage_value,
     read_and_tally,
+    read_transcript_records,
 )
 
-# A run is bounded by `attributionSkill`, which carries the LIVE plugin namespace. That
-# namespace is renameable, and historical census rows keep whatever namespace was live
-# when they were written — so this must accept EVERY declared namespace, not one literal.
+# A run's start record carries the plugin namespace live when it was written. That
+# namespace is renameable, and historical census rows keep an older one, so this must
+# accept EVERY declared namespace, not one literal.
 # A single hardcoded id silently matches nothing after a rename (every new run rejected,
 # the eval reporting zero runs with no error), or silently drops the history if simply
 # swapped. Derived from the same identity source the rest of the repo single-sources.
@@ -192,6 +201,12 @@ LARGE_BLOCK_MIN_CHARS = 500
 # The peak-context bucket thresholds the aggregate summary reports on.
 BUCKET_200K = 200_000
 BUCKET_400K = 400_000
+# Skip channels a Claude Code session folder's subagent transcripts,
+# `.meta.json`/`custom-title.json` sidecars and `tool-results/*.txt` land in; they alone do
+# not degrade `_paired_delta`'s main-thread deltas or `total_round_count`. A misnamed
+# transcript, a `.json` one parsing as one JSON value with no `type`-bearing record, or an
+# unlabelled one carrying sidechain records lands in one too, and its turns go uncounted.
+_SIDECAR_CHANNELS = ("sidechain_only_file", "non_transcript_json", "unrecognized_suffix")
 # Every stderr breadcrumb this module writes carries one prefix: the module is
 # reachable under two script names, and a second literal makes an operator
 # grepping by prefix miss a whole degradation class.
@@ -923,30 +938,42 @@ def _tool_result_text(block):
     return None
 
 
+# What an observer raises on a record shape its isinstance guards did not anticipate.
+_OBSERVER_ERRORS = (AttributeError, TypeError, ValueError, KeyError)
+
+
 class RunAccumulator:
     """Streams one session file's records and accumulates one run's metrics.
 
-    Holds only bounded per-record state — token tallies, sets of content/large-block
-    hashes (not the record bodies themselves), a pending tool_use_id -> file_path
-    map, and the per-round auditor-cost tally. It never retains full record bodies
-    (the streaming property); the hash/pending structures still grow with the count
-    of distinct session content, so this is bounded-per-record, not constant memory.
+    Holds per-record tallies, content/large-block hashes and pending/open-turn
+    bookkeeping, never full record bodies (the streaming property); the hash, pending
+    and per-turn-context structures grow with session length, so this is
+    bounded-per-record, not constant memory.
     """
 
-    def __init__(self, source, large_block_chars):
+    def __init__(self, source, large_block_chars, foreign_ids=frozenset()):
         self.source = source
         self.large_block_chars = large_block_chars
+        # Main-thread `message.id`s another session file of the corpus owns (issue #1332).
+        self.foreign_ids = frozenset(foreign_ids)
         self.turn_count = 0
         self.per_turn_context = []
-        # Attributed main-thread turns whose residency was never established (no usage
-        # object, or one carrying only null/non-finite counts). Tallied rather than
-        # folded into per_turn_context as a 0, which would drag the peak down (issue #1899).
+        # Run turns whose residency was never established (no usage object, or one
+        # carrying only null/non-finite counts). Tallied rather than folded into
+        # per_turn_context as a 0, which would drag the peak down (issue #1899).
         self.usage_missing_turns = 0
         self.total_output_tokens = 0
         self.compact_boundary_count = 0
         self.repeated_read_count = 0
         self.reemission_count = 0
-        self.attributed = False
+        # True from the first spec-labelled main-thread record on: the run has started.
+        self.started = False
+        # True from a copied (foreign) main-thread record up to the next own one, so the
+        # user, system and sidechain records in between count toward nothing.
+        self._in_copied_span = False
+        # {"context": int|None, "output": int|None, "id": str|None} for the API turn
+        # being accumulated; closed by `_close_turn`.
+        self._open_turn = None
         # Round boundaries are derived from the transcript's own record-dispatch
         # markers (issue #889): the most recent `--round N` marker names the round a
         # subsequent sidechain (auditor) turn is attributed to.
@@ -954,13 +981,17 @@ class RunAccumulator:
         self.dispatch_rounds = set()         # rounds seen (deduped; order is irrelevant)
         self.round_auditor_cost = {}         # round_num -> total auditor token cost
         self.unrounded_auditor_cost = 0      # sidechain cost before any dispatch marker
-        # Every sidechain assistant record seen, WHETHER OR NOT it carried the
-        # attribution — the operand that makes the module docstring's unverified
-        # `attributionSkill`-on-sidechain assumption falsifiable from the emitted
-        # report rather than only from a human remembering the docstring.
+        # Every sidechain assistant record the run counts, WHETHER OR NOT it carried the
+        # attribution, so the report shows how many did.
         self.sidechain_records_seen = 0
         self.sidechain_records_attributed = 0
-        self.record_reopen_count = 0         # escaped-defect proxy 1
+        # Every sidechain assistant record in the file, counted or not: `eval_corpus`
+        # tallies a file holding these but no run as `sidechain_only_file`.
+        self.file_sidechain_records = 0
+        # Main-thread assistant records before any spec-labelled one; the
+        # `sidechain_only_file` breadcrumb reports them to tell a subagent file apart.
+        self.file_non_spec_main_records = 0
+        self.record_reopen_count = 0        # escaped-defect proxy 1
         # tool_use_id -> file_path for pending Read calls awaiting their result.
         self._pending_reads = {}
         # file_path -> set of content hashes already resident for that path.
@@ -969,12 +1000,22 @@ class RunAccumulator:
         # tool_result) — the "already-resident" set the re-emission metric checks.
         self._produced_blocks = set()
 
+    def _counting(self):
+        return self.started and not self._in_copied_span
+
     def observe_system(self, record):
-        if record.get("subtype") == "compact_boundary":
+        if self._counting() and record.get("subtype") == "compact_boundary":
             self.compact_boundary_count += 1
 
     def observe_user(self, record):
-        """A user record may carry tool_result blocks (a Read's returned bytes)."""
+        """A user record may carry tool_result blocks (a Read's returned bytes).
+
+        Inside a copied span the result still seeds the resident-content sets, so an own
+        turn's later re-Read of it counts as repeated; only the counting is suppressed.
+        """
+        if not self.started:
+            return
+        counting = self._counting()
         message = record.get("message")
         if not isinstance(message, dict):
             return
@@ -997,7 +1038,8 @@ class RunAccumulator:
             seen = self._read_content.setdefault(path, set())
             if digest in seen:
                 # A repeat of already-resident, byte-identical content.
-                self.repeated_read_count += 1
+                if counting:
+                    self.repeated_read_count += 1
             else:
                 seen.add(digest)
             # A large resident tool_result counts as already-produced content, so a
@@ -1008,11 +1050,14 @@ class RunAccumulator:
     def _observe_sidechain(self, record):
         """Attribute one auditor (sidechain) turn's cost to the current round.
 
-        The sidechain record is NOT a main-thread turn: it never sets `attributed`
+        The sidechain record is NOT a main-thread turn: it never sets `started`
         (a session of only sidechain turns yields no run), never increments
         `turn_count`, and never touches the residency (context) axis — it feeds only
-        the round-attributed auditor-cost tally.
+        the round-attributed auditor-cost tally, and only inside the run's counted span.
         """
+        self.file_sidechain_records += 1
+        if not self._counting():
+            return
         self.sidechain_records_seen += 1
         if record.get("attributionSkill") not in ATTRIBUTION:
             return
@@ -1030,13 +1075,15 @@ class RunAccumulator:
                 self.round_auditor_cost.get(self.current_round, 0) + cost
             )
 
-    def _observe_markers(self, block_input):
+    def _observe_markers(self, block_input, counting):
         """Scan one main-thread Bash tool_use for round-boundary / reopen markers.
 
         Every occurrence is counted, not just the first: a compound command carrying
         two `record-reopen` invocations spends two reopens, and a `search`-based tally
         would silently under-report escaped-defect proxy 1 by one. Likewise the round
         boundary the command leaves open is its LAST dispatch marker, not its first.
+        A copied marker (`counting` False) still opens its round for the file's own later
+        auditor turns but adds nothing to `dispatch_rounds` or `record_reopen_count`.
         """
         if not isinstance(block_input, dict):
             return
@@ -1046,32 +1093,79 @@ class RunAccumulator:
         for m in _DISPATCH_ROUND_RE.finditer(command):
             rnd = int(m.group(1))
             self.current_round = rnd
-            self.dispatch_rounds.add(rnd)
-        self.record_reopen_count += sum(1 for _ in _REOPEN_RE.finditer(command))
+            if counting:
+                self.dispatch_rounds.add(rnd)
+        if counting:
+            self.record_reopen_count += sum(1 for _ in _REOPEN_RE.finditer(command))
+
+    def _close_turn(self):
+        """Fold the open API turn into the run's tallies; idempotent."""
+        turn = self._open_turn
+        if turn is None:
+            return
+        self._open_turn = None
+        self.turn_count += 1
+        if turn["context"] is None:
+            # Residency was never established on any record of this turn — tally it rather
+            # than folding a 0 into the peak, which would report it as a real value.
+            self.usage_missing_turns += 1
+        else:
+            self.per_turn_context.append(turn["context"])
+        self.total_output_tokens += turn["output"] or 0
+
+    def _enter_turn(self, message_id):
+        """Join the open API turn or open a new one.
+
+        Called only from the assistant path, so a user, system or sidechain record between
+        two records of one `message.id` never splits the turn. `message_id` is None when
+        the record carries no usable id: a turn of its own, never merged into a neighbour.
+        """
+        if (message_id is None or self._open_turn is None
+                or self._open_turn["id"] != message_id):
+            self._close_turn()
+            self._open_turn = {"id": message_id, "context": None, "output": None}
+        return self._open_turn
+
+    def observe(self, record):
+        """Route one typed record to its observer; other types are ignored."""
+        rtype = record.get("type")
+        if rtype == "assistant":
+            self.observe_assistant(record)
+        elif rtype == "user":
+            self.observe_user(record)
+        elif rtype == "system":
+            self.observe_system(record)
 
     def observe_assistant(self, record):
         if record.get("isSidechain") is True:
             self._observe_sidechain(record)
             return
-        if record.get("attributionSkill") not in ATTRIBUTION:
-            return
-        self.attributed = True
-        self.turn_count += 1
+        if not self.started:
+            if record.get("attributionSkill") not in ATTRIBUTION:
+                self.file_non_spec_main_records += 1
+                return
+            self.started = True
         # A truthy non-dict `message` (a JSON array/string) would make `.get()` raise;
         # `(x or {})` only rescues a FALSY value, so guard with isinstance (mirroring
         # observe_user) — a well-typed-but-wrong-shape record degrades cleanly.
         message = record.get("message")
         if not isinstance(message, dict):
             message = {}
-        usage = message.get("usage")
-        residency = _context_tokens(usage)
-        if residency is None:
-            # Residency was never established for this turn — tally it rather than folding
-            # a 0 into the peak, which would report an unmeasured turn as a real value.
-            self.usage_missing_turns += 1
+        message_id = message.get("id")
+        if not isinstance(message_id, str) or not message_id:
+            message_id = None
+        self._in_copied_span = message_id is not None and message_id in self.foreign_ids
+        counting = not self._in_copied_span
+        if counting:
+            turn = self._enter_turn(message_id)
+            usage = message.get("usage")
+            if turn["context"] is None:
+                turn["context"] = _context_tokens(usage)
+            output = _usage_value(usage, "output_tokens")
+            if output is not None and (turn["output"] is None or output > turn["output"]):
+                turn["output"] = output
         else:
-            self.per_turn_context.append(residency)
-        self.total_output_tokens += _usage_field(usage, "output_tokens")
+            self._close_turn()
 
         content = message.get("content")
         if not isinstance(content, list):
@@ -1093,7 +1187,7 @@ class RunAccumulator:
             elif btype == "tool_use" and block.get("name") == "Bash":
                 # The main-thread state-owner invocations that mark round boundaries
                 # (record-dispatch) and reopen events (record-reopen) — issue #889.
-                self._observe_markers(block.get("input"))
+                self._observe_markers(block.get("input"), counting)
             elif btype == "text":
                 text = block.get("text")
                 if not isinstance(text, str) or len(text) < self.large_block_chars:
@@ -1101,7 +1195,8 @@ class RunAccumulator:
                 digest = _digest(text)
                 if digest in self._produced_blocks:
                     # An assistant re-statement of already-produced large content.
-                    self.reemission_count += 1
+                    if counting:
+                        self.reemission_count += 1
                 else:
                     self._produced_blocks.add(digest)
 
@@ -1114,10 +1209,16 @@ class RunAccumulator:
         reads both defensively (`.get`), because a run record taken straight from this
         method has not been through the join.
         """
+        self._close_turn()
         # UNESTABLISHED (never 0) when no turn established residency: a real-looking 0
         # here is the unknown-onto-zero collapse this instrument guards against (#1899).
         peak = max(self.per_turn_context) if self.per_turn_context else UNESTABLISHED
         final = self.per_turn_context[-1] if self.per_turn_context else UNESTABLISHED
+        # A sum over the measured turns alone would read low, so one unmeasured turn
+        # makes the whole sum unestablished.
+        cumulative = (sum(self.per_turn_context)
+                      if self.per_turn_context and not self.usage_missing_turns
+                      else UNESTABLISHED)
         round_cost = {n: self.round_auditor_cost[n]
                       for n in sorted(self.round_auditor_cost)}
         return {
@@ -1127,7 +1228,8 @@ class RunAccumulator:
             # basis of the reduction claim).
             "peak_context": peak,
             "final_context": final,
-            # Attributed turns whose residency was never established (issue #1899).
+            "cumulative_context": cumulative,
+            # Run turns whose residency was never established (issue #1899).
             "usage_missing_turns": self.usage_missing_turns,
             "total_output_tokens": self.total_output_tokens,
             "compact_boundary_count": self.compact_boundary_count,
@@ -1144,10 +1246,59 @@ class RunAccumulator:
         }
 
 
+def _foreign_message_ids(session_files):
+    """({session file: main-thread `message.id`s another file owns}, {unreadable file: error}).
+
+    A resumed or forked session file copies the earlier file's records, timestamps
+    included, so an id carried by several files is owned by the file whose latest
+    parseable `timestamp` is earliest; a file with none sorts last, ties go to the
+    smaller path. Only a non-empty string id can be a copy. A file this pass cannot read
+    takes no part in ownership, so the counting pass must drop it: counting it would
+    count its shared turns twice. This pass tallies nothing; each file is read again in
+    the counting pass rather than held.
+    """
+    first_file = {}
+    shared = {}
+    sort_keys = {}
+    unreadable = {}
+    for session_file in session_files:
+        try:
+            with open(session_file, "r", encoding="utf-8", errors="replace") as handle:
+                parsed = read_transcript_records(handle.read())
+        except OSError as exc:
+            unreadable[session_file] = exc
+            continue
+        records = [] if parsed.non_transcript_json else parsed.records
+        latest = None
+        for record in records:
+            stamp = _parse_timestamp(record.get("timestamp"))
+            if stamp is not None and (latest is None or stamp > latest):
+                latest = stamp
+            message = record.get("message")
+            if (record.get("type") != "assistant" or record.get("isSidechain") is True
+                    or not isinstance(message, dict)):
+                continue
+            message_id = message.get("id")
+            if isinstance(message_id, str) and message_id:
+                first = first_file.setdefault(message_id, session_file)
+                if first != session_file:
+                    # A set only for the rare shared id: one per id across a large corpus
+                    # costs far more memory than the file-path string it replaces.
+                    shared.setdefault(message_id, {first}).add(session_file)
+        sort_keys[session_file] = ((0, latest, session_file) if latest is not None
+                                   else (1, 0.0, session_file))
+    foreign = {}
+    for message_id, files in shared.items():
+        owner = min(files, key=sort_keys.__getitem__)
+        for session_file in files - {owner}:
+            foreign.setdefault(session_file, set()).add(message_id)
+    return foreign, unreadable
+
+
 def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
     """Return (runs, skipped) for a corpus directory.
 
-    runs: list of per-run metric dicts (only sessions with attributed turns).
+    runs: list of per-run metric dicts (only sessions with at least one own run turn).
     skipped: dict of {reason: count} of malformed records the parser stepped over.
     """
     runs = []
@@ -1163,18 +1314,22 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
         "escaped_path": 0,
         "walk_error": 0,
         "malformed_record": 0,
-        # A session file carrying auditor (sidechain) records but NO main-thread
-        # attributed turn. `if acc.attributed` drops such a file whole, taking its
-        # sidechain cost AND its `sidechain_records_seen` with it — and that counter is
-        # the operand the module docstring's unverified "does the harness stamp
-        # `attributionSkill` on a sidechain record?" assumption is meant to be
-        # falsifiable from. Dropping it silently is exactly the layout where the
-        # assumption is most likely wrong, so the drop is tallied and breadcrumbed.
+        # A session file carrying auditor (sidechain) records but no spec-labelled
+        # main-thread record — a Claude Code `subagents/*.jsonl` file among them. It is
+        # dropped whole, taking its sidechain cost with it, so the drop is tallied and
+        # breadcrumbed.
         "sidechain_only_file": 0,
     }
-    for session_file in _iter_session_files(corpus_root, skipped):
-        acc = RunAccumulator(os.path.basename(session_file), large_block_chars)
+    session_files = list(_iter_session_files(corpus_root, skipped))
+    # A copied turn needs a second file to copy from.
+    foreign, unreadable = (_foreign_message_ids(session_files) if len(session_files) > 1
+                           else ({}, {}))
+    for session_file in session_files:
+        acc = RunAccumulator(os.path.basename(session_file), large_block_chars,
+                             foreign.get(session_file, frozenset()))
         try:
+            if session_file in unreadable:
+                raise unreadable[session_file]
             with open(session_file, "r", encoding="utf-8", errors="replace") as handle:
                 text = handle.read()
         except OSError as exc:
@@ -1194,8 +1349,7 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
         # stays per-record.
         records = read_and_tally(text, skipped)
         for record in records:
-            rtype = record.get("type")
-            if rtype is None:
+            if record.get("type") is None:
                 skipped["no_type"] += 1
                 continue
             # Defensive backstop: the observers isinstance-guard their known field
@@ -1203,30 +1357,36 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
             # (tallied + breadcrumbed), never detonate the whole corpus walk. This is
             # what makes the module docstring's "without detonating" guarantee true.
             try:
-                if rtype == "assistant":
-                    acc.observe_assistant(record)
-                elif rtype == "user":
-                    acc.observe_user(record)
-                elif rtype == "system":
-                    acc.observe_system(record)
-            except (AttributeError, TypeError, ValueError, KeyError) as exc:
+                acc.observe(record)
+            except _OBSERVER_ERRORS as exc:
                 skipped["malformed_record"] += 1
                 sys.stderr.write(
                     f"warning: skipping malformed record in {session_file}: {exc}\n"
                 )
                 continue
-        if acc.attributed:
-            runs.append(acc.result())
-        elif acc.sidechain_records_seen:
-            # Sidechain records but no main-thread attributed turn: a dropped run whose
-            # auditor cost the aggregate will never see. Tally + breadcrumb so an
+        if acc.started:
+            result = acc.result()
+            if result["turn_count"]:
+                runs.append(result)
+            else:
+                # Every turn from the start is owned and counted by another file. Nothing
+                # is tallied, though the file's own records inside the copied window
+                # (a compaction, an auditor turn) count nowhere.
+                sys.stderr.write(
+                    f"{BREADCRUMB_PREFIX}: session file {session_file} yields no run: "
+                    "every turn from its start is counted in another session file\n"
+                )
+        elif acc.file_sidechain_records:
+            # Sidechain records but no spec-labelled main-thread record: a dropped run
+            # whose auditor cost the aggregate will never see. Tally + breadcrumb so an
             # under-counted corpus is visible in `skipped` (and degrades the paired
-            # delta) rather than reading as a clean measurement.
+            # auditor-cost delta) rather than reading as a clean measurement.
             skipped["sidechain_only_file"] += 1
             sys.stderr.write(
-                "warning: skipping session file with sidechain records but no "
-                f"main-thread attributed turn {session_file} ({acc.sidechain_records_seen} sidechain record(s), {acc.sidechain_records_attributed} "
-                "attributed)\n"
+                f"{BREADCRUMB_PREFIX}: skipping session file with sidechain records but no "
+                f"spec-labelled main-thread record {session_file} "
+                f"({acc.file_sidechain_records} sidechain record(s), "
+                f"{acc.file_non_spec_main_records} non-spec main-thread record(s))\n"
             )
     runs.sort(key=lambda r: r["source"])
     return runs, skipped
@@ -1550,12 +1710,15 @@ def aggregate(runs, state=None):
         "state_established": finding_count is not UNESTABLISHED,
         # Total ledger entries across the state's rounds (state-derived axis).
         "finding_count": finding_count,
-        # Attributed turns across the corpus whose residency was never established
+        # Run turns across the corpus whose residency was never established
         # (issue #1899). UNESTABLISHED on an empty run population, like every run-derived
         # figure here — never a real-looking 0 about a corpus that was never measured.
         "total_usage_missing_turns": _sum_or_unestablished(
             [r["usage_missing_turns"] for r in runs]),
-        # Secondary residency axis.
+        "median_turn_count": _median_or_unestablished([r["turn_count"] for r in runs]),
+        # Secondary residency axis. A run with an unmeasured turn has no cumulative figure.
+        "median_cumulative_context": _median_or_unestablished(
+            [r["cumulative_context"] for r in runs if _is_numeric(r["cumulative_context"])]),
         "median_peak_context": _median_or_unestablished(peaks),
         "max_peak_context": max(peaks) if peaks else UNESTABLISHED,
         "runs_over_200k": (sum(1 for p in peaks if p > BUCKET_200K)
@@ -1584,10 +1747,8 @@ def aggregate(runs, state=None):
             [r["unrounded_auditor_cost"] for r in runs]),
         "median_auditor_cost_discovery": medians["discovery"],
         "median_auditor_cost_targeted": medians["targeted"],
-        # The falsifiability operands for the docstring's unverified assumption that the
-        # harness stamps `attributionSkill` on a sidechain record. `0 attributed` beside
-        # a non-zero `total_record_reopen` or a non-empty per-run `dispatch_rounds` is
-        # evidence the assumption failed, NOT a measurement of a free audit.
+        # Sidechain records inside the runs only; a subagent file's records
+        # are skipped under `sidechain_only_file` (see the module docstring).
         "total_sidechain_records_seen": _sum_or_unestablished(
             [r["sidechain_records_seen"] for r in runs]),
         "total_sidechain_records_attributed": _sum_or_unestablished(
@@ -1851,14 +2012,26 @@ def _empty_skipped():
     }
 
 
-def _validate_manifest_event(record, run_id, event_index):
+def _validate_manifest_event(record, run_id, event_index, run_started):
+    """Refuse an in-span event whose metric operands could not be measured.
+
+    Usage is validated on the records the run counts: its spec-labelled start record and,
+    once it has started, every main-thread and every spec-labelled sidechain record.
+    """
     rtype = record.get("type")
     if rtype not in ("assistant", "user", "system"):
         _manifest_error(
             "invalid_transcript",
             f"{run_id} event {event_index} has unsupported type {rtype!r}",
         )
-    if rtype != "assistant" or record.get("attributionSkill") not in ATTRIBUTION:
+    if rtype != "assistant":
+        return
+    labelled = record.get("attributionSkill") in ATTRIBUTION
+    if record.get("isSidechain") is True:
+        counted = run_started and labelled
+    else:
+        counted = run_started or labelled
+    if not counted:
         return
     message = record.get("message")
     usage = message.get("usage") if isinstance(message, dict) else None
@@ -1982,18 +2155,19 @@ def _observe_manifest_run(run, large_block_chars):
                 )
             if start <= event_index <= end:
                 selected += 1
-                _validate_manifest_event(record, run["run_id"], event_index)
-                rtype = record.get("type")
-                if rtype == "assistant":
-                    acc.observe_assistant(record)
-                elif rtype == "user":
-                    acc.observe_user(record)
-                elif rtype == "system":
-                    acc.observe_system(record)
+                _validate_manifest_event(
+                    record, run["run_id"], event_index, acc.started)
+                try:
+                    acc.observe(record)
+                except _OBSERVER_ERRORS as exc:
+                    _manifest_error(
+                        "invalid_transcript",
+                        "{} event {}: {}".format(run["run_id"], event_index, exc),
+                    )
             event_index += 1
     if selected != end - start + 1:
         _manifest_error("occurrence_out_of_range", run["run_id"])
-    if not acc.attributed:
+    if not acc.started:
         _manifest_error("occurrence_not_analyzable", run["run_id"])
     result = acc.result()
     state = read_state(run["state_file"])
@@ -2055,6 +2229,7 @@ def _manifest_comparison(run_records):
         "total_peak_context",
         "mean_peak_context_per_run",
         "median_main_thread_context",
+        "mean_cumulative_context_per_run",
         "total_round_count",
         "finding_count",
     )
@@ -2232,7 +2407,8 @@ def _paired_delta(before, after):
     """The after-minus-before paired deltas (AC7).
 
     Reports the deltas the tier can measure: total attributed auditor cost, total peak
-    context (secondary), total round count, and finding count. Latency is NOT here — the
+    context (secondary), mean peak and mean cumulative context per run, median main-thread
+    context, total round count, and finding count. Latency is NOT here — the
     wall-clock axis reads `unestablished`, so a paired latency delta would present a
     number the tier never measured.
 
@@ -2242,39 +2418,33 @@ def _paired_delta(before, after):
     reported a large "context reduction" that was pure population difference — and the
     other two sums, computed identically one line away, carried the same confound under
     population-neutral-sounding names. Each side's `run_count` is on its own summary for
-    the reader to divide by. **`finding_count` is the fourth key and is deliberately NOT
-    one of them:** it is a STATE-file axis (`_finding_count` totals the ledger entries
+    the reader to divide by. **`finding_count` is deliberately NOT one of them:** it is a STATE-file axis (`_finding_count` totals the ledger entries
     across one state file's rounds), independent of how many runs either corpus holds,
     so it carries no `total_` marker and the population confound the naming rule guards
     against does not apply to it. It has its own guard instead — the state sentinel, via
-    `_findings_delta` below. **`mean_peak_context_per_run` is the fifth key and is
-    neither:** it is the per-run NORMALIZATION of the context axis (each side's sum
-    divided by its own `run_count`), which is the axis AC7 actually names — the
-    corpus-wide `total_peak_context` beside it carries the population confound this
-    normalized key exists to remove, and both are published so a reader can see the
-    difference rather than being handed one and told to divide.
+    `_findings_delta` below. **`mean_peak_context_per_run` and
+    `mean_cumulative_context_per_run` are neither:** each is a per-run NORMALIZATION of a
+    context axis (each side's sum divided by its own `run_count`), which is the axis AC7
+    actually names — the corpus-wide `total_peak_context` beside them carries the
+    population confound these normalized keys exist to remove. The cumulative key shows a
+    change that lowers the context carried across turns without lowering the peak.
 
-    **An empty or under-counted run population makes every sum-based delta
-    `unestablished`** — `_degraded` consults the run list AND every channel of the skip
-    tally. A side with no runs, or one whose walk, file-open or record parse dropped
-    anything, sums low, so subtracting would assert a measured saving against a corpus
-    that was never fully read.
+    **A side with no runs, or a nonzero skip channel the delta does not exempt, makes a
+    sum-based delta `unestablished`**, since subtracting would assert a measured saving
+    against a corpus that was never fully read. The auditor-cost delta exempts no channel;
+    the main-thread context deltas and `total_round_count` exempt `_SIDECAR_CHANNELS`,
+    where a session folder's sidecar files land (issue #1332), so a transcript skipped
+    under one of those goes uncounted without degrading them.
     """
-    def _degraded(report):
-        # No runs at all, or a corpus knowingly under-counted on ANY loss channel.
-        # Every channel `eval_corpus` tallies drops either a whole session file
-        # (`walk_error`, `escaped_path`, `unreadable_file`, `sidechain_only_file`) or a
-        # `usage`-bearing record inside a counted run (`non_json_line`, `not_object`,
-        # `no_type`, `malformed_record`) — each one directly DEFLATES the sums below,
-        # so consulting `unreadable_file` alone would publish a real-looking negative
-        # delta as a measured saving about a corpus that was never fully read: the
-        # unknown-collapsed-onto-a-real-value shape this module exists to refuse.
-        # The test iterates `.values()` rather than a hand-listed key set so a channel
-        # added to `eval_corpus` later cannot silently fall outside the guard.
+    def _degraded(report, exempt=()):
+        # Iterate `.items()` rather than a hand-listed key set so a channel added to
+        # `eval_corpus` later cannot silently fall outside the guard.
         return (not report["runs"]
-                or any(v > 0 for v in report["skipped"].values()))
+                or any(v > 0 for k, v in report["skipped"].items() if k not in exempt))
 
     degraded = _degraded(before) or _degraded(after)
+    main_degraded = (_degraded(before, _SIDECAR_CHANNELS)
+                     or _degraded(after, _SIDECAR_CHANNELS))
 
     def _sum(report, key):
         return sum(r[key] for r in report["runs"])
@@ -2282,7 +2452,7 @@ def _paired_delta(before, after):
     def _rounds(report):
         return sum(len(r["dispatch_rounds"]) for r in report["runs"])
 
-    def _delta(fn):
+    def _delta(fn, degraded=degraded):
         return UNESTABLISHED if degraded else fn(after) - fn(before)
 
     def _findings_delta():
@@ -2295,26 +2465,25 @@ def _paired_delta(before, after):
             return UNESTABLISHED
         return a - b
 
-    def _mean_peak_context(report):
+    def _mean(key):
         # Population-NORMALIZED: the corpus sum divided by that side's own run count.
         # `_degraded` already guarantees a non-empty run list here.
-        return _sum(report, "peak_context") / len(report["runs"])
+        return lambda report: _sum(report, key) / len(report["runs"])
 
-    # Every `peak_context` delta below does arithmetic on the field, so one non-numeric value
-    # would RAISE where this module's contract is to report `unestablished`. Route all three
-    # through `_context_delta`, never `_delta` — guarding one and not its siblings is the
-    # asymmetry that leaves a latent TypeError beside a guarded call.
-    peaks_numeric = all(
-        _is_numeric(run["peak_context"])
-        for report in (before, after) for run in report["runs"])
-
-    def _context_delta(fn):
-        return _delta(fn) if peaks_numeric else UNESTABLISHED
+    # Every context delta below does arithmetic on its field, so one non-numeric value would
+    # RAISE where this module's contract is to report `unestablished`. Route each through
+    # `_context_delta`, never `_delta` — guarding one and not its siblings is the asymmetry
+    # that leaves a latent TypeError beside a guarded call.
+    def _context_delta(key, fn):
+        numeric = all(_is_numeric(run.get(key))
+                      for report in (before, after) for run in report["runs"])
+        return _delta(fn, main_degraded) if numeric else UNESTABLISHED
 
     return {
         "total_attributed_auditor_cost": _delta(
             lambda rep: _sum(rep, "attributed_auditor_cost")),
-        "total_peak_context": _context_delta(lambda rep: _sum(rep, "peak_context")),
+        "total_peak_context": _context_delta(
+            "peak_context", lambda rep: _sum(rep, "peak_context")),
         # AC7 names *per-run* context as a paired-delta axis, and the corpus-wide sum
         # above does not discharge it: a 3-run before corpus against a 1-run after
         # corpus yields a large negative `total_peak_context` that is pure population
@@ -2322,10 +2491,12 @@ def _paired_delta(before, after):
         # confound cannot enter. It is a float by construction (a mean, not a token
         # count) — a non-integer delta (as the median below can also be), named as an
         # average so a reader is not invited to read it as a measured total.
-        "mean_peak_context_per_run": _context_delta(_mean_peak_context),
+        "mean_peak_context_per_run": _context_delta("peak_context", _mean("peak_context")),
         "median_main_thread_context": _context_delta(
-            lambda rep: _median([r["peak_context"] for r in rep["runs"]])),
-        "total_round_count": _delta(_rounds),
+            "peak_context", lambda rep: _median([r["peak_context"] for r in rep["runs"]])),
+        "mean_cumulative_context_per_run": _context_delta(
+            "cumulative_context", _mean("cumulative_context")),
+        "total_round_count": _delta(_rounds, main_degraded),
         "finding_count": _findings_delta(),
     }
 
@@ -2357,6 +2528,7 @@ def build_paired_report(before_dir, after_dir, before_state=None, after_state=No
 def _render_run_line(r):
     parts = [
         "- {source}: turns={turn_count} peak={peak_context} final={final_context} "
+        "cumulative={cumulative_context} "
         "output={total_output_tokens} compactions={compact_boundary_count} "
         "repeated_reads={repeated_read_count} reemissions={reemission_count} "
         "auditor_cost={attributed_auditor_cost} reopens={record_reopen_count}".format(**r)

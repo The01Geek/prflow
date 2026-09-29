@@ -1056,9 +1056,10 @@ def _entry_items(run_dir, entry, n, crumbs):
 
 
 def op_match(run_dir, n, prior_head, shadow_head):
-    """Label each non-acceptance shadow checklist FAIL ``overlap`` (the same claim as a last-iteration FAIL or
-    INCONCLUSIVE) or ``new``. An unusable step1 input only narrows what can overlap (an unusable step1 pair
-    leaves none); an unusable shadow pair returns ``ok`` false, since its FAILs cannot be read to label."""
+    """Label each non-acceptance shadow checklist FAIL ``overlap`` (the same claim as a last-iteration FAIL)
+    or ``new``; a FAIL on a claim the last iteration left INCONCLUSIVE is new, since that item never routed to
+    the fixer. An unusable step1 input only narrows what can overlap (an unusable step1 pair leaves none); an
+    unusable shadow pair returns ``ok`` false, since its FAILs cannot be read to label."""
     crumbs, labels = [], {}
     prior_items, rowless = _entry_items(run_dir, "step1", n, crumbs)
     shadow_items, _ = _entry_items(run_dir, "shadow", n, crumbs)
@@ -1070,14 +1071,14 @@ def op_match(run_dir, n, prior_head, shadow_head):
         verdict = it.get("verdict")
         if it["id"] in rowless:
             crumbs.append(f"step1 {it['id']}: no verification row, cannot make an overlap")
-        elif verdict in ("FAIL", "INCONCLUSIVE"):
+        elif verdict == "FAIL":
             _rule_crumbs("step1", it, crumbs)
             candidates.append(it)
         elif verdict not in _VERDICTS:
             shown = f"string {verdict!r}" if isinstance(verdict, str) and verdict else _state(it, "verdict")
             crumbs.append(f"step1 {it['id']}: verdict is {shown}, cannot make an overlap")
     if prior_items is not None and not candidates:
-        crumbs.append("no prior FAIL or INCONCLUSIVE item")
+        crumbs.append("no prior FAIL item")
     fails = [it for it in shadow_items or [] if it.get("verdict") == "FAIL"]
     for it in fails:
         _rule_crumbs("shadow", it, crumbs)

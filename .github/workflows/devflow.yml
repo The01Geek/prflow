@@ -87,7 +87,7 @@ jobs:
       # them inline here. This job checks out the DEFAULT BRANCH at trigger time,
       # so the forwarded document is the trusted tree's — never the PR head's —
       # which is what makes those keys post-merge-only.
-      config_json: ${{ steps.cfg.outputs.json }}
+      config_json: ${{ steps.extract.outputs.json }}
     steps:
       # Pin the default branch explicitly (issue #1163). issue_comment already
       # resolves GITHUB_REF to the default branch, so this states the trusted-tree
@@ -98,182 +98,18 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
-      - id: cfg
-        uses: ./.github/actions/read-project-config
       - id: extract
+        uses: ./.github/actions/read-project-config
+        with:
+          command: command
+      - name: Verify config projection compatibility
         env:
-          CONFIG_JSON: ${{ steps.cfg.outputs.json }}
+          PROJECTION_CONTRACT: ${{ steps.extract.outputs.projection_contract }}
         run: |
-          set -euo pipefail
-          ENABLED=$(echo "$CONFIG_JSON" | jq -r '.workflows.prflow // false')
-          # SILENT-DISABLE SKEW GUARD (issue #1041) — the ONE guard in this step that is
-          # deliberately NOT gated on $ENABLED, because the skew it detects is exactly what
-          # forces $ENABLED false. Tier 4 renamed the enable key workflows["devflow"] ->
-          # workflows.prflow. While that spelling was FROZEN a refreshed workflow and the
-          # config key could never skew; the rename removed that guarantee, and install.sh's
-          # workflow copy loop is PER FILE over an install_managed that deliberately
-          # PRESERVES a hand-edited workflow (writing a .prflow-new sidecar beside it). So
-          # refresh one shipped workflow while the other stays hand-edited on the superseded
-          # key: scaffold-config.sh's freshness gate correctly REFUSES the config migration,
-          # and this workflow is left reading workflows.prflow against a config that still
-          # carries the superseded key. ENABLED resolves absent -> false, every trigger
-          # silently no-ops, and the per-family guard below cannot report it because that
-          # guard sits inside the enable gate this skew already forced shut.
-          #
-          # has() throughout, never `//`: a deliberate superseded-key `false` is a
-          # valid-falsy value `//` would collapse into "absent" (issue #312).
-          #
-          # EVERY mention here spells the superseded key in BRACKET form on purpose. The
-          # freshness gate in scaffold-config.sh decides staleness by searching this file for
-          # a DOTTED read of the superseded key, and it does not care whether the hit is code
-          # or a comment. A diagnostic that named the key in dotted form — anywhere, this
-          # sentence included — would mark both shipped workflows permanently stale and wedge
-          # the very migration it exists to protect. A guard must not defeat another guard;
-          # tier1-rename-migration asserts this pair still scans clean.
-          SUPERSEDED_ENABLE=$(echo "$CONFIG_JSON" | jq -r 'if (type=="object") and ((.workflows|type)=="object") and ((.workflows|has("prflow"))|not) and (.workflows|has("devflow")) then (.workflows["devflow"]|tostring) else "" end')
-          # Bash builtins select the arm — no PATH tool may decide an EMITTED result. The
-          # `true` arm mirrors the enable read's string-truthiness (a JSON true and a string
-          # "true" both read as enabled), so the ERROR fires on exactly the configs whose
-          # author intended this workflow ON and whom the rename has silenced. A superseded
-          # key holding any other value already meant "off", so its outcome still matches
-          # intent and it warrants a warning rather than a failed run.
-          case "$SUPERSEDED_ENABLE" in
-            "") : ;;
-            true)
-              echo "::error::.prflow/config.json still carries the superseded workflows[\"devflow\"] key and has no workflows.prflow, but this workflow reads workflows.prflow — so it resolves as DISABLED and every trigger silently does nothing. This is a PARTIAL upgrade: a hand-edited shipped workflow was preserved rather than refreshed, so the config-key migration was refused while this file was already refreshed. Merge any .github/workflows/*.prflow-new sidecar left beside a hand-edited workflow, then re-run install.sh --apply so the workflow read and the config key move together."
-              exit 1 ;;
-            *)
-              echo "::warning::.prflow/config.json still carries the superseded workflows[\"devflow\"] key and has no workflows.prflow. This workflow reads workflows.prflow, so it is disabled — which matches the superseded key's own value, but the key is un-migrated. Re-run install.sh --apply to migrate it." ;;
-          esac
-          # STRAY SUPERSEDED FAMILY DETECTION (issue #1083) — advisory, deliberately NOT gated
-          # on the enable read. A stray superseded top-level family present beside a canonical
-          # prflow* family is a half-migrated config: the stray family's keys resolve to their
-          # `// default` everywhere, so any tool grant, allowlist narrowing, or provider
-          # selection written under it silently does nothing. The fully-un-migrated shape (no
-          # prflow* family present) is left to the loud MISSING_FAMILIES gate below; this warns
-          # only when a canonical family sits beside the stray one, which is exactly the
-          # population the MISSING_FAMILIES set-difference passes silently (issue #1083).
-          #
-          # The superseded family names are matched by SHAPE (a `^devflow(_|$)` top-level key),
-          # never spelled out, and this comment names NEITHER a dotted superseded read NOR a
-          # bare superseded-family literal: the freshness gate in scaffold-config.sh marks a
-          # workflow stale on either form, so writing one here — in jq, message, or comment —
-          # would wedge every consumer's config-key migration (a guard must not defeat another
-          # guard). lib/test/run.sh reconciles this shape against lib/rename-map.json's
-          # config_keys so it cannot drift from the rename inventory. `keys` (not `//`) is what
-          # keeps a valid-falsy stray value visible: presence is read from the key set, never
-          # the value, so a stray family holding false/0/"" is still detected (issue #312).
-          STRAY_FAMILIES=$(echo "$CONFIG_JSON" | jq -r '
-            if type != "object" then ""
-            else
-              (keys) as $k
-              | (any($k[]; test("^prflow(_|$)"))) as $has_canon
-              | if $has_canon then ($k | map(select(test("^devflow(_|$)"))) | join(" ")) else "" end
-            end')
-          # Bash builtin word-splitting selects the emitted arm — no non-preflight PATH tool
-          # decides the result. One warning per stray family, naming it and the remedy.
-          if [ -n "$STRAY_FAMILIES" ]; then
-            for fam in $STRAY_FAMILIES; do
-              echo "::warning::.prflow/config.json carries the superseded top-level config key '$fam' beside a canonical prflow* family. Its keys are ignored — they resolve to their built-in defaults, so any tool grant, allowlist narrowing, or provider selection written under '$fam' silently does nothing. Run /prflow:init to migrate the Tier 1 config keys, then delete the stray '$fam' object."
-            done
-          fi
-          # `// empty` collapses a missing/null allowlist to a real empty string.
-          # Fail loud only when the workflow is ENABLED — a config left on the
-          # pre-2.2.5 `claude.allowed_bots` key would otherwise propagate a
-          # literal "null" allowlist that silently matches no bot. Disabled repos
-          # skip the check (allowed_bots is read only downstream of the enabled
-          # gate), so this never breaks an intentionally-off install. Mirrors the
-          # guard in devflow-runner.yml.
-          ALLOWED_BOTS=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_bots // empty')
-          if [ "$ENABLED" = "true" ] && [ -z "$ALLOWED_BOTS" ]; then
-            echo "::error::prflow.allowed_bots is missing from .prflow/config.json (a pre-2.2.5 config may still use the old 'claude.allowed_bots' key — see CHANGELOG 2.2.5 migration)"
+          if [ "$PROJECTION_CONTRACT" != "1" ]; then
+            echo "::error::The installed read-project-config action does not support trigger-time projection. Run install.sh --apply; if it leaves a .github/actions/read-project-config.prflow-new directory, merge that directory into the installed action."
             exit 1
           fi
-          # PER-FAMILY FAIL-LOUD GUARD (issues #988, #1002). The trigger-time channel
-          # reads config through inline jq and NEVER through config-get.sh, so the
-          # resolver superseded-key breadcrumb cannot reach it — this is that
-          # breadcrumb's counterpart on the one channel it cannot see. Without it a
-          # config still on the superseded key names resolves every read below to its
-          # `// default`: the human-trigger gate silently WIDENS to everyone, the tool
-          # grants vanish to `[]`, and the effort becomes one nobody chose.
-          #
-          # FAMILY granularity, not leaf: the schema marks none of the optional leaves
-          # required, so a consumer who never set `allowed_users` or `effort` must stay
-          # unaffected. Only the absence of the whole top-level family object is an error.
-          #
-          # Same side of the enable gate as the allowed_bots guard above, so an
-          # intentionally-disabled repository is never failed.
-          if [ "$ENABLED" = "true" ]; then
-            MISSING_FAMILIES=$(echo "$CONFIG_JSON" | jq -r --arg fams "prflow prflow_version" '
-              if type != "object" then $fams | split(" ") | join(" ")
-              else ($fams | split(" ")) - [keys[]] | join(" ") end')
-            if [ -n "$MISSING_FAMILIES" ]; then
-              echo "::error::.prflow/config.json is missing the config key famil(ies): $MISSING_FAMILIES. If this repository still carries the superseded devflow_* names, run /prflow:init to migrate the whole Tier 1 set atomically; every read below would otherwise silently resolve to its default."
-              exit 1
-            fi
-          fi
-          {
-            echo "enabled=$ENABLED"
-            echo "base_branch=$(echo "$CONFIG_JSON" | jq -r '.base_branch')"
-            echo "claude_model=$(echo "$CONFIG_JSON" | jq -r '.claude_model')"
-            echo "allowed_bots=$ALLOWED_BOTS"
-            # Human logins allowed to trigger the command path (AND-filter on top
-            # of the collaborator-permission gate; '*' = any collaborator).
-            echo "allowed_users=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_users // "*"')"
-            echo "effort=$(echo "$CONFIG_JSON" | jq -r '.prflow.effort // "high"')"
-            # Repo-specific extra allowlist entries, appended on top of the
-            # built-in devflow base list in the `claude` job's claude_args.
-            # Emits a leading-comma string (",Bash(make:*),…") or "" so it can
-            # be concatenated directly after the final base entry. Tool patterns
-            # never contain commas/newlines, so a single-line output is safe.
-            echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_tools // [] | if length > 0 then "," + join(",") else "" end')"
-            # Pinned plugin ref for the vendor-plugin fetch branch (thin installs).
-            echo "prflow_version=$(echo "$CONFIG_JSON" | jq -r '.prflow_version // empty')"
-            # Repository the fetch branch clones (issue #228). A missing key, empty
-            # string, null, boolean, number, array, or object all resolve to empty
-            # (the public repository); only a non-empty string passes through.
-            echo "prflow_repo=$(echo "$CONFIG_JSON" | jq -r 'try (.prflow_repo | strings | select(. != "")) catch empty')"
-          } >> "$GITHUB_OUTPUT"
-          # Warn on a non-string, non-null prflow_repo (null and missing are silent).
-          PRFLOW_REPO_TYPE=$(echo "$CONFIG_JSON" | jq -r 'if (.prflow_repo != null) and ((.prflow_repo | type) != "string") then (.prflow_repo | type) else empty end')
-          if [ -n "$PRFLOW_REPO_TYPE" ]; then
-            echo "::warning::prflow_repo has non-string JSON type '$PRFLOW_REPO_TYPE' in .prflow/config.json; treating it as empty (the public repository)"
-          fi
-          # Optional pre-installed Claude Code executable path (issue #601). For
-          # self-hosted runners (typically Windows) whose OS the action's Unix-only
-          # bundled installer cannot serve. `// empty` emits an empty *stream* when the key
-          # is absent, so the substitution yields the empty string, which the action treats as "not provided" (auto-install unchanged).
-          # `try … catch` guards a hand-corrupted non-object `setup` (so the config job
-          # never aborts on a malformed setup block); `| strings` drops a non-string
-          # leaf value (array/object/number) to empty; `select(test("[\n\r]") | not)`
-          # drops even a *valid* string that carries an embedded newline/CR — those
-          # would otherwise make jq -r emit a multi-line value that corrupts the
-          # key=value GITHUB_OUTPUT line; `select(test("^[[:space:]]*$") | not)` drops a
-          # whitespace-only string, which is never a usable executable path and whose
-          # intended meaning is "unset" (auto-install). Any rejected shape falls back to
-          # empty. Because "rejected" and "unset" both resolve to empty, a *non-empty*
-          # raw value that resolves to empty emits a `::warning::` — otherwise a mistyped
-          # path on the one platform where this key is load-bearing silently reverts to
-          # the broken auto-install path and the operator debugs the installer's
-          # misleading "Windows is not supported" error instead of their own typo
-          # (the repo's breadcrumb-on-fallback convention; an explicit `""` is a
-          # deliberate unset and warns nothing). The raw
-          # probe emits the SENTINEL "set" rather than the value itself: command
-          # substitution strips trailing newlines, so a value composed entirely of
-          # newlines would collapse to the empty string and be misread as "unset",
-          # silently skipping the warning for a rejected shape. The probe filters on
-          # `!= null` rather than `// empty` because `//` is FALSY-triggered: `// empty`
-          # would swallow a valid-falsy `false` leaf, rejecting it to auto-install with
-          # no breadcrumb (the documented-off-switch class). JSON `null` stays an unset,
-          # like an absent key. `catch "set"` (not `catch empty`) makes a NON-OBJECT
-          # `setup` — which raises a jq index error in BOTH filters, so the guarded one
-          # cannot resolve a value — warn rather than fail open silently.
-          CLAUDE_CODE_EXECUTABLE_RAW=$(echo "$CONFIG_JSON" | jq -r 'try (.setup.claude_code_executable | select(. != null) | tostring | select(. != "") | "set") catch "set"')
-          CLAUDE_CODE_EXECUTABLE=$(echo "$CONFIG_JSON" | jq -r 'try (.setup.claude_code_executable // empty | strings | select(test("[\n\r]") | not) | select(test("^[[:space:]]*$") | not)) catch empty')
-          if [ -n "$CLAUDE_CODE_EXECUTABLE_RAW" ] && [ -z "$CLAUDE_CODE_EXECUTABLE" ]; then
-            echo "::warning::setup.claude_code_executable is set but was rejected (non-string leaf, embedded newline/CR, or whitespace-only); falling back to the action's automatic Claude Code install."
-          fi
-          echo "claude_code_executable=$CLAUDE_CODE_EXECUTABLE" >> "$GITHUB_OUTPUT"
 
   # Dedupe a MANUAL bare `/devflow:review` comment against an AUTOMATED
   # pull-request-triggered review. Issue #936 WITHHELD that automatic tier from
@@ -2603,6 +2439,7 @@ jobs:
       # marker-bearing verdict on the head absent from the pre-engine inventory (the
       # /prflow:review path, or a direct gh-api bypass a review-and-fix run could leave).
       - name: Review evidence gate
+        id: review-evidence-gate
         if: ${{ always() && (startsWith(needs.gate.outputs.command, '/prflow:review') || startsWith(needs.gate.outputs.command, '/devflow:review')) && (github.event.issue.pull_request || github.event.pull_request.number) && (github.event.issue.number || github.event.pull_request.number) }}
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
@@ -2994,7 +2831,8 @@ jobs:
       # workflow-side step is the net for exactly that gap.
       #
       # THE GATE IS LOAD-BEARING (issue #1175). Dismissal fires ONLY when the verdict
-      # for the reviewed HEAD was POSITIVELY DETERMINED as APPROVE. The whole decision
+      # for the reviewed HEAD was POSITIVELY DETERMINED as APPROVE and this workflow
+      # observed a successful evidence-gate step. The helper’s verdict decision
       # — read the HEAD-scoped, fail-closed verdict via derive-review-verdict.sh, gate
       # on its `verdict_determined`, and dispatch dismiss-stale-rejections.sh only on a
       # determined APPROVE — lives in scripts/dismiss-stale-rejections-net.sh, which the
@@ -3003,7 +2841,8 @@ jobs:
       # unavailable). Gating on `verdict_determined` is what makes a correlated GitHub
       # API degradation that DEFAULTS the verdict unable to silently dismiss a live
       # REJECT — the failure mode that makes an unconditional workflow-side dismissal
-      # WORSE than none at all. This step only runs the helper and annotates its token.
+      # WORSE than none at all. This step checks the evidence-gate outcome before
+      # running the helper and annotating its token.
       #
       # It is a NET, not a replacement: dismiss-stale-rejections.sh is idempotent and
       # HEAD-scoped, so the agent's Phase 4.4 run and this run never double-dismiss or
@@ -3020,6 +2859,7 @@ jobs:
           CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
           COMMAND: ${{ needs.gate.outputs.command }}
           ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
+          EVIDENCE_GATE_OUTCOME: ${{ steps.review-evidence-gate.outcome }}
         run: |
           set -uo pipefail
           # Since issue #1863 the light-command resolver makes the command's trailing
@@ -3030,6 +2870,10 @@ jobs:
             ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
           esac
           # stale-REJECT dismissal net BEGIN
+          if [ "${EVIDENCE_GATE_OUTCOME:-}" != success ]; then
+            echo "::warning::stale-REJECT net: review evidence gate outcome '${EVIDENCE_GATE_OUTCOME:-<empty>}'; no superseded REJECT was dismissed; inspect the Review evidence gate step before relying on this review"
+            exit 0
+          fi
           NET=.prflow/vendor/prflow/scripts/dismiss-stale-rejections-net.sh
           if [ ! -f "$NET" ]; then
             echo "::warning::stale-REJECT net: dismiss-stale-rejections-net.sh absent at $NET; a superseded REJECT (if any) is NOT dismissed by the workflow — Phase 4.4 remains the only path (upgrade the vendored plugin pin)"

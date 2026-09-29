@@ -78,17 +78,33 @@
 #     content stays out of history by ORDERING — the Phase 2 prose invokes this
 #     helper only after §2.1.5 proof edits are reverted, and explicit scoping
 #     means an unnamed proof file is never staged regardless.
+#   - In-place mutation-check guard (issue #1219). The fix loop's and Phase 2's
+#     in-place mutation check first saves the file it breaks to
+#     `.prflow/tmp/in-place/<repo-relative path>` under the work-tree root and deletes
+#     that copy once the file's object ID matches again, so a copy that remains marks
+#     an unsettled check. An unsettled check blocks every checkpoint, whatever paths it
+#     names: before staging anything, the helper walks that directory (through a
+#     symlinked `.prflow/tmp`, whether the copy is ignored or staged), names each
+#     file or symlink on stderr, and refuses (exit 2) while any remains; the remedy
+#     is to settle the leftover checks.
+#     A failed or empty repository-root lookup, a `.prflow` or `.prflow/tmp` parent it
+#     cannot search or resolve, a copy directory it cannot read or search, or a copy
+#     path that is not a directory fails closed (exit 4).
 #
 # Exit codes:
 #   0  committed+pushed+landed, OR a clean no-op whose branch tip is already on the
 #      remote (in both cases: the work up to this boundary is durable)
 #   2  usage error (missing message, no pathspec, or a forbidden non-path token —
 #      the refused class is `_is_whole_tree_arg`'s, which is broader than the
-#      stage-all spellings alone: option-shaped tokens and git magic pathspecs too)
+#      stage-all spellings alone: option-shaped tokens and git magic pathspecs too),
+#      or any file or symlink remains under `.prflow/tmp/in-place/`, whatever the
+#      checkpoint names
 #   3  the work up to this boundary is not on the remote — a push that did not land,
 #      or a no-op boundary whose branch tip is not at @{u} (either case including
 #      no upstream configured)
-#   4  a git operation failed (add/commit/not a repo)
+#   4  a git operation failed (add/commit/not a repo), or the in-place guard could not
+#      resolve the repository root, search or resolve a `.prflow`/`.prflow/tmp` parent,
+#      or read the copy directory, or found a copy path that is not a directory
 
 set -u
 
@@ -208,6 +224,52 @@ done
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   _bc "not inside a git repository — cannot checkpoint"
   exit 4
+fi
+
+# In-place mutation-check guard (issue #1219; contract in the header). A bash-builtin walk,
+# not a git listing: a git listing misses a copy under a symlinked `.prflow/tmp`. It resets
+# failglob and noglob (which would skip it), dotglob (double counts) and GLOBIGNORE (hides
+# entries), and never follows a symlink inside the copy directory, so it cannot loop. `-x`
+# is tested on named paths, never on "$1": the executable-helper-mode lint refuses an `-x`
+# operand it cannot resolve.
+_ip_fail() {  # <reason>
+  _bc "in-place mutation-check guard: $1; no commit made"
+  exit 4
+}
+ip_top="$(git rev-parse --show-toplevel)" && [ -n "$ip_top" ] || _ip_fail "could not resolve the repository root"
+ip_dir="$ip_top/.prflow/tmp/in-place"
+ip_copies=0
+unset GLOBIGNORE
+shopt -u failglob dotglob
+set +f
+for ip_parent in "$ip_top/.prflow" "$ip_top/.prflow/tmp"; do
+  if [ -L "$ip_parent" ] && ! [ -e "$ip_parent" ]; then
+    _ip_fail "cannot resolve ${ip_parent#"$ip_top"/}"
+  elif [ -d "$ip_parent" ] && ! [ -x "$ip_parent" ]; then
+    _ip_fail "cannot search ${ip_parent#"$ip_top"/}"
+  fi
+done
+_ip_walk() {  # <readable directory>
+  local e
+  for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+    if [ -L "$e" ] || { [ -e "$e" ] && ! [ -d "$e" ]; }; then
+      _bc "in-place mutation-check guard: copy ${e#"$ip_top"/} remains — settle that check (revert the recorded mutation, confirm the file's recorded ID, then delete the copy)"
+      ip_copies=$((ip_copies + 1))
+    elif [ -d "$e" ]; then
+      [ -r "$e" ] && [ -x "$e" ] || _ip_fail "cannot read ${e#"$ip_top"/}"
+      _ip_walk "$e"
+    fi
+  done
+}
+if [ -d "$ip_dir" ]; then
+  [ -r "$ip_dir" ] && [ -x "$ip_dir" ] || _ip_fail "cannot read .prflow/tmp/in-place"
+  _ip_walk "$ip_dir"
+elif [ -e "$ip_dir" ] || [ -L "$ip_dir" ]; then
+  _ip_fail ".prflow/tmp/in-place is not a directory"
+fi
+if [ "$ip_copies" -ne 0 ]; then
+  _bc "in-place mutation-check guard: refusing this checkpoint while $ip_copies mutation-check copy(ies) remain; nothing staged, no commit made"
+  exit 2
 fi
 
 # A no-op boundary still owes the caller the durability claim its exit 0 makes. The

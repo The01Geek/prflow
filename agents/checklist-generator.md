@@ -153,7 +153,7 @@ Every item MUST carry `claim_provenance`, one of exactly two values, so a downst
 - **`generated_paraphrase`** — the `claim` text is YOUR OWN rewording of what the code assumes or does. This is the default for the enumeration categories (`dependency_interaction`, `test_mock_alignment`, `data_format_assumption`, `api_contract`, `string_presence`, `issue_acceptance`), where you distill code behavior into a human-readable sentence. Omit `source_excerpt` on these items.
 - **`source_authored`** — the claim's *subject* is text authored in the source itself: a comment, a documentation line, a test assertion, an example, or a help string whose literal wording is what is under scrutiny. **Every `absolute_claim` item is `source_authored`** (the universal it asserts is authored in the diff). On a `source_authored` item, `source_excerpt` is **required** and MUST carry the verbatim authored text under scrutiny (copied exactly, not paraphrased).
 
-The decision rule: ask "is the `claim` my rewording of code behavior, or is it about a specific piece of text a human wrote in the source?" The former is `generated_paraphrase`; the latter is `source_authored` and carries the `source_excerpt`.
+The decision rule: ask "is the `claim` my rewording of code behavior, or is it about a specific piece of text a human wrote in the source?" The former is `generated_paraphrase`; the latter is `source_authored` and carries the `source_excerpt`. Either way the `claim` states what must hold — on a `source_authored` item, what the authored text asserts — never a suspected defect; name the suspected failure in `verify_hint` as the input to try.
 
 ## Rules
 

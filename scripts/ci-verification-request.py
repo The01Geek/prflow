@@ -96,6 +96,7 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 # Resolve the state-config path through the shared #295/#1002 contract so a consumer
 # still carrying a superseded `.devflow/` config is read-through and breadcrumbed exactly
@@ -365,13 +366,21 @@ def _request_for_candidate(repo: str, head_sha: str, *, correlated: bool) -> dic
     dispatch to reconcile; it falls through to a fresh dispatch instead, and a transient
     dispatch failure does not wedge the candidate at RECONCILE forever. A `no-verdict`
     record is never returned by either arm."""
-    best = None
+    records = []
     for path in sorted(_request_dir().glob("*.json")):
         try:
             with open(path, encoding="utf-8") as fh:
-                rec = json.load(fh)
+                records.append(json.load(fh))
         except (OSError, ValueError):
             continue
+    return _select_candidate_record(records, repo, head_sha, correlated=correlated)
+
+
+def _select_candidate_record(records: list, repo: str, head_sha: str, *,
+                             correlated: bool) -> dict | None:
+    """`_request_for_candidate`'s selection over already-read records."""
+    best = None
+    for rec in records:
         if not isinstance(rec, dict):
             continue
         if rec.get("repo") == repo and rec.get("source_head_sha") == head_sha \
@@ -420,6 +429,12 @@ def _correlate_run(repo: str, request_id: str, head_sha: str) -> tuple[int | Non
         raise _Refuse("transport", f"gh run list returned non-JSON ({exc!r})")
     if not isinstance(runs, list):
         raise _Refuse("transport", "gh run list did not return a JSON array")
+    return _select_correlated_run(runs, request_id, head_sha)
+
+
+def _select_correlated_run(runs: list, request_id: str,
+                           head_sha: str) -> tuple[int | None, int | None, str]:
+    """`_correlate_run`'s selection over an already-read run list."""
     # The base correlation filter is our own dispatch at the bound head: a
     # workflow_dispatch run of ci.yml at head_sha. A push/pull_request-triggered ci.yml
     # run at the same head — e.g. the draft PR's own synchronize run — is never adopted as
@@ -492,6 +507,11 @@ def _adopt_completed_dispatch_run(repo: str, head_sha: str) -> dict | None:
     if not isinstance(runs, list):
         _skip("run list is not a JSON array")
         return None
+    return _select_adoptable_run(runs, head_sha)
+
+
+def _select_adoptable_run(runs: list, head_sha: str) -> dict | None:
+    """`_adopt_completed_dispatch_run`'s selection over an already-read run list."""
     def _completed(conclusion: str) -> list:
         return [
             r for r in runs
@@ -671,6 +691,106 @@ def _run_pre_request_checks(args, root: str) -> list:
     return inherited
 
 
+# ── lifecycle decisions ────────────────────────────────────────────────────────────
+# The `_decide_*` functions choose the next step from a record and observations. They never
+# call gh, write the journal, read the clock, sleep or print: the command adapters perform
+# the returned effects and feed each effect's result back as the next observation.
+# Never a @dataclass: it resolves its module through sys.modules, which a loader that
+# exec's this file without registering it lacks, so the import itself fails.
+class _Decision(NamedTuple):
+    """`exit_code` None means the adapter performs `effect` and decides again; otherwise the
+    command ends with it, after the adapter prints a FAILED run's recap (`effect="recap"`)."""
+    exit_code: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    store: dict | None = None
+    effect: str = ""
+    detail: tuple = ()
+
+
+def _apply(decision: _Decision) -> None:
+    # The store precedes the stdout print: a journal-write failure must not leave a printed outcome.
+    if decision.stderr:
+        sys.stderr.write(decision.stderr)
+    if decision.store is not None:
+        _store_request(decision.store)
+    if decision.stdout:
+        print(decision.stdout)
+
+
+def _new_request_record(args, request_id: str, tested_checkout, created_at: str, *,
+                        state: str, run: tuple = (None, None, "")) -> dict:
+    run_id, run_attempt, run_url = run
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "repo": args.repo,
+        "workflow": args.workflow,
+        "request_id": request_id,
+        "source_head_sha": args.head_sha,
+        "base": args.base,
+        "base_sha": args.base_sha,
+        "tested_checkout": tested_checkout,
+        "ref": args.ref or args.base,
+        "run_id": run_id,
+        "run_attempt": run_attempt,
+        "run_url": run_url,
+        "state": state,
+        "created_at": created_at,
+    }
+
+
+def _decide_request_route(force_dispatch: bool, reuse: dict | None,
+                          pending: dict | None) -> _Decision:
+    """REUSE a correlated record; else reconcile an accepted-but-uncorrelated one before any
+    second dispatch; else scan for a completed run to adopt. `--force-dispatch` skips all
+    three."""
+    if force_dispatch:
+        return _Decision(effect="dispatch")
+    if reuse is not None:
+        return _Decision(0, f"REUSE {reuse['request_id']} run={reuse.get('run_id')} "
+                            f"url={reuse.get('run_url', '')}")
+    if pending is not None:
+        return _Decision(effect="correlate-pending")
+    return _Decision(effect="adopt-scan")
+
+
+def _decide_reconcile(pending: dict, run: tuple) -> _Decision:
+    run_id, run_attempt, run_url = run
+    if not run_id:
+        return _Decision(0, f"RECONCILE {pending['request_id']} run=none "
+                            "state=dispatched-uncorrelated reason=run-not-yet-visible")
+    record = {**pending, "run_id": run_id, "run_attempt": run_attempt, "run_url": run_url,
+              "state": "dispatched"}
+    return _Decision(0, f"REUSE {record['request_id']} run={run_id} url={run_url}",
+                     store=record)
+
+
+def _decide_adoption(adopted: dict | None) -> _Decision:
+    if adopted is None:
+        return _Decision(effect="dispatch")
+    return _Decision(0, f"ADOPTED {adopted['request_id']} run={adopted['run_id']} "
+                        f"url={adopted['run_url']}", store=adopted)
+
+
+def _decide_dispatch_result(record: dict, rc: int, err: str) -> _Decision:
+    """Raises the dispatch refusal; an accepted dispatch is stored dispatched-uncorrelated
+    before correlation, since a run-list failure would otherwise strand it at
+    pending-dispatch, which the reconcile selector skips, so a retry double-dispatches."""
+    if rc != 0:
+        if _looks_like_auth_failure(err):
+            raise _Refuse("auth", f"CI dispatch was not authorized: {err.strip()}")
+        raise _Refuse("dispatch-failed", f"gh workflow run failed (rc={rc}): {err.strip()}")
+    return _Decision(store={**record, "state": "dispatched-uncorrelated"}, effect="correlate")
+
+
+def _decide_requested(record: dict, run: tuple) -> _Decision:
+    run_id, run_attempt, run_url = run
+    record = {**record, "run_id": run_id, "run_attempt": run_attempt, "run_url": run_url,
+              "state": "dispatched" if run_id else "dispatched-uncorrelated"}
+    return _Decision(0, f"REQUESTED {record['request_id']} run={run_id} url={run_url} "
+                        f"state={record['state']}", store=record)
+
+
 # ── subcommand: request ──────────────────────────────────────────────────────────
 def cmd_request(args) -> int:
     if args.workflow != _CI_WORKFLOW:
@@ -680,53 +800,23 @@ def cmd_request(args) -> int:
     if not re.fullmatch(r"[0-9a-f]{40}", args.head_sha):
         raise _Refuse("bad-head", "head-sha must be exactly 40 lowercase hex characters")
 
+    reuse = pending = None
     if not args.force_dispatch:
         reuse = _request_for_candidate(args.repo, args.head_sha, correlated=True)
-        if reuse is not None:
-            print(f"REUSE {reuse['request_id']} run={reuse.get('run_id')} "
-                  f"url={reuse.get('run_url', '')}")
-            return 0
-        # Reconcile an accepted-but-uncorrelated dispatch before dispatching a second run,
-        # else a request whose run was not yet visible double-dispatches: re-correlate it,
-        # REUSE when its run is now visible, else stay pending (RECONCILE) — never dispatch.
-        pending = _request_for_candidate(args.repo, args.head_sha, correlated=False)
-        if pending is not None:
-            run_id, run_attempt, run_url = _correlate_run(
-                args.repo, pending["request_id"], args.head_sha)
-            if run_id:
-                pending.update(run_id=run_id, run_attempt=run_attempt, run_url=run_url,
-                               state="dispatched")
-                _store_request(pending)
-                print(f"REUSE {pending['request_id']} run={run_id} url={run_url}")
-            else:
-                print(f"RECONCILE {pending['request_id']} run=none "
-                      "state=dispatched-uncorrelated reason=run-not-yet-visible")
-            return 0
-        # No reusable local record: adopt a prior attempt's already-completed same-head
-        # dispatch run (issue #545). A resume on a fresh runner holds no request record, so without this
-        # it re-dispatches and re-waits a CI cycle this head already passed — or failed.
+        if reuse is None:
+            pending = _request_for_candidate(args.repo, args.head_sha, correlated=False)
+    decision = _decide_request_route(args.force_dispatch, reuse, pending)
+    if decision.effect == "correlate-pending":
+        decision = _decide_reconcile(
+            pending, _correlate_run(args.repo, pending["request_id"], args.head_sha))
+    elif decision.effect == "adopt-scan":
         adopt = _adopt_completed_dispatch_run(args.repo, args.head_sha)
-        if adopt is not None:
-            record = {
-                "schema_version": SCHEMA_VERSION,
-                "repo": args.repo,
-                "workflow": args.workflow,
-                "request_id": adopt["request_id"],
-                "source_head_sha": args.head_sha,
-                "base": args.base,
-                "base_sha": args.base_sha,
-                "tested_checkout": _checkout_fingerprint(),
-                "ref": args.ref or args.base,
-                "run_id": adopt["run_id"],
-                "run_attempt": adopt["run_attempt"],
-                "run_url": adopt["run_url"],
-                "state": "dispatched",
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
-            _store_request(record)
-            print(f"ADOPTED {record['request_id']} run={record['run_id']} "
-                  f"url={record['run_url']}")
-            return 0
+        decision = _decide_adoption(None if adopt is None else _new_request_record(
+            args, adopt["request_id"], _checkout_fingerprint(), _utc_now(), state="dispatched",
+            run=(adopt["run_id"], adopt["run_attempt"], adopt["run_url"])))
+    if decision.effect != "dispatch":
+        _apply(decision)
+        return decision.exit_code
 
     # Only the dispatch path runs the checks: a reused/reconciled/adopted head dispatches nothing.
     try:
@@ -737,22 +827,8 @@ def cmd_request(args) -> int:
         raise _Refuse("pre-request-check-unavailable", str(exc))
 
     request_id = uuid.uuid4().hex
-    record = {
-        "schema_version": SCHEMA_VERSION,
-        "repo": args.repo,
-        "workflow": args.workflow,
-        "request_id": request_id,
-        "source_head_sha": args.head_sha,
-        "base": args.base,
-        "base_sha": args.base_sha,
-        "tested_checkout": _checkout_fingerprint(),
-        "ref": args.ref or args.base,
-        "run_id": None,
-        "run_attempt": None,
-        "run_url": "",
-        "state": "pending-dispatch",
-        "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
+    record = _new_request_record(args, request_id, _checkout_fingerprint(), _utc_now(),
+                                 state="pending-dispatch")
     if inherited:
         record["pre_request_checks_inherited"] = inherited
     _store_request(record)  # persist BEFORE dispatch — a lost response is reconcilable
@@ -761,27 +837,16 @@ def cmd_request(args) -> int:
         "workflow", "run", _CI_WORKFLOW, "--repo", args.repo, "--ref", record["ref"],
         "-f", f"request_id={request_id}", "-f", f"expected_head_sha={args.head_sha}",
     ])
-    if rc != 0:
-        # Auth failures are a distinct, non-retryable terminal.
-        if _looks_like_auth_failure(err):
-            raise _Refuse("auth", f"CI dispatch was not authorized: {err.strip()}")
-        raise _Refuse("dispatch-failed", f"gh workflow run failed (rc={rc}): {err.strip()}")
+    decision = _decide_dispatch_result(record, rc, err)
+    _apply(decision)
+    decision = _decide_requested(decision.store,
+                                 _correlate_run(args.repo, request_id, args.head_sha))
+    _apply(decision)
+    return decision.exit_code
 
-    # Persist acceptance as dispatched-uncorrelated (no run id) BEFORE correlating: moving this
-    # write below _correlate_run would let a run-list failure leave the record at pending-dispatch,
-    # which the reconcile selector skips, so a retry double-dispatches.
-    record["state"] = "dispatched-uncorrelated"
-    _store_request(record)
 
-    # Correlate to a run id (the response may be empty).
-    run_id, run_attempt, run_url = _correlate_run(args.repo, request_id, args.head_sha)
-    record["run_id"] = run_id
-    record["run_attempt"] = run_attempt
-    record["run_url"] = run_url
-    record["state"] = "dispatched" if run_id else "dispatched-uncorrelated"
-    _store_request(record)
-    print(f"REQUESTED {request_id} run={run_id} url={run_url} state={record['state']}")
-    return 0
+def _utc_now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
 def _looks_like_auth_failure(text: str) -> bool:
@@ -885,6 +950,69 @@ def _print_failure_recap(record: dict) -> None:
 
 
 # ── subcommand: wait ─────────────────────────────────────────────────────────────
+def _decide_wait_correlation(record: dict, run: tuple) -> _Decision:
+    run_id, run_attempt, run_url = run
+    if not run_id:
+        return _Decision(_EXIT_PENDING,
+                         f"PENDING {record['request_id']} run=none reason=run-not-yet-visible")
+    return _Decision(store={**record, "run_id": run_id, "run_attempt": run_attempt,
+                            "run_url": run_url, "state": "dispatched"}, effect="poll")
+
+
+def _decide_poll_failure(record: dict, err: str, transport_failures: int) -> _Decision:
+    """`transport_failures` counts this failure. An authorization failure is terminal at once
+    rather than burning the transport-retry budget or the deadline on it."""
+    if _looks_like_auth_failure(err):
+        return _Decision(4, f"AUTH {record['request_id']} run={record['run_id']} "
+                            f"url={record.get('run_url','')} reason=authorization-failed")
+    if transport_failures > _MAX_TRANSPORT_RETRIES:
+        return _Decision(5, f"TRANSPORT {record['request_id']} run={record['run_id']} "
+                            f"retries={transport_failures} detail={err.strip()[:200]}")
+    return _Decision(effect="retry")
+
+
+def _decide_view(record: dict, parsed, bound: int | None, now: datetime | None,
+                 stall_noted: bool) -> _Decision:
+    """One polled run view. `now` is read only when `bound` is set and the run is not
+    completed."""
+    view = parsed if isinstance(parsed, dict) else {}
+    status = view.get("status")
+    status = status.lower() if isinstance(status, str) else ""
+    conclusion = view.get("conclusion")
+    conclusion = conclusion.lower() if isinstance(conclusion, str) else ""
+    run_url = view.get("url") or record.get("run_url", "")
+    note = ""
+    if bound is not None and status != "completed":
+        reason, hit = _stalled_job(parsed, bound, now)
+        if reason is not None and not stall_noted:
+            note = f"stall-check: unestablished — {reason}\n"
+        if hit is not None:
+            return _Decision(stderr=note, effect="cancel", detail=(run_url, *hit))
+    # Only a completed run is terminal: a `success` conclusion on a still-running status must
+    # never print PASSED.
+    if status != "completed":
+        return _Decision(stderr=note, effect="poll")
+    record = {**record, "run_url": run_url}
+    if conclusion == _SUCCESS_CONCLUSION:
+        # A later collect-evidence binds to this attempt; a Spot retry may have bumped it
+        # since correlation (issue #543). A non-integer attempt leaves the stored value.
+        view_attempt = view.get("attempt")
+        if _is_real_int(view_attempt):
+            record["run_attempt"] = view_attempt
+    no_verdict = _NO_VERDICT_CONCLUSIONS.get(conclusion)
+    if no_verdict is not None:
+        record["state"] = _STATE_NO_VERDICT
+    head = f"{record['request_id']} run={record['run_id']} url={run_url}"
+    if conclusion == _SUCCESS_CONCLUSION:
+        return _Decision(_EXIT_PASSED, f"PASSED {head}", store=record)
+    if no_verdict == "CANCELLED":
+        return _Decision(_EXIT_NO_VERDICT, f"CANCELLED {head}", store=record)
+    if no_verdict == "SUPERSEDED":
+        return _Decision(_EXIT_NO_VERDICT, f"SUPERSEDED {head} reason=run-skipped", store=record)
+    return _Decision(7, f"FAILED {head} conclusion={conclusion or 'unknown'}", store=record,
+                     effect="recap")
+
+
 def cmd_wait(args) -> int:
     record = _load_request(args.request_id)
     repo = record["repo"]
@@ -892,15 +1020,12 @@ def cmd_wait(args) -> int:
 
     if not record.get("run_id"):
         # Delayed run visibility: re-correlate by request identity before giving up.
-        run_id, run_attempt, run_url = _correlate_run(repo, record["request_id"], head_sha)
-        if run_id:
-            record.update(run_id=run_id, run_attempt=run_attempt, run_url=run_url,
-                          state="dispatched")
-            _store_request(record)
-        else:
-            print(f"PENDING {record['request_id']} run=none "
-                  "reason=run-not-yet-visible")
-            return _EXIT_PENDING
+        decision = _decide_wait_correlation(
+            record, _correlate_run(repo, record["request_id"], head_sha))
+        _apply(decision)
+        if decision.exit_code is not None:
+            return decision.exit_code
+        record = decision.store
 
     deadline = time.monotonic() + max(1, args.deadline_seconds)
     transport_failures = 0
@@ -912,17 +1037,11 @@ def cmd_wait(args) -> int:
             "run", "view", str(record["run_id"]), "--repo", repo, "--json", fields,
         ])
         if rc != 0:
-            # An authorization failure is a non-retryable terminal — report it at once
-            # rather than burning the transport-retry budget or the deadline on it.
-            if _looks_like_auth_failure(err):
-                print(f"AUTH {record['request_id']} run={record['run_id']} "
-                      f"url={record.get('run_url','')} reason=authorization-failed")
-                return 4
             transport_failures += 1
-            if transport_failures > _MAX_TRANSPORT_RETRIES:
-                print(f"TRANSPORT {record['request_id']} run={record['run_id']} "
-                      f"retries={transport_failures} detail={err.strip()[:200]}")
-                return 5
+            decision = _decide_poll_failure(record, err, transport_failures)
+            if decision.exit_code is not None:
+                _apply(decision)
+                return decision.exit_code
             _sleep_until(deadline)
             if time.monotonic() >= deadline:
                 return _emit_pending(record, stall_noted)
@@ -932,52 +1051,17 @@ def cmd_wait(args) -> int:
             parsed = json.loads(out) if out.strip() else None
         except ValueError:
             parsed = None
-        view = parsed if isinstance(parsed, dict) else {}
-        status = view.get("status")
-        status = status.lower() if isinstance(status, str) else ""
-        conclusion = view.get("conclusion")
-        conclusion = conclusion.lower() if isinstance(conclusion, str) else ""
-        run_url = view.get("url") or record.get("run_url", "")
-        if bound is not None and status != "completed":
-            reason, hit = _stalled_job(parsed, bound, datetime.now(timezone.utc))
-            if reason is not None and not stall_noted:
-                sys.stderr.write(f"stall-check: unestablished — {reason}\n")
-                stall_noted = True
-            if hit is not None:
-                return _emit_stalled(record, run_url, *hit)
-        # Only a completed run is terminal. A conclusion seen alongside a not-completed
-        # status (a transient/edge API state) is NOT honored — it falls through to the
-        # deadline/sleep logic, so a `success` conclusion on a still-running status can
-        # never print PASSED. An unrecognised status is likewise treated as pending.
-        if status == "completed":
-            record["run_url"] = run_url
-            if conclusion == _SUCCESS_CONCLUSION:
-                # Persist the attempt GitHub reports for the passing run so a later
-                # collect-evidence binds to the retry's attempt, not the stale attempt from
-                # the original correlation — else a Spot retry that bumped the attempt after
-                # correlation is refused `attempt-changed` though the run itself passed
-                # (issue #543). A view with no integer attempt leaves the stored value.
-                view_attempt = view.get("attempt")
-                if _is_real_int(view_attempt):
-                    record["run_attempt"] = view_attempt
-            no_verdict = _NO_VERDICT_CONCLUSIONS.get(conclusion)
-            if no_verdict is not None:
-                record["state"] = _STATE_NO_VERDICT
-            _store_request(record)
-            if conclusion == _SUCCESS_CONCLUSION:
-                print(f"PASSED {record['request_id']} run={record['run_id']} url={run_url}")
-                return _EXIT_PASSED
-            if no_verdict == "CANCELLED":
-                print(f"CANCELLED {record['request_id']} run={record['run_id']} url={run_url}")
-                return _EXIT_NO_VERDICT
-            if no_verdict == "SUPERSEDED":
-                print(f"SUPERSEDED {record['request_id']} run={record['run_id']} url={run_url} "
-                      "reason=run-skipped")
-                return _EXIT_NO_VERDICT
-            print(f"FAILED {record['request_id']} run={record['run_id']} url={run_url} "
-                  f"conclusion={conclusion or 'unknown'}")
-            _print_failure_recap(record)
-            return 7
+        decision = _decide_view(record, parsed, bound,
+                                datetime.now(timezone.utc) if bound is not None else None,
+                                stall_noted)
+        _apply(decision)
+        stall_noted = stall_noted or bool(decision.stderr)
+        if decision.effect == "cancel":
+            return _emit_stalled(record, *decision.detail)
+        if decision.exit_code is not None:
+            if decision.effect == "recap":
+                _print_failure_recap(decision.store)
+            return decision.exit_code
         if time.monotonic() >= deadline:
             return _emit_pending(record, stall_noted)
         _sleep_until(deadline)
@@ -1040,22 +1124,27 @@ def _spaced_controls(text: str) -> str:
     return "".join(" " if unicodedata.category(ch).startswith("C") else ch for ch in text)
 
 
-def _emit_stalled(record: dict, run_url: str, job: dict, age: int) -> int:
-    rc, _out, err = _gh(["run", "cancel", str(record["run_id"]), "--repo", record["repo"]])
-    if rc != 0:
-        sys.stderr.write(f"stall-cancel: gh run cancel exited {rc}: "
-                         f"{_spaced_controls(err.strip())[:200]}\n")
+def _decide_stall_cancel(record: dict, run_url: str, job: dict, age: int,
+                         cancel_rc: int, cancel_err: str) -> _Decision:
+    stderr = "" if cancel_rc == 0 else (f"stall-cancel: gh run cancel exited {cancel_rc}: "
+                                        f"{_spaced_controls(cancel_err.strip())[:200]}\n")
+    record = {**record, "run_url": run_url}
     # Settling after a failed cancel would make the next request dispatch a second run beside
     # this possibly-live one. A record already settled no-verdict intentionally stays settled.
-    if rc == 0:
+    if cancel_rc == 0:
         record["state"] = _STATE_NO_VERDICT
-    record["run_url"] = run_url
-    _store_request(record)
     name = _spaced_controls(job.get("name") if isinstance(job.get("name"), str) else "<unnamed>")
-    print(f"STALLED {record['request_id']} run={record['run_id']} url={run_url} "
-          f"queued-for={age}s cancel={'ok' if rc == 0 else 'failed'} "
-          f"job={name[:_STALL_JOB_NAME_MAX_CHARS]}")
-    return _EXIT_NO_VERDICT
+    return _Decision(_EXIT_NO_VERDICT,
+                     f"STALLED {record['request_id']} run={record['run_id']} url={run_url} "
+                     f"queued-for={age}s cancel={'ok' if cancel_rc == 0 else 'failed'} "
+                     f"job={name[:_STALL_JOB_NAME_MAX_CHARS]}", stderr=stderr, store=record)
+
+
+def _emit_stalled(record: dict, run_url: str, job: dict, age: int) -> int:
+    rc, _out, err = _gh(["run", "cancel", str(record["run_id"]), "--repo", record["repo"]])
+    decision = _decide_stall_cancel(record, run_url, job, age, rc, err)
+    _apply(decision)
+    return decision.exit_code
 
 
 def _positive_int(text: str) -> int:
@@ -1091,15 +1180,21 @@ def _sleep_until(deadline: float) -> None:
     time.sleep(min(_poll_interval(), remaining))
 
 
-def _emit_pending(record: dict, stall_unestablished: bool) -> int:
+def _decide_pending(record: dict, stall_unestablished: bool) -> _Decision:
     # Never un-settle a no-verdict record.
     if record.get("state") != _STATE_NO_VERDICT:
-        record["state"] = "pending"
-    _store_request(record)
-    print(f"PENDING {record['request_id']} run={record.get('run_id')} "
-          f"url={record.get('run_url','')} reason=deadline-reached"
-          + (" stall-check=unestablished" if stall_unestablished else ""))
-    return _EXIT_PENDING
+        record = {**record, "state": "pending"}
+    return _Decision(_EXIT_PENDING,
+                     f"PENDING {record['request_id']} run={record.get('run_id')} "
+                     f"url={record.get('run_url','')} reason=deadline-reached"
+                     + (" stall-check=unestablished" if stall_unestablished else ""),
+                     store=record)
+
+
+def _emit_pending(record: dict, stall_unestablished: bool) -> int:
+    decision = _decide_pending(record, stall_unestablished)
+    _apply(decision)
+    return decision.exit_code
 
 
 # ── subcommand: collect-evidence ─────────────────────────────────────────────────

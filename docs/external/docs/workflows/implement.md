@@ -107,6 +107,8 @@ If the reproduction was not a failing test, PRFlow writes one before it writes t
 
 Before finalization, every in-scope acceptance criterion must be supported by a passing test, a documented manual check or a code reference. Two independent checkers run in a fresh context and have to agree; if they disagree, the criterion counts as unestablished and blocks, exactly as a failing one would.
 
+PRFlow checks the criteria for conflicts when it writes the plan: two criteria that cannot both hold, one that leaves out a qualifier another states, or one that promises a result no change the issue's Desired Behavior asks for would produce. It checks again when one of the sweeps it runs between writing and testing the code adds, removes or changes a path from a condition to an outcome that the plan did not describe, such as a failure path, and it records the result in the workpad. When a sweep's change makes false a criterion the Desired Behavior supports, it fixes or reverts that change. It handles a conflict it finds, for example, by rewriting the criteria in the workpad to follow the Desired Behavior or, when a rewrite would drop a guarantee the Desired Behavior states, by deferring every criterion in the conflicting set to a follow-up issue.
+
 A criterion that can only be confirmed in a real deployed environment stays unticked and moves to the pull request's Post-Merge Verification section.
 
 <Warning>
