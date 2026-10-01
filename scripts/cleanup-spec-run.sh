@@ -10,6 +10,7 @@
 #   --adopt-slug <slug> --root <path>                        touch a resolved run
 #   --slug <slug> --root <path>|--resolve cwd|main-root …    remove the run dir + legacy pointers
 #   --ensure-run-dir --slug <slug> --resolve main-root       create the per-run scratch dir
+#   --probe-run-state <slug> --root <path>                   classify spec Step 4's run-state files
 # The registry file lives inside the run directory —
 # `<root>/.prflow/tmp/spec/<slug>/run-meta.json` — so a continued session
 # resolves its own run on any harness with only bash, python3 and the filesystem,
@@ -22,7 +23,10 @@
 # `--ensure-run-dir` creates <root>/.prflow/tmp/spec/<slug>/ under the MAIN-root
 # resolution only and prints `main_root=<abs>` and `run_dir=<abs>`; given `--resolve cwd`,
 # a `--root`, or no `--resolve` it prints `run_dir=none reason=unsupported-resolve` and
-# creates nothing. All modes stay best-effort and exit 0.
+# creates nothing. `--probe-run-state` prints `path=<p> class=present|absent|unestablished`
+# for <root>/.prflow/tmp/spec/<slug>/issue-step1-<slug>.md and issue-derivation-<slug>.md, or
+# one `run_state=unestablished reason=unsafe-slug|no-root` line. All modes stay best-effort
+# and exit 0.
 set -u
 
 prog=cleanup-spec-run.sh
@@ -51,6 +55,9 @@ topic=""
 roots=()
 resolve_modes=()
 ensure_run_dir=0
+resolve_slug=0
+probe_run_state=0
+probe_slug=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     # `shift; [ … ] && shift` consumes the value only when one is present. A bare
@@ -60,13 +67,70 @@ while [ "$#" -gt 0 ]; do
     --register-slug) mode=register; register_slug="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
     --adopt-slug) mode=adopt; adopt_slug="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
     --topic) topic="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
-    --resolve-slug) mode=resolve; shift ;;
+    --resolve-slug) mode=resolve; resolve_slug=1; shift ;;
     --root) roots+=("${2:-}"); shift; [ "$#" -gt 0 ] && shift ;;
     --resolve) resolve_modes+=("${2:-}"); shift; [ "$#" -gt 0 ] && shift ;;
     --ensure-run-dir) ensure_run_dir=1; shift ;;
+    --probe-run-state) probe_run_state=1; probe_slug="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
     *) printf '%s: warning: ignoring unexpected argument %s\n' "$prog" "$1" >&2; shift ;;
   esac
 done
+
+# register/resolve/adopt, and the probe once its slug passes, act on the FIRST --root only;
+# a further --root is ignored with one stderr warning naming it, so stdout stays unchanged.
+warn_extra_roots() {
+  local _i
+  for ((_i = 1; _i < ${#roots[@]}; _i++)); do
+    printf '%s: warning: ignoring extra --root %s\n' "$prog" "${roots[_i]}" >&2
+  done
+}
+
+# --probe-run-state: read-only, dispatched first so no other mode operand beside it ever runs.
+# Decide classes with file tests only (all but -L follow symlinks); never parse `ls` output.
+if [ "$probe_run_state" -eq 1 ]; then
+  if [ -z "$probe_slug" ] || ! [[ "$probe_slug" =~ $safe_slug ]]; then
+    printf 'run_state=unestablished reason=unsafe-slug\n'; exit 0
+  fi
+  probe_root="${roots[0]:-}"
+  warn_extra_roots
+  for _m in "${resolve_modes[@]:-}"; do
+    [ -n "$_m" ] && printf '%s: warning: ignoring --resolve %s\n' "$prog" "$_m" >&2
+  done
+  [ -n "$slug" ] && printf '%s: warning: ignoring --slug %s\n' "$prog" "$slug" >&2
+  [ -n "$register_slug" ] && printf '%s: warning: ignoring --register-slug %s\n' "$prog" "$register_slug" >&2
+  [ -n "$adopt_slug" ] && printf '%s: warning: ignoring --adopt-slug %s\n' "$prog" "$adopt_slug" >&2
+  [ "$resolve_slug" -eq 1 ] && printf '%s: warning: ignoring --resolve-slug\n' "$prog" >&2
+  [ -n "$topic" ] && printf '%s: warning: ignoring --topic\n' "$prog" >&2
+  [ "$ensure_run_dir" -eq 1 ] && printf '%s: warning: ignoring --ensure-run-dir\n' "$prog" >&2
+  if [ -z "$probe_root" ] || [ ! -d "$probe_root" ]; then
+    printf 'run_state=unestablished reason=no-root\n'; exit 0
+  fi
+  for _p in "$probe_root/.prflow/tmp/spec/$probe_slug/issue-step1-$probe_slug.md" \
+            "$probe_root/.prflow/tmp/spec/$probe_slug/issue-derivation-$probe_slug.md"; do
+    if [ -f "$_p" ]; then
+      if [ -s "$_p" ]; then _c=present; else _c=absent; fi
+    elif [ -e "$_p" ]; then
+      _c=unestablished
+    elif [ -L "$_p" ]; then
+      # Any link whose target does not resolve, including a target behind an unsearchable
+      # directory: file tests cannot tell that from a missing target.
+      _c=absent
+    else
+      # A missing path is unestablished when its nearest ancestor that exists or is a symlink is a
+      # directory the helper cannot search or a symlink that does not resolve: the path may exist,
+      # and absent authorizes a producing-step re-run.
+      _a="${_p%/*}"
+      while [ "$_a" != "$probe_root" ] && [ ! -e "$_a" ] && [ ! -L "$_a" ]; do _a="${_a%/*}"; done
+      if { [ -d "$_a" ] && [ ! -x "$_a" ]; } || { [ -L "$_a" ] && [ ! -e "$_a" ]; }; then
+        _c=unestablished
+      else
+        _c=absent
+      fi
+    fi
+    printf 'path=%s class=%s\n' "$_p" "$_c"
+  done
+  exit 0
+fi
 
 # --ensure-run-dir: create the per-run scratch dir under the MAIN-root resolution only.
 # A --root, a `--resolve cwd`, or no `--resolve main-root` is unsupported here — the caller
@@ -93,15 +157,6 @@ if [ "$ensure_run_dir" -eq 1 ]; then
   fi
   exit 0
 fi
-
-# register/resolve/adopt act on the FIRST --root only; a further --root is ignored
-# with one stderr warning naming it, so the single stdout line count stays one.
-warn_extra_roots() {
-  local _i
-  for ((_i = 1; _i < ${#roots[@]}; _i++)); do
-    printf '%s: warning: ignoring extra --root %s\n' "$prog" "${roots[_i]}" >&2
-  done
-}
 
 if [ "$mode" != cleanup ]; then
   root="${roots[0]:-}"

@@ -13,9 +13,9 @@ final checklist Phase 1 hands to Phase 2 (`checklist-iter-<N>.json`) and the com
 verification results Phase 2 hands to Phase 4 (`verification-iter-<N>.json`), each a JSON
 array. This mirrors how the implement/reception tier proves completion — validating a
 producer-owned artifact (check-completion-evidence.py's flight record), not a discretionary
-bookkeeping line an agent could omit while doing the work correctly. Two legitimate
-no-checklist arms produce no such artifact and prove themselves through the phase log
-instead: a generator double-failure record and a Phase 0.3.6 hit record.
+bookkeeping line an agent could omit while doing the work correctly. The one legitimate
+no-checklist arm that produces no such artifact, a generator double failure, proves itself
+through its phase-log record instead.
 
 WHAT IT READS, AND WHY EACH INPUT IS SHAPED THIS WAY.
   --pre-inventory FILE    a pre-engine snapshot {"run_roots": [...], "review_ids": [...]}
@@ -54,11 +54,9 @@ step's unrecognized-output warning rather than a silent green.
 
   pass <arm>                 a verdict was posted and its required evidence is present (on
                              the lean arm no checklist is owed, but with --execution-file the
-                             always-on Phase 3 dispatches still are, unless the phase log
-                             records a blocker-recheck hit). With --grade-run-root, every arm
-                             also owes the Phase 3 block files on the same exemption. <arm>
-                             is one of legitimate-skip, generator-failure-skip,
-                             blocker-recheck-hit, checklist-phases-ran.
+                             always-on Phase 3 dispatches still are). With --grade-run-root,
+                             every arm also owes the Phase 3 block files. <arm> is one of
+                             legitimate-skip, generator-failure-skip, checklist-phases-ran.
   no-verdict                 no marker-bearing verdict was posted by this run for the head.
   fail missing=<tokens> review_id=<id> review_state=<state>
                              a verdict was posted and either (a) the checklist was owed and
@@ -66,10 +64,9 @@ step's unrecognized-output warning rather than a silent green.
                              verification artifact pair (and no special record) proving it
                              ran, or (b) independently of whether a checklist was owed, with
                              --execution-file, the transcript is missing a dispatch of any
-                             always-on Phase 3 reviewer on an arm that owes Phase 3 (every
-                             arm but a blocker-recheck hit), or (c) with --grade-run-root, the
+                             always-on Phase 3 reviewer, or (c) with --grade-run-root, the
                              run root lacks a `p3-<bare name>.md` block file for such a
-                             reviewer on such an arm (graded before any post). The <tokens>
+                             reviewer (graded before any post). The <tokens>
                              are space-free (checklist-artifact, verification-artifact, run-root,
                              transcript-dispatch-shortfall, phase3-dispatch:<subagent_type>,
                              phase3-block-file:<bare name>), joined by commas.
@@ -84,8 +81,7 @@ checklist owed and a run root holding neither the durable artifact pair nor a sp
 (or no run root at all), an established transcript missing an owed Phase 3 reviewer
 dispatch, or a run root missing an owed Phase 3 block file — is the fail arm. An unstat-able
 block file grades `unestablished phase3-block-file-unreadable` unless an earlier unestablished
-grade, an ungradeable phase log, a blocker-recheck hit, or an established checklist failure
-settles the root first.
+grade, an ungradeable phase log, or an established checklist failure settles the root first.
 """
 import argparse
 import glob
@@ -100,12 +96,15 @@ import subprocess
 import sys
 import tempfile
 
-# The two special records that legitimately stand in for the checklist phases. These are
-# still carried on the run-scoped phase log by their producer phases (Phase 1.3's generator
-# double-failure arm and Phase 0.3.6's blocker-recheck hit), and are consulted only when the
+# The special record that legitimately stands in for the checklist phases, carried on the
+# run-scoped phase log by Phase 1.3's generator double-failure arm and consulted only when the
 # durable artifact pair is absent (issue #21).
 _GENERATOR_FAILURE_RECORD = 'checklist-skip reason=failure'
-_BLOCKER_RECHECK_HIT_RECORD = 'blocker-recheck-hit re-verdict=posted'
+# Records of the retired blocker-recheck fast path (issue #1482): exact-match no-op grammar
+# lines. Dropping them grades a log carrying one malformed (unestablished) instead of owing
+# the missing evidence.
+_RETIRED_RECORDS = frozenset({'blocker-recheck-hit re-verdict=posted',
+                              'blocker-recheck-hit verification=complete'})
 # The durable Phase 1 / Phase 2 work-product artifacts (issue #21): the final post-dedup,
 # post-cap checklist array Phase 1 hands to Phase 2, and the combined normalized results
 # array Phase 2 hands to Phase 4 — each iteration-scoped so /prflow:review-and-fix's
@@ -149,9 +148,6 @@ _COUNTED_SUBAGENTS = (_VERIFIER_SUBAGENT,) + _PHASE3_ALWAYS_ON_SUBAGENTS
 # The tool a harness records a subagent dispatch under: `Agent` on the current cloud harness,
 # `Task` on older ones. Dropping either zeroes the count on that harness's transcripts.
 _DISPATCH_TOOL_NAMES = frozenset({'Agent', 'Task'})
-# Written by Phase 0.3.6 BEFORE Phase 4 posting (issue #193); accepting only the legacy
-# post-verdict record would leave the producer's pre-post grade no blocker-recheck evidence.
-_BLOCKER_RECHECK_VERIFY_RECORD = 'blocker-recheck-hit verification=complete'
 
 
 def _detail(*parts):
@@ -269,35 +265,29 @@ def _read_phase_log(run_root_dir):
 
 
 def _grade_phase_log(text):
-    """Grade a present phase log's text — consulted (issue #21) only for the two special
-    no-work-product records, since a checklist-owing run's evidence now lives in its durable
+    """Grade a present phase log's text — consulted (issue #21) only for the special
+    no-work-product record, since a checklist-owing run's evidence now lives in its durable
     artifacts. Returns one of:
       ('malformed', None)                 any non-blank line is outside the closed grammar
-      ('record', 'blocker-recheck-hit')   the 0.3.6 hit record is present
       ('record', 'generator-failure')     the generator double-failure record is present
       ('none', None)                      well-formed but carrying no special record (an
-                                          empty log, or a transitional log of phase-entry
+                                          empty log, or a log of transitional or retired
                                           lines only — no longer evidence on its own)
     The grammar is total over any input and never crashes: an unrecognized non-blank line
     (wrong-typed content, a truncated line, a valid-falsy `phase=`, unknown extra text)
     makes the whole log malformed → unestablished. A transitional `phase-entry phase=<id>`
-    line stays valid grammar (not malformed) so such a log routes to the artifact-based fail
-    arm rather than unestablished. Blank lines (a trailing newline's empty final element) are
-    skipped."""
-    seen = set()
+    line and a retired record stay valid grammar (not malformed) so such a log routes to the
+    artifact-based fail arm rather than unestablished. Blank lines (a trailing newline's
+    empty final element) are skipped."""
+    generator_failure = False
     for line in text.split('\n'):
-        if line == '':
+        if line == '' or line in _RETIRED_RECORDS or _PHASE_ENTRY_RE.match(line):
             continue
-        if line in (_GENERATOR_FAILURE_RECORD, _BLOCKER_RECHECK_HIT_RECORD,
-                    _BLOCKER_RECHECK_VERIFY_RECORD):
-            seen.add(line)
-            continue
-        if _PHASE_ENTRY_RE.match(line):
+        if line == _GENERATOR_FAILURE_RECORD:
+            generator_failure = True
             continue
         return 'malformed', None
-    if _BLOCKER_RECHECK_HIT_RECORD in seen or _BLOCKER_RECHECK_VERIFY_RECORD in seen:
-        return 'record', 'blocker-recheck-hit'
-    if _GENERATOR_FAILURE_RECORD in seen:
+    if generator_failure:
         return 'record', 'generator-failure'
     return 'none', None
 
@@ -465,7 +455,7 @@ def _grade_run_root_detail(run_root_dir):
       ('unestablished', 'review-artifact-malformed', None) a present-but-corrupt artifact
       ('unestablished', 'phase-log-malformed', None)       no pair; malformed phase log
       ('unestablished', 'run-root-unreadable', None)       no pair; unreadable phase log
-      ('special', 'blocker-recheck-hit' | 'generator-failure', None)  a no-checklist record
+      ('special', 'generator-failure', None)               a no-checklist record
       ('fail', [missing-token, ...], None)                 neither a qualifying pair nor a
                                                            record (a `verdict-file:<id>`
                                                            token names each agent item
@@ -583,9 +573,9 @@ def _read_active_entry_binding(run_root_dir, entry, iteration):
 
 
 def _special_record_grade(run_root_dir):
-    """The special no-work-product arm (AC5): consult the phase log for the two records that
-    legitimately stand in for the checklist phases. Returns a `_grade_run_root_detail`-shaped
-    3-tuple — ('special', 'blocker-recheck-hit'|'generator-failure', None) or an
+    """The special no-work-product arm (AC5): consult the phase log for the record that
+    legitimately stands in for the checklist phases. Returns a `_grade_run_root_detail`-shaped
+    3-tuple — ('special', 'generator-failure', None) or an
     ('unestablished', <reason>, None) for an unreadable/malformed log — or None when the log
     carries no special record (an absent log is None, not a fault)."""
     kind, text = _read_phase_log(run_root_dir)
@@ -1061,9 +1051,7 @@ def _format_offline_grade(run_root, grade, payload, disproof=None):
             'review-evidence-gate: offline grading of run root ', run_root,
             ' is unestablished (', str(payload), ').')
     if grade == 'special':
-        arm = ('blocker-recheck-hit' if payload == 'blocker-recheck-hit'
-               else 'generator-failure-skip')
-        return f'pass {arm}', _detail(
+        return 'pass generator-failure-skip', _detail(
             'review-evidence-gate: offline grading — the run root carries the ', str(payload),
             ' record, a legitimate no-checklist arm.')
     if grade == 'pass':
@@ -1100,8 +1088,7 @@ def _phase3_block_files_missing(run_root):
 def _decide_offline(run_root):
     """Grade a run root offline through the legacy run-wide `_grade_run_root_detail` (issue
     #193 AC1) — no GitHub, ref resolution, reviews payload, or repo checkout — then require
-    the Phase 3 block files on every arm but a blocker-recheck hit (issue #1156). Returns
-    (token, [detail...])."""
+    the Phase 3 block files on every arm (issue #1156). Returns (token, [detail...])."""
     token, detail, disproof = _offline_owed_check(run_root)
     grade, payload = None, None
     if token is None:
@@ -1116,8 +1103,6 @@ def _decide_offline(run_root):
     special = _special_record_grade(run_root)
     if special is not None and special[0] == 'unestablished':
         return _format_offline_grade(run_root, special[0], special[1])
-    if special is not None and special[1] == 'blocker-recheck-hit':
-        return token, detail
     stat_note = _detail('review-evidence-gate: offline grading of run root ', run_root,
                         ' could not stat Phase 3 block file(s): ', ', '.join(unreadable), '.')
     if grade == 'fail':
@@ -1267,8 +1252,8 @@ def _decide(args):
         # whose transcript dispatched every always-on reviewer into unestablished.
         return lean_pass
     if disproof is None and counts is None:
-        # Lean arm only: a supplied-but-unusable transcript is unestablished even beside a
-        # blocker-recheck record, and no run-root attribution fault masks its reason.
+        # Lean arm only: a supplied-but-unusable transcript is unestablished, and no run-root
+        # attribution fault masks its reason.
         return unusable
 
     # Attribute this run's run root by the inventory delta.
@@ -1285,24 +1270,20 @@ def _decide(args):
     run_root_dir = (os.path.join(args.post_tree_root, _REVIEW_SUBDIR, fresh_roots[0])
                     if fresh_roots else None)
     special = _special_record_grade(run_root_dir) if run_root_dir else None
-    # A phase-log blocker-recheck hit replaces Phase 3 by design (issue #1051 AC4), so it owes
-    # no reviewer dispatch on any arm.
-    recheck_hit = bool(special and special[:2] == ('special', 'blocker-recheck-hit'))
 
     if disproof is None:
         if special is not None and special[0] == 'unestablished':
             return f'unestablished {special[1]}', _detail(
                 'review-evidence-gate: the attributed run root ', fresh_roots[0],
                 ' has a phase log that could not be graded (', special[1], ').')
-        if not recheck_hit:
-            missing = _phase3_missing(counts)
-            if missing:
-                return f'fail missing={",".join(missing)}{fail_tail}', phase3_detail(missing)
+        missing = _phase3_missing(counts)
+        if missing:
+            return f'fail missing={",".join(missing)}{fail_tail}', phase3_detail(missing)
         return lean_pass
 
     # Missing reviewers join a fail line only when the transcript established them, so an
     # unusable transcript never softens an established artifact failure into unestablished.
-    extra = _phase3_missing(counts) if counts is not None and not recheck_hit else []
+    extra = _phase3_missing(counts) if counts is not None else []
 
     fail_detail_head = (
         f'review-evidence-gate: this run posted a merge-gating verdict (review '
@@ -1333,11 +1314,6 @@ def _decide(args):
             'review-evidence-gate: the attributed run root ', fresh_roots[0],
             ' holds no durable artifact pair and its phase log could not be read ',
             '(an I/O or permission failure).')
-    if grade == 'special' and payload == 'blocker-recheck-hit':
-        return 'pass blocker-recheck-hit', _detail(
-            'review-evidence-gate: the run root carries the Phase 0.3.6 ',
-            'blocker-recheck hit record, the sole evidence its fast-path ',
-            're-verdict owes.')
     if grade == 'special' and payload == 'generator-failure':
         if exec_file and counts is None:
             return unusable

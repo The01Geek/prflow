@@ -184,9 +184,11 @@ def _next_call_body(cmd_name, state, slug, nonce, **ctx):
         return _unestablished(ctx.get('ambiguity') or 'next-action-unestablished')
 
     # --- the lifecycle chain ----------------------------------------------------------
-    if cmd_name == 'init':
-        return _next_call_invocation(cmd_name, f'query-arm {slug}', [
-            ('--nonce', nonce), ('--write-landed', None), ('--draft-file', None)])
+    if cmd_name in ('init', 'record-draft-binding'):
+        # Answers `draft-write`, not a state-owner call: the next mandated step writes the
+        # draft with a different tool. Rendering a `record-staged-write` invocation here
+        # would skip the staging step the sequence mandates before that call.
+        return _unestablished('draft-write')
     if cmd_name == 'record-dispatch':
         # The mandated next step is dispatching the auditor, not a tool call.
         return _unestablished('auditor-dispatch')
@@ -194,6 +196,15 @@ def _next_call_body(cmd_name, state, slug, nonce, **ctx):
         rnd = ctx.get('round')
         if rnd is None:
             return _unestablished('round-unestablished')
+        _rounds = state.get('rounds') if isinstance(state.get('rounds'), list) else []
+        _tally = next((r.get('findings_count') for r in _rounds
+                       if isinstance(r, dict) and r.get('round') == rnd), None)
+        if isinstance(_tally, int) and _tally >= 1:
+            # issue #1371: `record-adjudication` refuses a round holding fewer evidence entries
+            # than findings.
+            return _next_call_invocation(cmd_name, f'record-finding-evidence {slug}', [
+                ('--nonce', nonce), ('--round', rnd),
+                ('--finding-evidence-records-file', None)])
         return _next_call_invocation(cmd_name, f'record-adjudication {slug}', [
             ('--nonce', nonce), ('--round', rnd), ('--verdict', None),
             ('--must-revise', None), ('--advisory', None), ('--invalid', None),
@@ -238,11 +249,6 @@ def _next_call_body(cmd_name, state, slug, nonce, **ctx):
             return _unestablished('draft-write')
         return _next_call_invocation(cmd_name, f'record-draft-binding {slug}', [
             ('--nonce', nonce), ('--path', None), ('--tier', None)])
-    if cmd_name == 'record-draft-binding':
-        # Answers `draft-write`, not a state-owner call: the next mandated step writes the
-        # draft with a different tool. Rendering a `record-staged-write` invocation here
-        # would skip the staging step the sequence mandates before that call.
-        return _unestablished('draft-write')
     if cmd_name == 'record-revision':
         return _next_call_invocation(cmd_name, f'record-resolution {slug}', [
             ('--nonce', nonce), ('--round', None), ('--revision-ordinal', None),
@@ -253,11 +259,13 @@ def _next_call_body(cmd_name, state, slug, nonce, **ctx):
             ('--draft-file', ctx.get('draft_file'))])
     if cmd_name == 'record-offer':
         return _unestablished('user-election')
+    if cmd_name == 'record-finding-evidence':
+        return _next_call_invocation(cmd_name, f'query-finding-evidence {slug}', [
+            ('--nonce', nonce), ('--round', ctx.get('round'))])
     # Everything else — the recording side channels (`record-reopen`, `record-invalidate`,
-    # `record-finding-evidence`, `record-write-failure`,
-    # `record-override`, `record-final-byte-offer`) among them — mandates no single next
-    # call: where the run goes next depends on where it already was, which the record
-    # itself does not determine.
+    # `record-write-failure`, `record-override`, `record-final-byte-offer`) among them —
+    # mandates no single next call: where the run goes next depends on where it already
+    # was, which the record itself does not determine.
     return 'next_call=none'
 
 
@@ -1772,19 +1780,30 @@ def cmd_record_adjudication(args):
     # must-revise+advisory+invalid — refuse a mismatch before any write. No tally (a pre-#86
     # round; only a FILE/REVISE round reaches here) → a stderr-only tally-unrecorded note.
     _tally = rnd.get('findings_count')
+    _class_total = args.must_revise + args.advisory + args.invalid
     if _tally is None:
         sys.stderr.write(
             f'issue-audit-state.py record-adjudication: round {args.round} carries no '
             f'recorded findings tally (tally-unrecorded); adjudicating without the '
             f'findings-count agreement check\n')
-    else:
-        _class_total = args.must_revise + args.advisory + args.invalid
-        if _tally != _class_total:
-            _fail('record-adjudication',
-                  f'recorded findings tally {_tally} disagrees with the adjudicated class '
-                  f'total {_class_total} (must_revise {args.must_revise} + advisory '
-                  f'{args.advisory} + invalid {args.invalid}) (findings-count-mismatch); '
-                  f'every returned finding lands in exactly one class')
+    elif _tally != _class_total:
+        _fail('record-adjudication',
+              f'recorded findings tally {_tally} disagrees with the adjudicated class '
+              f'total {_class_total} (must_revise {args.must_revise} + advisory '
+              f'{args.advisory} + invalid {args.invalid}) (findings-count-mismatch); '
+              f'every returned finding lands in exactly one class')
+    # ── Evidence precondition (issue #1371): a count of the round's entries, never a set check
+    # against its finding ids — a conflicting probe must land under its own id
+    # (`evidence-overwrite-differs`), so a count above the tally stays accepted.
+    _expected = _class_total if _tally is None else _tally
+    _prefix = f'{args.round}:'
+    _evidence = sum(1 for k in (doc.get('finding_evidence') or {}) if k.startswith(_prefix))
+    if _evidence < _expected:
+        _fail('record-adjudication',
+              f'round {args.round} has {_evidence} recorded finding-evidence entr'
+              f'{"y" if _evidence == 1 else "ies"} for {_expected} finding(s) '
+              f'(finding-evidence-count); record each finding\'s evidence with '
+              f'record-finding-evidence, then re-issue this call')
     # ── The per-finding ledger (issue #603 AC1/AC20; #200 file transport) ─────────
     # A REVISE adjudication with a SETTLED count records one ledger entry per must-revise
     # finding. The ledger reaches the tool from a file the skill authors with its file-write

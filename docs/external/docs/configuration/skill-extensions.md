@@ -48,7 +48,7 @@ Every PRFlow command reads its own file. These are the commands documented on th
 | [`/prflow:retrospective-weekly`](/docs/workflows/retrospective-weekly) | `.prflow/skill-extensions/retrospective-weekly.md` |
 | [`/prflow:init`](/docs/getting-started/initialization) | `.prflow/skill-extensions/init.md` |
 
-`/prflow:review-and-fix` reads two files because its fix loop applies the code-review reception rules without running that command, so a rule you write once in `fix.md` reaches every fix pass.
+`/prflow:review-and-fix` reads two files because its fix loop applies the code-review reception rules without running that command, so a rule you write once in `fix.md` reaches every fix pass. It also passes `review-and-fix.md` to the reviewer that checks each fix iteration's changes; that reviewer sometimes runs without it — for example when the pull request changes the file, or when the file sits behind a symbolic link.
 
 <Note>
   The `fix` extension was renamed from an earlier name in a recent release. If you customized the extension under its previous name, it keeps applying across the upgrade: when `fix.md` is absent the loader reads your old file and prints a breadcrumb naming the exact file to rename to `fix.md`. Running [`/prflow:init`](/docs/getting-started/initialization) (and re-running the installer, which runs the same scaffolder) renames the file to `fix.md` for you. On a cloud run the base-branch materialization still finds the old file and warns. Renaming it yourself, or letting `init` do it, ends the transitional read-through. The [release notes](/release-notes) name the previous file.

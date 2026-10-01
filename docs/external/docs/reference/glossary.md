@@ -39,6 +39,8 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Human merge boundary**: The rule that PRFlow prepares and reviews pull requests, and a person owns the final merge decision.
 
+**Inert prose**: A code comment or internal-documentation line that no tool or agent reads to decide behavior and nobody outside the repository reads. An untrue line of it is capped at Suggestion, so it rejects a review only at a `suggestion` severity threshold. A README, a published doc page, a release note and a user-facing message are never inert.
+
 **Investigation record**: A separate comment PRFlow posts on an issue it creates, holding the investigation behind the issue — rejected designs, confirmatory evidence and deliberation — so the issue body carries only what an implementer needs.
 
 **Iteration**: One pass of the review-and-fix loop: review, fix what qualifies, then review again.
@@ -61,7 +63,7 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Reflection**: A short durable note a run writes on the workpad about friction it hit, a stop it made or a problem with the issue itself. The workpad heading is `PRFlow Reflections`; the section reader also still accepts the older `Devflow Reflection` spelling, so records written before the rename stay readable.
 
-**REJECT**: The blocking verdict. A failed checklist item or a finding reached the severity that blocks a merge, or a rule that ignores severity fired: the change's own diff added a line that is untrue, the change misses a decided acceptance criterion, or the checklist's acceptance items do not match the decided criteria one for one (a missing or surplus item, or criteria that could not be itemized).
+**REJECT**: The blocking verdict. A failed checklist item or a finding reached the severity that blocks a merge, or a rule that ignores severity fired: the change's own diff added a line that is untrue (other than inert prose, which is capped at Suggestion), the change misses a decided acceptance criterion, or the checklist's acceptance items do not match the decided criteria one for one (a missing or surplus item, or criteria that could not be itemized).
 
 **Review agent**: One of the nine subagents the review engine dispatches, each looking for a different class of problem — project guidelines, comment accuracy, test coverage, silent failures and type design among them.
 

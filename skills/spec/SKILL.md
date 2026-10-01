@@ -178,7 +178,7 @@ Dispatch exactly two peers in parallel, on every run that does not take the degr
 - `/prflow:docs-verify --report-only --lead docs <topic>`
 - `/prflow:docs-verify --report-only --lead code <topic>`
 
-Each peer's dispatch prompt is its invocation string above plus the user story, and nothing else. Send no peer beyond these two. Both dispatch rather than run inline; no git history is read.
+Each peer's dispatch prompt is its invocation string above plus the user story, and nothing else. Send no peer beyond these two. Both dispatch rather than run inline.
 
 Evidence artifact. The orchestrator — never a peer — writes both returned reports to
 `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`, anchored to the working directory, before Step 1
@@ -256,8 +256,8 @@ Per this skill's degrade-never-terminate contract, a failed load emits a breadcr
 
 Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the no-options rule, the quality checklist, and autolink hygiene, on every entry into this step. Key rules:
 
-- No-options gate (run before showing the draft): re-read the rendered body against the no-options rule. On a healthy run its worked vocabulary, category structure, and full carve-out set live in `references/issue-template.md` (loaded above) — apply them. When that template could not be read, apply the compact semantic fallback — the body carries no unresolved implementation decision outside the rule's permitted locations, and every acceptance criterion is one concrete unconditional assertion — and report in chat that the worked no-options vocabulary was unavailable. If you find an unresolved decision, either ask the user now, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
-- Advanced quality-guidance routing: `references/issue-template.md` now carries only the CORE checklist, so after loading it evaluate each of the six advanced quality groups' observable triggers against facts already in hand (the request, the Step 2 evidence bundle, the assembled draft) and load a group's reference only when its trigger fires or applicability is uncertain, skipping a clearly non-applicable group. The triggers: `references/quality-group-visual.md` — the issue is a user-visible UI change (Step 2's visual-specification inference); `references/quality-group-contracts.md` — an AC or Testing-Strategy assertion expresses a number, a value comparison against a literal, a universal quantifier about the system under change, an enumerated test/case/example list, or a trust/integrity boundary over executable artifacts; `references/quality-group-premises.md` — the draft relies on external/third-party behavior (webhooks, trigger syntax, token scopes, endpoint behavior, response shapes, rate limits), carries a `Verified:` bullet, or asserts "the code does X" about a possibly-gated or default-off path; `references/quality-group-semantic.md` — the draft designs a new LLM/semantic judgment over third-party text whose output drives an automated selection or action (reusing and citing an existing, already-guarded judgment path is exempt); `references/quality-group-regression.md` — the story reports a defect, or the Testing Strategy enumerates a case/input-shape matrix (parser, config consumer, best-effort input handler), or the change introduces a reader of input the repo does not itself produce (historical records, user- or reporter-controlled text, external structured formats, agent- or human-mutable markdown); `references/quality-group-compatibility.md` — the grounded change moves a supported-version boundary (across runtimes, tools, APIs, schemas, configurations, or plugin releases), changes a contract already used by existing data, configuration, or consumers, spans independently upgraded components that can run at mixed versions, or introduces rollout behavior such as staged activation, rollback, or old/new coexistence (merely touching a shipped path does not trigger it). Load each applicable group per the same *Reference routing* rules and boundary-marker contract as every other reference; a failed required advanced-reference load takes the attributable degradation route per `references/degradation-routing.md`, never a silent skip.
+- No-options gate (run before showing the draft): re-read the rendered body against the no-options rule. When `references/issue-template.md` could not be read, apply the compact semantic fallback — the body carries no unresolved implementation decision outside `## 🚫 Blocked` (a flagged `— assumption, confirm before implementing` premise is not one), every acceptance criterion is one concrete unconditional assertion, and wording the user approved or the issue prescribes verbatim (quoted as text to add to a file) is never reworded without asking the user — and report in chat that the rule text was unavailable. If you find an unresolved decision, either ask the user now, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
+- Advanced quality-guidance routing: `references/issue-template.md` carries only the CORE checklist, so after loading it evaluate each of the six advanced quality groups' observable triggers against facts already in hand (the request, the Step 2 evidence bundle, the assembled draft) and load a group's reference only when its trigger fires or applicability is uncertain. The triggers: `references/quality-group-visual.md` — the issue is a user-visible UI change (Step 2's visual-specification inference); `references/quality-group-contracts.md` — an AC or Testing-Strategy assertion expresses a number, a value comparison against a literal, a universal quantifier about the system under change, an enumerated list, or a trust/integrity boundary over executable artifacts, or the draft changes a decision rule — one whose outcome set its surface names (grades, severities, classifications, routes, thresholds, verdicts, or a guard's allow or deny), creating, deleting, narrowing, widening, re-grading, reclassifying or re-routing a guard or guarantee included; `references/quality-group-premises.md` — the draft relies on external/third-party behavior (webhooks, trigger syntax, token scopes, endpoint behavior, response shapes, rate limits), carries a `Verified:` bullet, or asserts "the code does X" about a possibly-gated or default-off path; `references/quality-group-semantic.md` — the draft designs a new LLM/semantic judgment over third-party text whose output drives an automated selection or action (reusing and citing an existing, already-guarded judgment path is exempt); `references/quality-group-regression.md` — the story reports a defect, or the Testing Strategy enumerates a case/input-shape matrix (parser, config consumer, best-effort input handler), or the change introduces a reader of input the repo does not itself produce (historical records, user- or reporter-controlled text, external structured formats, agent- or human-mutable markdown); `references/quality-group-compatibility.md` — the grounded change moves a supported-version boundary (across runtimes, tools, APIs, schemas, configurations, or plugin releases), changes a contract already used by existing data, configuration, or consumers, spans independently upgraded components that can run at mixed versions, or introduces rollout behavior such as staged activation, rollback, or old/new coexistence (merely touching a shipped path does not trigger it). Load each applicable group per the *Reference routing* rules and boundary-marker contract; a failed required advanced-reference load takes the attributable degradation route per `references/degradation-routing.md`, never a silent skip.
 
 Drafting produces a candidate issue in your message only — nothing is posted to GitHub in this step. Posting happens in Step 4, and only after the user confirms — but first the draft must survive Step 3.5.
 
@@ -272,26 +272,21 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 
 ### Step 4: Review with the user, then create
 
-Before the first rendered draft, and not again while iterating on feedback, run one `ls -lL … 2>&1`
-over `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`
-and `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` — exactly those
-two, each named individually — and show its raw output, error lines included, in the message that
-renders the draft. With the slug unestablished, list
-`.prflow/tmp` itself instead on plain `ls -l` — never `-L` — state that nothing there is
-attributable to this run, and re-enter nothing.
+Before the first rendered draft, and not again while iterating on feedback: with the slug
+unestablished, list `.prflow/tmp` itself on plain `ls -l` — never `-L` — state that nothing there
+is attributable to this run, re-enter nothing, and run no probe. Otherwise classify
+`.prflow/tmp/spec/<slug>/issue-step1-<slug>.md` and `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md`
+with this probe, never adding a `--slug` operand:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-spec-run.sh --probe-run-state <slug> --root .
+```
+Show its printed lines in the message that renders the draft and take each path's class —
+`present`, `absent` or `unestablished` — from its `path=… class=…` line; no output, a refused
+command, or no `class=` field for a path leaves that path unestablished. Assert of no path that it is
+this run's own completed output.
 
-Classify each path from that one invocation, running no second probe, from what the shell shows
-rather than what you infer. A not-found message naming one of the two paths — by the whole path or
-by its final segment alone — is absent, and decides that path even when the same invocation also printed a row for it.
-A path is present only when the invocation prints a row for that path itself describing an ordinary
-file of at least one byte — its name field the path, its type character `-`, its size column
-non-zero; a row whose size is zero is absent, not present. Anything else — no output, a missing or
-refused command, another diagnostic, or a header-and-contents listing rather than a row for the path
-itself, which is what a directory produces — is unestablished. Name each path and its class in the
-draft message, asserting of none that it is this run's own completed output.
-
-Only absent supports a re-entry: the shell's report of an absent or empty path is what authorizes
-re-running the producing step to replace a missing or half-written leftover. Every producing step
+Only absent supports a re-entry: the probe's `absent` class is what authorizes
+re-running the producing step to replace a missing or empty leftover. Every producing step
 deletes its own same-slug leftover before writing, and a run whose earlier `.prflow/` write or delete
 failed or was refused is on `references/fallback-read-only-sandbox.md`'s arms, where no on-disk copy
 is trusted and nothing is re-entered. An unestablished path — a directory, say — gets a breadcrumb

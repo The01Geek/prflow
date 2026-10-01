@@ -365,7 +365,7 @@ def _validate_selectors(selectors, out_ids: set[str]) -> ManifestResult:
         where = f"selector #{idx}"
         if not isinstance(sel, dict):
             return _unestablished(f"wrong-type: {where} is a {_json_kind(sel)}")
-        known = {"id", "language", "include_globs", "exclude_globs"}
+        known = {"id", "language", "include_globs", "exclude_globs", "extra_flags"}
         if (r := _check_keys(where, sel, known, ("id", "language", "include_globs"))) is not None:
             return r
         sid = sel["id"]
@@ -383,7 +383,21 @@ def _validate_selectors(selectors, out_ids: set[str]) -> ManifestResult:
             glob_result = _validate_globs(where, sel["exclude_globs"], label="exclude_globs")
             if not glob_result.established:
                 return glob_result
+        if "extra_flags" in sel and (reason := _flags_reason(where, sel["extra_flags"])) is not None:
+            return _unestablished(reason)
     return _established(selectors)
+
+
+def _flags_reason(where, flags) -> str | None:
+    """Reject an `extra_flags` value that is not an array of `_FLAG_RE` long options.
+    Shared by selectors (flags appended to the tool's base flags) and special
+    invocations (the invocation's complete flags)."""
+    if not isinstance(flags, list):
+        return f"wrong-type: {where} extra_flags must be an array"
+    for flag in flags:
+        if not isinstance(flag, str) or not _FLAG_RE.match(flag):
+            return f"invalid-value: {where} flag {flag!r}"
+    return None
 
 
 def _validate_path_shape(where, label, value) -> str | None:
@@ -460,12 +474,8 @@ def _validate_special_invocations(sis) -> ManifestResult:
             return _unestablished(f"invalid-value: {where} path {path!r}")
         if (reason := _validate_path_shape(where, "path", path)) is not None:
             return _unestablished(reason)
-        flags = si["extra_flags"]
-        if not isinstance(flags, list):
-            return _unestablished(f"wrong-type: {where} extra_flags must be an array")
-        for flag in flags:
-            if not isinstance(flag, str) or not _FLAG_RE.match(flag):
-                return _unestablished(f"invalid-value: {where} flag {flag!r}")
+        if (reason := _flags_reason(where, si["extra_flags"])) is not None:
+            return _unestablished(reason)
     return _established(sis)
 
 

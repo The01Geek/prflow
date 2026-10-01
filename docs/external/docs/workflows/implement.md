@@ -146,6 +146,8 @@ The pull request is opened as a draft, titled with the issue title, before the r
 
 Non-Critical findings that survive bounded re-review are surfaced for human judgment. A genuine unresolved Critical finding blocks the run.
 
+When the fix loop disputes an acceptance criterion — for example, a reviewer asks for a change the criterion rules out — PRFlow can record each dispute as a `Disputed criterion <N>:` line in the pull request body, naming the declined findings. A dispute does not decide publication: a run that reaches publication publishes the pull request, or leaves it a draft, as `implement_pr_state` decides, and some findings still stop the run first — for example, an unresolved Critical one. When the criterion is wrong, the maintainer amends it on the issue.
+
 ## Ready or Draft
 
 The `prflow_implement.implement_pr_state` setting decides the final state:

@@ -77,7 +77,7 @@ at all:
       `shadow`/`park-calibration-post-shadow` promotion — the shadow binding at N
       (falling back to N-1), grading the selected binding with its own recorded head.
       Selecting no binding refuses (exit 3, no marker) unless the phase log carries the
-      grader's blocker-recheck-hit/generator-failure record; it also refuses on an empty
+      grader's generator-failure record; it also refuses on an empty
       --run-root, a passed --head, an absent --iteration, an unusable iter-<N>.json, an
       unpromoted iteration, or a non-pass grade of the selected binding.
 
@@ -138,9 +138,12 @@ at all:
   continue-run --run-root DIR --max-iterations N --telemetry-branch NAME
       Mid-loop continuation for a resumed implement run (issue #893). Resolves HEAD
       itself, derives the slug from DIR's parent, and looks for a prior run of that slug
-      whose highest well-formed `iter-<N>.json` binds to HEAD — `fix_commit_sha` when it
-      is a 40-hex string, else (absent or null) `diff_produced_at_head` under the same
-      test; any other shape excludes the record. On-disk siblings under DIR's parent are
+      whose highest well-formed `iter-<N>.json` binds HEAD. Its bound head is
+      `iteration_head` when present (issue #1537), else `fix_commit_sha` when it is a
+      40-hex string, else (absent or null) `diff_produced_at_head` under the same test;
+      any other shape of the field consulted excludes the record. A bound head binds when it is a commit here and
+      equals HEAD or is met by HEAD's first-parent chain through merge commits only (base
+      merges). On-disk siblings under DIR's parent are
       consulted first (never DIR itself); only when none binds is `.prflow/logs/review/
       <slug>/` on NAME read, fetched from origin into `refs/remotes/origin/NAME`. A tie at
       the same N takes the run id that sorts last. It copies `iter-1.json`..`iter-<N>.json`
@@ -148,14 +151,15 @@ at all:
       a file already present and never a record above N or any other artifact. Prints
       exactly one line:
 
-        continue-run: restored iteration=<N> source=<run-id> head=<sha>   0
+        continue-run: restored iteration=<N> source=<run-id> head=<bound head>   0
         continue-run: none reason=<token>                                 1
         continue-run: unestablished reason=<token>                        2
 
       `none` is an established absence (no prior run, no binding or well-formed record,
       N+1 above --max-iterations, no such branch on origin); `unestablished` is an
       unanswered question (git failed, HEAD unresolved, a telemetry query/fetch failure
-      with no on-disk record binding, an unwritable run root). An argparse error also
+      with no on-disk record binding, an unwritable run root, `ancestry-unreadable` when an
+      ancestry read fails or prints an unparseable, empty or disconnected result). An argparse error also
       exits 2 with no `continue-run:` line. The loop continues at N+1 only on `restored`.
 
   eval-extension-shadow-trigger --run-root DIR [--iteration N] [--path-set FILE]
@@ -792,7 +796,7 @@ def _grade_selected_latest(args: argparse.Namespace, gate, entry: str,
 
 def _refuse_no_binding(gate, run_root: str, message: str) -> int | None:
     """No binding was selected, so the grader's phase-log no-binding pass still applies (AC7):
-    a `blocker-recheck-hit`/`generator-failure` record legitimately stands in for the checklist
+    a `generator-failure` record legitimately stands in for the checklist
     phases, exactly as `--entry step1` accepts it for a missing binding. Returns None on that
     pass, else 3 after a breadcrumb — the log's own unreadable/malformed reason when it has one,
     otherwise `message`."""
@@ -1078,11 +1082,18 @@ def _field_shape(value) -> str:
 
 
 def _bound_head(obj: dict) -> tuple[str | None, str]:
-    """The head an iteration record binds to, or (None, reason). `fix_commit_sha` binds when
-    it is a 40-hex string; when it is absent or JSON null (a no-fix iteration, written in both
-    shapes) `diff_produced_at_head` binds under the same test. Every other shape of either
-    field excludes the record — a short sha, `0`, `""`, an array, an object — because the
-    continuation would otherwise carry a prior attempt's state onto a head it never reviewed."""
+    """The head an iteration record binds to, or (None, reason). `iteration_head` (the head
+    after Step 3.5's last commit) binds when present; absent, `fix_commit_sha` binds when it
+    is a 40-hex string; when that is absent or JSON null (a no-fix iteration, written in both
+    shapes) `diff_produced_at_head` binds under the same test. Any other shape of the field
+    consulted excludes the record — a short sha, `0`, `""`, null `iteration_head`, an array, an
+    object — because the continuation would otherwise carry a prior attempt's state onto a
+    head it never reviewed."""
+    ih = obj.get("iteration_head", _MISSING)
+    if ih is not _MISSING:
+        if isinstance(ih, str) and _SHA40_RE.match(ih):
+            return ih.lower(), ""
+        return None, f"iteration_head {_field_shape(ih)}"
     fcs = obj.get("fix_commit_sha", _MISSING)
     if fcs is _MISSING or fcs is None:
         dph = obj.get("diff_produced_at_head", _MISSING)
@@ -1111,18 +1122,56 @@ def _parse_iter_record(raw: bytes, iteration: int) -> tuple[dict | None, str]:
     return obj, ""
 
 
+def _chain_binds(bound: str, head: str) -> tuple[bool | None, str]:
+    """Whether `bound` binds `head`: (True, ''), (False, why) or (None, why) when a git read
+    did not answer. It binds when equal to HEAD, or when
+    HEAD's first-parent chain meets it through merge commits only (base merges); a one-parent
+    commit on that chain is new work the prior iteration never reviewed."""
+    if bound == head:
+        return True, ""
+    rc, out, err = _git(["rev-parse", "--verify", "--quiet", f"{bound}^{{commit}}"])
+    if rc == 1:
+        return False, f"bound head {bound[:12]} is not a commit here"
+    if rc != 0 or out.strip().lower() != bound:
+        return None, f"rev-parse --verify {bound[:12]} rc={rc}: {(err or out).strip()}"
+    rc, _, err = _git(["merge-base", "--is-ancestor", bound, head])
+    if rc == 1:
+        return False, f"bound head {bound[:12]} is not an ancestor of HEAD"
+    if rc != 0:
+        return None, f"merge-base --is-ancestor {bound[:12]} rc={rc}: {(err or '').strip()}"
+    rc, out, err = _git(["rev-list", "--first-parent", "--parents", f"{bound}..{head}"])
+    if rc != 0:
+        return None, f"rev-list --first-parent {bound[:12]}..HEAD rc={rc}: {(err or '').strip()}"
+    rows = [line.lower().split() for line in out.splitlines()]
+    if not rows or not all(row and all(_SHA40_RE.match(s) for s in row) for row in rows):
+        return None, f"rev-list --first-parent {bound[:12]}..HEAD printed an unparseable line"
+    expected = head
+    for row in rows:
+        if row[0] != expected:
+            return None, f"rev-list --first-parent {bound[:12]}..HEAD printed a disconnected chain"
+        expected = row[1] if len(row) > 1 else ""
+    if expected != bound:
+        return False, f"bound head {bound[:12]} is not on HEAD's first-parent chain"
+    one_parent = [row[0] for row in rows if len(row) < 3]
+    if one_parent:
+        return False, f"bound head {bound[:12]} has one-parent commit {one_parent[-1][:12]} above it"
+    return True, ""
+
+
 class _Source:
     """One prior-run source: the on-disk siblings or the telemetry branch. `records` maps
     run id -> {iteration -> raw bytes}; `seen` counts every iter-<k>.json offered, readable or
     not; `well_formed` those that parsed and bound to some head; `candidates` holds
-    (iteration, run_id) pairs bound to the current head."""
+    (iteration, run_id, bound head) triples that bind the current head; `unreadable` names
+    the first ancestry read that did not answer."""
 
     def __init__(self, name: str) -> None:
         self.name = name
         self.records: dict[str, dict[int, bytes]] = {}
         self.seen = 0
         self.well_formed = 0
-        self.candidates: list[tuple[int, str]] = []
+        self.candidates: list[tuple[int, str, str]] = []
+        self.unreadable = ""
 
     def consider(self, run_id: str, iteration: int, raw: bytes | None, head: str,
                  read_err: str = "") -> None:
@@ -1141,12 +1190,18 @@ class _Source:
             sys.stderr.write(f"continue-run: {label} excluded: {reason}\n")
             return
         self.well_formed += 1
-        if bound == head:
-            self.candidates.append((iteration, run_id))
+        if self.unreadable:
+            return
+        binds, reason = _chain_binds(bound, head)
+        if binds is None:
+            sys.stderr.write(f"continue-run: {label}: {reason}\n")
+            self.unreadable = reason
+        elif binds:
+            self.candidates.append((iteration, run_id, bound))
         else:
-            sys.stderr.write(f"continue-run: {label} binds {bound[:12]}, not HEAD\n")
+            sys.stderr.write(f"continue-run: {label} excluded: {reason}\n")
 
-    def best(self) -> tuple[int, str] | None:
+    def best(self) -> tuple[int, str, str] | None:
         """The highest bound iteration; on a tie the run id that sorts last."""
         return max(self.candidates) if self.candidates else None
 
@@ -1256,13 +1311,13 @@ def _scan_telemetry(branch: str, slug: str, own_run_id: str, head: str) -> tuple
     return source, ""
 
 
-def _restore(source: _Source, anchor: tuple[int, str], run_root: str) -> str | None:
+def _restore(source: _Source, anchor: tuple[int, str, str], run_root: str) -> str | None:
     """Copy iter-1..N from the anchor run into `run_root`, each stamped `restored_from`,
     never overwriting a file already there. Returns an error string when the run root
     itself cannot be written; a lower record that is absent or malformed is skipped with a
     breadcrumb and named again in one summary line, so a non-contiguous restore is legible
     on stderr while the stdout line keeps its closed shape."""
-    n, prior = anchor
+    n, prior, _ = anchor
     try:
         os.makedirs(run_root, exist_ok=True)
     except OSError as e:
@@ -1327,11 +1382,15 @@ def _cmd_continue_run(args: argparse.Namespace) -> int:
     disk = _scan_disk(review_dir, own_run_id, head)
     if disk is None:
         return unestablished("on-disk-unlistable")
+    if disk.unreadable:
+        return unestablished("ancestry-unreadable")
     source, anchor = disk, disk.best()
     telemetry_token = ""
     if anchor is None:
         tele, telemetry_token = _scan_telemetry(args.telemetry_branch, slug, own_run_id, head)
         if tele is not None:
+            if tele.unreadable:
+                return unestablished("ancestry-unreadable")
             source, anchor = tele, tele.best()
     if anchor is None:
         if telemetry_token.startswith("unestablished:"):
@@ -1343,7 +1402,7 @@ def _cmd_continue_run(args: argparse.Namespace) -> int:
         if not any(s.well_formed for s in sources):
             return none("no-well-formed-record")
         return none("no-binding-record")
-    n, prior = anchor
+    n, prior, bound = anchor
     if n + 1 > args.max_iterations:
         sys.stderr.write(f"continue-run: {source.name} {prior} binds at iteration {n}; "
                          f"iteration {n + 1} exceeds max_iterations={args.max_iterations}\n")
@@ -1352,7 +1411,7 @@ def _cmd_continue_run(args: argparse.Namespace) -> int:
     if err is not None:
         sys.stderr.write(f"continue-run: {err}\n")
         return unestablished("run-root-unwritable")
-    sys.stdout.write(f"continue-run: restored iteration={n} source={prior} head={head}\n")
+    sys.stdout.write(f"continue-run: restored iteration={n} source={prior} head={bound}\n")
     return 0
 
 

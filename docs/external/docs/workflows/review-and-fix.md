@@ -39,7 +39,7 @@ It runs the same review engine as [Review](/docs/workflows/review), then fixes w
 
 The final chat report opens with a one-line result. On an approval-side outcome it names how many iterations ran and whether the independent shadow pass agreed, in the shape "Review passed after *N* iteration(s) (*shadow status*)". On an approval with parked findings it also states how many advisory findings were left for human review. A REJECT says so and the findings stay in the report below it.
 
-Underneath the headline is the same report structure as a standalone review: the verdict, issue compliance, the verification-checklist tally and the findings grouped by severity. Each finding also carries what the loop decided about it — applied, pushed back, deferred, advisory or severity-calibrated.
+Underneath the headline is the same report structure as a standalone review: the verdict, issue compliance, the verification-checklist tally and the findings grouped by severity. Each finding also carries what the loop decided about it — applied, pushed back, deferred, advisory or severity-calibrated. A finding the review itself moved to `Informational — Deferred`, such as an accepted deferral or a confirmed stricter-than-criterion fix, is not sent to the fixer when the loop can match that report line to the finding; an unmatched line is noted and the finding keeps its original severity.
 
 The commits it made are on your branch, one per fix iteration.
 
@@ -72,6 +72,8 @@ Which findings reach the fixer is set by `prflow_review_and_fix.fix_severity_thr
 Any finding or failed checklist item that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore. An inconclusive checklist item never drives a REJECT and gives the fixer nothing to fix, so it is never sent; the report lists it under Unverified.
 
 PRFlow can push back on a finding when the code disproves it, rather than "fixing" something that was never wrong. It can also defer a genuine finding when the deferral rules apply. A test broken by one of its own fixes must be repaired before the loop continues.
+
+Fixes remove or reuse before they add: for example, an untrue sentence is deleted, or pointed at the rule it restates, before it is reworded. A fix that would weaken or contradict one of the linked issue's acceptance criteria is pushed back; one stricter than a criterion is applied and disclosed in the pull request description.
 
 ## Push Behavior
 

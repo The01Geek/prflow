@@ -7,8 +7,6 @@
 - (a) Code trigger — the diff adds **or hardens** a guard, predicate, validator, or coverage invariant. A guard whose comparand comes from the diff's own code is covered by no other sweep: 2.3.4 carves out in-diff code, and 2.3.0a/2.3.0b watch peer sites and enumerated sets, not the operand a single guard reads.
 - (b) Prose-policy trigger — the diff's deliverable is a policy-stating command block. When the deliverable is a `SKILL.md`, `phases/*.md`, or `references/*.md` command block that states a policy the agent must execute, the policy's operand is a value the *agent* has to observe at run time — and a policy stated against an operand no step produces is inert.
 
-Both triggers are the same defect at bottom: a check written against an operand nobody traced back to what actually produces it, so the check passes — or is inert — exactly on the inputs it was added to catch.
-
 Trigger (a) — the operand trace. For every comparand the added **or hardened** guard/predicate/validator/coverage invariant reads, commit **one `--note` per comparand** — never a single multi-row table in one note, which can exceed the workpad's 2,048-byte per-note budget and be refused. Each comparand's note carries these four fields:
 
 - comparand
@@ -22,7 +20,7 @@ Every comparand enumerates the producer's silence and the guard's decided behavi
 
 A gate whose contract requires established evidence to pass records, in the same note, its non-passing route for evidence that is absent, unreadable, malformed, or incomplete — and passes only on evidence that meets the contract, never on the mere absence of an unsafe-state signal when the producer may emit nothing (no unsafe-state signal need exist for the gate to refuse).
 
-Trigger (b) — the stated-policy contract. For every policy the prose states, name (a) the observable operand the agent keys the policy on, (b) the step that produces it, and (c) an explicit route for every outcome of that operand, **including the failure outcome** (the operand absent, the producing step failing, the value unresolvable). A stated policy whose operand no step produces is an inert guard and a defect in this PR — the promised routing can never fire, so the policy silently no-ops on exactly the input it was written to gate.
+Trigger (b) — the stated-policy contract. For every policy the prose states, name (a) the observable operand the agent keys the policy on, (b) the step that produces it — agent recall carried across a subagent dispatch is not one — and (c) an explicit route for every outcome of that operand, **including the failure outcome** (the operand absent, the producing step failing, the value unresolvable). A stated policy whose operand no step produces is an inert guard and a defect in this PR — the promised routing can never fire, so the policy silently no-ops on exactly the input it was written to gate.
 
 A stated policy places its obligation at the execution point it gates, carrying at most a cross-reference from any thematic section that also discusses it; prose that describes the hazard only in a thematic section, leaving the execution point it gates with no obligation, does not discharge this trigger.
 

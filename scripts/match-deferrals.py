@@ -493,15 +493,6 @@ def _malformed(field: str, value, want: str) -> None:
         "the PR author is untrusted as a deferral filer\n")
 
 
-def _gh_bool(obj: dict, key: str, field: str) -> bool | None:
-    """The boolean at obj[key], or None (with a breadcrumb) when it is anything else."""
-    value = obj.get(key, _MISSING)
-    if isinstance(value, bool):
-        return value
-    _malformed(field, value, "a boolean")
-    return None
-
-
 def _repo_slug(url) -> str | None:
     """`owner/repo` from a pull-request URL (`https://<host>/<owner>/<repo>/pull/<n>`)."""
     if not isinstance(url, str):
@@ -520,7 +511,7 @@ def _listed_bot(login: str, entries: list[str]) -> bool:
     return login in {e.strip() for e in entries if e.strip()}
 
 
-def _authorized_human(login: str, view: dict, config_path: str | None) -> tuple[bool, str | None]:
+def _authorized_human(login: str, repo: str | None, config_path: str | None) -> tuple[bool, str | None]:
     """Arm 3: the trigger gate's user rule, run through authorize_actor.
 
     Returns (trusted, trust_failure). A policy denial is (False, None).
@@ -530,16 +521,13 @@ def _authorized_human(login: str, view: dict, config_path: str | None) -> tuple[
     users = _config_read(".prflow.allowed_users", "*", config_path)
     if users is None:
         sys.stderr.write("match-deferrals.py: prflow.allowed_users could not be read; "
-                         "the PR author is untrusted as a deferral filer\n")
+                         "the author is untrusted\n")
         return False, TRUST_FAILURE_ALLOWED_USERS
     if not users:  # Whitespace only, stripped: the trigger gate matches no one.
         sys.stderr.write("match-deferrals.py: prflow.allowed_users is whitespace only and "
-                         "matches no one; the PR author is untrusted as a deferral filer\n")
+                         "matches no one; the author is untrusted\n")
         return False, None
-    url = view.get("url", _MISSING)
-    repo = _repo_slug(url)
     if repo is None:
-        _malformed("url", url, "a pull-request URL")
         return False, TRUST_FAILURE_PR_FIELDS
     script = Path(__file__).resolve().parent / "authorize-actor.sh"
     # `bash` stays a literal here, not a shared resolver call: cloud_writer_deps.py
@@ -567,20 +555,48 @@ def _authorized_human(login: str, view: dict, config_path: str | None) -> tuple[
         cause = f"authorize-actor.sh reported no verdict ({cause})"
     sys.stderr.write(
         f"match-deferrals.py: collaborator-permission lookup for {login!r} failed "
-        f"({cause}); the author is untrusted as a deferral filer\n")
+        f"({cause}); the author is untrusted\n")
     return False, TRUST_FAILURE_PERMISSION_LOOKUP
 
 
-def _filer_trust(view: dict, config_path: str | None) -> tuple[bool, str | None]:
-    """Guard 1: is the PR author a trusted deferral filer? Returns (trusted, trust_failure).
+def author_trust(login: str, is_bot: bool | None, repo: str | None, config_path: str | None,
+                 same_repo_head: bool | None = False) -> tuple[bool, str | None]:
+    """Is `login` a trusted author? Returns (trusted, trust_failure).
 
     Arms, in order, first pass wins: (1) a non-wildcard `prflow.allowed_bots` entry; (2) a
-    bot whose head branch is in this repository, when `allowed_bots` holds `*` — gh
-    reports every bot's collaborator permission as `none`, so a same-repository head
-    is its proof of write access; (3) a human passing the trigger gate's user rule.
-    The author is the PR's, never the payload's `filed_by`, which the body's editors
-    control. The PRFlow trigger gate reads a `*` in `allowed_bots` as a literal login, not
-    a wildcard.
+    bot on a same-repository head (`same_repo_head`), when `allowed_bots` holds `*` — gh
+    reports every bot's collaborator permission as `none`, so a same-repository head is its
+    proof of write access; (3) a human passing the trigger gate's user rule, its permission
+    looked up in `repo` (`owner/name`). The PRFlow trigger gate reads a `*` in `allowed_bots`
+    as a literal login, not a wildcard. A None `is_bot`, `repo` or `same_repo_head` is a field
+    the caller could not read; an arm that needs it returns TRUST_FAILURE_PR_FIELDS.
+    checklist_finalize.py's `prior` calls it with the `same_repo_head=False` default, so a `*`
+    there admits no comment author.
+    """
+    bots = _config_read(".prflow.allowed_bots", "", config_path)
+    bot_entries = [] if bots is None else bots.split(",")
+    if _listed_bot(login, bot_entries):
+        return True, None
+    if is_bot is None:
+        return False, TRUST_FAILURE_PR_FIELDS
+    if is_bot:
+        if bots is None:
+            return False, TRUST_FAILURE_ALLOWED_BOTS
+        if not any(e.strip() == "*" for e in bot_entries):
+            return False, None
+        if same_repo_head is None:
+            return False, TRUST_FAILURE_PR_FIELDS
+        return same_repo_head, None
+    trusted, failure = _authorized_human(login, repo, config_path)
+    if not trusted and failure is None and bots is None:  # arm 1 was never decided
+        failure = TRUST_FAILURE_ALLOWED_BOTS
+    return trusted, failure
+
+
+def _filer_trust(view: dict, config_path: str | None) -> tuple[bool, str | None]:
+    """Guard 1: is the PR author a trusted deferral filer (author_trust)? Returns (trusted,
+    trust_failure). The author is the PR's, never the payload's `filed_by`, which the body's
+    editors control.
     """
     author = view.get("author", _MISSING)
     if not isinstance(author, dict):
@@ -590,25 +606,19 @@ def _filer_trust(view: dict, config_path: str | None) -> tuple[bool, str | None]
     if not isinstance(login, str) or not login.strip():
         _malformed("author.login", login, "a non-empty string")
         return False, TRUST_FAILURE_PR_FIELDS
-    bots = _config_read(".prflow.allowed_bots", "", config_path)
-    bot_entries = [] if bots is None else bots.split(",")
-    if _listed_bot(login, bot_entries):
-        return True, None
-    is_bot = _gh_bool(author, "is_bot", "author.is_bot")
-    if is_bot is None:
-        return False, TRUST_FAILURE_PR_FIELDS
-    if is_bot:
-        if bots is None:
-            return False, TRUST_FAILURE_ALLOWED_BOTS
-        if not any(e.strip() == "*" for e in bot_entries):
-            return False, None
-        cross_repo = _gh_bool(view, "isCrossRepository", "isCrossRepository")
-        if cross_repo is None:
-            return False, TRUST_FAILURE_PR_FIELDS
-        return not cross_repo, None
-    trusted, failure = _authorized_human(login, view, config_path)
-    if not trusted and failure is None and bots is None:  # arm 1 was never decided
-        failure = TRUST_FAILURE_ALLOWED_BOTS
+    is_bot = author.get("is_bot", _MISSING)
+    cross = view.get("isCrossRepository", _MISSING)
+    url = view.get("url", _MISSING)
+    trusted, failure = author_trust(
+        login, is_bot if isinstance(is_bot, bool) else None, _repo_slug(url), config_path,
+        (not cross) if isinstance(cross, bool) else None)
+    if failure == TRUST_FAILURE_PR_FIELDS:  # name the field the failing arm read
+        if not isinstance(is_bot, bool):
+            _malformed("author.is_bot", is_bot, "a boolean")
+        elif is_bot:
+            _malformed("isCrossRepository", cross, "a boolean")
+        else:
+            _malformed("url", url, "a pull-request URL")
     return trusted, failure
 
 

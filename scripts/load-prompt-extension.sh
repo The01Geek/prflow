@@ -19,21 +19,23 @@
 #                repeated --digest is one --digest. An undeliverable extension, and a
 #                digest that cannot be computed, each exit 2 with empty stdout.
 #
-# The --section extraction rule is SPECIFIED in the `## Extraction rule` section of
-# skills/spec/references/audit-prompt-template.md and IMPLEMENTED here — a coupled
-# pair, edited together. The rule:
+# The --section extraction rule's four core clauses are SPECIFIED in the
+# `## Extraction rule` section of skills/spec/references/audit-prompt-template.md and
+# IMPLEMENTED here — a coupled pair, edited together. The two 'Refinement' bullets
+# are this helper's own; that section does not state them. The rule:
 #   * a section spans its heading line to the next line beginning '## ' (two hashes
 #     PLUS A SPACE, so a '###' sub-heading line is section content, not a
 #     terminator), else to end of file;
 #   * duplicate same-heading sections are concatenated in file order;
 #   * an empty section is equivalent to an absent heading (both emit nothing);
-#   * a heading line inside an HTML comment block is never a heading;
-#   * a '##' line inside a fenced code block neither starts nor terminates a
-#     section, and an unclosed fence runs to end of file. Both CommonMark fence
-#     characters are tracked (``` and ~~~), and a fence closes only on its own kind;
-#   * trailing whitespace is stripped from both the candidate heading line and the
-#     --section value before comparison, so a CRLF-authored extension and a heading
-#     hand-authored with trailing spaces both still extract.
+#   * a heading line inside an HTML comment block is never a heading, and a '##' line
+#     inside a fenced code block neither starts nor terminates a section (an unclosed
+#     fence runs to end of file);
+#   * Refinement: both CommonMark fence characters are tracked (``` and ~~~), and a
+#     fence closes only on its own kind;
+#   * Refinement: trailing whitespace is stripped from both the candidate heading line
+#     and the --section value before comparison, so a CRLF-authored extension and a
+#     heading hand-authored with trailing spaces both still extract.
 # Stated boundary: LEADING whitespace is not stripped, so an indented ATX heading and an
 # indented closing fence (CommonMark permits up to three spaces on both) are not
 # recognized. This matches the rule's literal wording — 'a line beginning `## `' — and is

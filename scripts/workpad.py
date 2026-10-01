@@ -72,6 +72,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 from typing import NamedTuple
 
@@ -296,13 +297,18 @@ def _fail(prefix, exc, code=1):
     # or e`, then decode-and-strip), so the two error surfaces of one command
     # cannot diverge: an absent or empty stderr falls back to the exception
     # itself rather than printing a breadcrumb that names no failure.
-    msg = getattr(exc, 'stderr', None) if isinstance(exc, subprocess.CalledProcessError) else None
-    if isinstance(msg, bytes):
-        msg = msg.decode('utf-8', 'replace')
-    msg = msg.strip() if isinstance(msg, str) else ''
-    msg = msg or str(exc)
-    sys.stderr.write(f"workpad.py {prefix}: {msg}\n")
+    sys.stderr.write(f"workpad.py {prefix}: {_gh_error_detail(exc)}\n")
     sys.exit(code)
+
+
+def _gh_error_detail(e) -> str:
+    """The most specific text a failed gh call carries: its stderr when the
+    subprocess left one, else the exception's own message."""
+    detail = getattr(e, 'stderr', None) if isinstance(
+        e, subprocess.CalledProcessError) else None
+    if isinstance(detail, bytes):
+        detail = detail.decode('utf-8', 'replace')
+    return (detail.strip() if isinstance(detail, str) else '') or str(e)
 
 
 def _repo_root():
@@ -527,9 +533,10 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1,
     starts with `marker`, or None when the scan completed and none matched.
 
     `collect_all=True` instead returns the LIST of every matching comment, which
-    costs a full walk of every page (the first-match arm short-circuits). Only
-    `intake-triage` asks for it, because refusing a duplicated workpad is part of
-    its complete-by-construction contract; no other caller pays the extra pages.
+    costs a full walk of every page (the first-match arm short-circuits). Two
+    callers pay for it: `intake-triage`, because refusing a duplicated workpad is
+    part of its complete-by-construction contract, and `compact`, which must see
+    every overflow comment to pick the newest.
 
     Single source for the marker-scan that `cmd_id`, `cmd_status`, `cmd_body`'s
     `--issue` arm and the acs surfaces (`_acs_read_workpad`, and so
@@ -5422,11 +5429,15 @@ def _check_body_within_limit(nbytes: int) -> None:
 # partial line is precisely the failure being fixed.
 _COMPACT_TARGET_BYTES = _COMMENT_BYTE_LIMIT - 8192
 
-# Held back from the target for the accounting row appended AFTER the selection is
-# fixed (its URL is unknown until the comment is posted). The row is fixed prose,
-# two integers and one comment URL, so no moved content can spend the reserve; it
-# only makes the selection — and so the refusal — marginally conservative, which
-# the 8,192 bytes of headroom below the cap absorb.
+# What one compaction moves bullets down to; raising it toward the target makes every
+# later write compact again.
+_COMPACT_LOW_WATER_BYTES = _COMMENT_BYTE_LIMIT - 24576
+
+# Held back from both the low watermark and the target for the accounting row
+# appended AFTER the selection is fixed (its URL is unknown until the comment is
+# written). The row is fixed prose, two integers and one comment URL, so no moved
+# content can spend the reserve; it only makes the selection — and so the refusal —
+# marginally conservative.
 _COMPACT_ACCOUNTING_RESERVE = 512
 
 # Line 1 of the overflow comment. The workpad marker is deliberately NOT on line 1
@@ -5571,12 +5582,23 @@ def _compact_status_line(body: str):
     return None
 
 
-def _compact_plan(body, target=_COMPACT_TARGET_BYTES,
+def _compact_ceiling(nbytes, target=_COMPACT_TARGET_BYTES,
+                     reserve=_COMPACT_ACCOUNTING_RESERVE):
+    """The most a body of `nbytes` may be left holding, before its accounting row,
+    when every movable bullet moves."""
+    return min(nbytes, target) - reserve
+
+
+def _compact_plan(body, target=_COMPACT_TARGET_BYTES, low=_COMPACT_LOW_WATER_BYTES,
                   reserve=_COMPACT_ACCOUNTING_RESERVE):
-    """`(selected, projected_bytes)` — the oldest unprotected bullets, in document
-    order, whose removal brings `body` to `target` with `reserve` bytes left for the
-    accounting row. `selected` is None when the candidates run out first (the caller
-    refuses atomically); `projected_bytes` is what would be left either way.
+    """`(selected, projected_bytes)` — the fewest oldest unprotected bullets, in
+    document order, whose removal brings `body` to `low` with `reserve` bytes left for
+    the accounting row; when the candidates run out first, every movable bullet,
+    provided that brings it to the smaller of its own size and `target`, less
+    `reserve` — so a compaction never grows the body and a rerun writes nothing.
+    `selected` is None when even that fails (the caller refuses atomically), and
+    empty whenever nothing is movable; `projected_bytes` is what would be left
+    either way.
 
     Pure: it issues no request and mutates nothing, so the selection and both refusal
     arms are drivable from an in-memory body."""
@@ -5587,11 +5609,11 @@ def _compact_plan(body, target=_COMPACT_TARGET_BYTES,
         + _compact_bullets_in(lines, _compact_notes_region(lines),
                               _COMPACT_BULLET_RE))
     candidates.sort(key=lambda b: b[0])
-    budget = target - reserve
     left = _byte_len(body)
+    budget = _compact_ceiling(left, target, reserve)
     selected = []
     for first, stop, text in candidates:
-        if left <= budget:
+        if left <= low - reserve:
             break
         if _compact_is_protected(text):
             continue
@@ -5599,7 +5621,7 @@ def _compact_plan(body, target=_COMPACT_TARGET_BYTES,
         # '\n'.join means each removed line costs its own bytes plus one separator,
         # exactly — so this arithmetic needs no re-encode of the whole body.
         left -= sum(_byte_len(lines[i]) + 1 for i in range(first, stop))
-    if left > budget:
+    if selected and left > budget:
         return None, left
     return selected, left
 
@@ -5612,6 +5634,34 @@ def _compose_overflow_comment(marker, status_line, selected):
     parts = [_COMPACT_OVERFLOW_MARKER, marker, status_line, '']
     parts.extend(text for _, _, text in selected)
     return '\n'.join(parts) + '\n'
+
+
+def _compose_overflow_append(comments, marker, status_line, selected):
+    """`(comment, body)` — the newest overflow comment (highest integer `id`) and its
+    body with line 3 refreshed to `status_line` and the moved bullets appended after
+    its existing ones, or None when no comment has an integer `id` or the newest fails
+    any reuse check below. Only the newest is considered: an older one stays
+    byte-identical."""
+    ids = [c for c in comments
+           if isinstance(c.get('id'), int) and not isinstance(c.get('id'), bool)]
+    if not ids:
+        return None
+    newest = max(ids, key=lambda c: c['id'])
+    if not isinstance(newest.get('body'), str):
+        return None
+    lines = newest['body'].split('\n')
+    if (not isinstance(newest.get('html_url'), str) or not newest['html_url']
+            or len(lines) < 3 or lines[1] not in _marker_variants(marker)
+            or not _STATUS_VALUE_RE.match(lines[2])):
+        return None
+    lines[2] = status_line
+    head = '\n'.join(lines)
+    if not head.endswith('\n'):
+        head += '\n'
+    body = head + '\n'.join(text for _, _, text in selected) + '\n'
+    if _byte_len(body) > _COMMENT_BYTE_LIMIT:
+        return None
+    return newest, body
 
 
 def _compact_accounting_note(moved, moved_bytes, url):
@@ -5636,21 +5686,25 @@ def _update_headroom_line(nbytes: int) -> str:
 
 
 def cmd_compact(args):
-    """Move the oldest unprotected bullets into ONE overflow comment until the
-    workpad is at or below `_COMPACT_TARGET_BYTES` (issue #755).
+    """Move the oldest unprotected bullets into ONE overflow comment, toward
+    `_COMPACT_LOW_WATER_BYTES` as `_compact_plan` selects them (issues #755, #1547): appended
+    to the newest overflow comment when `_compose_overflow_append` accepts it and the
+    append PATCH lands, else posted as a new one.
 
-    The overflow comment is posted BEFORE the workpad PATCH, deliberately: every
+    The overflow comment is written BEFORE the workpad PATCH, deliberately: every
     failure then leaves the moved text in two places rather than none. Duplication
     over loss.
 
     Exit vocabulary: 0 = compacted (JSON receipt on stdout), or already at/below the
-    target (measurement on stdout, no comment, no PATCH); 1 = structural refusal
-    (no `**Status:**` line to copy, or no single `## Progress` section to account
-    in) with nothing posted and nothing PATCHed; 2 = clean scan, no workpad;
+    low watermark (measurement on stdout, no comment, no PATCH); 1 = structural
+    refusal (no `**Status:**` line to copy, or no single `## Progress` section to
+    account in) with nothing posted and nothing PATCHed; 2 = clean scan, no workpad;
     3 = gh transport/parse failure, INCLUDING a PATCH that failed after the overflow
-    comment landed — that message names the posted comment and the workpad body is
-    byte-identical; 5 = the target is unreachable, naming which of the two causes
-    applies. 4 is not used here (it is `export-snapshot`'s write refusal)."""
+    comment was written — that message names the comment, which holds every moved
+    bullet whether or not the PATCH landed; 5 = compaction is unreachable — nothing movable, every movable
+    bullet still leaving the body over `_compact_ceiling`, or an overflow comment
+    over the cap — the message naming which. 4 is not used here (it is
+    `export-snapshot`'s write refusal)."""
     marker = _workpad_marker(args.marker)
     repo = _repo_full(api_fail_code=3)
     c = _find_workpad_comment('compact', repo, args.issue, marker, api_fail_code=3)
@@ -5665,14 +5719,14 @@ def cmd_compact(args):
               f"(malformed comments response); cannot compact", code=3)
     body = _comment_body_channel(c)
     nbytes = _byte_len(body)
-    if nbytes <= _COMPACT_TARGET_BYTES:
+    if nbytes <= _COMPACT_LOW_WATER_BYTES:
         sys.stdout.write(
             f"workpad-bytes: {nbytes}/{_COMMENT_BYTE_LIMIT}; at or below the "
-            f"{_COMPACT_TARGET_BYTES}-byte compaction target — no comment posted, "
-            f"no PATCH made\n")
+            f"{_COMPACT_LOW_WATER_BYTES}-byte compaction low watermark — no comment "
+            f"posted, no PATCH made\n")
         return
-    # Everything that can refuse is decided BEFORE the comment is posted, so a
-    # refusal costs no comment and a posted comment is always followed by a PATCH
+    # Everything that can refuse is decided BEFORE the comment is written, so a
+    # refusal costs no comment and a written comment is always followed by a PATCH
     # attempt.
     status_line = _compact_status_line(body)
     if status_line is None:
@@ -5689,19 +5743,27 @@ def cmd_compact(args):
             "No comment posted, no PATCH made.\n")
         sys.exit(1)
     selected, projected = _compact_plan(body)
+    if selected == []:
+        sys.stderr.write(
+            f"workpad.py compact: cannot compact the {nbytes}-byte workpad — no "
+            f"bullet is movable: every bullet carries a marker, is a checkbox row, "
+            f"or sits outside `## Progress` and `{_SUBSECTION_HEADINGS['notes']}`. "
+            f"No comment posted, no PATCH made.\n")
+        sys.exit(5)
     if selected is None:
         sys.stderr.write(
-            f"workpad.py compact: cannot reach the {_COMPACT_TARGET_BYTES}-byte "
-            f"target — no movable bullet remains ({projected} bytes would be left; "
-            f"every other bullet carries a marker, is a checkbox row, or sits "
-            f"outside `## Progress` and `{_SUBSECTION_HEADINGS['notes']}`). No "
-            f"comment posted, no PATCH made.\n")
+            f"workpad.py compact: cannot compact — moving every movable bullet "
+            f"still leaves {projected} bytes, over the "
+            f"{_compact_ceiling(nbytes)}-byte ceiling (the smaller of the body's "
+            f"{nbytes} bytes and {_COMPACT_TARGET_BYTES}, less the "
+            f"{_COMPACT_ACCOUNTING_RESERVE}-byte accounting reserve). No comment "
+            f"posted, no PATCH made.\n")
         sys.exit(5)
     overflow = _compose_overflow_comment(marker, status_line, selected)
     if _byte_len(overflow) > _COMMENT_BYTE_LIMIT:
         sys.stderr.write(
-            f"workpad.py compact: cannot reach the {_COMPACT_TARGET_BYTES}-byte "
-            f"target — the assembled overflow comment would be {_byte_len(overflow)} "
+            f"workpad.py compact: cannot compact — the assembled overflow comment "
+            f"would be {_byte_len(overflow)} "
             f"bytes, over GitHub's {_COMMENT_BYTE_LIMIT}-byte limit, and one "
             f"compaction posts one comment. No comment posted, no PATCH made.\n")
         sys.exit(5)
@@ -5715,19 +5777,35 @@ def cmd_compact(args):
         sys.exit(1)
     moved_bytes = sum(_byte_len(text) for _, _, text in selected)
 
-    posted = _post_issue_comment('compact', args.issue, overflow, api_fail_code=3)
-    url = next((ln.strip() for ln in reversed(posted.split('\n'))
-                if _COMMENT_URL_RE.search(ln.strip())), None)
+    reuse = _compose_overflow_append(
+        _find_workpad_comment('compact', repo, args.issue, _COMPACT_OVERFLOW_MARKER,
+                              api_fail_code=3, collect_all=True),
+        marker, status_line, selected)
+    url = None
+    if reuse is not None:
+        try:
+            _patch_comment_body(repo, reuse[0]['id'], reuse[1])
+            url = reuse[0]['html_url']
+        except (_UpdateError, subprocess.CalledProcessError, OSError) as e:
+            sys.stderr.write(
+                f"workpad.py compact: appending to the overflow comment "
+                f"{reuse[0]['html_url']} failed or may not have landed "
+                f"({_gh_error_detail(e)}); posting a new overflow comment instead. "
+                f"Check that comment for duplicated bullets.\n")
     if url is None:
-        # `gh issue comment` is documented to print the new comment's URL. Without
-        # it the comment may already exist on the issue, so the workpad is left
-        # byte-identical rather than PATCHed against a comment we cannot cite.
-        sys.stderr.write(
-            "workpad.py compact: gh printed no comment URL, so the overflow comment "
-            "may or may not have been posted; the workpad is left byte-identical. "
-            "Inspect the issue before retrying. Raw stdout:\n")
-        sys.stderr.write(posted)
-        sys.exit(3)
+        posted = _post_issue_comment('compact', args.issue, overflow, api_fail_code=3)
+        url = next((ln.strip() for ln in reversed(posted.split('\n'))
+                    if _COMMENT_URL_RE.search(ln.strip())), None)
+        if url is None:
+            # `gh issue comment` is documented to print the new comment's URL. Without
+            # it the comment may already exist on the issue, so the workpad is left
+            # byte-identical rather than PATCHed against a comment we cannot cite.
+            sys.stderr.write(
+                "workpad.py compact: gh printed no comment URL, so the overflow comment "
+                "may or may not have been posted; the workpad is left byte-identical. "
+                "Inspect the issue before retrying. Raw stdout:\n")
+            sys.stderr.write(posted)
+            sys.exit(3)
 
     first, stop = kept_region
     content = _append_progress_note(
@@ -5739,16 +5817,12 @@ def cmd_compact(args):
     try:
         _patch_comment_body(repo, c['id'], new_body)
     except (_UpdateError, subprocess.CalledProcessError, OSError) as e:
-        detail = getattr(e, 'stderr', None) if isinstance(
-            e, subprocess.CalledProcessError) else None
-        if isinstance(detail, bytes):
-            detail = detail.decode('utf-8', 'replace')
-        detail = (detail.strip() if isinstance(detail, str) else '') or str(e)
         sys.stderr.write(
-            f"workpad.py compact: the overflow comment WAS posted at {url}, but the "
-            f"workpad PATCH failed ({detail}); the workpad body is unchanged, so "
-            f"every moved bullet is present in BOTH places and nothing is lost. "
-            f"Re-run compact once the failure is resolved, or delete that comment.\n")
+            f"workpad.py compact: the overflow comment WAS written at {url}, but the "
+            f"workpad PATCH failed or may not have landed ({_gh_error_detail(e)}); "
+            f"every moved bullet is in that comment, so nothing is lost. Inspect the "
+            f"workpad: if it is unchanged, re-run compact once the failure is "
+            f"resolved, or remove the moved bullets from that comment.\n")
         sys.exit(3)
     sys.stdout.write(json.dumps({
         "issue": args.issue,
@@ -5758,7 +5832,7 @@ def cmd_compact(args):
         "moved_bytes": moved_bytes,
         "bytes_before": nbytes,
         "bytes_after": _byte_len(new_body),
-        "target": _COMPACT_TARGET_BYTES,
+        "target": _COMPACT_LOW_WATER_BYTES,
     }) + "\n")
 
 
@@ -5948,23 +6022,46 @@ _COMPLETION_CI_MARKER_RE = re.compile(
 )
 
 
-def _encode_ci_payload(record: dict) -> str:
+def _encode_ci_payload(record: dict, compress: bool = False) -> str:
     """Encode a CI-evidence record dict as a base64url-unpadded token, so the payload
     is a single whitespace-free `[^\\s]+` the marker grammar and the checkpoint key
-    grammar (`[A-Za-z0-9._:-]+`, which includes `-` and `_`) both accept."""
+    grammar (`[A-Za-z0-9._:-]+`, which includes `-` and `_`) both accept. `compress`
+    zlib-compresses the JSON first; only the cloud-CI writer passes it, because
+    `scripts/sweep-evidence.py`'s decoder mirror reads the plain form alone."""
     raw = json.dumps(record, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    if compress:
+        raw = zlib.compress(raw, 9)
     return base64.urlsafe_b64encode(raw).rstrip(b'=').decode('ascii')
 
 
+# Largest inflated CI-evidence payload `_decode_ci_payload` accepts: a whole comment.
+_CI_PAYLOAD_INFLATE_LIMIT = _COMMENT_BYTE_LIMIT
+
+
 def _decode_ci_payload(payload: str) -> object:
-    """Decode a CI-evidence marker payload back to its JSON object. Best-effort: a
-    payload that is not valid base64url or not valid JSON returns None, which the
-    validator treats as a missing-evidence (non-object) record rather than raising."""
+    """Decode a CI-evidence marker payload back to its JSON object — a zlib stream
+    (first decoded byte 0x78, which no `json.dumps` output starts with) inflated first,
+    plain JSON as retained workpads carry it read directly. Best-effort: a payload that
+    is not valid base64url, a stream that is corrupt, truncated, trailed by other bytes
+    or inflates past `_CI_PAYLOAD_INFLATE_LIMIT`, or bytes that are not UTF-8 JSON
+    return None, which the validator treats as a missing-evidence (non-object) record
+    rather than raising."""
     try:
-        pad = '=' * (-len(payload) % 4)
-        raw = base64.urlsafe_b64decode(payload + pad)
+        raw = base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4))
+    except (TypeError, ValueError):
+        return None
+    if raw[:1] == b'\x78':
+        inflater = zlib.decompressobj()
+        try:
+            raw = inflater.decompress(raw, _CI_PAYLOAD_INFLATE_LIMIT + 1)
+        except zlib.error:
+            return None
+        if (len(raw) > _CI_PAYLOAD_INFLATE_LIMIT or not inflater.eof
+                or inflater.unconsumed_tail or inflater.unused_data):
+            return None
+    try:
         return json.loads(raw.decode('utf-8'))
-    except Exception:
+    except (ValueError, RecursionError):
         return None
 
 
@@ -5991,8 +6088,9 @@ def _strip_completion_ci_marker_rows(content: str) -> str:
 # and the local-tier CI reading (`completion-ci:`). Its payload is the richer
 # `cloud_ci_evidence` record (kind + schema_version + shard population/tallies + required
 # checks), validated OFFLINE by the sibling module's `validate_implement_completion_cloud_ci`.
-# It rides the same base64url-unpadded keyed-checkpoint marker family; `_encode_ci_payload`
-# /`_decode_ci_payload` are shape-agnostic, so they are reused for this payload too.
+# It rides the same base64url-unpadded keyed-checkpoint marker family, its JSON
+# zlib-compressed first (issue #1547); `_encode_ci_payload`/`_decode_ci_payload` are
+# shape-agnostic, so they are reused for this payload too.
 # Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
 _COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX = 'completion-cloud-ci:'
 _COMPLETION_CLOUD_CI_MARKER_RE = re.compile(
@@ -8910,7 +9008,7 @@ def _plan_completion_evidence(args, recorded_at: datetime.datetime) -> _Completi
                 f"--record-completion-evidence-cloud-ci: could not read a JSON record "
                 f"from {cloud_file!r} ({error.__class__.__name__}). No PATCH was made."
             )
-        payload = _encode_ci_payload(record)
+        payload = _encode_ci_payload(record, compress=True)
         _validate_cloud_ci_evidence(args, payload)
         # Validation establishes the record shape before any field is read.
         url = str(record.get('run_url', ''))
@@ -10207,14 +10305,21 @@ def _build_parser():
 
     s = sub.add_parser(
         'compact',
-        help='Shrink an over-target workpad to 57344 UTF-8 bytes or fewer by '
-             'moving its oldest whole progress-note and "### ℹ️ Notes" bullets — '
+        help='Shrink a workpad over the 40960-byte low watermark to that watermark '
+             'by moving its oldest whole progress-note and "### ℹ️ Notes" bullets — '
              'never one carrying a <!-- prflow: marker, never a partial line — '
-             'byte-for-byte into ONE overflow comment posted BEFORE the workpad '
-             'PATCH. Prints a JSON receipt. Exit 0 (compacted, or already at '
-             'target: no comment, no PATCH), 1 structural refusal, 2 no workpad, '
-             '3 gh failure (a PATCH that fails after the post names the comment '
-             'and leaves the body unchanged), 5 target unreachable.')
+             'byte-for-byte into ONE overflow comment written BEFORE the workpad '
+             'PATCH: appended to the newest overflow comment when it keeps its '
+             'header lines and stays within 65536 bytes, else — or when that '
+             'append fails — posted new. When the watermark is out of reach every '
+             'movable bullet moves, provided the body is then at or below the '
+             'smaller of its own size and 57344, less the 512-byte accounting '
+             'reserve. Prints a JSON receipt. Exit 0 (compacted, '
+             'or already at the watermark: no comment, no PATCH), 1 structural '
+             'refusal, 2 no workpad, 3 gh failure (the workpad is left unchanged, '
+             'except that a failed workpad PATCH may have landed and names the '
+             'written comment), 5 unreachable '
+             '(nothing movable, over the ceiling, or comment over the cap).')
     s.add_argument('issue', type=int)
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_compact)
