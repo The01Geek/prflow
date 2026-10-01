@@ -16,7 +16,7 @@ When the filesystem refuses the append of a `### pass <n>` entry to the `## Stee
 
 ## Revision-delta record
 
-When the filesystem refuses the append of a revision-delta evidence line to the `## Revision-delta record` section of `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md`, post that line — naming its anchor — as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Revision-delta record`. The reduced durability is reported and filing is never blocked.
+When the filesystem refuses the append of a line to the `## Revision-delta record` section of `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md`, post that line as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Revision-delta record`. The reduced durability is reported and filing is never blocked.
 
 ## Criterion disposition record
 
@@ -24,7 +24,7 @@ When the filesystem refuses the append of a disposition line to the `## Criterio
 
 ## Step 2 / Step 3 — the derivation gate's stand-in
 
-A visible block you posted in chat this run containing the full derived Definition of Ready — the actual list, not a bare claim of having derived it nor a pointer to earlier prose — stands in for the file. "Present" means it is in *this run's* transcript; re-post that full block in the current turn whenever you reach a check that fires there. A derivation in neither this run's file nor such a visible block means the pass did not run.
+A visible block you posted in chat this run containing the full derived Definition of Ready — the actual list, not a bare claim of having derived it nor a pointer to earlier prose — stands in for the file. "Present" means it is in *this run's* transcript; re-post that full block in the current turn whenever you reach a check that fires there. Re-post it also in the turn any `## Evidence bundle` entry is updated or re-marked, a revision's changes included; each posting carries every entry as last updated or re-marked, and only the latest posting counts. A derivation in neither this run's file nor such a visible block means the pass did not run.
 
 ## Step 3.6 — the audit report artifact
 
@@ -40,7 +40,7 @@ In a read-only sandbox, rely solely on the visible inline-in-chat audit block re
 
 ## Step 4 — the working-file listing
 
-The failed or refused write or delete that put this run on this arm leaves the paths Step 4's listing names either missing or holding a prior run's bytes. Do not trust an on-disk copy of any artifact it names — each stands or falls on its own arm above — and re-enter no producing step on the strength of its rows. Where an arm above has already posted its artifact as a visible inline-in-chat block this run, that block is that artifact's stand-in and is re-posted in the current turn; an artifact with no such block is reported **unestablished**.
+The failed or refused write or delete that put this run on this arm leaves the paths Step 4's listing names either missing or holding a prior run's bytes. Do not trust an on-disk copy of any artifact it names — each stands or falls on its own arm above — and re-enter no producing step on the strength of its classes. Where an arm above has already posted its artifact as a visible inline-in-chat block this run, that block is that artifact's stand-in and is re-posted in the current turn; an artifact with no such block is reported **unestablished**.
 
 ## Step 4 — the investigation-record artifact
 

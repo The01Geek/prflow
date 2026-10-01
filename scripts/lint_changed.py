@@ -75,10 +75,10 @@ RECORD_KINDS = frozenset(
 # this trusted mapping — not manifest text — names the executable.
 _LANGUAGE_TOOL = {"shell": "shellcheck", "python": "ruff", "workflow": "actionlint"}
 
-# Broad-invocation base flags per tool, in trusted code (the manifest selector
-# carries globs + language, not flags). A special_invocation carries its own
-# complete `extra_flags` from the manifest and does not use these. Kept aligned
-# with the repository's documented lint commands.
+# Broad-invocation base flags per tool, in trusted code. A selector's optional
+# `extra_flags` are appended to these; a special_invocation carries its own
+# complete `extra_flags` and does not use these. Kept aligned with the
+# repository's documented lint commands.
 _BROAD_FLAGS = {
     "shellcheck": ["--severity=warning", "-e", "SC1091"],
     "ruff": ["check"],
@@ -462,6 +462,10 @@ def _selector_claims(path: str, sel: dict, exclusions: list) -> bool:
     return not any(_glob_match(g, path) for g in exclusions)
 
 
+def _selector_flags(sel: dict, tool: str) -> list[str]:
+    return [*_BROAD_FLAGS[tool], *sel.get("extra_flags", [])]
+
+
 def select_invocations(run_paths: list[bytes], manifest: dict) -> list[Invocation]:
     """Map deduped final-state run paths through the manifest's closed selector and
     special-invocation rules into assembled invocations.
@@ -509,7 +513,7 @@ def select_invocations(run_paths: list[bytes], manifest: dict) -> list[Invocatio
             continue
         tool = _LANGUAGE_TOOL[sel["language"]]
         invocations.append(
-            Invocation(sel["id"], tool, list(_BROAD_FLAGS[tool]), paths, _tool_timeout(manifest, tool))
+            Invocation(sel["id"], tool, _selector_flags(sel, tool), paths, _tool_timeout(manifest, tool))
         )
     return invocations
 
@@ -534,9 +538,8 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
     invocations: list[Invocation] = []
     # A path a special invocation claims is linted by that invocation alone and is absent
     # from every broad profile — the same exclusivity select_invocations enforces on the
-    # changed-file path. Without this, a future special whose file a broad selector also
-    # includes would be double-linted here (for a run.sh-shaped file, the ShellCheck OOM the
-    # special exists to avoid).
+    # changed-file path. Without this, a special whose file a broad selector also includes
+    # would be double-linted here, once without the flags the special exists to apply.
     special_claimed: set[str] = set()
     for si in manifest.get("special_invocations", []):
         matched = [raw for raw, path in tracked_paths if _glob_match(si["path"], path)]
@@ -559,7 +562,7 @@ def select_full_invocations(top: str, manifest: dict) -> list[Invocation]:
         # cannot silently lint a language with the wrong tool here.
         tool = _LANGUAGE_TOOL[sel["language"]]
         invocations.append(
-            Invocation(prof["id"], tool, list(_BROAD_FLAGS[tool]), paths, _tool_timeout(manifest, tool))
+            Invocation(prof["id"], tool, _selector_flags(sel, tool), paths, _tool_timeout(manifest, tool))
         )
     return invocations
 

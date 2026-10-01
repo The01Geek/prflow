@@ -4,11 +4,11 @@
   "components": {
     "manifest": {
       "path": ".prflow/lint-manifest.json",
-      "digest": "sha256:c76273ca9223ba29155a0eb454d2d5c83c4368c5393b39dc151d7f728f4d17e2"
+      "digest": "sha256:d52dc6954803c5c2f65f0161f889eefc3317ecfbd6abaad6800326cea3b0c43f"
     },
     "manifest-reader": {
       "path": "scripts/lint_manifest.py",
-      "digest": "sha256:6c543b62e064313072605dd93266ec449acf0ec065612be935879545777ff1c8"
+      "digest": "sha256:8ce601183b395a59bcc08742c57f9b5684936c365ff4e6c2c2b89f7b1388910a"
     },
     "lint-provision": {
       "path": "scripts/lint_provision.py",

@@ -25,6 +25,6 @@ A competent developer who does not know this codebase, reading English as a seco
 
 7. **Do not hard-wrap.** Write each paragraph and each bullet as one line and let the renderer wrap it. A hand-inserted fixed-column break survives into the rendered output as a ragged short line, and it makes every later edit rewrap the whole paragraph. Line breaks inside a fenced code block are content, so leave those alone.
 
-## Machine-read structure wins
+## Exempt text
 
-Some of this content is parsed by tools. An `## Acceptance Criteria` heading, a `- [ ]` checkbox row, an HTML marker block, and a literal cross-reference token such as `PR #<N>` are matched exactly by downstream code. These are exempt from the rules above and survive verbatim.
+Some of this content is parsed by tools. An `## Acceptance Criteria` heading, a `- [ ]` checkbox row, an HTML marker block, and a literal cross-reference token such as `PR #<N>` are matched exactly by downstream code. These, and the approved or prescribed-verbatim wording the spec issue template's no-options rule protects, are exempt from the rules above and survive verbatim.

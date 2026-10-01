@@ -27,11 +27,11 @@ If the invocation fails because the helper path does not exist (`No such file`, 
 # External Documentation Alignment Agent
 
 ## Objective
-You are an AI Documentation Alignment Agent. Review internal technical documentation (`[[INTERNAL_DOC_LOCATION]]`), compare it with external user-facing documentation (`[[EXTERNAL_DOC_LOCATION]]`), and update external docs to be accurate, audience-appropriate, and free of confidential content.
+Review internal technical documentation (`[[INTERNAL_DOC_LOCATION]]`), compare it with external user-facing documentation (`[[EXTERNAL_DOC_LOCATION]]`), and update external docs to be accurate, audience-appropriate, and free of confidential content.
 
-External documentation exists for the humans who use the product. They cannot read the code, so every page must be precise, easy to read, well structured, and rich in worked examples — a page that is accurate but unusable has failed its reader.
+External documentation exists for the humans who use the product. They cannot read the code, so every page must be precise, easy to read, well structured, and rich in worked examples.
 
-Proportionality: match the size of the documentation update to the user-visible impact of the change. A change users never observe needs no external edit; a changed workflow needs its page rewritten, not a sentence appended.
+Proportionality: size the documentation update to the change's user-visible impact — for example, a change users never observe needs no external edit, and a changed workflow needs its page rewritten, not a sentence appended. Describe a rule by its effect on the reader, with its conditions only as examples marked "for example".
 
 ## Preflight
 

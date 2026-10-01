@@ -65,9 +65,8 @@ Contract (issue #600):
 - Modes, complete by construction: the dispatch arms ``file`` /
   ``embed`` / ``inline`` mirroring ``issue-audit-state.py``'s arm vocabulary,
   plus ``checklist`` (the Step 3.5 self-check), ``extract`` (the generic
-  section-extraction hook; the Step 2 ``## Evidence axes`` forwarding consumes
-  it as a standalone call, while the Step 3.6 ``## Audit dimensions`` hook
-  consumes the same extraction *rule* spliced into a dispatch arm as
+  section-extraction hook; the Step 3.6 ``## Audit dimensions`` hook
+  consumes that mode's extraction *rule* spliced into a dispatch arm as
   ``{CONSUMER_DIMENSIONS}``, not via a standalone ``extract`` call),
   ``status-only`` (the orchestrator's fail-fast one-line probe),
   ``enumerate-dimensions`` (the issue #708 keyed dimension enumeration the
@@ -754,11 +753,9 @@ def render_dispatch(
 def render_extract(hook: str, ext_path: Path) -> str:
     """Section-extraction mode: forward one consumer section.
 
-    The extraction RULE is shared by both hooks, but this mode is the
-    consumption path only for ``--hook evidence-axes`` (Step 2's forwarding);
-    Step 3.6's ``## Audit dimensions`` reaches the auditor spliced into a
-    dispatch arm via ``{CONSUMER_DIMENSIONS}``, not through a standalone
-    ``extract`` call.
+    The extraction RULE is shared by both hooks; Step 3.6's
+    ``## Audit dimensions`` reaches the auditor spliced into a dispatch arm via
+    ``{CONSUMER_DIMENSIONS}``, not through a standalone ``extract`` call.
     """
     # Guard the hook lookup so the module's documented failure contract (rc≠0,
     # empty stdout, stderr breadcrumb) holds for every entry point, not only the

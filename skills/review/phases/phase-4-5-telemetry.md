@@ -28,7 +28,7 @@ Read the exit status from the tool result. On non-zero, emit `::warning::review 
 }
 ```
 
-`source: "review"` selects the review-mode derivation in `lib/efficiency-trace.jq` (distinguishing the record from `/prflow:review-and-fix`'s). Because standalone review never applies a fix, each Phase-3 finding carries `contributed_to_verdict` instead of `fix_decision`: `true` when it counted toward the verdict (drove the REJECT, or was a non-deferral-demoted Important/Suggestion in an APPROVE-with-notes), `false` when Phase 4.0's deferral match demoted it to Informational. The jq then classifies each agent `unique-effective` / `corroborating` / `noise` / `null` off contribution instead of applied-fix.
+`source: "review"` selects the review-mode derivation in `lib/efficiency-trace.jq` (distinguishing the record from `/prflow:review-and-fix`'s). Because standalone review never applies a fix, each Phase-3 finding carries `contributed_to_verdict` instead of `fix_decision`: `true` when it counted toward the verdict (drove the REJECT, or was a non-deferral-demoted Important/Suggestion in an APPROVE-with-notes), `false` when Phase 4.0's deferral match or a confirmed disclosure demoted it to Informational. The jq then classifies each agent `unique-effective` / `corroborating` / `noise` / `null` off contribution instead of applied-fix.
 
 Then, on a writable run, persist the record with the same direct invocation `/prflow:review-and-fix`'s Loop Exit uses (no `bash` prefix):
 

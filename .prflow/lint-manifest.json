@@ -160,18 +160,11 @@
     {
       "id": "lib-test-shell",
       "language": "shell",
-      "include_globs": ["lib/test/**/*.sh"]
+      "include_globs": ["lib/test/**/*.sh"],
+      "extra_flags": ["--extended-analysis=false"]
     }
   ],
   "exclusions": ["lib/test/fixtures/**"],
-  "special_invocations": [
-    {
-      "id": "run-sh-extended-analysis-off",
-      "path": "lib/test/run.sh",
-      "tool": "shellcheck",
-      "extra_flags": ["--severity=warning", "--extended-analysis=false"]
-    }
-  ],
   "full_profiles": [
     {"id": "shell-full", "tool": "shellcheck", "selector": "shell-portable"},
     {"id": "python-full", "tool": "ruff", "selector": "python"},

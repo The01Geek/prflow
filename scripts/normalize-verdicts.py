@@ -9,8 +9,9 @@ partially-correct claims FAIL and reports structured operands
 helper owns the parse contract and the single normalization decision, so the
 review-engine prose only assembles inputs, runs the helper, and renders outputs
 (the ``match-lint-adjudications.py`` / ``match-deferrals.py`` helper-owns-the-join
-idiom). It is stdlib-only, reads no config, and makes no ``gh``/network/``git``
-calls — unit-testable exactly like ``consolidate-changesets.py`` (issue #556).
+idiom). Its own modes are stdlib-only, read no config, and make no ``gh``/network/``git``
+calls — unit-testable exactly like ``consolidate-changesets.py`` (issue #556); the
+``checklist`` route below is not bound by this.
 
 Input — one pairs file (a JSON object) named as ``argv[1]``. The orchestrator
 Writes it into the run-scoped ``.prflow/tmp/`` tree. Shape::
@@ -110,9 +111,12 @@ correct while boolean ``property_proven`` is ``false`` leaves the intended prope
 unproven. When the property-not-proven real blocker is the SOLE normalization blocker
 (no field defect, and none of the four other real blockers below), that pair is not a
 settled answer — it enters ``needs_retry`` with kind ``auxiliary`` for the same
-one-shot pinned re-ask, at most once per item across the field-defect and contradiction
-classes together. A re-ask that positively proves the property normalizes through the
-unchanged five-conjunct predicate; any other re-ask outcome leaves the raw FAIL
+one-shot pinned re-ask. So does the scope-none contradiction (issue #1606): an unpinned
+raw FAIL with ``inaccuracy_scope == "none"`` (nothing mismatches) beside boolean
+``property_proven`` ``true``, when the scope blocker is the sole normalization blocker
+(defect ``contradiction:scope_none_but_verdict_fail``). An item draws at most one re-ask
+across the field-defect and both contradiction classes. A re-ask normalizes only through
+the five-conjunct predicate below; any other re-ask outcome leaves the raw FAIL
 standing. The four other real blockers that instead keep the terminal behavior are:
 ``mode != "agent"``, ``category == "issue_acceptance"``, ``source_authored``
 provenance, and a trusted verdict file present but unreadable.
@@ -127,7 +131,8 @@ when ALL hold: (1) ``verification_mode == "agent"``; (2)
 ``claim_provenance == "generated_paraphrase"``; (3) raw verdict byte-exact
 ``FAIL``; (4) ``property_proven`` is JSON boolean ``true`` (a JSON string
 ``"true"`` does not qualify — a real type check); (5)
-``inaccuracy_scope == "generated_claim_text"``. No malformed shape of any class
+``inaccuracy_scope == "generated_claim_text"``, or ``"none"`` on a pinned re-ask only.
+No malformed shape of any class
 ever resolves to a stored PASS.
 
 Source-defect demotion (issue #1140): a raw ``PASS`` on a
@@ -153,6 +158,7 @@ writes the combined verification array, so the orchestrator types only judgment:
       "response_text":  { "VC-9": "<reply of every agent item that returned one>" },
       "pinned_verdict": { "VC-4": "FAIL" },               # field-completion re-ask
       "pinned_from":    { "VC-4": "<first answer's nonce>" },   # its provenance source
+      "reverify":       { "VC-6": { "nonce": "<nonce>", "counter_reading": "<sentence>" } },
       "views":          { "head": { "revision": "<40-hex>", "inventory": "<path>" },
                           "base": { "revision": "<40-hex>", "inventory": "<path>" } }
     }
@@ -168,7 +174,7 @@ stored ``critical``, and cannot earn PASS (a raw PASS is forced to INCONCLUSIVE 
 ``view_ineligible`` marker; cited evidence text is never byte-compared). Any other citation
 missing from the inventory (``path-not-in-inventory``) is recorded in ``view_state`` only and
 changes no verdict, severity or evidence. A 12-39 lowercase-hex ``view_revision`` prefixing exactly one bound
-revision is first replaced by that revision, with an ``input_warnings`` line. The gate is inert when ``views`` is absent, so a legacy run is
+revision is first replaced by that revision, with an ``input_warnings`` line (none for a ``reverify`` answer). The gate is inert when ``views`` is absent, so a legacy run is
 unaffected and the wording-only normalization contract is unchanged. The summary carries a
 ``view_check`` object ``{bound_revisions, states}``.
 
@@ -177,6 +183,14 @@ unaffected and the wording-only normalization contract is unchanged. The summary
 and the re-ask's copies of those fields are ignored. An unusable entry (a non-string or
 unsafe nonce, no matching ``pinned_verdict``, or a first file that is absent, unreadable,
 unparseable or carries none of ``evidence``, ``file_checked`` and ``view_revision``) is ignored with an ``input_warnings`` line; the item grades as it would without it.
+
+``reverify`` (issue #1527) names a re-verification of a fresh agent item whose stored verdict is FAIL:
+``<verdicts-dir>/<id>-<nonce>.json`` is graded like a first answer (never from ``response_text``) and
+replaces the stored row only when it is a PASS or FAIL whose view state is ``ok``,
+``path-not-in-inventory`` or unset; anything else keeps the stored FAIL. It adds no row to
+``tally``, which counts each item's stored row once, and nothing to ``counts`` or ``needs_retry``;
+a replaced item leaves ``needs_retry``. Each entry, used or ignored, writes exactly one ``input_warnings``
+line beginning ``re-verification <id>: ``.
 
 Each checklist item is partitioned exactly as the evidence gate partitions it: a
 ``reused_from_iter_prev: true`` item carrying a prior ``PASS`` keeps the verdict it
@@ -193,8 +207,8 @@ when the ``--out`` write fails, ``written`` is null and the array rides along as
 ``verification`` for the orchestrator to Write.
 
 ``checklist <op> …`` as the first argument instead routes to the Phase 1 checklist
-assembly, and the shadow review's ``match``, in the sibling ``checklist_finalize.py`` (its ops, files and output are
-documented there). It rides this helper because a cloud profile grants leading
+assembly, the prior-report selection (``prior``, ``prior-lines``), and the shadow review's ``match``, in the sibling
+``checklist_finalize.py`` (its ops, files and output are documented there). It rides this helper because a cloud profile grants leading
 tokens per helper, and this one is granted wherever the review engine runs.
 
 Prepare mode — ``prepare <checklist-iter-N.json> --verdicts-dir <dir> [--fields <file>]`` —
@@ -231,12 +245,29 @@ An item whose id is not usable as a file-name part is skipped with a warning nam
 and gets no nonce and no item file. A later single-item dispatch inside the same entry
 mints its own nonce and never re-runs prepare: a re-run wipes the wave's verdict files.
 
+Wait mode — ``wait --verdicts-dir <dir> --expect <id>... --deadline <seconds>`` — is Phase
+2's wave barrier. It lists ``<dir>`` about once a second until a regular file named
+``<id>-*.json`` exists for every distinct ``--expect`` id, ``<seconds>`` elapse, or ``<dir>``
+exists but cannot be listed, then prints
+``{"present": [...], "missing": [...], "waited_s": <int>, "deadline_hit": <bool>}`` (a helper
+defect prints the ``helper_internal_error`` object instead), rc 0; an id seen on any listing
+stays present. A file matching two expected ids (``VC-1`` and ``VC-1-2``)
+counts only for the longer one. It reads
+no file's contents and takes no nonce, so a wrong-nonce file counts present here and stays
+``verdict_file_absent`` in build mode. An empty id stays missing; an absent,
+unreadable or non-directory ``<dir>`` at the last poll leaves every id not seen on an earlier
+listing missing and prints a stderr breadcrumb. ``deadline_hit`` is true whenever any id is
+missing, including an early stop on an unlistable ``<dir>``. Every token after ``--expect`` up
+to the next ``--``-prefixed token is an id. A missing ``--verdicts-dir``/``--deadline``, no id, a
+deadline that is not a non-negative integer, a repeated or any other flag, or a token outside an
+``--expect`` run is a ``usage`` refusal (rc 2) that polls nothing.
+
 Exit codes:
     0  Helper ran (results OR bad-input report printed).
     1  Unsupported Python (< 3.11).
     2  Bad arguments (no pairs-file or build-mode inputs-file path given; a build-mode
        flag without its value, or build mode without all of its flags; a prepare-mode
-       usage refusal).
+       or wait-mode usage refusal).
 """
 
 import itertools
@@ -246,6 +277,7 @@ import posixpath
 import re
 import secrets
 import sys
+import time
 import traceback
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation below
@@ -287,6 +319,12 @@ CONTRADICTION_DEFECT = "contradiction:generated_claim_text_but_property_unproven
 CONTRADICTION_INELIGIBLE = (
     "contradiction: inaccuracy_scope generated_claim_text asserts the code is correct "
     "but property_proven is false"
+)
+SCOPE_NOT_GENERATED_BLOCKER = "inaccuracy_scope not generated_claim_text"
+SCOPE_NONE_CONTRADICTION_DEFECT = "contradiction:scope_none_but_verdict_fail"
+SCOPE_NONE_CONTRADICTION_INELIGIBLE = (
+    "contradiction: inaccuracy_scope none reports nothing mismatches and property_proven "
+    "is true but the verdict is FAIL"
 )
 
 
@@ -593,8 +631,13 @@ def _process_pair(pair, first=None):
         real_blockers.append(PROPERTY_NOT_PROVEN_BLOCKER)
     elif pp_state == "defect":
         field_defect_blockers.append("property_proven field defect")
+    scope = obj.get("inaccuracy_scope")
+    # Conjunct 5 accepts "none" on a pinned re-ask only: an unpinned none+proven FAIL is
+    # the scope-none contradiction below and must draw its re-ask, never store PASS.
+    if scope_state == "real" and is_pinned and scope == "none":
+        scope_state = "ok"
     if scope_state == "real":
-        real_blockers.append("inaccuracy_scope not generated_claim_text")
+        real_blockers.append(SCOPE_NOT_GENERATED_BLOCKER)
     elif scope_state == "defect":
         field_defect_blockers.append("inaccuracy_scope field defect")
     if trusted_channel_lost:
@@ -617,7 +660,7 @@ def _process_pair(pair, first=None):
         return result, None, False
 
     if (raw == "PASS" and provenance == "source_authored"
-            and obj.get("inaccuracy_scope") == "source_authored_text"):
+            and scope == "source_authored_text"):
         result["verdict"] = "FAIL"
         result["demoted"] = True
         result["evidence"] = _source_defect_evidence(result["evidence"])
@@ -645,6 +688,15 @@ def _process_pair(pair, first=None):
         raw == "FAIL"
         and real_blockers == [PROPERTY_NOT_PROVEN_BLOCKER]
         and not field_defect_blockers
+        and scope == "generated_claim_text"
+    )
+    # issue #1606 — scope "none" (nothing mismatches) beside a proven property, on an
+    # unpinned first answer; the singleton blocker forces agent/generated as above.
+    is_scope_none_contradiction = (
+        raw == "FAIL"
+        and real_blockers == [SCOPE_NOT_GENERATED_BLOCKER]
+        and not field_defect_blockers
+        and scope == "none"
     )
 
     # auxiliary re-ask: only for a raw FAIL + generated_paraphrase agent item with a
@@ -661,24 +713,21 @@ def _process_pair(pair, first=None):
         if (not is_pinned and raw == "FAIL" and provenance == "generated_paraphrase"
                 and mode == "agent" and not real_blockers):
             retry = {"id": item_id, "kind": "auxiliary", "defect": ",".join(aux_defects)}
-    elif is_contradiction:
+    elif is_contradiction or is_scope_none_contradiction:
         # Both fields well-typed, so the field-defect arm did not fire — draw one re-ask
-        # through the same auxiliary channel (at most one per item across both classes).
-        result["defect"] = CONTRADICTION_DEFECT
+        # through the same auxiliary channel (at most one per item across all classes).
+        token, why = ((CONTRADICTION_DEFECT, CONTRADICTION_INELIGIBLE) if is_contradiction
+                      else (SCOPE_NONE_CONTRADICTION_DEFECT, SCOPE_NONE_CONTRADICTION_INELIGIBLE))
+        result["defect"] = token
         result["defect_class"] = "auxiliary"
-        result["normalization_ineligible"] = CONTRADICTION_INELIGIBLE
-        # is_contradiction already forces mode==agent and provenance==generated_paraphrase,
+        result["normalization_ineligible"] = why
+        # Both predicates already force mode==agent and provenance==generated_paraphrase,
         # so the only remaining gate is that this pair is not itself the pinned re-ask.
         if not is_pinned:
-            retry = {"id": item_id, "kind": "auxiliary", "defect": CONTRADICTION_DEFECT}
+            retry = {"id": item_id, "kind": "auxiliary", "defect": token}
 
     if trusted_channel_lost:
-        # Stamped LAST so it takes precedence over an auxiliary stamp, and stamped in
-        # every verdict direction (not only raw FAIL) — a clean PASS read off the
-        # abandoned trusted channel was previously recorded ONLY as a soft `source`
-        # string that no consumer reads, which is the forged-PASS case the nonce
-        # binding exists to stop. `defect`/`defect_class`/`needs_retry` are the fields
-        # the engine's Phase 2.2 actually consumes; `source` stays diagnostic-only.
+        # Stamped last so it overrides the auxiliary stamp above in every verdict direction.
         result["defect"] = "trusted_file_unreadable"
         result["defect_class"] = "channel"
         result["normalization_ineligible"] = "trusted verdict file present but unreadable"
@@ -812,7 +861,7 @@ def _checklist_main(argv):
 
 BUILD_FLAGS = ("--checklist", "--verdicts-dir", "--out")
 _INPUT_TYPES = {"nonces": dict, "lite": list, "response_text": dict,
-                "pinned_verdict": dict, "views": dict, "pinned_from": dict}
+                "pinned_verdict": dict, "views": dict, "pinned_from": dict, "reverify": dict}
 
 # issue #851 collector view-provenance check.
 VIEW_INELIGIBLE_PREFIX = "VIEW-UNESTABLISHED: "
@@ -1295,7 +1344,7 @@ def _view_gated(entry):
 
 def _demote_pass(entry, state):
     """Force a PASS or demoted FAIL to INCONCLUSIVE with the view-ineligibility marker
-    for `state`, prefixing the prior evidence. Both build() view-gate arms share this contract.
+    for `state`, prefixing the prior evidence.
     Undoes a source-defect demotion first, so its marker never reaches the fixer."""
     evidence = entry.get("evidence") or ""
     if entry.pop("demoted", None) is True:
@@ -1303,6 +1352,105 @@ def _demote_pass(entry, state):
     entry["verdict"] = "INCONCLUSIVE"
     entry["view_ineligible"] = state
     entry["evidence"] = VIEW_INELIGIBLE_PREFIX + f"provenance {state}: " + evidence
+
+
+def _force_issue_acceptance(entry, item):
+    if item.get("category") == "issue_acceptance":
+        entry["severity"] = "critical"
+
+
+_VIEW_ACCEPTED = ("ok", "path-not-in-inventory")  # an unmatched citation is information only
+
+
+def _apply_view_gate(entry, warnings, *, view_index, bound_revisions, view_dirs, views_supplied):
+    """Run the view-provenance gate on one entry in place; return its view state, or None
+    when the run supplied no views (supplied views none of which bound return
+    ``views-unusable``)."""
+    if bound_revisions:
+        prefix = entry.get("view_revision")
+        full = _expand_view_prefix(prefix, bound_revisions)
+        if full is not None:
+            entry["view_revision"] = full
+            warnings.append(f"{entry.get('id')}: view_revision {prefix} expanded to bound revision {full}")
+        state = _view_state(entry, view_index, bound_revisions, view_dirs)
+    elif views_supplied:
+        # Never merge with the no-views arm below: supplied-but-unusable views must fail closed.
+        state = "views-unusable"
+    else:
+        return None
+    entry["view_state"] = state
+    if state not in _VIEW_ACCEPTED:
+        entry["severity"] = "critical"
+        if _view_gated(entry):
+            _demote_pass(entry, state)
+    return state
+
+
+def _reverify(inp, checklist, verification, verdicts_dir, warnings, **gate):
+    """Issue #1527: grade a usable ``reverify`` entry's answer like a first answer and let it
+    replace the item's stored FAIL only when it is a PASS or FAIL the view gate accepts.
+    Returns the replaced ids; ``gate`` is ``_apply_view_gate``'s keyword arguments."""
+    replaced = []
+    where = {}
+    for idx, item in enumerate(checklist):
+        if isinstance(item, dict) and isinstance(item.get("id"), str):
+            where.setdefault(item["id"], []).append(idx)
+    for rid, spec in inp["reverify"].items():
+        cr = spec.get("counter_reading") if isinstance(spec, dict) else None
+        head = f"re-verification {rid}: "
+        if isinstance(cr, str) and cr:
+            head += f"counter-reading {cr!r}; "
+        slots = where.get(rid, [])
+        stored = verification[slots[0]] if len(slots) == 1 else None
+        if not isinstance(spec, dict):
+            why = "entry is not an object"
+        elif not (isinstance(cr, str) and cr):
+            why = "counter_reading is not a non-empty string"
+        elif not (_path_safe(rid) and _path_safe(spec.get("nonce"))):
+            why = "id or nonce is not a usable file-name part"
+        elif spec["nonce"] in (inp["nonces"].get(rid), inp["pinned_from"].get(rid)):
+            why = "nonce names the item's stored answer, not a re-verification"
+        elif not slots:
+            why = "no checklist item has this id"
+        elif stored is None:
+            why = "more than one checklist item has this id"
+        elif not _fresh_agent(checklist[slots[0]]):
+            why = "item is lite or reused"
+        elif stored["verdict"] != "FAIL":
+            why = f"stored verdict is {stored['verdict']}, not FAIL"
+        else:
+            why = None
+        if why is not None:
+            warnings.append(head + "ignored: " + why)
+            continue
+        item = checklist[slots[0]]
+        ran = run_pairs([{"item": item,
+                          "verdict_path": os.path.join(verdicts_dir, f"{rid}-{spec['nonce']}.json")}])
+        graded, sev_defect = ran["results"][0], ran["severity_defects"].get(0)
+        _force_issue_acceptance(graded, item)
+        state = _apply_view_gate(graded, [], **gate)
+        before = f"FAIL ({stored['severity']}) -> "
+        if graded["verdict"] is None:
+            kept = f"{graded['defect_class']} defect ({graded['defect']})"
+            if graded["defect_class"] == "verdict":
+                kept = {"none": "re-verification file absent",
+                        "none_file_unreadable": "re-verification file unreadable"}.get(graded["source"], kept)
+        elif state is not None and state not in _VIEW_ACCEPTED:
+            kept = f"view state {state}"
+        elif graded["verdict"] == "INCONCLUSIVE":
+            kept = "graded INCONCLUSIVE"
+        else:
+            verification[slots[0]] = graded
+            replaced.append(rid)
+            raw = graded.get("raw_verdict")
+            tail = f"; raw verdict {raw}" if raw not in (None, graded["verdict"]) else ""
+            tail += f"; severity {sev_defect}" if sev_defect else ""
+            if graded["defect_class"] == "auxiliary":  # a re-verification draws no re-ask
+                tail += f"; {graded['defect']} (re-ask not run)"
+            warnings.append(head + before + f"{graded['verdict']} ({graded['severity']}){tail}")
+            continue
+        warnings.append(head + before + f"FAIL ({stored['severity']}), kept: {kept}")
+    return replaced
 
 
 def build(inputs_file, checklist_file, verdicts_dir, out_file):
@@ -1364,8 +1512,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
             entry["severity"], sev_defect = _severity(item)
             if sev_defect is not None:
                 warnings.append(f"{item_id!r}: severity {sev_defect} -- stored critical")
-            if item.get("category") == "issue_acceptance":
-                entry["severity"] = "critical"
+            _force_issue_acceptance(entry, item)
             entry["reused_from_iter_prev"] = True
             verification.append(entry)
         elif effective_mode(item) == "lite":
@@ -1453,8 +1600,7 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
                                else "absent: no usable verifier verdict")
         if severity_defect is not None:
             warnings.append(f"{item_id!r}: severity {severity_defect} -- stored critical")
-        if pair["item"].get("category") == "issue_acceptance":
-            result["severity"] = "critical"
+        _force_issue_acceptance(result, pair["item"])
         verification[slot] = result
 
     # issue #851 collector view-provenance gate: when the run supplies commit-bound views, a
@@ -1476,42 +1622,25 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
     warnings.extend(view_warnings)
     view_states = {"ok": 0, "absent": 0, "wrong-revision": 0, "path-outside-view": 0,
                    "path-not-in-inventory": 0, "views-unusable": 0}
-    if bound_revisions:
-        head_paths = view_index.get(head_revision, set()) if head_revision else set()
-        for entry in verification:
-            # A reused-forward PASS was re-confirmed unchanged at the current head by the engine's
-            # variance recovery (Phase 1.0 only carries an item whose source file is byte-identical
-            # HEAD-to-HEAD), so its provenance IS the current head. Re-stamp its stale prior
-            # view_revision to the head revision when its (anchor-stripped) path is in the head
-            # inventory; a reused item whose path is absent from the head view is left unstamped.
-            if entry.get("reused_from_iter_prev") is True and head_revision is not None:
-                keys = _cited_paths(entry.get("file_checked"), view_dirs.get(head_revision, ()),
-                                    head_paths)
-                if keys and all(key in head_paths for key in keys):
-                    entry["view_revision"] = head_revision
-            prefix = entry.get("view_revision")
-            full = _expand_view_prefix(prefix, bound_revisions)
-            if full is not None:
-                entry["view_revision"] = full
-                warnings.append(f"{entry.get('id')}: view_revision {prefix} expanded to bound revision {full}")
-            state = _view_state(entry, view_index, bound_revisions, view_dirs)
-            entry["view_state"] = state
+    gate = {"view_index": view_index, "bound_revisions": bound_revisions,
+            "view_dirs": view_dirs, "views_supplied": views_supplied}
+    head_paths = view_index.get(head_revision, set()) if head_revision else set()
+    for entry in verification:
+        # Do not widen this re-stamp: it vouches for a reused row's provenance at head.
+        if bound_revisions and entry.get("reused_from_iter_prev") is True and head_revision is not None:
+            keys = _cited_paths(entry.get("file_checked"), view_dirs.get(head_revision, ()),
+                                head_paths)
+            if keys and all(key in head_paths for key in keys):
+                entry["view_revision"] = head_revision
+        _apply_view_gate(entry, warnings, **gate)
+
+    replaced = _reverify(inp, checklist, verification, verdicts_dir, warnings, **gate)
+    # A replaced row came from its re-verification file, so the first answer's entry is stale.
+    needs_retry = [r for r in needs_retry if r.get("id") not in replaced]
+    for entry in verification:
+        state = entry.get("view_state")
+        if state is not None:
             view_states[state] = view_states.get(state, 0) + 1
-            if state not in ("ok", "path-not-in-inventory"):  # an unmatched citation is information only
-                entry["severity"] = "critical"
-                if _view_gated(entry):
-                    _demote_pass(entry, state)
-    elif views_supplied:
-        # The run supplied views (it intended commit binding) but none were usable — every slot
-        # was malformed or unreadable. Fail closed: provenance cannot be certified, so no raw PASS
-        # may stand (issue #851). This is distinct from a legacy run that supplies no views, where
-        # the gate is correctly inert and wording-only normalization is preserved (AC6).
-        for entry in verification:
-            entry["view_state"] = "views-unusable"
-            entry["severity"] = "critical"
-            view_states["views-unusable"] += 1
-            if _view_gated(entry):
-                _demote_pass(entry, "views-unusable")
 
     tally = {"pass": 0, "fail": 0, "inconclusive": 0, "lite": lite_count,
              "agent": len(pairs), "reused": reused_count}
@@ -1523,15 +1652,32 @@ def build(inputs_file, checklist_file, verdicts_dir, out_file):
            "non_pass": [e for e in verification if e["verdict"] != "PASS"],
            "inputs_seen": seen, "input_warnings": warnings,
            "view_check": {"bound_revisions": sorted(bound_revisions), "states": view_states}}
+    tmp = out_file + ".tmp"
+    err = None
     try:
-        with open(out_file, "w", encoding="utf-8", newline="\n") as fh:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(verification, fh, indent=1)
             fh.write("\n")
+        os.replace(tmp, out_file)
     except (OSError, ValueError) as e:
+        err = str(e)[:200]
+    finally:  # an exception this does not handle (TypeError, RecursionError) leaves no temp file either
+        left = _drop_tmp(tmp)
+    if err is not None:
         out["written"] = None
-        out["write_error"] = str(e)[:200]
+        out["write_error"] = err + left
         out["verification"] = verification
     return out
+
+
+def _drop_tmp(tmp):
+    """Remove a temp file the write left behind; ``"; <name> not removed"`` when that fails."""
+    if os.path.lexists(tmp):
+        try:
+            os.unlink(tmp)
+        except OSError:
+            return f"; {os.path.basename(tmp)} not removed"
+    return ""
 
 
 _ITER_RE = re.compile(r"\Aiter-([1-9][0-9]{0,5})\Z")
@@ -1657,18 +1803,17 @@ def _merge_fields(checklist_file, checklist, fields_file, warnings):
         warnings.append("fields: the checklist is a symlink or outside a .prflow/tmp/ pair -- nothing merged")
         return checklist
     tmp = checklist_file + ".fields-tmp"
+    err = None
     try:
         with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
             fh.write(json.dumps(merged, indent=2, ensure_ascii=False) + "\n")
         os.replace(tmp, checklist_file)
     except (OSError, UnicodeError) as e:
-        left = ""
-        if os.path.lexists(tmp):
-            try:
-                os.unlink(tmp)
-            except OSError:
-                left = f"; {os.path.basename(tmp)} not removed"
-        warnings.append(f"fields: checklist write failed ({type(e).__name__}: {e}) -- nothing merged{left}")
+        err = f"{type(e).__name__}: {e}"
+    finally:
+        left = _drop_tmp(tmp)
+    if err is not None:
+        warnings.append(f"fields: checklist write failed ({err}) -- nothing merged{left}")
         return checklist
     return merged
 
@@ -1736,6 +1881,13 @@ def prepare(checklist_file, verdicts_dir, fields_file=None):
             "wiped": wiped, "warnings": warnings}, 0
 
 
+def _internal_error(e):
+    sys.stderr.write("normalize-verdicts.py: internal error — this is a helper defect:\n"
+                     + traceback.format_exc())
+    return {"bad_input": True, "error": "helper_internal_error",
+            "detail": f"{type(e).__name__}: {e}"[:200]}
+
+
 def _prepare_main(argv):
     positional, flags = [], {}
     i = 0
@@ -1756,12 +1908,65 @@ def _prepare_main(argv):
         try:
             out, rc = prepare(positional[0], flags["--verdicts-dir"], flags.get("--fields"))
         except Exception as e:
-            sys.stderr.write(
-                "normalize-verdicts.py: internal error — this is a helper defect:\n"
-                + traceback.format_exc()
-            )
-            out, rc = {"bad_input": True, "error": "helper_internal_error",
-                       "detail": f"{type(e).__name__}: {e}"[:200]}, 0
+            out, rc = _internal_error(e), 0
+    print(json.dumps(out, indent=2))
+    return rc
+
+
+def _wait_present(verdicts_dir, ids):
+    """Return ``(present ids, listing error or None)``; an unlistable directory lists nothing."""
+    try:
+        names = [e.name for e in os.scandir(verdicts_dir) if e.is_file(follow_symlinks=False)]
+    except (OSError, ValueError) as e:  # ValueError: a path os.scandir rejects before any syscall
+        return set(), e
+    def owner(n):  # the longest expected id whose "<id>-" prefixes n, so VC-1 is not satisfied by VC-1-2's file
+        return max((i for i in ids if i and n.startswith(i + "-")), key=len, default=None)
+    return {owner(n) for n in names if n.endswith(".json")} - {None}, None
+
+
+def wait(verdicts_dir, ids, deadline):
+    start, present = time.monotonic(), set()
+    while True:
+        seen, err = _wait_present(verdicts_dir, ids)
+        present |= seen
+        elapsed = time.monotonic() - start
+        # Keep polling an unlistable dir only while it is absent: it may still be created.
+        if len(present) == len(ids) or elapsed >= deadline or (err is not None and not isinstance(err, FileNotFoundError)):
+            break
+        time.sleep(min(1.0, deadline - elapsed))
+    if err is not None:
+        print(f"normalize-verdicts wait: verdicts dir not listable at last poll ({int(elapsed)}s waited): {err}",
+              file=sys.stderr)
+    return {"present": [i for i in ids if i in present],
+            "missing": [i for i in ids if i not in present],
+            "waited_s": int(elapsed), "deadline_hit": len(present) < len(ids)}
+
+
+def _wait_main(argv):
+    flags, ids, bad = {}, [], False
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--expect":
+            i += 1
+            while i < len(argv) and not argv[i].startswith("--"):
+                if argv[i] not in ids:
+                    ids.append(argv[i])
+                i += 1
+        elif argv[i] in ("--verdicts-dir", "--deadline") and argv[i] not in flags and i + 1 < len(argv):
+            flags[argv[i]] = argv[i + 1]
+            i += 2
+        else:
+            bad = True
+            break
+    deadline = flags.get("--deadline", "")
+    if bad or not ids or "--verdicts-dir" not in flags or not (deadline.isascii() and deadline.isdigit()):
+        out, rc = {"ok": False, "error": "usage",
+                   "detail": "wait takes --verdicts-dir <dir> --expect <id>... --deadline <seconds>"}, 2
+    else:
+        try:
+            out, rc = wait(flags["--verdicts-dir"], ids, int(deadline)), 0
+        except Exception as e:
+            out, rc = _internal_error(e), 0
     print(json.dumps(out, indent=2))
     return rc
 
@@ -1791,14 +1996,17 @@ def main(argv=None):
         # A help flag anywhere in argv prints usage and does nothing else — no
         # pairs-file read, no JSON verdict. rc 0.
         print("usage: normalize-verdicts.py <pairs-file>")
-        print("       normalize-verdicts.py checklist carry|raw|finalize|match <work-dir> ...")
+        print("       normalize-verdicts.py checklist carry|raw|finalize|match|prior|prior-lines <work-dir> ...")
         print("       normalize-verdicts.py prepare <checklist-iter-N.json> --verdicts-dir <dir> [--fields <file>]")
+        print("       normalize-verdicts.py wait --verdicts-dir <dir> --expect <id>... --deadline <seconds>")
         print("       normalize-verdicts.py <inputs-file> " + " ".join(f"{f} <path>" for f in BUILD_FLAGS))
         return 0
     if argv and argv[0] == "checklist":
         return _checklist_main(argv[1:])
     if argv and argv[0] == "prepare":
         return _prepare_main(argv[1:])
+    if argv and argv[0] == "wait":
+        return _wait_main(argv[1:])
     positional, flags = _parse_build_args(argv)
     if positional is None or (flags and not positional):
         # stdout too, for the same reason as the no-argument arm below.
@@ -1812,12 +2020,7 @@ def main(argv=None):
             out = build(positional[0], flags["--checklist"], flags["--verdicts-dir"],
                         flags["--out"])
         except Exception as e:
-            sys.stderr.write(
-                "normalize-verdicts.py: internal error — this is a helper defect:\n"
-                + traceback.format_exc()
-            )
-            out = {"bad_input": True, "error": "helper_internal_error",
-                   "detail": f"{type(e).__name__}: {e}"[:200]}
+            out = _internal_error(e)
         print(json.dumps(out, indent=2))
         return 0
     if not argv:
@@ -1831,12 +2034,7 @@ def main(argv=None):
     try:
         out = run(argv[0])
     except Exception as e:
-        sys.stderr.write(
-            "normalize-verdicts.py: internal error — this is a helper defect:\n"
-            + traceback.format_exc()
-        )
-        out = {"bad_input": True, "error": "helper_internal_error",
-               "detail": f"{type(e).__name__}: {e}"[:200]}
+        out = _internal_error(e)
     print(json.dumps(out, indent=2))
     return 0
 

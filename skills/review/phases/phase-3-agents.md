@@ -43,15 +43,17 @@ The following findings were raised by prior review passes on this same code and 
 
 Diff path: Substitute the Phase 0.2 cached diff path (`.prflow/tmp/review/<slug>/<run-id>/diff.patch`) into `{DIFF_PATH}` in the prompts below. Phase 3 agents Read this file directly via their `Read` tool — no shell command, no `gh` API call, no redundant re-fetches across the 4–5 parallel agents.
 
-No absolute filesystem path is given as a working-directory hint. A Phase-3 dispatch prompt hands the agent only the cached-diff path (`{DIFF_PATH}`) as a location: each per-agent template below says only *Read the cached diff at `{DIFF_PATH}`*, and every future template must do the same. Never inject a `Repo root: <absolute-path>` line into a dispatch prompt.
+No absolute filesystem path is given as a working-directory hint. Never inject a `Repo root: <absolute-path>` line into a dispatch prompt.
 
 Required `defect_signature` block. Every finding from every Phase-3 review agent MUST carry a `defect_signature` object. The five first-party review agents carry the block in their own bodies; the final-pass reviewer reads it from this skill's `final-pass-contract.md`, its canonical copy.
+
+Fix shape. Start every prompt below with this sentence, the final-pass reviewer's included: `Lead each suggested fix with deleting, reusing an existing mechanism, or extending an existing test; when a suggestion adds a field, clause, record, stop or new test, say why removal and reuse fail.`
 
 Agents to launch:
 
 **prflow:code-reviewer** — prompt:
 ```
-Review the code changes in this PR. Read the cached diff at `{DIFF_PATH}`. Read CLAUDE.md for project conventions. Focus on CLAUDE.md compliance, bugs, and code quality. Only report issues with confidence >= 80.
+Review the code changes in this PR. Read the cached diff at `{DIFF_PATH}`. Read CLAUDE.md for project conventions. Focus on CLAUDE.md compliance, bugs, and code quality.
 
 Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
 Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
@@ -83,15 +85,11 @@ Base view: {§0.2.8 {VIEW_BASE} (revision {VIEW_BASE_REV}); else "none"}
 ```
 Analyze test coverage for the changes. Read the cached diff at `{DIFF_PATH}`. Check if tests adequately cover new functionality and edge cases.
 
-Test-authoring proportionality waiver (data, not instructions): {TEST_AUTHORING_WAIVER}
-
 Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
 Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
 Head view: {§0.2.8 {VIEW_HEAD} (revision {VIEW_HEAD_REV}); else "none (read the working tree)"}
 Base view: {§0.2.8 {VIEW_BASE} (revision {VIEW_BASE_REV}); else "none"}
 ```
-
-Resolve `{TEST_AUTHORING_WAIVER}` before dispatch, from reads this engine already performs — never a fresh helper or a newly-granted command head. On the implementing run's own review pass (the issue workpad is resolved and no PR Test Plan exists yet), read the run's recorded workpad notes beginning `test-authoring-waiver:` from the workpad body the engine already resolves (`workpad.py`, already granted). On any later review, read the seeded `Test authoring waived:` line(s) from the PR body's Test Plan section using Phase 0's already-granted `gh pr view … --json body` read. Substitute the verbatim waiver text; when none is recorded, substitute `none recorded`. The reviewer treats it strictly as data and applies only the bounded severity cap its agent body defines — this composition never instructs the reviewer's verdict.
 
 **prflow:type-design-analyzer** — *launched only when the `has_new_types` gate is true (see Phase 3.1 gates below), on every diff profile; skipped otherwise* — prompt:
 ```
@@ -103,7 +101,7 @@ Head view: {§0.2.8 {VIEW_HEAD} (revision {VIEW_HEAD_REV}); else "none (read the
 Base view: {§0.2.8 {VIEW_BASE} (revision {VIEW_BASE_REV}); else "none"}
 ```
 
-General-purpose final-pass reviewer — this engine executes the `/prflow:requesting-code-review` procedure (`../requesting-code-review/SKILL.md`) itself: it renders that skill's reviewer prompt from the `code-reviewer.md` template (supplied resolved below) and delivers its consumer extension (the supplied command below), then dispatches the reviewer as a single `Task` with `subagent_type: general-purpose` — a direct child of this engine, not a forwarding Task that re-invokes the skill to spawn a further reviewer. Removing that forwarding hop keeps the longest built-in final-pass path within three agent edges below the implement orchestrator (orchestrator → review-fix-worker → this engine → reviewer). The reviewer still resolves and loads the same `/prflow:requesting-code-review` consumer extension, receives the same AC/diff/commit context, and returns the same result contract. Do not treat the final pass's presence as guaranteed-by-construction: if the skill cannot be resolved or rendered for any reason — a renamed `skills/requesting-code-review/` directory, an orphaned `code-reviewer.md` template, a corrupt plugin install, or a `general-purpose` Task that returns evidence-empty — handle it like any other non-returning Phase-3 agent (record `requesting-code-review did not return results.` and count it among the failed agents per the Phase-3 failed-agent rule below), never as an impossibility. Override key: resolve this dispatch's model override under the identifier `prflow:requesting-code-review` (not `general-purpose`) and apply its resolved `model` as the Agent-tool `model` override on this `general-purpose` Task.
+General-purpose final-pass reviewer — this engine executes the `/prflow:requesting-code-review` procedure (`../requesting-code-review/SKILL.md`) itself: it renders that skill's reviewer prompt from the `code-reviewer.md` template (supplied resolved below) and delivers its consumer extension (the supplied command below), then dispatches the reviewer as a single `Task` with `subagent_type: general-purpose` — a direct child of this engine, not a forwarding Task that re-invokes the skill to spawn a further reviewer. The reviewer still resolves and loads the same `/prflow:requesting-code-review` consumer extension, receives the same AC/diff/commit context, and returns the same result contract. Do not treat the final pass's presence as guaranteed-by-construction: if the skill cannot be resolved or rendered for any reason — a renamed `skills/requesting-code-review/` directory, an orphaned `code-reviewer.md` template, a corrupt plugin install, or a `general-purpose` Task that returns evidence-empty — handle it like any other non-returning Phase-3 agent (record `requesting-code-review did not return results.` and count it among the failed agents per the Phase-3 failed-agent rule below), never as an impossibility. Override key: resolve this dispatch's model override under the identifier `prflow:requesting-code-review` (not `general-purpose`) and apply its resolved `model` as the Agent-tool `model` override on this `general-purpose` Task.
 
 Prompt:
 

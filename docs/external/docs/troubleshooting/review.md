@@ -52,7 +52,7 @@ gh pr diff <number>
 This is a deliberate rule, not a severity judgment. When the change's own diff adds or modifies a line that is false — stale, contradicting the current code, or contradicting another part of the same change — that alone causes a REJECT.
 
 <Warning>
-This REJECT cannot be lowered by configuration. It fires at every value of the severity threshold, including the most permissive one, and whatever severity the reviewing agent assigned it. Deferring the finding does not clear it either.
+Except for inert prose (below), this REJECT cannot be lowered by configuration. It fires at every value of the severity threshold, including the most permissive one, and whatever severity the reviewing agent assigned it. Deferring the finding does not clear it either.
 </Warning>
 
 Only two things clear it:
@@ -60,7 +60,7 @@ Only two things clear it:
 - Correct the untrue line so it matches the code.
 - Correct the code so the line becomes true.
 
-One narrow case is graded normally instead: prose that cannot change what the program does. A cosmetic wording problem in such prose is capped at Suggestion and drives no REJECT. Prose that a machine reads, or that instructs an agent, is not in that case.
+One case is graded normally instead: **inert prose**, a code comment or internal-documentation line that no tool or agent reads to decide behavior and nobody outside the repository reads. An untrue line of it, whether a cosmetic slip or a false claim, is capped at Suggestion, so it rejects only at a `suggestion` threshold. Prose that a machine reads, that instructs an agent, or that ships outside the repository is never inert.
 
 </Accordion>
 
@@ -80,8 +80,10 @@ The common causes are:
 
 - The verification checklist could not be generated, so the phases that check each claim were skipped. That caps the verdict at `APPROVE WITH CAVEAT` and never lets it be a clean `APPROVE`.
 - The checklist holds at least one item and every item is inconclusive, or an item is inconclusive because verification itself failed, such as a verifier that timed out or returned no usable verdict. The report lists those items under `### Unverified`.
+- The pull request's previous review could not be established, or the re-check items made from it did not all reach a written checklist. `Run details` then carries a `prior-report: unavailable (<cause>)` line or `seed shortfall: prior report not seeded`.
 - Every finding sat below the fix loop's severity threshold, so the findings were parked as advisory rather than fixed.
 - The second, independent pass did not record that it ran with full coverage. The summary then reads `shadow agreement not verified`, sometimes with the reason in parentheses.
+- In `/prflow:review-and-fix`, the second pass could not confirm that its `review-and-fix.md` extension came from outside the pull request. For example, the pull request edits that file under `.prflow/skill-extensions/`, `.prflow/prompt-extensions/` or `.devflow/`, the file is a gitignored local copy, or the file or one of those directories is a symlink. A symlinked extension blocks that confirmation on every run; replace the link with the real file or directory and commit it. A pull request whose commits change one of the `review-and-fix.md` extension files, for example by replacing a symlinked file with the real one, still cannot confirm because it changes that file; a later pull request whose branch already contains the fix and whose diff against its base changes none of them clears it, unless another cause, for example an uncommitted or gitignored copy of one of those files, still blocks the confirmation. A fix that changes none of them, such as deleting a `.devflow` link to `.prflow`, takes effect on its own pull request.
 
 Treat it as approved with unknown coverage. Read the report and decide as a human whether the gap matters. Requesting the review again is worth doing when the cause was transient. Nothing about this verdict means a defect was found and hidden.
 
@@ -99,7 +101,7 @@ jq '{verdict: .prflow_review.verdict_severity_threshold, fix: .prflow_review_and
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `prflow_review.verdict_severity_threshold` | `critical` | A finding, or a failed checklist item, at or above this severity causes REJECT; at `critical` or `important`, a failed item about an untrue internal-documentation sentence counts as a note instead. Set it to `important` to make Important ones block the merge too. Both `/prflow:review` and the review pass inside `/prflow:review-and-fix` use it. |
+| `prflow_review.verdict_severity_threshold` | `critical` | A finding, or a failed checklist item, at or above this severity causes REJECT; at `critical` or `important`, a failed item about untrue inert prose counts as a note instead. Set it to `important` to make Important ones block the merge too. Both `/prflow:review` and the review pass inside `/prflow:review-and-fix` use it. |
 | `prflow_review_and_fix.fix_severity_threshold` | `important` | The fix loop sends every finding and failed checklist item at or above this severity to the fixer, subject to `fix_below_threshold_iterations`. Anything below it stays advisory, and an inconclusive checklist item is never sent. Set `suggestion` for a more aggressive fixer, or `critical` for a conservative one. |
 
 Severity runs `critical`, then `important`, then `suggestion`. An unknown or wrongly typed value falls back to the default with a note, and never stops the run. Any finding or failed checklist item that would cause REJECT is always fixable, whatever the fix threshold says.

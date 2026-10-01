@@ -81,6 +81,8 @@ Skip this step on a fresh run (`resume_kind` null) or when the intake handoff re
 
 ### 3.2 Self-Review cleanup pass
 
+Resume skip. When `phase2_resume.resume_kind` is `in-flight` or `terminal-re-trigger`, every durability-checkpoint call in this run's Phase 2, §2.5 included, reported `nothing to checkpoint` or `no staged changes` (any other result counts as a commit), and `git status --porcelain -- ':!.prflow/tmp'` prints nothing, skip this step's dispatch, diff capture and status capture: record `workpad.py update $ISSUE_NUMBER --note "Phase 3.2 cleanup pass: skipped on resume (no new implementation commit this run, clean tree)"` once, perform the `phase-3-fix-loop.md` read due when §3.2 completes, and continue to §3.3. Otherwise run this step unchanged.
+
 Read the base branch in its own fence — §3.1's helper process does not export it. Emit the vendored literal first; on a `command not found` / `No such file` / rc-127 reading, fall back to the portable anchor form:
 ```bash
 .prflow/vendor/prflow/scripts/config-get.sh .base_branch main

@@ -27,8 +27,8 @@ Four schemas share this reader, selected by `--schema
 
 The `intake` and `issue-claim-audit` schemas — and only they — print one compact JSON line of
 carry-forward fields to stdout on exit 0, so the parent keeps those fields resident instead of the
-whole handoff; the intake line reports the `prior_decisions`/`corrections`/`blockers` array sizes
-(the audit line carries the actionable arrays in full).
+whole handoff; the intake line reports the `prior_decisions`/`corrections`/`blockers` counts, `prior_decisions`
+excluding `authorized-workpad-decision` items (the audit line carries the actionable arrays in full).
 
 Both accept evidence only from the current dispatch and reject an unusable return — absent,
 malformed, incomplete, stale-dispatch, or mismatched-identity — so a rejected boundary records an
@@ -564,9 +564,19 @@ def _handoff_resolves_to(handoff_file, expected_hf, offending, mismatch_note):
         offending.append(mismatch_note)
 
 
+def _count_prior_decisions(arr):
+    """Size of `prior_decisions` minus the run's own `authorized-workpad-decision` items (issue
+    #1528); null for a non-list. Never validate the authority vocabulary here: an unknown or
+    malformed item must count, so the Phase 1.6 reuse gate fails toward re-running the audit."""
+    if not isinstance(arr, list):
+        return None
+    return sum(1 for item in arr if not (
+        isinstance(item, dict) and item.get("authority") == "authorized-workpad-decision"))
+
+
 def _intake_projection(data):
     """The carry-forward fields the orchestrator keeps resident from an intake handoff (issue
-    #700). A null object projects as null; the arrays project only as sizes, except a stop record
+    #700). A null object projects as null; the arrays project only as counts, except a stop record
     carries `blockers` in full."""
     def _count(arr):
         return len(arr) if isinstance(arr, list) else None
@@ -595,7 +605,7 @@ def _intake_projection(data):
             "result": dependency.get("result"), "held_note": dependency.get("held_note")},
         "extension": data.get("extension"),
         "actionable_counts": {
-            "prior_decisions": _count(data.get("prior_decisions")),
+            "prior_decisions": _count_prior_decisions(data.get("prior_decisions")),
             "corrections": _count(data.get("corrections")),
             "blockers": _count(data.get("blockers"))},
         "warnings": data.get("warnings"),

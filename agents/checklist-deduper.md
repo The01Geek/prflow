@@ -20,7 +20,7 @@ A `Raw checklist path:` naming a JSON array of raw checklist items from N batche
 
 Two items belong in the same merge group when ANY of the following holds:
 
-1. **Same `claim_signature`.** Items with identical `claim_signature` values are duplicates by construction (the generator already canonicalized them). Always merge.
+1. **Same `claim_signature`** — the generator canonicalizes it across batches.
 2. **Equivalent `(source_file, line_range, category)` triple within tolerance.** Items don't carry a top-level `line_range` field; derive an effective range per item: if `lite_probe.line_range` is present, use it; otherwise use `[source_line, source_line_end ?? source_line]`. Items with no `source_line` at all are treated as "no line number" for matching purposes. Two items match when:
    - `source_file` is the same path.
    - Their effective line ranges overlap, OR their effective line ranges are within 3 lines of each other, OR neither item has a line number.
@@ -28,6 +28,8 @@ Two items belong in the same merge group when ANY of the following holds:
    - The `claim` text describes the same defect (same subject, same property under scrutiny — exact wording is not required).
 
 3. **Same cross-cutting theme.** A repo-wide convention check — license/SPDX header, naming or branding rule, `.gitignore` anchoring — that more than one batch emitted appears once: group the batches' copies even though their `source_file` differs.
+
+An item whose `claim_signature` ends in a line anchor (a fourth `:` segment) is a site, never matched by rule 3: a group never holds two sites that differ in `claim_signature` or `source_file`, even joined through other items.
 
 Items that don't match any other item form a singleton merge group — never list it.
 
@@ -59,5 +61,5 @@ Return a JSON array in a markdown code fence tagged `json` — one object per gr
 ## Rules
 
 - An `id` appears in at most one group, and only an `id` present in the input.
-- The helper applies a group only when its members are linked by a shared `claim_signature`, by the same `source_file` and `category` with ranges within 3 lines (or no line on either), or by the same convention slug; any other group is left unmerged.
+- The helper re-checks each group mechanically and leaves one that fails unmerged, all members kept.
 - When in doubt about whether two items match, **leave them separate.**

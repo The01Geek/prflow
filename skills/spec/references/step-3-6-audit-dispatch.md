@@ -49,24 +49,11 @@ It prints `round=`, `arm=`, `digest=`, `body_digest=`, `instructions_digest=` (w
 
 Information diet (the whole mechanism — do not widen it). On the file arm the auditor's whole diet is the generated instruction file plus the draft file it names: the instructions carry the draft title and the absolute `issue-draft-<slug>.md` path and instruct the auditor to read that file as the sole draft source before any other repository read, while the Agent-tool prompt carries nothing but the two paths. It omits the drafting conversation, the Step 1 findings report, and the Step 2 derivation artifact. Refer to it as "the draft", never "your draft".
 
-Reasoning artifacts are out of bounds; the draft file is not. On the file arm the generated instruction file — never a clause you add to the dispatch prompt — must declare this run's reasoning artifacts out of bounds, naming exactly these 8 paths and stating that any finding derived from those files is void:
-
-- `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` — the Step 2 derivation record plus this run's evidence-bundle, steelman, and revision-delta sections.
-- `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md` — the Step 1 evidence artifact.
-- `.prflow/tmp/spec/<slug>/issue-audit-<slug>.md` — the audit report.
-- `.prflow/tmp/spec/<slug>/issue-audit-state-<slug>.json` — the state owner's record.
-- `.prflow/tmp/spec/<slug>/issue-audit-state-<slug>.md` — the retired event log. The retired `.md` path stays named even though this skill no longer writes it.
-- `.prflow/tmp/spec/<slug>/issue-draft-<slug>.*.staged.md` — any staged canonical-draft artifact.
-- `.prflow/tmp/spec/<slug>/issue-record-<slug>.md` — the investigation record.
-- `.prflow/tmp/spec/<slug>/issue-audit-scope-<slug>.*.md` — any dispatch-scope artifact. It must persist, its digest being recompared at `record-return`. The glob is total, covering a round's own scope file too.
-
-The generated instruction file `.prflow/tmp/spec/<slug>/issue-audit-dispatch-<slug>.md` and `issue-draft-<slug>.md` are not on this list; the embed arm names both, per `references/fallback-audit-dispatch-arms.md`.
+On the file arm the generated instruction file declares this run's reasoning artifacts out of bounds; add no such clause to the dispatch prompt.
 
 #### Carriage / identity check (file arm)
 
 File-arm carriage / identity check. The generated instruction file requires the auditor to run `git hash-object --no-filters` on the draft file it read and quote the printed object ID verbatim in its return. **Forward that quoted object ID verbatim to `record-return --carriage-object-id <the ID the auditor quoted>` and obey the classification the tool returns.** Do not compare it yourself: the tool holds the write-time digest and owns the comparison, including its fail-closed treatment of an absent ID. Omit `--carriage-object-id` when the return quoted none — never invent one.
-
-The auditor must quote `git hash-object --no-filters`. The tool hashes via `git hash-object --stdin --no-filters` at every site; only the filter-free form makes the dispatch, auditor-quoted and eligibility digests agree on a host that configures clean/CRLF filters.
 
 When the carriage evidence fails, the tool says why — on stderr. A `record-return` classified `no-parseable-verdict` for absent or mismatched carriage evidence writes a named breadcrumb to stderr; read it before treating the round as unreadable, loading `references/fallback-audit-evidence-degraded.md` per `references/degradation-routing.md` for its carriage arm.
 
@@ -76,9 +63,9 @@ Embed arm (the on-disk draft path is untrusted here). When `query-arm` answers `
 
 The audit prompt is rendered by `scripts/render-audit-prompt.py`, not hand-emitted. The template, the generic dimension checklist, and the heading-extraction rule live in the committed `skills/spec/references/audit-prompt-template.md`; the renderer reads that file (resolved relative to its own location) and prints the arm-appropriate prompt. When that file cannot be read, the run takes the bounded one-round in-chat fallback below, never a silent skip. The orchestrator generates the dispatch instructions to a file (below) and lets the *auditor* run the renderer.
 
-Consumption categories (complete by construction). (i) Every state-owner-routed file-arm audit dispatch — the first elected round, same-round retries, boundary-offer rounds, confirming whole-draft rounds, and Step 4 sub-step 4 re-audits — takes the generated-instructions transport below: the authorized instructions are exactly what the generator emits, and the Agent-tool prompt string is a **generated pointer** naming the instruction file and the draft file and nothing else, so add no framing or scoping to it. (ii) The degraded inline arm and (iii) Step 3.5 item 6's self-check run the renderer orchestrator-side, consuming its stdout under the same positional check. (iv) Step 2's `## Evidence axes` forwarding consumes the renderer's section-extraction mode. (v) The `state-owner unavailable` fallback's single audit round splits by that fallback's two entry classes. The embed arm keeps its own transport in `references/fallback-audit-dispatch-arms.md`.
+Consumption categories. Every state-owner-routed file-arm audit dispatch — the first elected round, same-round retries, boundary-offer rounds, confirming whole-draft rounds, and Step 4 sub-step 4 re-audits — takes the generated-instructions transport below: the authorized instructions are exactly what the generator emits, and the Agent-tool prompt string is a **generated pointer** naming the instruction file and the draft file and nothing else, so add no framing or scoping to it. A round sent to the instructions-generation-failure route below follows that route instead, and the embed arm keeps its own transport in `references/fallback-audit-dispatch-arms.md`.
 
-Generate the canonical dispatch instructions, then write them (file arm). Substitute the bound `<slug>` and the absolute paths you hold; `<instructions path>` is `<the bound draft root>/.prflow/tmp/spec/<slug>/issue-audit-dispatch-<slug>.md`. Write the renderer's stdout to the instruction path with a shell redirect in the bash fence itself. The redirect truncates the target before the generator runs, so no separate delete-leftover step is needed. The write has landed when the generator exits zero and the file at the instruction path is non-empty; a non-zero exit or an empty file is the instructions-generation-failure route below:
+Generate the canonical dispatch instructions, then write them (file arm). Substitute the bound `<slug>` and the absolute paths you hold; `<instructions path>` is `<the bound draft root>/.prflow/tmp/spec/<slug>/issue-audit-dispatch-<slug>.md`. Write the renderer's stdout to the instruction path with a shell redirect in the bash fence itself. The redirect truncates the target before the generator runs, so no separate delete-leftover step is needed. The write has landed when the generator exits zero and the file at the instruction path is non-empty; otherwise take the instructions-generation-failure route below:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-audit-prompt.py dispatch-instructions --slug "<slug>" --draft-path "<absolute issue-draft-<slug>.md path>" --instructions-path "<instructions path>" > "<instructions path>" && test -s "<instructions path>"
@@ -86,19 +73,17 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 
 On a `kind=targeted` round the same call adds `--scope-file "<scope_path>"`, the `scope_path=` value `write-dispatch-scope` printed.
 
-`test -s` observes that landed criterion's second conjunct — a bash builtin, no external tool — so an empty file routes to the pre-dispatch `instructions-generation-failed` arm rather than a burned round.
-
 Instruction-file lifetime. The instruction file is overwritten at each round's generation (the redirect truncates it) and persists after the run, like the other `.prflow/tmp/` artifacts.
 
 The generated file carries the whole authorized set — the draft title (read by the generator from the draft file), the draft path, the renderer invocation the auditor runs first, the template-file path, the positional two-marker rule, the fallback ladder, the out-of-bounds declaration, and the return contract. The generator emits the `dispatch-pointer:` line on its own stderr, byte-identical to the line inside the file its stdout wrote — read it from that stderr and dispatch with it, no read-back step.
 
 Select the pointer by its `dispatch-pointer:` prefix, never as "the stderr output". A successful run can emit a second stderr line (a resolver breadcrumb), so a positional read would take the wrong line as the auditor prompt. Match the prefix after stripping the block indent, and take the first match.
 
-**If no stderr line carries the prefix**, treat the round as having no usable pointer and take the instructions-generation-failure route below — never dispatch a freehand prompt in its place.
+Never substitute a freehand prompt for an unmatched pointer.
 
 Dispatch with that `dispatch-pointer:` line — its text copied verbatim as the entire Agent-tool prompt (the `dispatch-pointer: ` prefix and block indent are render framing the auditor is told to ignore, so carrying or dropping them is equally conforming). Restate nothing else in the dispatch prompt, and do not hand-edit the written file.
 
-On a non-zero exit or empty output from that command, the round has no hashable instruction file: load `references/fallback-audit-evidence-degraded.md` per `references/degradation-routing.md` and follow its instruction-file-generation arm.
+The instructions-generation-failure route: on a non-zero generator exit, an empty instruction file, or no stderr line carrying the `dispatch-pointer:` prefix, load `references/fallback-audit-evidence-degraded.md` per `references/degradation-routing.md` and follow its instruction-file-generation arm.
 
 Forward the auditor's two new return lines to `record-return` alongside the carriage object ID: `--instructions-object-id <the ID the auditor quoted for the instruction file>` and `--extra-dispatch-content <yes|no>` from its `extra-dispatch-content:` line. Omit either flag when the return carried no such line — an absent value is evidence the tool needs; never invent one. Do not compare anything yourself: the tool re-runs the generator over the round's recorded closed inputs and owns the comparison. It prints `steering=<established|not-established|unestablished>` and `steering_reason=<token|none>` — the third value and `none` are what a refused completion (no parseable verdict, failed carriage) renders, so parse all three and carry them to Step 4.
 
@@ -116,8 +101,6 @@ The recorded `--consumer-dimensions-appended` value derives from the auditor's r
 
 Fallback ladder, and the terminal `template-unreadable` arm. When the renderer produces no output, or output whose markers are missing or out of position, load `references/fallback-audit-evidence-degraded.md` per `references/degradation-routing.md` and follow its fallback-ladder arm.
 
-Dimension-list growth policy. The dimensions are renderer-owned (`render-audit-prompt.py` / `audit-prompt-template.md`); execution-blocking defect classes are reported ahead of authoring-discipline classes, and Adversarial third-party input is a distinct security class that outranks the authoring-discipline dimensions.
-
-Extension forwarding (`## Audit dimensions`) is renderer-owned. The renderer performs the fresh `.prflow/skill-extensions/spec.md` re-load and `## Audit dimensions` extraction natively in-process (reading the file directly in Python, never exec-ing a `.sh` helper, resolving the default extension path from the git repo root per the SHARED REPO-ROOT CONFIG CONTRACT), and its delivery triage agrees with `load-prompt-extension.sh` on every arm (present regular file with a non-empty section → appended; absent and present-but-empty → absent; present-but-unreadable, broken symlink, and present-but-non-regular file → unestablished, never absent). So the orchestrator no longer re-runs `load-prompt-extension.sh` for this hook — the renderer's `render-status:` line carries the {appended, absent, unestablished} answer. The re-load remains mandatory-fresh at dispatch; an `unestablished` status is surfaced, never laundered into the designed absent-heading no-op.
+Extension forwarding (`## Audit dimensions`) is renderer-owned: run no loader for this hook and read the renderer's `render-status:` line instead. An `unestablished` status is surfaced, never laundered into the designed absent-heading no-op.
 
 <!-- prflow:spec-ref step=3.6-dispatch file=skills/spec/references/step-3-6-audit-dispatch.md end -->

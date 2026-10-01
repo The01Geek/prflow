@@ -228,7 +228,9 @@ def build_parser():
 
     s = sub.add_parser('record-adjudication',
                        help='Record a completed round\'s post-adjudication actionability '
-                            'payload (issue #548).')
+                            'payload (issue #548); refused (finding-evidence-count) until the '
+                            'round holds at least as many record-finding-evidence entries as '
+                            'findings.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.add_argument('--round', type=int, required=False, default=None)

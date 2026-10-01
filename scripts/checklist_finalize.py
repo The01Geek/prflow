@@ -16,10 +16,12 @@ Work directory — ``<run-dir>/phase1-<token>``, the token fresh per engine entr
 so a re-entrant entry sharing ``<run-dir>`` and ``<N>`` (the shadow) names a
 different directory and does not read this entry's intermediates. Files inside it:
 
-    batch-<k>.json   one generator's JSON array (written by the generator)
-    carried.json     ``carry`` output: the prior items carried forward, tagged
-    raw.json         ``raw`` output: every batch item, id ``batch<k>:VC-<i>``
-    groups.json      the deduper's merge groups: [{"keep": id, "merged_from": [ids]}]
+    batch-<k>.json     one generator's JSON array (written by the generator)
+    carried.json       ``carry`` output: the prior items carried forward, tagged
+    raw.json           ``raw`` output: every batch item, id ``batch<k>:VC-<i>``
+    groups.json        the deduper's merge groups: [{"keep": id, "merged_from": [ids]}]
+    prior-report.md    ``prior`` output: the selected report's body, absent when none is selected
+    seeded.json        the seed-mode generator's items, one per prior FAIL or finding
 
 Ops (each prints ONE JSON object on stdout; rc 0 whenever the op ran, ``ok``
 carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
@@ -28,18 +30,46 @@ carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
     raw      <work-dir> <B>
     finalize <work-dir> <N> <B> [--no-groups]
     match    <work-dir> <N> <prior-head> <shadow-head>
+    prior    <work-dir> <PR> <N> [--exclude-comment <id>]
+    prior-lines <work-dir>
 
 ``carry`` reads the prior iteration's Step 1.8 snapshot pair at the run root —
 ``checklist-step1-iter-<N-1>.json`` joined by ``id`` with the verdict rows of
 ``verification-step1-iter-<N-1>.json`` (the row wins) — or, with ``--prior FILE``,
-that file as already-joined items; an unusable snapshot carries nothing.
+that file as already-joined items; an unusable snapshot carries nothing. A prior
+non-``issue_acceptance`` FAIL with a non-empty ``id`` and ``category`` carries whatever its file
+did, even when the cached diff or the changed-file set cannot be read, which carries nothing else;
+it drops its line range unless its file is established unchanged.
+
+``prior`` pages the PR's issue comments through gh and, newest first, takes the first
+finalized report other than the ``--exclude-comment`` one: a comment whose first line opens
+``<!-- prflow:review-progress `` and whose first two lines hold exactly one parseable
+``prflow:review-verdict`` marker (build-experiment-records.py's ``_verdict_marker_head``), by
+``github-actions[bot]`` or an author passing match-deferrals.py's ``author_trust`` (a ``*`` in
+``allowed_bots`` vouches for no comment author). It reads only those two lines and takes the reviewed
+head from the marker. It prints ``prior-report: comment <id> by <author>, reviewed HEAD <sha>``;
+``prior-report: none``, noting how many untrusted reports it skipped; or
+``prior-report: unavailable (<cause>)`` when those rules cannot load, the comments cannot be
+fetched or parsed, a comment newer than the report it would select (or, selecting none, any
+comment but the excluded one) is not an object or has no string body, or a finalized report's fields or trust cannot be
+read or decided — then no older report is taken. It writes that line to
+``<run-dir>/prior-report-lines.txt``, followed for a selected report by
+``seed shortfall: prior report not seeded``. At ``<N>`` 2 or later it keeps that file instead, when
+present.
+
+``prior-lines`` prints that file's lines for Phase 4's ``Run details`` —
+``prior-report: unavailable (no prior-report record)`` when it is absent, and
+``prior-report: unavailable (prior-report record unreadable)`` when it cannot be read or is malformed.
 
 ``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array). It reads
 the acceptance criteria from ``<run-dir>/criteria.json`` (written by Phase 0.4's
 ``acs-resolve --criteria-out``) and creates one ``issue_acceptance`` item per criterion
-after the cap, so acceptance items never take a cap slot. Before the cap it drops each new
-item that ``same_claim`` finds restating a carried item (``counts.same_claim_dropped``);
-the carried item stays as carried. A criteria file present but
+after the cap, so acceptance items never take a cap slot. It appends after them, with a fresh
+id, each usable ``seeded.json`` item (see ``_read_seeds``). It removes the seed shortfall
+line after writing the checklist, when this entry's ``prior`` selected a report and every
+``seeded.json`` item was usable. Before the cap it drops
+each new item that ``same_claim`` finds restating a carried or seeded item
+(``counts.same_claim_dropped``); the carried item stays as carried. A criteria file present but
 malformed sets ``criteria_error`` and writes no acceptance item, still ``ok: true``, and
 an absent file creates no acceptance item and no error. It fails closed — ``ok: false``,
 no checklist written — on:
@@ -67,17 +97,20 @@ every shadow FAIL as new.
 
 ``same_claim`` is a mechanical identity, not a defect judgment: a distinct claim of the same
 category in the same file on overlapping lines is dropped as a restatement of the carried
-item (an accepted risk).
+or seeded item (an accepted risk); ``same_claim_dropped_items[].carried_id`` names that item.
 
-What it does NOT decide: whether two claims state the same defect. A merge group is
-applied only when its members are connected by ``plausible_duplicates`` — the
-mechanically checkable part of the deduper's three rules — and is otherwise left
-unmerged with a breadcrumb. Inside that envelope a wrong deduper judgment still
-merges two distinct claims, exactly as a wrong judgment did when the deduper emitted
-the array itself; the merged row's ``merged_from`` records which ids it absorbed.
+What it does NOT decide: whether two claims state the same defect. A merge group with two
+or more usable ids is applied only when it holds at most one line-anchored site (one pair of
+non-empty ``source_file`` and anchored ``claim_signature``) and its members are connected by
+``plausible_duplicates`` — the mechanically checkable part of the deduper's three rules —
+and is otherwise left unmerged with a breadcrumb; a group with fewer usable ids merges
+nothing. Inside that envelope a wrong deduper judgment still merges two distinct claims,
+exactly as a wrong judgment did when the deduper emitted the array itself; the merged
+row's ``merged_from`` records which ids it absorbed.
 """
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import itertools
 import json
@@ -229,6 +262,19 @@ def _changed_since(prior_head):
     return {n for n in names if n}, None
 
 
+def _load_sibling(filename, modname):
+    """(module, None) for the sibling script ``filename``, or (None, the load failure's type name)."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    try:
+        spec = importlib.util.spec_from_file_location(modname, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module, None
+    # SystemExit too: a sibling may call sys.exit at import.
+    except (Exception, SystemExit) as exc:
+        return None, type(exc).__name__
+
+
 _CITED = []  # memo: [(normalize-verdicts.py's _cited_paths or None, cause)]
 
 
@@ -237,16 +283,14 @@ def _collector_cited_paths():
     normalize-verdicts.py rather than copied, so carry splits a citation the way the collector
     does. ``fn`` is None, with its cause, when it cannot load."""
     if not _CITED:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "normalize-verdicts.py")
-        try:
-            spec = importlib.util.spec_from_file_location("prflow_normalize_verdicts", path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            fn = module._cited_paths
+        module, failure = _load_sibling("normalize-verdicts.py", "prflow_normalize_verdicts")
+        if module is not None and not hasattr(module, "_cited_paths"):
+            failure = "AttributeError"
+        fn = getattr(module, "_cited_paths", None)
+        if failure:  # any load failure turns reuse off; carry still runs
+            _CITED.append((None, f"normalize-verdicts.py _cited_paths unavailable: {failure}"))
+        else:
             _CITED.append((fn, None) if callable(fn) else (None, "_cited_paths is not callable"))
-        # SystemExit too: normalize-verdicts.py's Python-version guard calls sys.exit at import.
-        except (Exception, SystemExit) as exc:  # any load failure turns reuse off; carry still runs
-            _CITED.append((None, f"normalize-verdicts.py _cited_paths unavailable: {type(exc).__name__}"))
     return _CITED[0]
 
 
@@ -346,7 +390,10 @@ def _reusable(item, changed, tracked, errors=None):
 
 def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_errors=None):
     """Apply the carry rule and the tag table. Returns (carried, skipped_malformed); each item
-    whose citation split raised is appended to ``split_errors`` as ``"<id>: <exception>"``."""
+    whose citation split raised is appended to ``split_errors`` as ``"<id>: <exception>"``.
+    When ``changed`` is None — it could not be established — only prior non-``issue_acceptance``
+    FAILs carry. A carried FAIL whose file changed, or whose file's change is unestablished, loses
+    ``source_line`` and ``source_line_end``."""
     carried, malformed = [], 0
     for item in prior_items:
         if not isinstance(item, dict):
@@ -354,12 +401,18 @@ def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_erro
             continue
         ident, src = item.get("id"), item.get("source_file")
         cat, sig = item.get("category"), item.get("claim_signature")
-        if not all(isinstance(v, str) and v for v in (ident, src, cat, sig)):
+        failed = item.get("verdict") == "FAIL"
+        if not all(isinstance(v, str) and v for v in ((ident, cat) if failed else (ident, src, cat, sig))):
             malformed += 1
             continue
-        if cat == "issue_acceptance" or src not in diff_paths or src in changed:
+        if cat == "issue_acceptance" or not failed and (
+                changed is None or src not in diff_paths or src in changed):
             continue
         out = dict(item, carried=True)
+        if failed and (changed is None or not isinstance(src, str) or src in changed):
+            # Its lines belong to an older head, so rule 2 of same_claim must not match on them.
+            out.pop("source_line", None)
+            out.pop("source_line_end", None)
         raised = []
         reuse = _reusable(item, changed, tracked, raised)
         if raised and split_errors is not None:
@@ -450,21 +503,27 @@ def op_carry(work, run_dir, iteration, prior_head, prior_path):
     result["prior"] = len(items)
     if not items:
         return none(f"{source} is empty")
+    diff_paths = changed = None
     try:
         with open(os.path.join(run_dir, "diff.patch"), encoding="utf-8", errors="surrogateescape") as fh:
             diff_paths = _diff_paths(fh.read())
     except (OSError, ValueError):
-        return none("cached diff.patch unreadable")
-    changed, cause = _changed_since(prior_head)
-    if changed is None:
-        return none(cause)
+        cause = "cached diff.patch unreadable"
+    else:
+        changed, cause = _changed_since(prior_head)
     split_errors = []
     carried, malformed = carry_items(items, diff_paths, changed, iteration, tracked_at_head(), split_errors)
+    result["skipped_malformed"] = malformed
+    if changed is None and not carried:
+        return none(cause)
     os.makedirs(work, exist_ok=True)
     _write_json(out_path, carried)
     result["carried"] = len(carried)
     result["reused_pass"] = sum(1 for c in carried if c["reused_from_iter_prev"])
-    result["skipped_malformed"] = malformed
+    if changed is None:
+        result["breadcrumb"] = f"carry-forward: prior FAILs only ({cause})"
+        result["announce"] = announce()
+        return result
     _, cause = _collector_cited_paths()
     if cause:
         result["breadcrumb"] = f"carry-forward: reuse off ({cause})"
@@ -566,33 +625,49 @@ def _effective_range(item):
 
 
 def _signature_slug(item):
+    """The non-empty third segment of a string claim_signature with exactly three parts,
+    else None; a fourth segment is a line anchor, so an anchored item never links by slug."""
     sig = item.get("claim_signature")
     parts = sig.split(":") if isinstance(sig, str) else []
-    return parts[2] if len(parts) >= 3 and parts[2] else None
+    return parts[2] if len(parts) == 3 and parts[2] else None
+
+
+def _is_anchored(sig):
+    """Whether a claim_signature carries a line anchor (a fourth segment)."""
+    return isinstance(sig, str) and len(sig.split(":")) > 3
+
+
+def _same_signature(a, b):
+    """Rule 1 of both ``plausible_duplicates`` and ``same_claim``: an equal non-empty
+    claim_signature, unless it is line-anchored and the two source_files are different
+    non-empty strings — two sites whose basenames collide, not one claim."""
+    sig, src, src_b = a.get("claim_signature"), a.get("source_file"), b.get("source_file")
+    if not (isinstance(sig, str) and sig and sig == b.get("claim_signature")):
+        return False
+    return not (_is_anchored(sig) and isinstance(src, str) and isinstance(src_b, str)
+                and src and src_b and src != src_b)
 
 
 def plausible_duplicates(a, b):
     """The mechanically checkable part of the deduper's three merge rules. It cannot
     tell whether two claims state the same defect — that stays the deduper's judgment —
     but it refuses a pair no rule could have matched."""
-    sig_a, sig_b = a.get("claim_signature"), b.get("claim_signature")
-    if isinstance(sig_a, str) and sig_a and sig_a == sig_b:
-        return True                                   # rule 1: same claim_signature
-    cat = a.get("category")
+    if _same_signature(a, b):
+        return True                                   # rule 1
+    cat, src = a.get("category"), a.get("source_file")
     if not isinstance(cat, str) or cat != b.get("category"):
         return False
-    src = a.get("source_file")
     if isinstance(src, str) and src and src == b.get("source_file"):
         ra, rb = _effective_range(a), _effective_range(b)
-        if ra is None or rb is None:                  # rule 2: same file and category, and
-            return ra is None and rb is None          # neither anchored, or ranges within 3 lines
+        if ra is None or rb is None:                  # rule 2
+            return ra is None and rb is None
         return ra[0] - 3 <= rb[1] and rb[0] - 3 <= ra[1]
     slug = _signature_slug(a)                         # rule 3: the same repo-wide convention check
     return cat in _THEME_CATEGORIES and slug is not None and slug == _signature_slug(b)
 
 
-def _connected(members):
-    """Whether every member is reachable from the first through plausible-duplicate pairs."""
+def _reached(members):
+    """The indices of the members reachable from the first through plausible-duplicate pairs."""
     seen, stack = {0}, [0]
     while stack:
         at = stack.pop()
@@ -600,7 +675,15 @@ def _connected(members):
             if j not in seen and plausible_duplicates(members[at], members[j]):
                 seen.add(j)
                 stack.append(j)
-    return len(seen) == len(members)
+    return seen
+
+
+def _splits_sites(members):
+    """Whether members hold two or more distinct line-anchored (source_file, claim_signature)
+    sites; a member without a non-empty string source_file names no site."""
+    return len({(m["source_file"], m["claim_signature"]) for m in members
+                if isinstance(m.get("source_file"), str) and m["source_file"]
+                and _is_anchored(m.get("claim_signature"))}) > 1
 
 
 def merge_groups(raw_items, groups, crumbs, hint_ids=frozenset()):
@@ -631,11 +714,18 @@ def merge_groups(raw_items, groups, crumbs, hint_ids=frozenset()):
                 ids.append(ident)
         if len(ids) < 2:
             continue
-        if not _connected([by_id[i][1] for i in ids]):
-            # Keeping a duplicate costs one verifier; dropping a distinct claim costs a missed defect.
-            crumbs.append(f"dedup group {n + 1} not merged: {', '.join(ids)} are not plausible "
-                          "duplicates (no shared claim_signature, same-file same-category nearby "
-                          "range, or shared convention slug) — all kept")
+        members = [by_id[i][1] for i in ids]
+        # Keeping a duplicate costs one verifier; dropping a distinct claim costs a missed defect.
+        if _splits_sites(members):
+            crumbs.append(f"dedup group {n + 1} not merged: {', '.join(ids)} hold two or more "
+                          "line-anchored sites — all kept")
+            continue
+        reached = _reached(members)
+        if len(reached) < len(ids):
+            crumbs.append(f"dedup group {n + 1} not merged: no plausible-duplicate rule (claim_signature, "
+                          f"same-file nearby range, convention slug) links "
+                          f"{', '.join(i for j, i in enumerate(ids) if j not in reached)} to "
+                          f"{', '.join(i for j, i in enumerate(ids) if j in reached)} — all kept")
             continue
         assigned.update(ids)
         plan.append((ids, group.get("keep")))
@@ -770,6 +860,79 @@ def _build_acceptance_items(criteria, hints, run_dir, crumbs):
     return items
 
 
+_SEED_DROP = frozenset(("lite_probe", "merged_from", *_PRIOR_VERDICT_FIELDS))
+_LINES_FILE = "prior-report-lines.txt"
+_UNSEEDED = "seed shortfall: prior report not seeded"
+
+
+def _read_lines(run_dir):
+    """(non-blank lines of ``<run-dir>/prior-report-lines.txt``, None) or (None, why it is unusable)."""
+    try:
+        with open(os.path.join(run_dir, _LINES_FILE), encoding="utf-8") as fh:
+            lines = [ln.strip() for ln in fh.read().splitlines() if ln.strip()]
+    except FileNotFoundError:
+        return None, "missing"
+    except UnicodeDecodeError:
+        return None, "is not UTF-8"
+    except OSError as exc:
+        return None, f"unreadable: {type(exc).__name__}"
+    return lines, None
+
+
+def _held_lines(run_dir, crumbs):
+    """The persisted lines as Phase 4 records them; None when the file is absent."""
+    lines, fault = _read_lines(run_dir)
+    if fault == "missing":
+        return None
+    if fault is None and not (lines and lines[0].startswith("prior-report: ") and len(lines) <= 2
+                              and all(ln == _UNSEEDED for ln in lines[1:])):
+        fault = f"holds {len(lines)} line(s) of an unknown form" if lines else "is empty"
+    if fault:
+        crumbs.append(f"{_LINES_FILE} {fault}")
+        return ["prior-report: unavailable (prior-report record unreadable)"]
+    return lines
+
+
+def _write_lines(run_dir, lines, crumbs):
+    try:
+        with open(os.path.join(run_dir, _LINES_FILE), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("".join(f"{ln}\n" for ln in lines))
+    except OSError as exc:
+        crumbs.append(f"{_LINES_FILE} not written: {type(exc).__name__}")
+
+
+def _read_seeds(work, crumbs):
+    """(seeds, clean). The seeds are the ``seeded.json`` items carrying a non-empty string ``claim``,
+    ``category`` (not ``issue_acceptance``), ``prior_ref`` and ``prior_evidence``, stripped of
+    ``_SEED_DROP`` and set to ``agent``. ``clean``: this entry's ``prior`` selected a report
+    (``prior-report.md`` exists) and ``seeded.json`` is an array whose every item is a seed."""
+    seeds = []
+    status, doc = _read_json(os.path.join(work, "seeded.json"))
+    usable = status == "ok" and isinstance(doc, list)
+    if usable:
+        for i, it in enumerate(doc, 1):
+            if not isinstance(it, dict):
+                crumbs.append(f"seed item {i} dropped: {_shape(it)}, not an object")
+                continue
+            bad = [f for f in _REQUIRED_FIELDS + ("prior_ref", "prior_evidence")
+                   if not (isinstance(it.get(f), str) and it[f])]
+            if bad:
+                crumbs.append(f"seed item {i} dropped: no non-empty string `{bad[0]}`")
+            elif it["category"] == "issue_acceptance":
+                crumbs.append(f"seed item {i} dropped: category issue_acceptance")
+            else:
+                seeds.append(dict({k: v for k, v in it.items() if k not in _SEED_DROP}, verification_mode="agent"))
+    elif status != "missing":
+        crumbs.append(f"seeded.json {status if status != 'ok' else 'root is ' + _shape(doc)}; no seeded item")
+    if not os.path.exists(os.path.join(work, "prior-report.md")):
+        return seeds, False
+    clean = usable and len(seeds) == len(doc)
+    if not clean:
+        crumbs.append("seed shortfall kept: seeded.json " + ("holds a dropped item" if usable else status
+                                                             if status == "missing" else "unusable"))
+    return seeds, clean
+
+
 def op_finalize(work, run_dir, iteration, batches, no_groups):
     crumbs = []
     raw_items, counts, bad, flagged = load_batches(work, batches)
@@ -820,9 +983,8 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
         return {"op": "finalize", "ok": False, "error": "bad_carried",
                 "detail": f"carried.json {status}" if status != "ok" else f"carried.json root is {_shape(doc)}"}
 
-    # The identity line map holds only because carry keeps items whose file is unchanged since the
-    # prior head; carrying an item from a changed file needs a real line map here.
-    restates = [any(same_claim(c, it, _same_lines) for c in carried) for it in merged]
+    seeds, seeds_clean = _read_seeds(work, crumbs)
+    restates = [any(same_claim(c, it, _same_lines) for c in carried + seeds) for it in merged]
     restated = [it for it, dup in zip(merged, restates) if dup]
     kept, dropped = cap_items([it for it, dup in zip(merged, restates) if not dup])
 
@@ -831,11 +993,18 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
 
     taken = {c["id"] for c in carried}
     final, n = [], 0
-    for it in itertools.chain(kept, acceptance_items):
+    for fresh_item, it in itertools.chain(((True, it) for it in itertools.chain(kept, acceptance_items)),
+                                          ((False, it) for it in seeds)):
         n += 1
         while f"VC-{n}" in taken:
             n += 1
         row = dict(it)
+        # Only a seed, or a carried former seed, marks an item re-checking a prior defect, which
+        # changes how it is verified.
+        if fresh_item and ("prior_ref" in row or "prior_evidence" in row):
+            row.pop("prior_ref", None)
+            row.pop("prior_evidence", None)
+            crumbs.append(f"item VC-{n}: prior_ref/prior_evidence dropped from a non-seeded item")
         row["id"] = f"VC-{n}"
         row.pop("reused_from_iter", None)
         row.pop("carried", None)
@@ -867,19 +1036,23 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     # "hint ... unused" breadcrumbs.
     unshipped = hint_id_set | set(_id_ledger(restated)) | set(_id_ledger(dropped))
     flagged = [f for f in flagged if f["id"] not in unshipped]
+    anchors = carried + final[fresh - len(seeds):fresh]
     restated_items = [{"merged_from": it["merged_from"], "claim_signature": it.get("claim_signature"),
-                       "carried_id": next(c["id"] for c in carried if same_claim(c, it, _same_lines))}
+                       "carried_id": next(c["id"] for c in anchors if same_claim(c, it, _same_lines))}
                       for it in restated]
 
     checklist_path = os.path.join(run_dir, f"checklist-iter-{iteration}.json")
     _write_json(checklist_path, final)
+    lines, _ = _read_lines(run_dir)
+    if seeds_clean and lines and _UNSEEDED in lines:
+        _write_lines(run_dir, [ln for ln in lines if ln != _UNSEEDED], crumbs)
 
     announce = [f"Generated {generated} verification checklist items."]
     if batches > 1:
         announce.append(f"Deduped to {len(merged)} of {len(other_items)} items.")
     crumbs.extend(f"item {f['id']} kept but lacks a usable {', '.join(f['fields'])}" for f in flagged)
     if restated:
-        announce.append(f"Dropped {len(restated)} new item(s) restating a carried item.")
+        announce.append(f"Dropped {len(restated)} new item(s) restating a carried or seeded item.")
     if dropped:
         cats = ", ".join(f"{c}: {k}" for c, k in sorted(by_category.items()))
         announce.append(f"Capped checklist at {CAP} of {len(kept) + len(dropped)} items (dropped {len(dropped)} items by "
@@ -888,13 +1061,15 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
         announce.append(f"Itemized {len(acceptance_items)} acceptance criteria (no cap).")
     elif criteria_error:
         announce.append(f"Acceptance criteria not itemized: {criteria_error}.")
+    if seeds:
+        announce.append(f"Seeded {len(seeds)} item(s) from the prior report (no cap).")
     return {
         "op": "finalize", "ok": True, "checklist": checklist_path,
         "criteria_error": criteria_error, "issue_acceptance_count": len(acceptance_items),
         "counts": {"generated": generated, "batches": counts, "merged_away": merged_away,
                    "groups_refused": sum(1 for c in crumbs if " not merged: " in c),
                    "capped": len(dropped), "same_claim_dropped": len(restated),
-                   "new": len(kept), "carried": len(carried),
+                   "new": len(kept), "carried": len(carried), "seeded": len(seeds),
                    "acceptance": len(acceptance_items),
                    "reused_pass": sum(1 for c in carried if c.get("reused_from_iter_prev") is True),
                    "final": len(final),
@@ -927,14 +1102,13 @@ def _claim_range(item):
 
 
 def same_claim(prior, current, line_map):
-    """Whether two checklist items state the same claim. Rule 1: equal non-empty
-    ``claim_signature``. Rule 2: equal ``category`` and ``source_file``, and line ranges that
+    """Whether two checklist items state the same claim. Rule 1: ``_same_signature``.
+    Rule 2: equal ``category`` and ``source_file``, and line ranges that
     overlap once ``line_map(source_file, lo, hi)`` maps the prior range to the current head
     (None: unmappable, so rule 1 alone applies). An ``issue_acceptance`` item never matches."""
     if "issue_acceptance" in (prior.get("category"), current.get("category")):
         return False
-    sig = prior.get("claim_signature")
-    if isinstance(sig, str) and sig and sig == current.get("claim_signature"):
+    if _same_signature(prior, current):
         return True
     a, b = _claim_range(prior), _claim_range(current)
     if a is None or b is None or a[:2] != b[:2]:
@@ -1103,11 +1277,147 @@ def op_match(run_dir, n, prior_head, shadow_head):
             "breadcrumbs": crumbs}
 
 
+# ── prior (§1.0.5): the PR's latest trusted finalized review report ──────────
+
+_ACTIONS_LOGIN = "github-actions[bot]"
+_PROGRESS_RE = re.compile(r"\A<!-- prflow:review-progress ")
+_COMMENT_URL_RE = re.compile(r"https://[^/\s]+/([^/\s]+/[^/\s]+)/pull/[0-9]+#issuecomment-[0-9]+")
+
+
+def _comment_fault(ident, login, kind, url):
+    """The first field of a candidate comment that cannot be used, or None."""
+    for name, value, ok in (("id", ident, type(ident) is int),
+                            ("user.login", login, isinstance(login, str) and login.strip()),
+                            ("user.type", kind, isinstance(kind, str)),
+                            ("html_url", url, isinstance(url, str) and _COMMENT_URL_RE.fullmatch(url))):
+        if not ok:
+            return f"{name} is {'a string that is not a pull-request comment URL' if isinstance(value, str) else _shape(value)}"
+    return None
+
+
+def op_prior(work, run_dir, pr, iteration, exclude):
+    """The ``prior`` op; see the module docstring."""
+    out_md = os.path.join(work, "prior-report.md")
+    crumbs = []
+    result = {"op": "prior", "ok": True, "prior_report": None, "selected": None, "breadcrumbs": crumbs}
+    held = _held_lines(run_dir, crumbs) if iteration > 1 else None
+    if held is None:
+        if iteration > 1:
+            crumbs.append(f"{_LINES_FILE} missing at iteration {iteration}; selecting afresh")
+        # First, so a selection that raises, or cannot write its record, leaves no record, never an
+        # earlier entry's.
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(os.path.join(run_dir, _LINES_FILE))
+    with contextlib.suppress(FileNotFoundError):
+        os.remove(out_md)
+    if held is not None:
+        result["prior_report"] = held[0]
+        return result
+
+    # Bound before any exit: finish reads reports[:unreached].
+    reports, unreached = [], 0
+
+    def finish(line, selected=None, body=None):
+        crumbs.extend(e + ", skipped" for e in reports[:unreached] if isinstance(e, str))
+        if body is not None:
+            os.makedirs(work, exist_ok=True)
+            with open(out_md, "w", encoding="utf-8", newline="") as fh:
+                fh.write(body)
+        result["prior_report"], result["selected"] = line, selected
+        # finalize clears the shortfall once the seeds are in a written checklist.
+        _write_lines(run_dir, [line] + ([_UNSEEDED] if selected else []), crumbs)
+        return result
+
+    def unavailable(cause):
+        return finish(f"prior-report: unavailable ({cause})")
+
+    rules = []
+    for filename, *names in (("match-deferrals.py", "author_trust", "_run", "GH"),
+                             ("build-experiment-records.py", "_verdict_marker_head")):
+        module, failure = _load_sibling(filename, "prflow_" + filename[:-3].replace("-", "_"))
+        missing = [n for n in names if module is not None and not hasattr(module, n)]
+        if failure or missing:
+            crumbs.append(f"{filename} unavailable: {failure or f'AttributeError ({missing[0]})'}")
+            return unavailable("selection-rules-unavailable")
+        rules += [getattr(module, n) for n in names]
+    trust, run, gh, marker_head = rules
+    r = run([gh, "api", "--paginate", "--slurp", f"repos/{{owner}}/{{repo}}/issues/{pr}/comments?per_page=100"],
+            check=False)
+    if r.returncode != 0:
+        crumbs.append(f"gh api comments exited {r.returncode}: "
+                      f"{((r.stderr or '').strip().splitlines() or ['no stderr'])[0][:200]}")
+        return unavailable("comment-fetch-failed")
+    try:
+        pages = json.loads(r.stdout)
+    except ValueError:
+        crumbs.append("comments payload is not JSON")
+        return unavailable("comments-payload-malformed")
+    if not isinstance(pages, list) or any(not isinstance(p, list) for p in pages):
+        shown = _shape(pages) if not isinstance(pages, list) else "an array holding a non-array page"
+        crumbs.append(f"comments payload is {shown}, not an array of pages")
+        return unavailable("comments-payload-malformed")
+    for pi, page in enumerate(pages, 1):
+        for ci, c in enumerate(page, 1):
+            if isinstance(c, dict) and exclude is not None and type(c.get("id")) is int and c["id"] == exclude:
+                continue
+            body = c.get("body") if isinstance(c, dict) else None
+            if not isinstance(body, str):
+                shown = f"is {_shape(c)}" if not isinstance(c, dict) else (
+                    f"has a body that is {_shape(body)}" if "body" in c else "has no body")
+                # A string, never a tuple: the walk tells an unreadable entry from a report by type.
+                reports.append(f"comment {ci} on page {pi} {shown}")
+            else:
+                # Read a CRLF body as LF; the report file keeps the original bytes.
+                text = body.replace("\r\n", "\n")
+                if _PROGRESS_RE.match(text):
+                    reports.append((c, marker_head(text)))
+    untrusted = 0
+    for i in range(len(reports) - 1, -1, -1):  # the API lists comments oldest first
+        unreached, entry = i, reports[i]
+        if isinstance(entry, str):
+            # It may have been the newest report, so no older one is taken.
+            crumbs.append(entry)
+            return unavailable("comments-payload-malformed")
+        c, head = entry
+        ident, user, url = c.get("id"), c.get("user"), c.get("html_url")
+        if head is None:
+            crumbs.append(f"comment {ident!r} passed over: not finalized (no single parseable "
+                          "prflow:review-verdict marker in its first two lines)")
+            continue
+        login, kind = (user.get("login"), user.get("type")) if isinstance(user, dict) else (None, None)
+        fault = _comment_fault(ident, login, kind, url)
+        if fault:
+            crumbs.append(f"finalized report, comment {ident!r}: {fault}")
+            return unavailable("comment-fields-malformed")
+        if login != _ACTIONS_LOGIN:
+            trusted, failure = trust(login, kind == "Bot", _COMMENT_URL_RE.fullmatch(url).group(1), None)
+            if failure:
+                return unavailable(failure)
+            if not trusted:
+                untrusted += 1
+                crumbs.append(f"comment {ident} by {login!r} passed over: untrusted author")
+                continue
+        selected = {"comment_id": ident, "author": login, "reviewed_head": head}
+        return finish(f"prior-report: comment {ident} by {login}, reviewed HEAD {head}", selected, c["body"])
+    return finish("prior-report: none" + (f" ({untrusted} untrusted report(s) skipped)" if untrusted else ""))
+
+
+def op_prior_lines(run_dir):
+    """The ``prior-report:`` and ``seed shortfall:`` lines Phase 4 records, read from the persisted file."""
+    crumbs = []
+    held = _held_lines(run_dir, crumbs)
+    if held is None:
+        crumbs.append(f"{_LINES_FILE} missing")
+        held = ["prior-report: unavailable (no prior-report record)"]
+    return {"op": "prior-lines", "ok": True, "lines": held, "breadcrumbs": crumbs}
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 _USAGE = ("usage: checklist carry <work-dir> <N> <prior-head> [--prior FILE] | "
           "checklist raw <work-dir> <B> | checklist finalize <work-dir> <N> <B> [--no-groups] | "
-          "checklist match <work-dir> <N> <prior-head> <shadow-head>")
+          "checklist match <work-dir> <N> <prior-head> <shadow-head> | "
+          "checklist prior <work-dir> <PR> <N> [--exclude-comment <id>] | checklist prior-lines <work-dir>")
 
 
 def main(argv):
@@ -1147,6 +1457,22 @@ def main(argv):
             if len(rest) != 3 or _positive_int(rest[0]) is None:
                 return usage("match takes <N> <prior-head> <shadow-head>")
             out = op_match(run_dir, _positive_int(rest[0]), rest[1], rest[2])
+        elif op == "prior":
+            exclude = None
+            if "--exclude-comment" in rest:
+                at = rest.index("--exclude-comment")
+                value = rest[at + 1] if at + 1 < len(rest) else ""
+                if not re.fullmatch(r"[1-9][0-9]{0,19}", value):
+                    return usage("--exclude-comment needs a numeric comment id")
+                exclude = int(value)
+                del rest[at:at + 2]
+            if len(rest) != 2 or None in (_positive_int(rest[0]), _positive_int(rest[1])):
+                return usage("prior takes <PR> <N>")
+            out = op_prior(work, run_dir, _positive_int(rest[0]), _positive_int(rest[1]), exclude)
+        elif op == "prior-lines":
+            if rest:
+                return usage("prior-lines takes no operand after <work-dir>")
+            out = op_prior_lines(run_dir)
         else:
             return usage(f"unknown op {op!r}")
     except WriteUnverified as exc:

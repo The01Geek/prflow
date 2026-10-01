@@ -5,7 +5,7 @@ description: "Turn a rough request into a GitHub issue you explicitly approved."
 
 Use this workflow when you want work recorded rather than built now. Invoke it as `/prflow:spec` (the preferred name) or `/prflow:create-issue` (a transitional alias) — both run the same pipeline.
 
-It creates one issue, and only after you approve the final draft. The result is an approved issue, or a draft that visibly names the decision nobody has made yet.
+It creates one issue, or [widens an open issue](#widening-an-existing-issue) that already covers the work, and only after you approve the final draft. The result is an approved issue, or a draft that visibly names the decision nobody has made yet.
 
 ## Run It
 
@@ -99,9 +99,15 @@ An issue is implementation-ready when its Blocked section holds no unresolved de
 
 ## Write Criteria You Want Checked
 
-Acceptance criteria must represent every independently testable outcome in Desired Behavior before PRFlow presents the draft. A quantitative criterion includes the command or counting rule that measures it.
+Acceptance criteria must represent every independently testable outcome in Desired Behavior before PRFlow presents the draft. A quantitative criterion includes the command or counting rule that measures it. A draft that changes a decision rule — for example a grade, route, verdict or guard — states the rule's outcome before and after the change for each kind of input and mode, quoting the old rule, and reads every claim about the change's effect from that mapping. So a claim such as "nothing else changes" must hold for every row, not just the case you asked about.
+
+A criterion that lists existing members of a set, for example every file that reads a value, marks the list `at minimum` unless PRFlow searched the whole repository for those members and read every match. When an answer or revision changes the design, PRFlow repeats that search with the new terms or stops treating its result as complete; it never reuses the earlier result as-is.
 
 This matters beyond the draft: the acceptance criteria are what an implement run verifies at the end. An issue with no criteria gets a run with nothing to check at that gate. See [Implement an Issue](/docs/workflows/implement).
+
+## Widening an Existing Issue
+
+When PRFlow finds an open issue that already covers the work, it widens that issue instead of filing a duplicate: once you approve the exact revised body, it rewrites the issue's body in place — never as a comment, because an implement run reads only the body. It then reads the stored body back and, when it cannot confirm that body matches what it sent, stops rather than report the issue widened.
 
 ## After Creation
 

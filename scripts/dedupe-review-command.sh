@@ -15,10 +15,9 @@
 #     conversation and, carrying no head, on a legitimate re-request after a push.
 #   - The `Reviewed HEAD` line is stamped only at Phase 4, so it identifies a
 #     COMPLETED review, never an in-flight one. Its documented meaning is "a
-#     review FINISHED at this head" and two consumers depend on that meaning
-#     (skills/review/phases/phase-0-3-6-blocker-recheck.md precondition 2, and
-#     scripts/build-experiment-records.py's REVIEWED_HEAD_RE join), so it is not
-#     the vehicle for a seed-time head and is left untouched.
+#     review FINISHED at this head" and scripts/build-experiment-records.py's
+#     REVIEWED_HEAD_RE join depends on that meaning, so it is not the vehicle for a
+#     seed-time head and is left untouched.
 # Only the review engine writes the seeded comment, so the candidate population is
 # reviews rather than conversation, and no `run-name` / command-class matcher is
 # needed. (See issue #989's Decision section.)

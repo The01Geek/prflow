@@ -137,10 +137,10 @@ Re-generate from the diff (always overwrite — these reflect current state):
 - Deferred Findings (when there is at least one renderable entry, as defined in Step 1 — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; carry-forward-safe: a regeneration with no manifest present preserves the existing block's entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
 
 Merge (keep existing items that are still relevant, add new ones, remove stale ones):
-- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist. When `TEST_AUTHORING_WAIVER_ITEMS` is non-empty, seed one `Test authoring waived: <ceremony> — <reason>` line per item into the Test Plan, re-derived from the workpad on every run so the list stays in sync with the latest /prflow:implement waiver note (the same producer discipline as Post-Merge Verification). Preserve verbatim any such recorded *test-authoring proportionality waiver* line — a durable record of auxiliary test ceremony deliberately not written, not a stale checklist item to remove or a test claim to rewrite.
+- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist. When `TEST_AUTHORING_WAIVER_ITEMS` is non-empty, seed one `Test authoring waived: <ceremony> — <reason>` line per item into the Test Plan, re-derived from the workpad on every run. Preserve verbatim any such recorded *test-authoring proportionality waiver* line — a durable record of auxiliary test ceremony deliberately not written, not a stale checklist item to remove or a test claim to rewrite.
 
 Merge (combine existing and new):
-- Resolves — if `$ARGUMENTS` provides an issue number, include it; also keep any existing issue references that differ from `$ARGUMENTS`
+- Resolves — if `$ARGUMENTS` provides an issue number, include it; also keep any existing issue references that differ from `$ARGUMENTS`, and every `Stricter than criterion <N>:`, `Disputed criterion <N>:` or `Disputed criterion (unmatched):` line already in it
 
 Preserve as-is:
 - Any non-template sections found between the markers (e.g., "## Reviewer Notes", "## Deploy Steps") — carry them forward in the same position
@@ -150,9 +150,9 @@ Relocate, do not preserve in place:
 - A provenance line of the form `_Generated via /prflow:implement (...)_` (italic) or the legacy plain form `Generated via /prflow:implement (...)` — wherever it appears in the existing body, carry it forward verbatim as the last line of the whole output, below `<!-- PR_BODY_END -->` and below any other post-marker content. It is a durable record of the run that opened the PR and is meant to read as the body's signature, so a copy left higher up — above `<!-- PR_BODY_START -->`, or in the middle of the body — is moved down rather than kept, and exactly one copy is emitted.
 
 Strip, do not preserve:
-- A stopped-run note block delimited by `<!-- prflow:stopped-run-note-start -->` and `<!-- prflow:stopped-run-note-end -->` — remove the block and its markers entirely, wherever it appears. Without this, a late stall-backstop write that lands the block *after* a resume's gate already stripped it would ride pre-marker content through into the final description, shipping a completed and merged PR with a permanent stale stopped-run banner.
+- A stopped-run note block delimited by `<!-- prflow:stopped-run-note-start -->` and `<!-- prflow:stopped-run-note-end -->` — remove the block and its markers entirely, wherever it appears. Without this, a late stall-backstop write ships a merged PR with a stale stopped-run banner.
 
-If the existing body has NO markers: Treat the entire existing body as pre-marker content, except the provenance line, which the relocation rule above places. Output that pre-marker content above `<!-- PR_BODY_START -->`, then generate the full template below the marker, then the provenance line last.
+If the existing body has NO markers: Treat the entire existing body as pre-marker content, except the provenance line, which the relocation rule above places, and any `Stricter than criterion <N>:`, `Disputed criterion <N>:` or `Disputed criterion (unmatched):` line, which goes to `## Resolves`, or stays with the pre-marker content when none is generated. Output that pre-marker content above `<!-- PR_BODY_START -->`, then generate the full template below the marker, then the provenance line last.
 
 ### Template
 
