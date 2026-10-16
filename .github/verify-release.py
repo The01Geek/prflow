@@ -119,16 +119,7 @@ LEAK_PATTERNS = (
 # release. Never add an entry without reading the line it excuses.
 # Keys are assembled from fragments on purpose: spelling an excused match as one
 # literal would make this file match its own pattern and fail every release.
-LEAK_ALLOWLIST = {
-    # Issue #567 split the audit-lifecycle owner into sibling modules; the two comments
-    # carrying this example moved with their sections, so each new home needs its own row.
-    ("scripts/issue_audit_state_vocab.py", "/User" + "s/jo/"):
-        "illustrative example of a path containing a space, in comments about "
-        "shell quoting; that name is not a maintainer account",
-    ("scripts/issue_audit_state_state.py", "/User" + "s/jo/"):
-        "illustrative example of a path containing a space, in comments about "
-        "shell quoting; that name is not a maintainer account",
-}
+LEAK_ALLOWLIST: dict[tuple[str, str], str] = {}
 # Binary and large-corpus members are scanned by extension allowlist only; a
 # false positive inside a .png would block a release for no reason.
 # .svg is TEXT and can carry arbitrary content, so it must be leak-scanned; a
