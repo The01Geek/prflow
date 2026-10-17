@@ -293,8 +293,8 @@ IFS= read -r -d '' SHAPES_SECTION <<EOF || true
 >   another tool, an interpreter, or a self-attested check.
 EOF
 
-# SHAPES_FILE (optional): also write the command-shapes section alone to this path, so
-# subagents, which never see this prompt, can read it. Best-effort: a failed write warns
+# SHAPES_FILE (optional): also write the command-shapes section alone to this path for the
+# dispatched review engine, which never sees this prompt. Best-effort: a failed write warns
 # and changes neither the printed block nor the exit status.
 SHAPES_FILE="${SHAPES_FILE:-}"
 if [ -n "$SHAPES_FILE" ]; then
@@ -304,7 +304,7 @@ if [ -n "$SHAPES_FILE" ]; then
   _shapes_rc=0
   printf '%s' "$SHAPES_SECTION" > "$SHAPES_FILE" || _shapes_rc=$?
   if [ "$_shapes_rc" -ne 0 ]; then
-    echo "::warning::render-grounding-block.sh: could not write the command-shapes section to '$SHAPES_FILE'; subagents run without it" >&2
+    echo "::warning::render-grounding-block.sh: could not write the command-shapes section to '$SHAPES_FILE'; the review engine runs without it" >&2
   fi
 fi
 

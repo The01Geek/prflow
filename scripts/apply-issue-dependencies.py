@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Best-effort post-creation stamp: register an issue's declared `## Dependencies`
+"""Best-effort post-creation (or post-widen) stamp: register an issue's declared `## Dependencies`
 prerequisites as GitHub-native blocked-by dependencies (issue #1011).
 
 This is the third member of the best-effort post-creation REST-stamp family, and
@@ -10,13 +10,13 @@ it mirrors `scripts/ensure-label.sh` / `scripts/apply-labels.sh` clause for clau
   * it ALWAYS exits 0 — a failed body fetch, an unresolvable prerequisite, an API
     rejection, a missing/non-numeric argument, and a failed recognizer import all
     breadcrumb and exit 0, so a registration hiccup can never abort or reverse the
-    creation it runs after;
+    issue write it runs after;
   * it HAS NO SILENT PATH — every path its own code can reach writes a
     `apply-issue-dependencies.py:`-prefixed stderr breadcrumb before returning, so
     a caller reading the tool result can tell "registered", "API failure",
     "arg-slip" and "the harness refused the command" (no output at all) apart;
-  * it takes ONLY the created issue's number, fetching that issue's body from
-    GitHub itself, so both call sites invoke it operand-free with just the number;
+  * it takes ONLY the issue's number, fetching that issue's body from
+    GitHub itself, so a call site invokes it operand-free with just the number;
   * it derives prerequisite numbers by importing the section-scoped extraction
     function from `scripts/preflight.py` — it defines no second recognizer, no
     second regex, and no second declaration vocabulary. It imports the

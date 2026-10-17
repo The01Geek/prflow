@@ -11,7 +11,7 @@ context* a `/prflow:implement` run accumulates from its session transcripts — 
 quantity from the static shipped byte count of the phase files on disk (see
 docs/internal/implement-context.md).
 
-It is the implement-side sibling of scripts/spec-context-eval.py (issue #767),
+It is the implement-side sibling of tools/spec-eval/spec-context-eval.py (issue #767),
 and reuses that instrument's proven streaming / per-record degradation / symlink-escape
 / determinism design. It deliberately drops the spec-only machinery (audit-round
 attribution, redundant-Read / re-emission metrics, paired before/after mode); the four
@@ -121,6 +121,7 @@ import sys
 # in scripts/context_eval_shared.py (issue #1900). Keep the sys.path insert: this file is
 # loaded by path (its test, no package parent), so the sibling import fails without it.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
 import itertools
 
 from context_eval_shared import (  # noqa: F401
@@ -141,13 +142,14 @@ from context_eval_shared import (  # noqa: F401
     _usage_value,
     read_and_tally,
 )
+from path_forms import posix_path
 
 # A run is bounded by `attributionSkill`, which carries the LIVE plugin namespace. That
 # namespace is renameable, and historical census rows keep whatever namespace was live
 # when they were written — so this must accept EVERY declared namespace, not one literal.
 # A single hardcoded id silently matches nothing after a rename (every new run rejected,
 # the eval reporting zero runs with no error). Derived from the same identity source the
-# rest of the repo single-sources (mirrors scripts/spec-context-eval.py).
+# rest of the repo single-sources (mirrors tools/spec-eval/spec-context-eval.py).
 _IDENTITY_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "plugin_identity.py"
 )
@@ -737,8 +739,8 @@ def eval_corpus(corpus_root):
         # The run's identity is the CORPUS-RELATIVE path, not the basename: a corpus with
         # `a/session.jsonl` and `b/session.jsonl` would otherwise emit two run records
         # with the same `source`, which the sort key and every by-source join treat as
-        # one. Normalized to forward slashes so the output is host-independent.
-        rel_source = os.path.relpath(session_file, corpus_root).replace(os.sep, "/")
+        # one. On native Windows its separators print as forward slashes.
+        rel_source = posix_path(os.path.relpath(session_file, corpus_root))
         try:
             with open(session_file, "r", encoding="utf-8", errors="replace") as handle:
                 text = handle.read()

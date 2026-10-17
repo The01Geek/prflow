@@ -21,7 +21,7 @@
 #   - a single result OBJECT carrying is_error;
 #   - JSONL — one JSON object per line, no enclosing array (`jq -s` slurps every
 #     line into an array; without `-s` a JSONL log would emit one bool per line
-#     and an embedded is_error=true could be missed — the gap a blinded shadow
+#     and an embedded is_error=true could be missed — the gap a shadow
 #     review surfaced).
 # Any absent/unparseable/missing field yields "false" — the fail-safe direction:
 # is_error is defense-in-depth, and finalize_check's HEAD-SHA verdict scoping

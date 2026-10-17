@@ -1,46 +1,12 @@
 name: PRFlow (implement)
 
-# `run-name` embeds the issue thread the command was posted on so the gate's
-# duplicate check can recognise a second /prflow:implement on the same thread
-# while a run is in flight (see scripts/dedupe-implement-run.sh). Quoted because
-# the value contains characters YAML would otherwise mis-parse.
+# The issue-thread number lets dedupe-implement-run.sh identify an active sibling.
 run-name: "PRFlow implement (issue ${{ github.event.issue.number }})"
 
-# Heavy listener for /prflow:implement (the transitional /devflow:implement is
-# accepted for the alias window). Fires ONLY on a BARE `/prflow:implement <#>`
-# real comment on an ISSUE — a genuine user action. It is issues-only: a PR
-# comment is also an `issue_comment` in GitHub's API, but the config job's `if:`
-# requires `github.event.issue.pull_request == null` and the resolver re-checks via
-# IS_PULL_REQUEST, so a comment on a pull request never starts a run (this is
-# what stops the weekly audit-report comment from self-triggering on the state
-# PR). It does NOT trigger from an issue description body or title (the phrase
-# merely *quoted* in a description must never start a run), it does NOT require
-# `@claude`, and there is NO label trigger.
-#
-# Why bare-command only: this workflow runs claude-code-action in AGENT mode
-# with an explicit, synthesised `/prflow:implement <n>` prompt (the `gate` job
-# resolves the number). Agent mode needs no trigger phrase. The config job's
-# `if:` negates `@claude`, so an `@claude /prflow:implement` comment is ceded to
-# Anthropic's stock claude.yml (TAG mode) — an anti-pattern, since that listener
-# has no PRFlow plugin — and the two workflows can never double-fire. PRFlow
-# never touches claude.yml.
-#
-# Cost control: agent mode runs for ANY actor, so the `gate` job authorizes the
-# sender (an allowed bot OR an `allowed_users` login with write/admin/maintain
-# access) before the heavy `claude` job runs. See scripts/resolve-implement-trigger.sh.
-#
-# This workflow reads `prflow_implement.effort` (e.g. "high") so the planning +
-# write-the-tests phases get more reasoning budget than the light `/prflow:*`
-# flows in devflow.yml, without inflating every command's cost.
-#
-# Keep the plugin_marketplaces, plugins, and claude_args sections in sync with
-# devflow.yml so the skill surface is identical across listeners. ONE deliberate
-# exception (issue #1049, extended to the command tier by issue #225): the
-# plugin_marketplaces action INPUT is consumed from the `vendor_marketplace` step —
-# byte-identical here and in devflow.yml — which resolves the prflow plugin root to the
-# vendored subtree; only devflow-runner.yml still consumes steps.plugins. Do NOT
-# "re-sync" it back to steps.plugins. The skill surface stays identical; only the
-# resolution root differs.
+# Bare implement comments on issues only; @claude belongs to the stock listener.
+# The gate authorizes the sender before launching agent mode with a resolved issue.
+# Keep shared plugin inputs and helper wiring aligned with devflow.yml.
+# Setup: https://prflow.ai/docs/runs/cloud/setup
 
 on:
   issue_comment:
@@ -50,9 +16,7 @@ defaults:
   run:
     shell: bash
 
-# Least-privilege floor. A consumer repository whose default workflow permission is
-# read-and-write would otherwise hand every job here a full read-write token; jobs that
-# genuinely need more declare it themselves and override this.
+# Read-only floor; each writer job declares its own additional permissions.
 permissions:
   contents: read
 
@@ -75,17 +39,9 @@ jobs:
       prflow_version: ${{ steps.extract.outputs.prflow_version }}
       prflow_repo: ${{ steps.extract.outputs.prflow_repo }}
       workpad_marker: ${{ steps.extract.outputs.workpad_marker }}
-      # Optional path to a pre-installed Claude Code executable (issue #601),
-      # sourced from setup.claude_code_executable. Passed to claude-code-action's
-      # path_to_claude_code_executable input in the claude job below. Empty (the
-      # default) leaves the action's automatic-install path unchanged.
+      # An empty executable path leaves the action to install Claude Code.
       claude_code_executable: ${{ steps.extract.outputs.claude_code_executable }}
-      # The whole trigger-time config document, forwarded verbatim so the claude
-      # job's git-env pin step (issue #645) can resolve setup.git_dir_pin /
-      # setup.git_work_tree_pin through the bundled helper rather than re-parsing
-      # them inline here. This job checks out the DEFAULT BRANCH at trigger time,
-      # so the forwarded document is the trusted tree's — never the PR head's —
-      # which is what makes those keys post-merge-only.
+      # Forward trusted default-branch config; git-env pins are post-merge-only.
       config_json: ${{ steps.extract.outputs.json }}
     steps:
       - uses: actions/checkout@v6
@@ -104,12 +60,7 @@ jobs:
             exit 1
           fi
 
-  # Authorization + target-number gate. The action runs in AGENT mode below
-  # (explicit prompt), which executes for ANY actor, so this job is the cost
-  # control: it runs the resolver, which authorizes the sender (allowed bot OR
-  # write/admin/maintain collaborator) and resolves the issue number. The
-  # `claude` job runs ONLY when should_run=true. The runner-avoiding filter is the
-  # `config` job's own `if:`; this gate reads only the `enabled` config output.
+  # Authorize and resolve before the heavy agent job; agent mode itself accepts any actor.
   gate:
     needs: config
     if: ${{ needs.config.outputs.enabled == 'true' }}
@@ -123,29 +74,16 @@ jobs:
       should_run: ${{ steps.resolve.outputs.should_run }}
       number: ${{ steps.resolve.outputs.number }}
       duplicate: ${{ steps.dedupe.outputs.duplicate }}
-      # The run's origin identity (issue #512): the human a resume chain started
-      # from, decoded by the resolver from the resume comment, or the actor when
-      # this is not an automatic resume. EMPTY when a resume lost its origin —
-      # the resume producers then write no origin line, and the assignment helper
-      # skips rather than requesting a bot assignee GitHub would 403.
+      # Preserve the original human across resumes; an unknown origin must not become a bot assignee.
       triggering_user: ${{ steps.resolve.outputs.triggering_user }}
-      # Workpad provenance for this run (issue #537, AC1): exactly one of
-      # created-current-run / adopted-existing / unknown, decided by the
-      # early-workpad step below. The claude job normalizes it into the
-      # ephemeral handoff record so Phase 1 can choose truthful lifecycle wording.
+      # Handoff provenance lets Phase 1 distinguish a new workpad from an adopted one.
       workpad_handoff: ${{ steps.early_workpad.outputs.handoff }}
     steps:
-      # Pin the default branch explicitly (issue #1163) — matching devflow.yml's
-      # gate job. An empty `ref` input makes actions/checkout fall back to
-      # GITHUB_REF silently, so the trusted-tree property is stated here rather
-      # than inferred from the trigger.
+      # Explicit default-branch ref keeps gate helpers on the trusted tree.
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
-      # Materialize the plugin into the workspace so the resolver/dedupe/react
-      # scripts exist at .prflow/vendor/prflow/scripts/ (committed → fetch).
-      # Without it a thin consumer — or this source repo — fails closed
-      # at "resolver not found".
+      # Materialize helpers at the vendored paths used by thin consumer checkouts.
       - uses: ./.github/actions/vendor-plugin
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
@@ -155,22 +93,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          # `sender` is present on the issue_comment event and equals the
-          # commenter (the actor).
           ACTOR: ${{ github.event.sender.login }}
           ALLOWED_BOTS: ${{ needs.config.outputs.allowed_bots }}
           ALLOWED_USERS: ${{ needs.config.outputs.allowed_users }}
-          # The issue the comment is attached to; the fallback target when
-          # TRIGGER_TEXT carries no explicit number.
           CONTEXT_NUMBER: ${{ github.event.issue.number }}
-          # Only a real issue comment body contributes — never an issue
-          # description. Passed as an env var (not interpolated into bash), so
-          # arbitrary body text cannot inject.
+          # Pass only the real comment body through env, never interpolate it into shell.
           TRIGGER_TEXT: ${{ github.event.comment.body }}
           SELF_COMMENT_MARKER: ${{ needs.config.outputs.workpad_marker }}
-          # Non-null only for a comment on a PR (a PR comment is also an
-          # issue_comment). The resolver declines such a trigger — issues-only
-          # backstop for the config job's `if:`'s `pull_request == null` filter.
+          # PR comments share this event type; the resolver repeats the issues-only check.
           IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
         run: |
           set -euo pipefail
@@ -191,12 +121,7 @@ jobs:
           fi
           bash "$RESOLVER" >> "$GITHUB_OUTPUT"
 
-      # Duplicate detection: only when the resolver authorized + resolved a run.
-      # Decides `duplicate=true` if an OLDER /devflow:implement run for this same
-      # issue/PR thread is still active, so the heavy `claude` job below is
-      # skipped and the in-flight run is left untouched. Fails OPEN (the script
-      # emits duplicate=false on any error), so a query blip never swallows a
-      # legitimate single request.
+      # An older active run on this issue suppresses the heavy job. Query failures allow the request.
       - id: dedupe
         if: ${{ steps.resolve.outputs.should_run == 'true' }}
         env:
@@ -216,17 +141,8 @@ jobs:
           fi
           bash "$DEDUPE" >> "$GITHUB_OUTPUT"
 
-      # Optional, opt-in: mint ONE App token DOWNSCOPED to this job's
-      # user-visible posts — the trigger reaction and the duplicate-ignored
-      # notice below (no contents/workflows: this job neither reads code with
-      # it nor pushes; the early workpad comment below deliberately stays on
-      # github.token — detection is marker-based, so authorship never matters). Same opt-in/fail-loud/downscope contract as the review
-      # mint in devflow-runner.yml — see https://prflow.ai/docs/runs/cloud/setup. NOTE: fail-loud
-      # means a configured-but-broken App fails THIS gate job (and so blocks
-      # the run) — deliberate, so a broken App is never silently degraded
-      # around. Minted only when a consumer will actually run (should_run
-      # gates both the reaction and the notice), so the common
-      # unauthorized/non-command rejection path stays mint-free.
+      # Downscope this token to reactions/notices; early workpad writes use github.token.
+      # A configured but broken App fails the gate instead of silently changing identity.
       - name: Mint downscoped reaction token (optional)
         id: gate_app_token
         if: ${{ vars.DEVFLOW_APP_ID != '' && steps.resolve.outputs.should_run == 'true' }}
@@ -237,11 +153,7 @@ jobs:
           permission-issues: write
           permission-pull-requests: write
 
-      # Early acknowledgement: react on the triggering comment the moment we know
-      # /devflow:implement is authorized, resolvable, AND not a duplicate, long
-      # before the heavy `claude` job runs. Best-effort and continue-on-error so
-      # a reaction hiccup never blocks the run. Skipped for duplicates — those
-      # get the explanatory notice below instead of a silent reaction.
+      # Best-effort acknowledgement; duplicates receive the notice below instead.
       - name: Acknowledge trigger
         if: ${{ steps.resolve.outputs.should_run == 'true' && steps.dedupe.outputs.duplicate != 'true' }}
         continue-on-error: true
@@ -251,15 +163,11 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           COMMENT_ID: ${{ github.event.comment.id }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-        # Invoked via `bash` (not bare-exec) so it works regardless of whether
-        # the vendored copy kept its executable bit — matching the resolver's
-        # `bash "$RESOLVER"` above. A missing file errors visibly but is
-        # absorbed by continue-on-error (best-effort ack).
+        # Use bash so a vendored executable-bit loss does not prevent acknowledgement.
         run: bash .prflow/vendor/prflow/scripts/react-to-trigger.sh
 
       # Create the canonical workpad before the heavy job; Phase 1.3 resumes its marker.
-      # Best-effort id lookup plus upstream dedupe minimize duplicate creation, but the
-      # lookup/create sequence is not atomic under concurrency.
+      # Best-effort lookup and dedupe reduce duplicates but do not make lookup/create atomic.
       - name: Create workpad (early acknowledgement)
         id: early_workpad
         if: ${{ steps.resolve.outputs.should_run == 'true' && steps.dedupe.outputs.duplicate != 'true' }}
@@ -390,11 +298,7 @@ jobs:
           # wording ("agent initialized"), never a false "run resumed".
           echo "handoff=created-current-run" >> "$GITHUB_OUTPUT"
 
-      # Duplicate notice: tell the requester their command was ignored because a
-      # run for this issue/PR is already in flight. Best-effort. CRITICAL: the
-      # body must contain NO PRFlow trigger phrase — this comment is itself an
-      # issue_comment[created] event, and a trigger phrase here would re-enter
-      # the gate and could loop. Worded to avoid `/devflow:` and `@claude`.
+      # Keep the notice free of trigger phrases: posting it creates another issue_comment event.
       - name: Notice — duplicate ignored
         if: ${{ steps.resolve.outputs.should_run == 'true' && steps.dedupe.outputs.duplicate == 'true' }}
         continue-on-error: true
@@ -420,13 +324,8 @@ jobs:
   claude:
     needs: [config, gate]
     if: needs.gate.outputs.should_run == 'true' && needs.gate.outputs.duplicate != 'true'
-    # Issue #471: one live agent per issue — a stall-backstop resume or a racing
-    # re-trigger QUEUES until the in-progress claude job ends. Never set
-    # cancel-in-progress: true (a deliberate cancel feeds the run-identity/recovery
-    # machinery and discards a live run's work). Keep the group job-level and keyed
-    # on the gate's resolved issue number; a run that will not execute gets its own
-    # group so it can never displace a queued sibling. A queued job superseded by a
-    # newer one is cancelled before start, which spot_recovery routes to noop.
+    # Queue one agent per resolved issue; never cancel a live sibling.
+    # Non-running requests get independent groups. Recovery ignores a superseded queued job.
     concurrency:
       group: prflow-implement-issue-${{ (needs.gate.outputs.should_run == 'true' && needs.gate.outputs.duplicate != 'true' && needs.gate.outputs.number) || format('run-{0}', github.run_id) }}
       cancel-in-progress: false
@@ -438,28 +337,11 @@ jobs:
       id-token: write
       actions: write # authorizes the no-App consumer's `gh workflow run ci.yml` in scripts/ci-verification-request.py; superset still lets Claude read CI results on PRs
     env:
-      # Authorize the `--persist` telemetry PUSH on this WRITABLE tier (issue #469 AC5).
-      # This job holds contents:write, so the branch push succeeds here. `--persist` runs
-      # from the Loop-Exit fences and the post-agent backstop step (issue #274 deleted the
-      # Stop hook that once also ran it); this job-level env reaches those subprocesses.
-      # Kept in sync with devflow.yml's manual /devflow:review job.
+      # Job scope authorizes telemetry persistence from agent and post-agent subprocesses.
       DEVFLOW_TELEMETRY_PUSH: '1'
     steps:
-      # Optional, opt-in: mint a GitHub App installation token at full
-      # installation scope (notably Contents: write + Workflows: write — no
-      # permission-* downscope, unlike the per-site tokens elsewhere in these
-      # workflows) so the agent's git push can edit
-      # .github/workflows/ files (which the built-in GITHUB_TOKEN is hard-blocked
-      # from). Gated on the DEVFLOW_APP_ID repository VARIABLE: unset/empty → the
-      # step is skipped and both the checkout token and github_token below fall
-      # back to GITHUB_TOKEN, leaving behavior byte-for-byte unchanged for
-      # consumers who do not opt in. NO continue-on-error: a configured-but-broken
-      # App (invalid/rotated key) fails the job here rather than silently
-      # degrading to GITHUB_TOKEN. The App permissions come from the installation,
-      # not the job's permissions: block.
-      #
-      # MUST precede the checkout below, whose `token:` it feeds — see the
-      # checkout comment. Kept in sync with the same step in devflow.yml.
+      # Mint before checkout so pushes use the workflow-capable App credential.
+      # An unconfigured App falls back to GITHUB_TOKEN; a broken configured App fails loud.
       - name: Mint workflow-capable token (optional)
         id: app-token
         if: ${{ vars.DEVFLOW_APP_ID != '' }}
@@ -471,66 +353,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          # fetch-depth: 0 (all history) — matches devflow.yml and ci.yml.
-          # Two requirements, and the second is the binding one (issue #1219):
-          #  1. Diff base. /prflow:implement reads the diff via three-dot
-          #     notation against `origin/main` (`git diff origin/main...HEAD`),
-          #     which computes a merge-base. A bounded depth (this was
-          #     `fetch-depth: 50`) covers that for a typical PR.
-          #  2. Historical baseline. This job runs the project's own test suite
-          #     in-env, and lib/test/run.sh's #719 baseline-corpus control reads
-          #     blobs at a FIXED past commit via `git show <ref>:<path>`. That
-          #     commit only moves further behind the branch tip, so no bounded
-          #     depth keeps resolving it; when it stops, the control self-skips
-          #     `blocking-gate` — and a skip exits 0, so the failure is silent
-          #     until the run's completion gate refuses the evidence. Evidence
-          #     of record: Actions run 30832631347 discarded a 4 min 20 s shard
-          #     run and repeated it after `git fetch --unshallow`.
-          #     Requirement 1 alone cannot justify a number that satisfies 2.
-          # Chosen mechanism: full history rather than a targeted fetch of the
-          # required commits. The targeted fetch does work (verified: a
-          # `git fetch --depth=1 origin <sha>` onto a depth-50 clone makes
-          # `git show <sha>:<path>` resolve while the repo stays shallow) and is
-          # cheaper, but it would couple this workflow to `_WSR_RETIRED_REFS`
-          # inside lib/test/run.sh — a second copy of that SHA list here would
-          # silently stop covering the suite the day a retirement adds a
-          # different ref. Cost was NOT re-measured on a runner for this change;
-          # issue #1219's figures stand (+9 to +16 s of checkout at this
-          # repository's size).
+          # Full history supports merge-base diffs and fixed historical test baselines.
+          # A bounded depth ages out baselines; targeted fetching would duplicate the suite's ref list.
           fetch-depth: 0
-          # LOAD-BEARING (issue #357): the credential actions/checkout persists
-          # here is what `git push` actually authenticates with — NOT the
-          # `github_token` handed to claude-code-action below. checkout@v6 writes
-          # the auth header to an external config file wired in via
-          # `includeIf.gitdir:` (covering `.git/worktrees/*` too), NOT to
-          # `.git/config`; claude-code-action's `git config --unset-all
-          # http.<server>/.extraheader` therefore matches nothing ("No existing
-          # authentication headers to remove"), and its subsequent
-          # `git remote set-url origin https://x-access-token:<app-token>@…`
-          # loses to that surviving preemptive `Authorization:` header. Result
-          # with an unseeded checkout: every push authenticates as
-          # github-actions[bot], whose App has no `workflows` permission, so a
-          # push touching .github/workflows/ dies with "refusing to allow a
-          # GitHub App to create or update workflow … without workflows
-          # permission" while every other push succeeds. Seed the App token here
-          # and the header carries it instead. Skipped mint → GITHUB_TOKEN,
-          # identical to checkout's own default.
+          # git push uses checkout's persisted credential, not the action's github_token.
+          # Seed the App token here so its surviving auth header permits workflow-file pushes.
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
 
-      # Materialize the plugin (committed → fetch) so claude-code-action
-      # loads it from .prflow/vendor/prflow/ and the agent's helper scripts
-      # resolve at the literal workspace path the allowlist below grants.
+      # Load the plugin and helpers from the same vendored root the allowlist grants.
       - uses: ./.github/actions/vendor-plugin
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
           repo: ${{ needs.config.outputs.prflow_repo }}
           token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
 
-      # Validate the vendored helpers this run cannot degrade around AND write the
-      # ephemeral handoff record (issue #537). Runs AFTER vendor-materialization and
-      # BEFORE the action so a broken vendor tree fails loud here rather than launching
-      # an agent that cannot maintain its workpad (AC25) or one whose prompt carries no
-      # engine-ground-truth block, and so Phase 1 can read truthful provenance (AC3).
+      # Fail before the agent if required vendored helpers are missing; record workpad provenance.
       - name: Validate vendored helpers + write handoff record
         env:
           NUMBER: ${{ needs.gate.outputs.number }}
@@ -579,41 +416,18 @@ jobs:
             echo "::warning::could not write handoff record $REC; Phase 1 will degrade to unknown provenance." >&2
           fi
 
-      # Provision the runtime (Python / Node / pip cache / deps) from
-      # `.prflow/config.json`'s `setup` block. The logic lives in the
-      # setup-project-env composite action so devflow.yml and
-      # devflow-implement.yml share ONE copy (checkout above gives the action
-      # the repo + config to read). See https://prflow.ai/docs/runs/cloud/setup for the rationale.
+      # Shared runtime provisioning reads the trusted setup configuration.
       - id: cfg
         uses: ./.github/actions/read-project-config
       - uses: ./.github/actions/setup-project-env
         with:
           config_json: ${{ steps.cfg.outputs.json }}
-          # Install the manifest's bounded ShellCheck/Ruff toolchain before the
-          # model runs, so implement runs start with verified lint tools instead
-          # of improvising installs in paid turns (issue #1388).
+          # Provision the bounded lint toolchain before the agent starts.
           lint_mode: provision
 
-      # ── Long-run credential refresh (issue #487) ──────────────────────────
-      # A GitHub App installation token expires 60 minutes after minting and
-      # cannot be renewed. The two steps below keep a writer-job run push- and
-      # gh-capable past that hour when the opt-in App is configured (gated on the
-      # SAME vars.DEVFLOW_APP_ID != '' condition as the app-token mint above, so
-      # an unconfigured consumer's behavior is byte-identical to today).
-      #
-      # DELIBERATELY a DETACHED process, not a `background:` step: actionlint
-      # (CI's raven-actions/actionlint@v2) rejects the unrecognized `background:`
-      # step key, so the refresher is spawned with `nohup … &` in a normal step
-      # that survives into the claude step. The private key is piped to the
-      # refresher's stdin (never argv, never disk — a pipe, not a here-string),
-      # and the detached refresher is launched with `env -u` (dropping the key var)
-      # so its exec-time environment — hence /proc/<pid>/environ, readable by the
-      # concurrent same-uid (prompt-injectable) claude step — never holds the PEM.
-      # The step-level env var exists ONLY so THIS short-lived launcher shell (gone
-      # before the claude step) can pipe it; an in-process `unset` alone would NOT
-      # scrub the long-lived refresher's /proc environ, which snapshots exec time
-      # (proc(5)). The loop traps TERM/exits 0, so the job conclusion never rides on
-      # it; the `if: always()` pidfile-kill step retires it. See https://prflow.ai/docs/runs/cloud/setup.
+      # Refresh expiring App credentials in a detached process, reaped by the always() stop step.
+      # Pipe the private key to stdin and remove it from the child's exec environment;
+      # an in-process unset would leave the initial key visible through /proc.
       - name: Start credential refresher (optional)
         id: refresher
         if: ${{ vars.DEVFLOW_APP_ID != '' }}
@@ -625,6 +439,27 @@ jobs:
           # No scripts/… self-repo fallback here (issue #228 removed all such fallbacks):
           # this step runs right after `vendor-plugin` on the same sequential job, so the
           # vendored path is always present — a fallback would be dead code. Do NOT add one.
+          # A non-default refresher mode (issue #1980) is probed for first, with bash
+          # builtins only, as a line whose first non-blank text is its case arm `<mode>)`:
+          # an older vendored refresher answers an unknown subcommand with a warning and
+          # exit 0, which would leave a launched-looking refresher refreshing nothing.
+          # Without the mode, launch nothing.
+          SUB="${DEVFLOW_REFRESH_SUBCOMMAND:-loop}"
+          _sub_ok=yes
+          if [ "$SUB" != loop ]; then
+            _sub_ok=no
+            if [ -f .prflow/vendor/prflow/scripts/refresh-app-credentials.sh ]; then
+              while IFS= read -r _l || [ -n "$_l" ]; do
+                case "${_l#"${_l%%[![:space:]]*}"}" in "$SUB)"*) _sub_ok=yes; break ;; esac
+              done < .prflow/vendor/prflow/scripts/refresh-app-credentials.sh
+            fi
+          fi
+          if [ "$_sub_ok" = no ]; then
+            echo "launched=no" >> "${GITHUB_OUTPUT:-/dev/null}"
+            echo "::warning::credential refresher not started: the vendored refresh-app-credentials.sh is absent or predates its '$SUB' mode, so this run's gh token expires one hour after its mint. Bump prflow_version in .prflow/config.json to close it."
+            exit 0
+          fi
+          echo "launched=yes" >> "${GITHUB_OUTPUT:-/dev/null}"
           # Job-scoped state (issue #1882): so a later job on this runner never reads or
           # retires another job's token file/pidfile/log, and the loop retires itself
           # once its job is no longer the runner's current one (the pointer below).
@@ -665,32 +500,15 @@ jobs:
             | env -u DEVFLOW_APP_PRIVATE_KEY \
                 DEVFLOW_REFRESH_JOB_ID="$HANDLE" DEVFLOW_REFRESH_JOB_POINTER="$PTR" \
                 DEVFLOW_REFRESH_PIDFILE="$PID" DEVFLOW_REFRESH_TOKEN_FILE="$TOK" \
-                nohup bash .prflow/vendor/prflow/scripts/refresh-app-credentials.sh loop \
+                nohup bash .prflow/vendor/prflow/scripts/refresh-app-credentials.sh "$SUB" \
                 >"$LOG" 2>&1 &
           disown || true
           echo "credential refresher started (detached); log: $LOG"
 
-      # Install scripts/gh-fresh.sh as a `gh` wrapper so agent-side gh resolves
-      # its token at call time from the refresher-maintained token file. Wired
-      # ahead of the real gh on PATH via GITHUB_PATH — direct skill-fence gh
-      # calls, PRFlow's resolver-routed gh-callers (whose PATH probe finds the
-      # wrapper when DEVFLOW_GH is unset), and post-claude steps all reach it.
-      # Deliberately NOT exported as a process-global DEVFLOW_GH (issue #533):
-      # GITHUB_ENV values persist into every later step — including a repo test
-      # process — where a non-empty DEVFLOW_GH outranks fixture PATH stubs by
-      # resolver design; DEVFLOW_GH stays an explicit caller/test seam. The body
-      # is the checked-in seven-output-validated installer, which resolves the
-      # real gh's ABSOLUTE path before the GITHUB_PATH prepend takes effect (a
-      # name-based lookup in later steps would otherwise recurse into the
-      # wrapper) and fails the job before the agent on the first missing output.
-      # No scripts/… self-repo fallback here (same rationale as the Start step
-      # above): this runs right after `vendor-plugin`, so the vendored tree is
-      # present — at the consumer's pinned `prflow_version`. A pin predating
-      # this installer has no such file, and the step fails LOUDLY (rc 127,
-      # before the agent) until workflows and the pin are refreshed together
-      # (see https://prflow.ai/docs/getting-started/installation's update section). The installer's own output-2
-      # wrapper-SOURCE lookup resolves the vendored gh-fresh.sh (issue #228 removed its
-      # repo fallback) — a different path (the gh-fresh.sh bytes to copy), not this invocation.
+      # Install a PATH-scoped gh wrapper that reads the fresh token at each call.
+      # Do not export DEVFLOW_GH globally: that would override test fixtures' PATH stubs.
+      # The installer captures the real gh path before prepending the wrapper, preventing recursion.
+      # Refresh workflows and the plugin pin together; a missing installer fails before the agent.
       - name: Install fresh-gh wrapper (optional)
         if: ${{ vars.DEVFLOW_APP_ID != '' }}
         env:
@@ -698,16 +516,8 @@ jobs:
         run: |
           set -euo pipefail
           bash .prflow/vendor/prflow/scripts/install-gh-wrapper.sh
-      # ── Third-party model provider resolution (issue #313) ─────────────────
-      # Resolve this section's (prflow_implement) provider decision from
-      # .prflow/config.json via the single-sourced inline jq RESOLVER below.
-      # The RESOLVER program is byte-identical across devflow.yml,
-      # devflow-implement.yml, and devflow-runner.yml (lib/test/run.sh pins that
-      # identity); only the `--arg section` value differs. An empty decision (no
-      # provider) reproduces today's Anthropic-OAuth wiring for a given
-      # `claude_model` (one deliberate change: an empty resolved model now fails
-      # loud instead of rendering `--model null`) — the provider path is strictly
-      # opt-in. See https://prflow.ai/docs/runs/cloud/setup.
+      # Keep the inline provider resolver identical across cloud workflows.
+      # No provider selects Anthropic OAuth; an empty resolved model fails loud.
       - name: Resolve model provider
         id: provider
         env:
@@ -772,13 +582,8 @@ jobs:
             printf '%s\n' "$delim"
           } >> "$GITHUB_OUTPUT"
 
-      # Inject the provider endpoint into the JOB env — ONLY when a provider is
-      # active. A `run:` step writing $GITHUB_ENV (never a static step `env:`
-      # block of always-present expressions) is the only mechanism that can carry
-      # config-driven dynamic keys, and gating on `provider != ''` keeps the
-      # default path free of even empty-valued ANTHROPIC_* vars (AC 1/4). This
-      # step also carries the fail-loud empty-secret guard (AC 6), before the
-      # action step runs.
+      # Write dynamic provider env keys only when routed; missing secrets fail before the agent.
+      # The default path must not acquire even empty provider variables.
       - name: Inject provider endpoint (provider-routed sections only)
         if: ${{ steps.provider.outputs.provider != '' }}
         env:
@@ -856,22 +661,7 @@ jobs:
           edelim="ENV_EOF_$(date +%s%N)_$$"
           printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
 
-      # Export the routed provider's effort capability to the JOB env for the
-      # in-session resolve-review-overrides.py. Keep it ungated: a `provider != ''`
-      # gate leaves the default path relying on the resolver's fail-open (#1772).
-      - name: Export provider effort capability to job env
-        env:
-          EFFORT_SUPPORTED: ${{ steps.provider.outputs.effort_supported }}
-        run: |
-          set -euo pipefail
-          printf 'PRFLOW_EFFORT_SUPPORTED=%s\n' "$EFFORT_SUPPORTED" >> "$GITHUB_ENV"
-
-      # Compute the claude_args head so --model is always present and --effort is
-      # dropped only for a provider whose effort_supported is false (AC 7). The
-      # Anthropic default path resolves effort_supported=true, so effort is
-      # preserved there (for a non-empty effort value — the run body's
-      # flag-injection guard enum-validates effort and allowlist-validates the
-      # model id, rejecting flag-shaped or out-of-charset values).
+      # Always pass the validated model; omit effort only when the provider lacks support.
       - name: Build claude_args head (model + conditional effort)
         id: cargs
         env:
@@ -929,16 +719,7 @@ jobs:
           adelim="OUT_EOF_$(date +%s%N)_$$"
           { printf 'args<<%s\n' "$adelim"; printf '%s\n' "$ARGS"; printf '%s\n' "$adelim"; } >> "$GITHUB_OUTPUT"
 
-      # Compose the plugins/plugin_marketplaces inputs (issue #505): the baked
-      # baseline (byte-identical across the three call sites — run.sh pins it)
-      # PLUS the entries this repo's trusted default-branch .claude/settings.json
-      # declares (enabledPlugins=true; github-kind extraKnownMarketplaces), so a
-      # consumer repo's cloud plugin surface matches what its local team sees —
-      # "commit the settings file once, every tier honors it." This write tier's
-      # checkout IS the default branch (issue_comment checks out the default), so
-      # .claude/settings.json is maintainer-committed, trusted. The single-line
-      # `printf '%s\n' <args>` baseline form avoids the YAML-indent-corrupts-
-      # multiline-literals gotcha and is grep-pinnable for the sync invariant.
+      # Compose the shared baseline with plugins declared in trusted default-branch settings.
       - name: Compose plugin inputs (baseline + settings-declared)
         id: plugins
         run: |
@@ -1045,34 +826,9 @@ jobs:
             fi
           fi
 
-      # Resolve the prflow plugin root to the VENDORED subtree (issue #1049) — shared
-      # with the command tier (devflow.yml carries a byte-identical copy since issue
-      # #225); only devflow-runner.yml deliberately keeps the repo-root `./`. The
-      # composed marketplace list from the step above registers
-      # `devflow-marketplace` from the repo-root `./`: the tracked marketplace.json
-      # sources `prflow` at `./`, so here $CLAUDE_SKILL_DIR resolves to
-      # <workspace>/skills/<name> and the portable helper anchor lands at the repo root.
-      # A CONSUMER instead resolves the same shipped bytes from `.prflow/vendor/prflow`.
-      # This step swaps the `./` marketplace entry for a job-local marketplace rooted at
-      # `./.prflow/vendor` (written by the helper, `prflow` sourced at `./prflow`), so the
-      # anchor lands under `.prflow/vendor/prflow/scripts/` here too — the shape this
-      # repo emits becomes the shape a consumer emits, and a denial here is a denial
-      # there. It leaves the tracked marketplace.json AND the baked baseline literal
-      # untouched (issue #1049 constraints): only this composed, job-local list is
-      # rewritten, and `plugins` passes through steps.plugins unchanged. The composed-
-      # vs-degraded branch selection lives in compose-vendor-marketplace.sh, driven by
-      # lib/test/run.sh (the describe-denial-count.sh extraction convention); the outer
-      # file-absent guard is the #505-class vendored-helper skew arm and names
-      # prflow_version, mirroring the compose step's HELPER guard. Best-effort: the helper
-      # never hard-fails (always exits 0) and every non-clean path is audited (never a
-      # silently-wrong resolution). THE `./` PREFIX ON THE EMITTED ENTRY IS LOAD-BEARING:
-      # claude-code-action validates every plugin_marketplaces entry and rejects a bare
-      # relative path outright (`Invalid marketplace URL format`), which broke every cloud
-      # implement run in this repo when PR #1137 first shipped this step; the helper
-      # normalizes it, and lib/test/run.sh asserts the emitted value satisfies the
-      # action's local-path predicate. The step itself runs under `set -euo pipefail`, so a
-      # mktemp/output-write failure would fail loudly (never silently) — consistent with
-      # the compose step above, which likewise mktemps under set -euo.
+      # Resolve PRFlow from the vendored subtree in both implement and command jobs.
+      # Keep the step bodies aligned; the job-local rewrite leaves tracked marketplace data intact.
+      # The emitted local marketplace entry needs its ./ prefix for action validation.
       - name: Resolve plugin root to the vendored subtree (issue #1049)
         id: vendor_marketplace
         env:
@@ -1099,12 +855,7 @@ jobs:
           vdelim="MKV_EOF_$(date +%s%N)_$$"
           { printf 'plugin_marketplaces<<%s\n' "$vdelim"; printf '%s\n' "$OUT"; printf '%s\n' "$vdelim"; } >> "$GITHUB_OUTPUT"
 
-      # AC13 boundary 2 (issue #537): record the "Claude job provisioning complete"
-      # startup checkpoint immediately before the action, AFTER runtime provisioning
-      # and plugin composition, so its timestamp marks the actual action boundary.
-      # Best-effort: continue-on-error so a checkpoint hiccup (or an old pinned
-      # helper lacking --checkpoint) never blocks the run — it warns and continues.
-      # A standalone PATCH (one of the ≤2 the fresh-run write budget allows, AC19).
+      # Record the startup checkpoint after provisioning and before the agent; failure is advisory.
       - name: Checkpoint — Claude job invoking agent
         continue-on-error: true
         env:
@@ -1124,43 +875,11 @@ jobs:
             echo "::warning::claude-invoke checkpoint failed for #$NUMBER (old helper lacking --checkpoint, or a transient error); continuing." >&2
           fi
 
-      # Resolve the two DEFAULT-OFF git-env pin flags and export the enabled ones
-      # (issue #645). Both keys default to false, so on a stock consumer this step
-      # emits NOTHING and neither GIT_DIR nor GIT_WORK_TREE is present in the
-      # action's environment — the pre-#643 behavior, which is the configuration
-      # that works everywhere. #643 set both unconditionally so configureGitAuth
-      # would resolve the repo on a self-hosted Windows runner (issue #602), but
-      # GIT_WORK_TREE also reaches the Claude Code CLI subprocess that installs
-      # plugins, where it makes `git clone` refuse an existing working tree — so
-      # every run died at plugin install with `fatal: working tree '<path>'
-      # already exists.`, before the agent did any work, producing no verdict at
-      # all. The helper is now the SINGLE producer of both variables; the action
-      # step below deliberately carries neither in its own `env:` block.
-      #
-      # THIS TIER IGNORES the GIT_DIR key (--tier implement) and the helper prints
-      # a breadcrumb saying so: this tier stages and pushes commits, and ambient
-      # GIT_DIR makes a stage issued from a non-root working directory record
-      # deletions across the rest of the tree (measured). Only GIT_WORK_TREE can
-      # be opted into here.
-      #
-      # JOB-SCOPED, not step-scoped: `$GITHUB_ENV` appends assignments and offers
-      # no removal verb, and the empty-value form that would approximate one is
-      # measured fatal (`GIT_DIR=` → `fatal: not a git repository: ''`), which is
-      # precisely why the mechanism is an append rather than an `env:` expression
-      # (GitHub's workflow syntax accepts no expression evaluating to a whole
-      # `env:` mapping, so a variable's KEY cannot be made conditionally absent
-      # there). So an enabled variable is in force for `Run Claude Code` AND every
-      # step after it, including the agent's own git operations.
-      #
-      # Fails OPEN to the working default. An absent helper emits nothing and
-      # exits 0 rather than failing the job: this workflow reaches consumers via
-      # install.sh's file-copy while the helper reaches them via the
-      # prflow_version vendor fetch, so a consumer can carry this step before it
-      # carries the helper, and that skew must not reproduce the outage above.
+      # Default-off pins are job-scoped and remain active during agent and cleanup steps.
+      # The implement tier ignores GIT_DIR because it can corrupt staging from subdirectories.
+      # GIT_WORK_TREE can disrupt plugin cloning; missing helpers leave the working default untouched.
       - name: Resolve git-env pins
         env:
-          # The trigger-time `config` job's default-branch checkout — a trusted
-          # tree, never the PR head. That is what makes these keys post-merge-only.
           GITENV_CFGJSON: ${{ needs.config.outputs.config_json }}
           GITENV_WS: ${{ github.workspace }}
         run: |
@@ -1177,27 +896,12 @@ jobs:
           fi
           bash "$HELPER" --workspace "$GITENV_WS" --config-file "$CFG" --tier implement >> "$GITHUB_ENV"
 
-      # Resolve the DEFAULT-OFF prflow.attribute_commits_to_triggerer flag and,
-      # when enabled, export the four GIT_AUTHOR_*/GIT_COMMITTER_* variables so the
-      # agent's commits are authored by the human who triggered the run (issue #682).
-      # Off by default, so on a stock consumer this step emits NOTHING and commits are
-      # authored exactly as before. Read at TRIGGER time from the trusted `config`
-      # job's default-branch checkout (never the PR head), which makes the flag
-      # post-merge-only. Unlike the git-env-pins step above, this step DOES make a
-      # `gh api users/<login>` call, so it wires GH_TOKEN into its own env: — without
-      # it the call runs unauthenticated against the 60/hr anonymous limit and degrades
-      # every run to the login-only fallback. Fails OPEN: an absent helper (install.sh
-      # ships the workflow, the prflow_version vendor fetch ships the helper, so a
-      # consumer can carry this step first) or an unmaterializable config emits nothing
-      # and exits 0. Attribution is advisory and NEVER gates the run. Commit
-      # author/committer is git metadata, independent of the push token (which stays the
-      # App/github-actions[bot] identity), so this needs no new credential.
+      # Optional attribution reads trusted trigger-time config and needs its own API token.
+      # It changes commit metadata, not push identity; missing helpers/config never block the run.
       - name: Resolve committer identity
         env:
           ATTR_CFGJSON: ${{ needs.config.outputs.config_json }}
           SENDER_LOGIN: ${{ github.event.sender.login }}
-          # The step makes a gh api call, so it must carry a token of its own — the
-          # minted App token when DEVFLOW_APP_ID is set, else the built-in github.token.
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
         run: |
           set -uo pipefail
@@ -1219,28 +923,17 @@ jobs:
           bash "$HELPER" --login "$SENDER_LOGIN" --config-file "$CFG" >> "$GITHUB_ENV" \
             || echo "::warning::devflow commit attribution: the identity helper exited non-zero; continuing with current authorship (attribution never gates the run)."
 
-      # Resolve the allowed-tools string ONCE, as a step output (issue #1170). It used
-      # to be an inline literal inside `claude_args` below, which the grounding block
-      # could not read — and a second, hand-copied list would drift from the real one
-      # the moment either changed. Hoisting it lets the block quote the exact string
-      # this run resolved, by construction (the same single-source shape the
-      # `command`/`runner-review` regions already use in devflow.yml/devflow-runner.yml).
-      #
-      # The TOOLS='…' literal below is a GENERATED region — do NOT hand-edit it. It is
-      # compiled from the `implement` profile in lib/capability-profiles.json by
-      # tools/generators/generate-capability-profiles.py; change a grant there and regenerate. The
-      # banner comment above the assignment carries the manifest_version + the region's
-      # sha256, and lib/test/run.sh's --check turns any manifest↔literal drift RED. The
-      # step appends `allowed_tools_extra` (`${TOOLS}${EXTRA}`) so the resolved output
-      # is the exact string the agent runs under, extras included.
+      # Resolve tools once for both the grounding block and action flag, including configured extras.
+      # Edit grants in lib/capability-profiles.json, then regenerate with
+      # tools/generators/generate-capability-profiles.py; never hand-edit the generated region.
       - name: Resolve allowed-tools
         id: tools
         env:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=implement manifest_version=42 sha256=b40654ae42578d399dfab2b852e4ca8a2172da2ba8f919c255f2e0ee9a1ac1a2
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh run download:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-issue-claim-audit.py:*), Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/pr-note-block.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=implement manifest_version=46 sha256=6adcc87a2d9f675738d6499cf50d9252bb7144f8ee01b67946f4b49ede08ffc5
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, SendMessage, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git hash-object:*), Bash(git checkout:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh run download:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/ci-verification-request.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py:*), Bash(.prflow/vendor/prflow/scripts/ac-verifier-artifacts.py:*), Bash(.prflow/vendor/prflow/scripts/validate-review-fix-handoff.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/pr-note-block.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/discover-deferral-manifests.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/ensure-label.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-pr-triggerer.sh:*), Bash(.prflow/vendor/prflow/scripts/render-pr-provenance-line.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/scripts/apply-issue-dependencies.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-existing-pr.sh:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*), Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*), Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(cmp:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(tee:*)'
           # Union the vendored plugin's own helper grants into the baked list (issue #352).
           # Capture as RESOLVED, never a second TOOLS= (breaks the #1170 single-TOOLS pin and
           # --check); baseline on STDIN and MANIFEST/PROFILE in env, never as args (MSYS rewrites path-shaped args).
@@ -1268,35 +961,14 @@ jobs:
           tdelim="TOOLS_EOF_$(date +%s%N)_$$"
           { printf 'tools<<%s\n' "$tdelim"; printf '%s\n' "$RESOLVED"; printf '%s\n' "$tdelim"; } >> "$GITHUB_OUTPUT"
 
-      # Compose the implement-tier prompt (issue #1170): prepend the engine-ground-truth
-      # block so the agent carries the exact resolved allowed-command list in its own
-      # prompt and can self-diagnose a silently-refused command against it, instead of
-      # guessing. Rendered through the SAME shared helper the review tiers use
-      # (scripts/render-grounding-block.sh), in MODE=implement — so there is no second
-      # copy of the allowed-tools text (the coupled-mirror hazard the block avoids). The
-      # implement mode omits the three review-only sections (CI-results, sole-publisher,
-      # trusted-source displacement).
-      # Verify the OUTCOME (a non-empty block), not the file's existence: a truncated
-      # vendored copy that exits 0 printing nothing FAILS THE JOB rather than shipping an
-      # empty block or a bare prompt. The block is the single home of the cloud
-      # headless-run discipline, so there is no acceptable degraded prompt here. This does
-      # NOT make a denial visible at the moment it happens and does not change the
-      # matcher's response; it only gives the agent the list to check against.
-      #
-      # The three-way selection (renderer absent / renderer produced nothing / compose
-      # and publish) lives in scripts/compose-implement-prompt.sh, NOT inline here, so the
-      # suite can drive each arm and the arm ORDER — CLAUDE.md's inline-shell-extraction
-      # convention: a grep-pin on any one of the ::error:: literals is not coverage of
-      # the selection that chooses between them. Resolved at the vendored path only
-      # (issue #228 removed the repo-path fallback), exactly like the Stop-refresher step below.
+      # Require a non-empty grounding block carrying the exact resolved tools and headless-run rules.
+      # compose-implement-prompt.sh owns the missing/empty renderer failure paths.
       - name: Compose implement grounding block
         id: compose
         env:
           ALLOWED_TOOLS: ${{ steps.tools.outputs.tools }}
           NUMBER: ${{ needs.gate.outputs.number }}
-          # Exported so the composer can render the run-facts block's DEVFLOW_APP_ID line
-          # (issue #40); GITHUB_RUN_ID / GITHUB_RUN_ATTEMPT are runner-ambient. Mirrors the
-          # App-token-minting steps' `vars.DEVFLOW_APP_ID` reference.
+          # Expose the same App configuration signal used by the token mints.
           DEVFLOW_APP_ID: ${{ vars.DEVFLOW_APP_ID }}
         run: |
           set -euo pipefail
@@ -1313,9 +985,7 @@ jobs:
           fi
           bash "$H"
 
-      # Classify prompt-extension arrival (issue #1446). Read the extension root
-      # DIRECTLY, never through the load-prompt-extension.sh delivery channel under
-      # test: routing the detector through it makes a lost extension unobservable.
+      # Inspect extension files directly so a failure in their delivery channel remains observable.
       - name: Classify prompt-extension arrival
         id: extarrival
         run: |
@@ -1341,16 +1011,8 @@ jobs:
           echo "root=$ROOT" >> "$GITHUB_OUTPUT"
           echo "prompt-extension-arrival: implement extension classified state=${STATE:-detector-absent} root=$ROOT"
 
-      # ── Start the EC2 Spot-interruption watcher (issue #261, opt-in) ────────
-      # Opt-in via prflow_implement.spot_interruption_watcher.enabled — a
-      # type-preserving JSON boolean read by watcher-config-enabled.py, NOT
-      # config-get.sh, so a string "true" does not enable it. On a supported Linux
-      # EC2 IMDSv2 host it launches a background poller that, on a Spot
-      # interruption, posts a run-scoped reclaim marker and ends the Claude step so
-      # the always() post-run handlers get the remaining interruption window. A
-      # disabled gate, an absent helper, or an unsupported host is a logged no-op
-      # that leaves the Claude step running (started stays unset → the reap step
-      # below skips). Started BEFORE Run Claude Code; reaped immediately after it.
+      # Opt-in EC2 IMDSv2 watcher records reclaim and ends the Claude step while cleanup can run.
+      # Disabled, missing-helper and unsupported-host paths are logged no-ops; reap immediately after Claude.
       - name: Start Spot-interruption watcher (optional)
         id: spot-watcher
         env:
@@ -1397,26 +1059,9 @@ jobs:
           : > "$STAMP"
           echo "transcript store stamped at $STAMP"
 
-      # ── Execution-transcript streaming gate (issue #799) ────────────────────
-      # The job log is the ONLY channel an ABRUPT runner death preserves. A host-level
-      # termination (`exit code 143` then `The runner has received a shutdown signal`) runs
-      # NONE of this job's own always() post-steps — every one reports `skipped`, not failed —
-      # so the transcript steps below never fire, and #342's native-session fallback cannot
-      # save the run either: that fallback lives INSIDE the step the death skips. The engine
-      # writes its execution file once, after its message loop ends, so the on-disk copy dies
-      # with the host too. What survives is the log the runner already uploaded chunk by chunk.
-      # With show_full_output on, the engine logs every message as it arrives, so that log
-      # carries the transcript and the spot_recovery job below can rebuild it off-host.
-      #
-      # Opt-in and DEFAULT-OFF, and a SEPARATE key from execution_transcript_artifact_enabled:
-      # that key gates a credential-SCRUBBED, 7-day, artifact-scoped copy, while this one puts
-      # the transcript UNSCRUBBED into a job log that a public repository publishes and GitHub
-      # keeps far longer. The two carry different exposure — do not harmonize them.
-      #
-      # The key alone does not open it: scripts/job-log-transcript.sh also needs the
-      # triggering event to report the repository private, and answers false with a
-      # ::warning:: for a public repository or an unstated visibility. The decision lives in
-      # that script so the suite runs the shipped bytes.
+      # Opt-in raw transcript streaming survives abrupt runner loss through the job log.
+      # The gate requires known-private visibility; public or unknown visibility disables it.
+      # Keep this separate from scrubbed artifact consent: job logs expose unsanitized content.
       - name: Resolve execution-transcript streaming gate
         id: stream_transcript
         env:
@@ -1434,162 +1079,34 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c # v1.0.233 (CLI 2.1.281)
         env:
-          # Surfaces the workflow-capable-token signal to the /devflow:implement
-          # agent's Phase 1.6 execution-capability pass (Pass 5, issues #346/#350).
-          # NON-EMPTY ⇒ the App token minted above (Contents + Workflows write) is
-          # seeded into actions/checkout (#357), so the agent CAN push
-          # .github/workflows/ and workflow-resident ACs are NOT deferred. EMPTY ⇒
-          # the checkout credential is the built-in GITHUB_TOKEN (github-actions[bot]),
-          # which cannot push .github/workflows/, so Pass 5 defers those ACs at plan
-          # time. Always exported (empty-valued when the variable is unset) so the
-          # pass reads a definite signal rather than an absent one. Coupled to Pass 5's
-          # keying in skills/implement/phases/phase-1-setup.md and its lib/test/run.sh pins.
+          # Expose the checkout credential capability so planning can identify workflow-file push limits.
           DEVFLOW_APP_ID: ${{ vars.DEVFLOW_APP_ID }}
-          # Propagate the run's origin identity to the writer so Phase 3.1.1 can assign
-          # the newly-created draft PR to the developer who triggered the run (issue
-          # #1165). The gate resolver decides it: the actor on a direct trigger (the same
-          # trusted login authorization and commit attribution use), or the human the
-          # resume chain started from on an automatic resume, whose sender is the App
-          # (issue #512). The sender fallback keeps a workflow newer than its vendored
-          # plugin assigning direct human triggers. apply-pr-triggerer.sh is FAIL-CLOSED
-          # on identity: an empty value, or a `[bot]` login, makes it skip assignment
-          # rather than substitute the token owner / App identity / GITHUB_ACTOR. Kept
-          # under the frozen DEVFLOW_ prefix (the rename contract freezes env identifiers).
+          # Carry the original human into PR assignment; the helper rejects empty or bot identities.
+          # The sender fallback supports direct triggers with older vendored resolvers.
           DEVFLOW_TRIGGERING_USER: ${{ needs.gate.outputs.triggering_user || github.event.sender.login }}
-          # Harness floor for the dispatch barrier (issue #801) — full rationale in
-          # devflow-runner.yml's copy of this entry. On this tier it binds the Phase 2
-          # code-explorer/code-architect dispatches, the Phase 3 inline review pass,
-          # and the Phase 4.1 docs subagent; the runner-agnostic half is the barrier
-          # statement in skills/implement/SKILL.md.
+          # Keep dispatched work foregrounded so the headless run can collect it before exiting.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          # Anthropic-default path only: pass the OAuth token when no provider is
-          # active. A provider-routed section passes '' here (the action treats
-          # empty as absent) and authenticates via anthropic_api_key below.
+          # OAuth is exclusive to the default path; routed providers use their own credentials.
           claude_code_oauth_token: ${{ steps.provider.outputs.provider == '' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
-          # Provider path only: the fixed DEVFLOW_PROVIDER_API_KEY secret satisfies
-          # the action's launch check (and, for bearer auth, is ALSO exported as
-          # ANTHROPIC_AUTH_TOKEN by the inject step). Empty on the default path.
-          # use_bedrock selects Amazon Bedrock at the action layer; it must travel as this
-          # input (not a job-env export) because the action's step-level env overrides the
-          # job env, blanking a job-env CLAUDE_CODE_USE_BEDROCK. Empty off the Bedrock arm.
+          # Bedrock must use the action input: its step env overrides a job-level provider toggle.
           use_bedrock: ${{ steps.provider.outputs.auth == 'bedrock_api_key' && 'true' || '' }}
-          # anthropic_api_key rides on the bearer/api_key arms; the bedrock_api_key arm
-          # passes '' here and authenticates via AWS_BEARER_TOKEN_BEDROCK.
+          # Bedrock authenticates with AWS_BEARER_TOKEN_BEDROCK; other routed providers use this key.
           anthropic_api_key: ${{ steps.provider.outputs.provider != '' && steps.provider.outputs.auth != 'bedrock_api_key' && secrets.DEVFLOW_PROVIDER_API_KEY || '' }}
-          # Use the minted App token for git auth when the opt-in App is
-          # configured; otherwise fall back to the built-in GITHUB_TOKEN (the
-          # skipped-step path, identical to pre-change behavior).
           github_token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           allowed_bots: ${{ needs.config.outputs.allowed_bots }}
 
-          # Always agent mode: the gate resolved a single issue number, so the
-          # action never depends on `@claude` or on reading the raw body.
-          # Anthropic's stock claude.yml (tag mode) therefore never double-fires
-          # on a bare `/devflow:implement <n>` comment.
-          # The `Compose implement grounding block` step prepends the
-          # engine-ground-truth block (issue #1170) and FAILS the job when it cannot,
-          # because that block is this run's only statement of the headless-run
-          # discipline. The `||` bare-prompt default is therefore unreachable in
-          # practice; it is kept as the last line of defense so a future step that
-          # publishes no `prompt` output cannot hand the action an empty prompt.
+          # The composer requires grounding; the fallback prevents an empty agent-mode prompt.
           prompt: ${{ steps.compose.outputs.prompt || format('/prflow:implement {0}', needs.gate.outputs.number) }}
 
-          # Agent mode is silent by default; surface a progress comment so the
-          # requester sees the run was picked up (applies to all paths now).
           track_progress: false
 
-          # This is an optional setting that allows Claude to read CI results on PRs
           additional_permissions: |
             actions: read
 
-          # Raise the Bash tool's per-command ceiling on THIS tier (issue #1179): the
-          # 1200000 ms (20 min) BASH_MAX_TIMEOUT_MS below is a BOUND on any single Bash
-          # command, not a removal — a genuinely hung command still terminates well inside
-          # the job budget. The wrong change it prevents: lowering that bound below the
-          # measured whole-suite coordinator wall (lib/test/run-parallel.sh, #1086), which
-          # would kill the coordinator mid-run with no output when a run chose the full
-          # suite. The coordinator ran 592s (9.9 min), measured 2026-09-03 in Actions run
-          # 33709922152, so 20 min keeps ample headroom.
-          # Rationale lives in docs/internal/claude-md-tiered-suite-rationale.md.
-          #
-          # MECHANISM — AND WHY THIS CANNOT DROP THE BASE `.claude/settings.json` HOOKS.
-          # This is the PR-#1205 review's blocking question, and it is answered from
-          # claude-code-action's own source rather than left as the "merge or overwrite?"
-          # unknown devflow-runner.yml records. The input is written to the USER settings
-          # file, NOT to this repo's project settings: base-action/src/index.ts calls
-          # setupClaudeCodeSettings(INPUT_SETTINGS, undefined /* homeDir */), and
-          # base-action/src/setup-claude-code-settings.ts resolves that undefined homeDir
-          # to os.homedir(), i.e. $HOME/.claude/settings.json, merging the input over
-          # whatever that file already held with a shallow top-level spread. The repo's
-          # project settings file, $GITHUB_WORKSPACE/.claude/settings.json, registers NO
-          # Stop hooks (issue #274 deleted them): the #356/#498 stall/dead-run backstop is the
-          # post-agent workflow step below, and the DEVFLOW_TELEMETRY_PUSH-authorized telemetry
-          # --persist runs from the Loop-Exit fences and that backstop step, not from a hook.
-          # base-action/src/parse-sdk-options.ts still passes
-          # settingSources: ["user", "project", "local"] to the Agent SDK, so the user file
-          # this input writes and the project file are loaded together, so the input cannot
-          # displace any `hooks` the project file declares.
-          #
-          # REGISTER OF THE PARAGRAPH ABOVE (PR #1205 review round 2). It is a READ of
-          # claude-code-action's source — not a measurement taken here, and not a documented
-          # input contract — held to the same standard as the runner-source inference
-          # further down. The `uses:` on this step floats at `@v1`, so a minor or patch
-          # release moves that source with nothing here to notice it: re-verify those source
-          # facts after ANY claude-code-action upgrade, not only a major one. Leaving the
-          # action unpinned is the deliberate choice — a SHA pin would freeze the source
-          # this paragraph reads, but it would also drop the automatic patch pickup `@v1`
-          # gives every other input on this step, and which `uses:` form this repo wants is
-          # a repo-wide policy question rather than one for this block to settle.
-          #
-          # Two residuals for a future editor. (1) The merge is shallow, so a second
-          # top-level key added here REPLACES (never deep-merges) a same-named key already
-          # in the user settings file. (2) A `hooks` key added to THIS block would register
-          # ADDITIVELY alongside the project hooks rather than replacing them — which is why
-          # lib/test/run.sh's #908 AC1 guard permits an env-only settings block on this tier
-          # and fails closed on any `hooks`/PreToolUse shape.
-          #
-          # Why the settings `env` object and not a step-level `env:` (issue #1179's
-          # option 2): #1179 makes option 1 the default unless a step-level `env:` is
-          # DEMONSTRATED to reach the CLI process the composite action spawns. GitHub
-          # documents NOTHING either way for the step-level-env -> composite-action case
-          # (the `env` context reference and `steps[*].env` never join the two; the
-          # explicit non-propagation sentence GitHub does publish is about REUSABLE
-          # WORKFLOWS, not composite actions), and claude-code-action's own action.yml
-          # steers callers to job-level `env:` / $GITHUB_ENV for variables it does not
-          # itself forward — which is why this repo sets DEVFLOW_TELEMETRY_PUSH at JOB
-          # level for its own subprocess reach. Reading actions/runner source suggests a
-          # step-level `env:` WOULD in fact arrive (CompositeActionHandler.cs merges the
-          # calling step's env overrides into each embedded step's env context, and
-          # parse-sdk-options.ts then hands the Agent SDK {...process.env}) — but that is
-          # inference from an unpinned runner implementation, not a documented contract
-          # and not a measurement taken here, so it does not clear #1179's bar. The
-          # settings `env` object is the route the action documents as an input, and the
-          # scope question above is answered for it as far as a source read can answer one
-          # — so there is nothing to gain by moving the value.
-          #
-          # This repository defines no in-run decomposition path for a command terminated
-          # at this raised ceiling; such a run records Blocked.
-          #
-          # THE FREE ALLOWANCE IS A SECOND, DISTINCT VARIABLE. Claude Code documents
-          # BASH_DEFAULT_TIMEOUT_MS (the timeout a Bash call gets when it requests none,
-          # default 120000 ms) separately from BASH_MAX_TIMEOUT_MS (the largest timeout the
-          # model may request). #1179 raised only the ceiling, so an unparameterized command
-          # still died at two minutes: Actions run 31424543691 spent 480 s — 9.2% of an
-          # 87-minute run — on four commands killed at 120000 ms and then re-issued with an
-          # explicit longer timeout.
-          #
-          # 900000 and not 1200000, for three reasons. (a) The whole-suite coordinator
-          # (lib/test/run-parallel.sh, #1086) is measured at 592 s on this tier (Actions run
-          # 33709922152, 2026-09-03) — only eight seconds under the old 600000 ms allowance, so
-          # ordinary run-to-run variance pushed a full suite launched without an explicit
-          # timeout past that wall and killed it; 900000 ms (15 min) clears the 592 s wall by
-          # about five minutes. (b) Keeping a gap between the free allowance
-          # and the ceiling means a genuinely hung UNPARAMETERIZED command costs fifteen
-          # minutes rather than twenty. (c) The effective per-command wall resolves to the
-          # LARGER of the two, so a default at or above the max would silently redefine the
-          # bound #1179 chose — which is why lib/test/run.sh asserts default < max per step
-          # rather than merely asserting the key is present.
+          # Keep the default timeout below the per-command ceiling; both remain bounded.
+          # Use the documented settings input and keep it env-only. It writes user settings,
+          # not project hooks; its shallow merge behavior must be rechecked after action upgrades.
           settings: |
             {
               "env": {
@@ -1598,55 +1115,22 @@ jobs:
               }
             }
 
-          # Composed by the `Compose plugin inputs` step above (issue #505): the
-          # baked baseline (byte-identical across the three call sites — run.sh
-          # pins it) PLUS the entries .claude/settings.json declares. Kept in sync
-          # with devflow.yml so both listeners expose the same skill surface.
-          # Consumed here from the `vendor_marketplace` step (issue #1049), which
-          # post-processes that composed list so `devflow-marketplace` resolves from
-          # the vendored subtree instead of the repo-root `./` — the command tier
-          # (devflow.yml) consumes the same step; devflow-runner.yml alone still consumes
-          # steps.plugins directly.
+          # Consume the rewritten vendored marketplace; settings-declared extras remain composed.
           plugin_marketplaces: ${{ steps.vendor_marketplace.outputs.plugin_marketplaces }}
 
-          # The baked baseline (PRFlow itself) is composed by the step above;
-          # settings-declared extras are appended beyond it.
           plugins: ${{ steps.plugins.outputs.plugins }}
 
           base_branch: ${{ needs.config.outputs.base_branch }}
-          # Optional pre-installed Claude Code executable (issue #601). Empty (the
-          # default) is the empty-as-absent idiom of claude_code_oauth_token above:
-          # the action auto-installs, unchanged for Linux. Full rationale + the
-          # self-hosted-Windows use case are on the config-job extraction above.
           path_to_claude_code_executable: ${{ needs.config.outputs.claude_code_executable }}
-          # Stream every engine message into THIS job's log so an abrupt runner death still
-          # leaves a rebuildable transcript (issue #799). The comparison renders a literal
-          # true/false, so a gate step that wrote no output passes false.
+          # An absent gate output must disable raw job-log streaming.
           show_full_output: ${{ steps.stream_transcript.outputs.show_full_output == 'true' }}
-          # claude_args head is a COMPUTED string (steps.cargs): --model always,
-          # --effort conditional on effort_supported (issue #313). The --allowed-tools
-          # tail consumes the `Resolve allowed-tools` step's output (issue #1170) —
-          # the hoisted, GENERATED `implement` region now lives in that step, so the
-          # grounding block and this flag quote the SAME resolved string and cannot
-          # drift. Change a grant in lib/capability-profiles.json and regenerate; the
-          # banner + --check gate live with the TOOLS='…' assignment in the step above
-          # (devflow-runner.yml/devflow.yml/matcher-probe.yml are generated from the
-          # same manifest). Reachable bundled helpers from skills/review*/SKILL.md are
-          # granted in that region as vendored literals because Phase 3 runs the review
-          # engine INLINE under this allowlist (#484) — otherwise the engine silently
-          # refuses them (#363).
+          # The action and grounding block consume the same resolved allowed-tools output.
           claude_args: >-
             ${{ steps.cargs.outputs.args }}
             --allowed-tools "${{ steps.tools.outputs.tools }}"
 
-      # ── Reap the Spot-interruption watcher (issue #261, AC44) ───────────────
-      # The FIRST post-run step after Run Claude Code, ahead of every other always()
-      # handler (credential-refresher stop, diagnostics, transcript, stall backstop),
-      # so the watcher can neither publish a reclaim marker after the Claude-step
-      # boundary nor terminate a later cleanup phase. Stops the EXACT pid the watcher
-      # recorded — never a name/pattern that could match an unrelated process.
-      # Best-effort: always exits 0; a still-alive watcher after SIGKILL is surfaced
-      # as a ::warning:: rather than silently tolerated.
+      # Reap the exact watcher PID before any other cleanup so it cannot interrupt later handlers.
+      # Failure to stop it is a visible warning, not a new job failure.
       - name: Reap Spot-interruption watcher
         if: ${{ always() && steps.spot-watcher.outputs.started == 'true' }}
         env:
@@ -1670,22 +1154,11 @@ jobs:
             echo "reap spot-watcher: watcher stopped (PID ${PID:-none})"
           fi
 
-      # Retire the detached credential refresher (issue #487). Best-effort,
-      # always() so it runs on every exit path. The kill-by-pidfile, log-tail, and
-      # defeated-refresher ::warning:: logic lives in scripts/stop-refresher.sh so
-      # the branch/message selection is suite-drivable (CLAUDE.md inline-shell-
-      # extraction convention). Vendored copy, vendored path only (issue #228 removed the repo-path fallback).
+      # Always reap the detached refresher; stop-refresher.sh owns defeat diagnostics.
       - name: Stop credential refresher (optional)
         if: ${{ always() && vars.DEVFLOW_APP_ID != '' }}
         env:
-          # The Start step's outcome. stop-refresher.sh treats the launcher as having
-          # RAN when this is `success` OR `failure` (a ran-and-failed launcher is still
-          # a genuine never-started defeat — arm18), and as NOT run when `skipped` OR
-          # `cancelled` (an upstream early-abort), where a missing pidfile is expected
-          # rather than a defeat. (In practice the Start step's run: ends on a bare echo
-          # and never waits on its backgrounded nohup, so it realistically only yields
-          # success or skipped/cancelled — but the contract handed to the helper is the
-          # broader four-way one above.)
+          # A failed launch ran; skipped/cancelled launches legitimately have no pidfile.
           DEVFLOW_REFRESH_STARTED: ${{ steps.refresher.outcome }}
         run: |
           # Derive the self-test marker path in this step's own body (issue #1925),
@@ -1696,27 +1169,14 @@ jobs:
           H=.prflow/vendor/prflow/scripts/stop-refresher.sh
           bash "$H"
 
-      # Surface the claude-code-action run's execution diagnostics (run summary +
-      # permission-denial detail) to the job log and $GITHUB_STEP_SUMMARY so a
-      # maintainer debugging a stalled / incomplete / unexpectedly-denied cloud
-      # run sees the denial detail and run shape directly — the exact information
-      # that was irrecoverable for PR #325 (issue #331; helper + config key
-      # shipped in #329). Read-only: the helper always exits 0, this step adds no
-      # permissions grant / minted-token scope and uploads no artifact, so it
-      # never changes the job's pass/fail. always() so it runs even when the
-      # claude step errored — which is exactly when the diagnostics matter. Gated
-      # on .prflow.execution_diagnostics_enabled (default true) via the vendored
-      # config-get.sh (vendored path only (issue #228 removed the repo-path fallback)); only the
-      # exact string "false" disables it, and an empty read (config-get soft/hard
-      # failure) falls safe to enabled.
+      # Best-effort diagnostics stay enabled unless explicitly false and do not change job status.
+      # The helper owns bounded denial detail and safe rendering.
       - name: Surface execution diagnostics
         id: diag
         if: always()
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          # The renderer emits one ::error:: annotation naming the cause set when the
-          # engine reported an error OR the claude step failed (issue #158); it reads
-          # the step outcome here. It never changes this step's exit status.
+          # Renderer annotations include the Claude step outcome without changing this step status.
           CLAUDE_STEP_OUTCOME: ${{ steps.claude.outcome }}
         run: |
           set -euo pipefail
@@ -1745,12 +1205,8 @@ jobs:
             echo "::notice::surface-execution-diagnostics.sh absent; execution diagnostics not surfaced (best-effort)."
           fi
 
-      # Parse the engine's is_error out of the execution log (issue #158), mirroring
-      # devflow.yml's engine step and reusing the same unit-tested helper. This
-      # gives the Stall backstop's cause line its second operand. It is DELIBERATELY
-      # NOT read by the Stall backstop's resume-or-fail decision, which stays keyed
-      # on the workpad Status alone — adding this step must not change that decision.
-      # Fail-safe: an absent/unparseable log yields false, matching the helper.
+      # Engine errors inform the cause line, not the workpad-based resume decision.
+      # Absent or unparseable logs retain the helper's false fallback.
       - name: Surface engine execution result
         id: engine
         if: ${{ always() }}
@@ -1770,30 +1226,9 @@ jobs:
           fi
           echo "is_error=$IS_ERROR" >> "$GITHUB_OUTPUT"
 
-      # ── Execution-transcript artifact channel (issue #1064 D3) ──────────────
-      # Per-workflow D3 inclusion decisions (AC13), recorded here in the shipped code:
-      #   devflow-implement.yml (THIS file): INCLUDE — the longest, most expensive
-      #     autonomous runs and the tier where a silent denial most often ends a run
-      #     with nothing to show; highest forensic value, previously had none.
-      #   devflow.yml: INCLUDE — runs the same shared review engine on the surviving
-      #     manual path; a denial there is the same no-verdict failure mode (symmetry).
-      #   devflow-retrospective.yml: INCLUDE — the scheduled self-improvement loop; a
-      #     silent denial there ends a whole weekly run reporting success while filing
-      #     nothing, and it previously had no transcript channel at all to diagnose that.
-      #   devflow-runner.yml: KEEP AS-IS — already has it; retained per CLAUDE.md's
-      #     withheld-tier reconstructability rule (a pre-#937 consumer still runs it).
-      #   matcher-probe.yml: EXCLUDE — already uploads a STRUCTURALLY-REDACTED shape
-      #     record purpose-built for it; a second un-redacted channel on a maintainer
-      #     probe adds exposure without a diagnosis it lacks.
-      #   agents-seam-probe.yml: EXCLUDE — single-purpose, short, maintainer-dispatched;
-      #     verdict computed deterministically; no denial-diagnosis story to preserve.
-      #   telemetry-push.yml: n/a — invokes no engine.
-      # Opt-in and DEFAULT-OFF via execution_transcript_artifact_enabled (a transcript can
-      # carry a dumped environment, so a consumer must never start publishing transcripts
-      # merely by upgrading). This is the OPPOSITE default from the D5 denial-command key,
-      # which is default-ON because it is a bounded, scrubbed, command-only field — the two
-      # are deliberately NOT harmonized. The scrub/gate/caveat/fail-closed lives in the
-      # shared scripts/scrub-transcript.sh helper (D4), not inline here.
+      # Transcript artifacts are default-off: even scrubbed transcripts can contain private data.
+      # Denial-command diagnostics have separate default-on consent; do not combine the gates.
+      # scrub-transcript.sh owns redaction and fail-closed publication.
       - name: Scrub execution transcript for upload
         id: scrub_transcript
         if: always()
@@ -1843,18 +1278,11 @@ jobs:
       - name: Persist review-and-fix observability artifacts (backstop)
         if: ${{ always() }}
         env:
-          # Harness-side cost floor inputs (issue #475). On devflow-implement.yml the
-          # command class is always `implement` and the candidate is the ISSUE number
-          # (needs.gate.outputs.number); prepare-harness-floor.sh resolves the PR opened
-          # for it (the skeleton slug) via the closes-issue predicate.
+          # The floor helper resolves the opened PR from this implementation issue.
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
           DEVFLOW_COMMAND: implement
           DEVFLOW_CANDIDATE_NUMBER: ${{ needs.gate.outputs.number }}
-          # Job-lifetime-valid token for the floor's gh PR resolution: the job-start App
-          # token can already be past its ~60-minute lifetime by backstop time (#287).
-          # Run-profile floor (issue #2006). The engine step's own outcome, which the run
-          # cannot read for itself mid-run — an always() step can read any prior step's
-          # context, so the workflow supplies it here.
+          # Use a job-lifetime token for PR resolution; supply the final engine outcome to the floor.
           DEVFLOW_ENGINE_OUTCOME: ${{ steps.claude.outcome }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -1952,21 +1380,8 @@ jobs:
             bash "$HELPER" --persist
           exit 0
 
-      # ── Fresh App token for the stall backstop (issue #287) ────────────────
-      # The `app-token` step above is minted at the START of the `claude` job,
-      # which can run well over an hour — longer than a GitHub App installation
-      # token's ~60-minute lifetime. The stall backstop that fires AFTER that
-      # long run would otherwise inherit an already-expired token, so its
-      # workpad read 401s, a healthy workpad is misclassified, and auto-resume
-      # can never fire on exactly the long runs that need it. Mint a fresh token
-      # here, just-in-time (< 1 min old), mirroring the writer mint (same
-      # client-id/private-key, full installation scope); the gate adds `always()`
-      # so it still mints after a failed claude job (do NOT "reconcile" it back
-      # to the writer's bare `if:` — that would break the backstop on failed
-      # runs). When
-      # DEVFLOW_APP_ID is unset this step is skipped and its output token is
-      # empty, so the backstop's GH_TOKEN falls back to GITHUB_TOKEN exactly as
-      # before — the non-adopter path is byte-for-byte unchanged.
+      # Mint a fresh backstop credential after the long agent run, including failure paths.
+      # The job-start App token may have expired; an unconfigured App still uses GITHUB_TOKEN.
       - name: Mint stall-backstop token (optional)
         id: backstop-token
         if: ${{ always() && vars.DEVFLOW_APP_ID != '' }}
@@ -1975,57 +1390,24 @@ jobs:
           client-id: ${{ vars.DEVFLOW_APP_ID }}
           private-key: ${{ secrets.DEVFLOW_APP_PRIVATE_KEY }}
 
-      # ── Stall backstop (issue #268; primitives from #266) ──────────────────
-      # A headless single-shot claude-code-action run can end mid-lifecycle yet
-      # report success (the SDK ends the session on a tool-call-free turn), so
-      # this deterministic post-run step keys on the issue workpad Status —
-      # never PR draft state — and acts on the pure decision helper's verdict:
-      # terminal → no-op; interim → audit comment + re-dispatch (bounded by
-      # stall_backstop.max_resume_attempts); cap exhausted or unreadable →
-      # distinct comment + non-zero exit (the job goes honestly red). A gh-api/
-      # transport/auth failure reading the workpad is a distinct auth-failure
-      # class — it fails loud without consuming a resume attempt and is never
-      # mislabeled unreadable. Auto-resume needs the optional DEVFLOW_APP_ID App
-      # token AND that App's bot login in prflow.allowed_bots; fail-loud works
-      # under either token — see https://prflow.ai/docs/workflows/implement for the full boundary
-      # discussion.
+      # A successful headless exit can still be a stall; decide from the workpad's status.
+      # The helper bounds resumes and distinguishes exhausted, unreadable and auth-failure paths.
+      # Auto-resume requires the App token and its bot in allowed_bots; other paths fail loud.
       - name: Stall backstop
         if: ${{ always() }}
         env:
-          # The freshly-minted backstop token (issue #287), NOT the stale
-          # claude-job-scoped app-token — falls back to GITHUB_TOKEN when the
-          # opt-in App is unconfigured, identical to the pre-change behavior.
+          # Use the fresh backstop token, never the potentially expired job-start token.
           GH_TOKEN: ${{ steps.backstop-token.outputs.token || secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
-          # Whether the workflow-capable App token was actually minted: a
-          # GITHUB_TOKEN-authored resume comment never re-triggers the workflow
-          # (GitHub suppresses recursive GITHUB_TOKEN events), so a resume
-          # decision without the App token must fail loud, not read as green.
-          # Keyed on the fresh backstop token (issue #287): when DEVFLOW_APP_ID
-          # is set both mints yield a token so this stays true, and when unset
-          # both are empty so it stays false — same value either way.
+          # GITHUB_TOKEN comments cannot retrigger workflows, so resume requires an App token.
           APP_TOKEN_PRESENT: ${{ steps.backstop-token.outputs.token != '' }}
-          # The claude step's outcome disambiguates the missing-vendored-dir
-          # case: on a failed/skipped claude step the job is already red (or
-          # deliberately not running), so skipping here is benign; on a
-          # successful claude step a vanished vendored dir means the backstop
-          # was silently disarmed — fail loud instead of masking it.
+          # A missing vendor tree after Claude success must fail loud instead of disarming the backstop.
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
-          # The job's status (issue #498): success / failure / cancelled. The
-          # decide helper's fifth argument; only the exact string `cancelled`
-          # selects the cancellation-exclusion path (a cancel is a decided end,
-          # not a stall). Deliberately the documented job-context string, not a
-          # status-check function (the docs scope those to `if:` conditionals).
+          # Pass the job-context status; cancellation is a decided end, not a stall.
           JOB_STATUS: ${{ job.status }}
-          # The origin identity this resume chain must carry forward (issue #512).
-          # The BARE gate output, with no sender fallback: a bot login must never be
-          # written into the origin line, so an unreadable origin writes no line and
-          # the resumed run's assignment skips instead.
+          # Carry only the resolved human origin; never substitute the bot that posted a resume.
           RESUME_ORIGIN: ${{ needs.gate.outputs.triggering_user }}
-          # The cause set (issue #158), so each failure comment's cause line names
-          # the engine's reason. ENGINE_ERROR comes from the new engine-parse step
-          # (which does NOT feed the resume-or-fail decision). result_excerpt is not
-          # passed — the excerpt reaches no comment.
+          # Engine errors enrich the cause only; do not include result excerpts in comments.
           ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
           SUBTYPE: ${{ steps.diag.outputs.subtype }}
           TERMINAL_REASON: ${{ steps.diag.outputs.terminal_reason }}
@@ -2408,14 +1790,10 @@ jobs:
           [ "$FAIL" -eq 1 ] && flip_to_failed "${DECISION}"
           exit "$FAIL"
 
-      # Reconcile prompt-extension arrival (issue #1446) against the run's own durable
-      # workpad. Never leave a deliverable-but-unrecorded extension clean: that is the
-      # exact shape a lost skill body produces, and a lost body can tick no row itself.
+      # Reconcile against the durable workpad so a lost extension cannot appear successfully delivered.
       - name: Reconcile prompt-extension arrival
         if: ${{ always() }}
         env:
-          # Spell the fallback github.token, not secrets.GITHUB_TOKEN: the latter
-          # duplicates the stall-backstop step's pinned GH_TOKEN literal.
           GH_TOKEN: ${{ steps.backstop-token.outputs.token || github.token }}
           ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
           EXPECTED: ${{ steps.extarrival.outputs.state }}
@@ -2527,17 +1905,9 @@ jobs:
           echo "prompt-extension-arrival: implement extension arrival reconciled: $FINAL"
           exit 0
 
-  # ── Downstream Spot-reclaim recovery job (issue #261) ─────────────────────
-  # A reclaimed EC2 Spot runner never executes the claude job's own always()
-  # handlers (the stall backstop among them), so this SEPARATE job — on
-  # GitHub-hosted ubuntu-latest, never DEVFLOW_RUNNER/DEVFLOW_LIGHT_RUNNER —
-  # reconciles a terminal `claude` result. It gates on the upstream config+gate
-  # jobs having SUCCEEDED (a dead job emits no outputs, so every input it needs
-  # comes from config/gate or is re-derived from the API), evaluates only
-  # cancelled/failure results (success/skipped preserve current behavior), calls
-  # the merged recovery-classify.sh, and acts on reclaim/human-cancel/
-  # unclassifiable exactly as the acceptance criteria state. Every state-changing
-  # branch is idempotent and guarded by the exact run-attempt identity.
+  # Run recovery on a separate hosted runner because reclaim skips in-job cleanup.
+  # Use config/gate facts and API evidence; dead Claude jobs provide no outputs.
+  # Reconcile failure/cancellation idempotently against the exact run attempt.
   spot_recovery:
     needs: [config, gate, claude]
     if: >
@@ -2548,10 +1918,7 @@ jobs:
       needs.gate.outputs.duplicate != 'true' &&
       (needs.claude.result == 'cancelled' || needs.claude.result == 'failure')
     runs-on: ubuntu-latest
-    # Least privilege, and EXACTLY these five (issue #261 AC46): reads for the
-    # jobs/check-runs APIs the evidence gatherer paginates, issues:write for the
-    # resume comment / workpad flip, pull-requests:read for the mirror. No
-    # contents:write, no id-token, no actions:write.
+    # Read recovery evidence and write issue state only; no contents, actions or OIDC write grants.
     permissions:
       contents: read
       actions: read
@@ -2560,26 +1927,13 @@ jobs:
       pull-requests: read
     steps:
       - uses: actions/checkout@v6
-      # Materialize the vendored plugin so the helpers resolve at the literal
-      # workspace path, exactly as the other jobs do.
       - uses: ./.github/actions/vendor-plugin
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
           repo: ${{ needs.config.outputs.prflow_repo }}
           token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
-      # ── Rebuild the transcript the dead runner could not upload (issue #799) ──
-      # Both steps are continue-on-error: a failed rebuild or upload (an API 5xx, a 409 name
-      # conflict, a timeout) must never skip the reconcile step below, which re-triggers a
-      # reclaimed run. The rebuild reads the claude job's log — uploaded chunk by chunk while
-      # the agent was alive — and publishes under the SAME artifact name the in-job channel
-      # uses, so a reader keyed on that name finds it. The step's shell is
-      # scripts/job-log-transcript.sh, which the suite runs directly.
-      #
-      # Gated on execution_transcript_artifact_enabled, the same key as that channel: the
-      # artifact carries the same content with the same scrub, so it must carry the same
-      # consent. Skipped when the artifact already exists — a GRACEFUL cancel DOES run the
-      # in-job steps, and actions/upload-artifact refuses a duplicate name — and skipped when
-      # the artifact listing cannot be read, because an unknown listing is not an absent one.
+      # Rebuild only with artifact consent and a readable listing proving the artifact absent.
+      # Use the in-job artifact name and scrubber; rebuild/upload failures must not skip recovery.
       - name: Rebuild the execution transcript from the claude job log
         id: rebuild_transcript
         continue-on-error: true
@@ -2606,10 +1960,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # Best-effort fresh App-token mint (issue #287 pattern) — a resume comment
-      # must be App-authored to re-trigger the workflow (a GITHUB_TOKEN-authored
-      # comment never does). continue-on-error: a broken App degrades to
-      # fail-toward-no-resume rather than failing this recovery job.
+      # A fresh App token can retrigger recovery; mint failure must degrade to no resume.
       - name: Mint recovery token (optional)
         id: recovery-token
         if: ${{ vars.DEVFLOW_APP_ID != '' }}
@@ -2620,16 +1971,13 @@ jobs:
           private-key: ${{ secrets.DEVFLOW_APP_PRIVATE_KEY }}
       - name: Reconcile reclaim vs human-cancel and act
         env:
-          # Reads (jobs/checks/comments) use the job-scoped GITHUB_TOKEN; the
-          # resume comment uses the App token so it can re-trigger.
+          # Read with GITHUB_TOKEN; post the resume with the App token so it can retrigger.
           GH_TOKEN: ${{ github.token }}
           APP_TOKEN: ${{ steps.recovery-token.outputs.token }}
           APP_TOKEN_PRESENT: ${{ steps.recovery-token.outputs.token != '' }}
           ISSUE_NUMBER: ${{ needs.gate.outputs.number }}
           JOB_RESULT: ${{ needs.claude.result }}
-          # The origin identity this resume chain carries forward (issue #512) — the
-          # BARE gate output, read from the gate job rather than the reclaimed claude
-          # job, with no sender fallback so a bot login is never written into the line.
+          # Use the gate's resolved human origin; the reclaimed job cannot supply it.
           RESUME_ORIGIN: ${{ needs.gate.outputs.triggering_user }}
         run: |
           set +e

@@ -2,140 +2,144 @@
 
 ### Step 4: Review with the user, then create
 
-Sub-steps: 1 present the draft (saved-file path by default; body in chat on request) · 2 write the draft file · 3 render the audit summary line and disclosures · 3a the combined decision question · 4 iterate on feedback · 5 create — the approval re-check here, then `references/step-4-create.md` (creation, 5a label, 5b dependencies, 5c investigation record) or `references/step-4-amend.md` (the amend arm) · 5d scratch cleanup · 6 the single post-creation pause (assignment + gated implement offer; `references/step-4-create.md`).
+Sub-steps: 1 present the draft · 2 write the record file · 3 render the audit summary line and disclosures · 3a the
+combined decision question · 4 iterate on feedback · 5 file the new or widened issue — `references/step-4-create.md`
+(send and read-back, 5a label, 5b dependencies, 5c investigation record) · 5d scratch cleanup · 6 apply 3a's
+assignment and implement-offer answers (`references/step-4-create.md`).
 
-Every pre-creation question this step asks is 3a's one combined decision question — one question per presentation, re-asked whole only where 3a says so. Nothing is asked before the draft has been presented (its saved-file path at sub-step 3, or the body on a forced-render arm), and nothing that gates creation is asked after `record-creation-epoch` binds it; sub-step 6's post-creation pause gates nothing.
+Present the draft (its path at sub-step 3, or the body on a forced-render arm) before asking 3a's filing-decision
+question or its one-question follow-ups. Re-ask that question whole only where 3a says so. Nothing is asked once
+sub-step 5 begins.
 
-**The issue is never created until the user has seen the draft as presented — its saved-file path, or the body printed on request — and explicitly approved it.** This gate is **unconditional** — no matter how thoroughly Step 2 resolved every decision, and no matter what the user said earlier. A rough user story is not approval of the assembled ticket.
+**An interactive run creates only after the user explicitly approves the presented draft at 3a.**
+Step 2's resolved decisions, an earlier "just create it" / "you decide", the rough user story,
+and disengagement are not approval of that draft. Without confirmation, pause at todo 6.
+A non-interactive run uses 3a's election rule below; every run presents before filing.
 
-**Presentation gate (before the draft is shown).** Clear these four in order. Each blocks presentation only; none blocks creation.
+1. **Present the draft — the working-draft file's path by default, body in chat only on request.** The working-draft
+   file is the default presentation, and its path is shown at sub-step 3. Print the full body in chat only when the user
+   chooses *Print the full draft in chat* at 3a, or on a forced-render arm — a run whose working-draft file never landed
+   (the draft is in your message), or a non-interactive run — each of which prints the body before 3a's question and
+   offers no print answer. **When you do print it**, post the exact title, the full body — every section, verbatim, as
+   Markdown — then the record bucket. Do not use the runner's user-question tool (`AskUserQuestion` or its equivalent)
+   to stand in for showing the body — such tools truncate.
+2. `rm -f` any leftover `.prflow/tmp/spec/<slug>/issue-record-<slug>.md`, anchored to the working directory, and Write
+   the record bucket there (an empty file when empty), whatever `spec.investigation_record_enabled` is; redo both before
+   each later presentation whose bucket changed. Never copy the derivation artifact into it. When the write or the
+   leftover delete fails, take `references/fallback-read-only-sandbox.md`'s record section.
+3. **Present and obtain the filing election (3–3a).** On each presentation, render one message
+   in this order: the audit summary line with its disclosures, the quoted unfixed findings,
+   then the draft-path and record notes, then each decision settled on a second delegated reply,
+   one line each. Put 3a's first question last in the same reply.
+   On a forced-render arm, print sub-step 1's full render above this message.
+   A re-ask within the same presentation — after *Print the full draft in chat*, a bare decline,
+   or a reply outside the options — does not repeat the message.
 
-- **Consume the clean Steelman projection.** Re-read the latest Steelman pass and `.prflow/tmp/spec/<slug>/steelman-projection-<slug>.json`, require matching pass numbers, then run `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -e -f "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/projection-gate.jq ".prflow/tmp/spec/<slug>/steelman-projection-<slug>.json"`. It restates `references/step-3-5-steelman.md`'s entry-confirmation contract (item 9) deliberately: a Step 4 entry need not hold that reference. Missing, stale, wrong-typed, inconsistent, or unmatched state stops presentation and returns to Step 3.5's revise-and-re-gate path, **at most once per presentation attempt**: a second failure is reported in chat and presentation proceeds with the projection state named unestablished. The read-only degraded arm is eligible only when its current-turn inline state is `represented` with an empty unmatched array. Nonempty ACs or a clean Step 3.6 verdict never substitute for this check.
-- **Confirm the run bootstrap ran.** When the run holds no minted nonce (`query-nonce "<slug>"` reports no state: `nonce=unknown` whose stderr breadcrumb reads `no state file at …`), stop and run the bootstrap now before presenting. A `nonce=unknown` with any other breadcrumb (an unreadable or invalid state file), or no answer at all (state owner unavailable, or the invocation refused), re-enters nothing: proceed on the `state-owner unavailable` arm. A run holding a nonce but carrying neither the Verified-premise check's output nor a breadcrumb naming its failure or skip resumes the bootstrap after its `init`, never re-running it; any other nonce-holding run proceeds to sub-step 2 whatever `query-draft-binding` answers — a bare `bound=none` or no answer included. This gate re-enters the run bootstrap and never an audit round; the audit artifact is the last gate's to confirm.
-- **Read what the bootstrap's two Step 3.5 gates left, rather than asserting they ran.** The verified-premise check and the acceptance-criteria parseability gate execute at the bootstrap canonical write (`references/step-3-6-audit-shared.md`), and what this run carries from them is the only evidence available here: an established `acceptance_criteria` array, or the in-chat breadcrumb naming the failure kind. Carrying neither, the count marker renders its unavailable token (sub-step 3) — never a claim that the gates ran.
-- **Confirm the audit artifact only when a round was opened.** A run that has elected no audit round has no audit artifact, and the gate admits it — it never re-enters Step 3.6 to dispatch a round the user has not been asked about. Only when this run has elected and opened a round is `.prflow/tmp/spec/<slug>/issue-audit-<slug>.md` expected — then confirm it is present and holds this run's audit (the Step 3.6 write deletes any same-slug leftover first). If any `.prflow/tmp/` write or delete was refused earlier in this run, the on-disk artifact can only be a stale leftover: distrust it and rely solely on the visible inline-in-chat audit block re-posted this turn, per `references/fallback-read-only-sandbox.md` — the run-state condition, not a local write failure, is what selects that fallback here.
+   The summary line is one of the root's non-degradable invariants: it renders on every presentation. At each
+   presentation whose working-draft file landed, compute its digest:
 
-**The provenance signature is already in the body — do not append it again here.** The run bootstrap (`references/step-3-6-audit-shared.md`) appended the shared `/prflow:spec` provenance line as the body's last line before its first canonical draft write. On a sub-step 4 revision, keep it as the body's last line — re-appending it only if the regenerated body no longer carries it — so exactly one copy survives every re-presentation.
-
-1. **Present the draft — saved-file path by default, body in chat only on request.** The saved draft file (sub-step 2) is the default presentation and its path is shown at sub-step 3; the full body is printed in chat only when the user chooses *print the full draft in chat* at 3a, or on a forced-render arm — a write-failed run, a `bound=none` run, or a non-interactive run — each of which prints the body before 3a's question and offers no print answer. **When you do print it** (on request or on a forced-render arm), show the complete rendered issue in chat: post the exact title and the full body — every section, verbatim, as Markdown — directly in your message. Do not summarize, abridge, or describe it. Do not use the runner's user-question tool (`AskUserQuestion` or its equivalent) to stand in for showing the body — such tools truncate.
-2. Also write the draft to a file for easy review — at the MAIN repo root. Reuse the run's kebab-case `<slug>`: Step 1 binds it, and this is the only site that derives one instead. Read it from turn-one context, else resolve it through the run-directory-registry slug-resolve fence stated once in the skill root's *Runner setup* section, following that section's adopt / ambiguous-candidate (`--adopt-slug`) / derive-from-title handling.
-
-   Create the run's scratch directory under the main working-tree root with the bundled cleanup helper — it resolves the main root itself and creates `<root>/.prflow/tmp/spec/<slug>/`, printing the roots so no fence captures a command's output:
    ```bash
-   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-spec-run.sh --ensure-run-dir --slug <slug> --resolve main-root
+   git hash-object --no-filters "<absolute working-draft file path>"
    ```
-   Read the printed `main_root=<absolute path>` and `run_dir=<absolute path>` lines from the tool result and transcribe those literal paths into the write below — never a captured shell variable. A `run_dir=none reason=<word>` line (a read-only sandbox or an uncreatable directory) takes the write-failed forced-render arm (sub-step 1) exactly as a failed `mkdir -p` did.
 
-   Write the rendered title + body to the absolute path `<run_dir>/issue-draft-<slug>.md` (the `run_dir=` value printed above), with the title as a top `# ` heading. Perform this write through the *Staged canonical-draft write* shared procedure in `references/step-3-6-audit-shared.md` — load that file per the *Reference routing* rules when this entry does not already hold it (a failed load takes that reference's own degraded behavior). The procedure records no revision, so it runs the stage → apply → verify steps, and its landed re-check compares the canonical file against this write's own in-turn `--expect-digest`. Use the main root, not the cwd.
+   The final-bytes phrase reads `final bytes audited` when the digest equals the latest verdict round's
+   `draft-object-id:` value, and `final bytes NOT audited` in every other case — no digest, no verdict round yet, a
+   changed draft, or a working-draft file that never landed. Read each round's values from the statement you made after
+   it (`references/step-3-6-audit-dispatch.md`).
 
-   Bind the draft root once, then reuse it. The first landed canonical-draft write of the run (normally Step 3.6's pre-dispatch write) records the binding; after this write, take *Bind the draft root* in `references/step-3-6-audit-shared.md`. On an unbound run, write under the `run_dir=`/`main_root=` values the `--ensure-run-dir` line printed above and follow the `bound=none` display arm in sub-step 3.
+   The line carries:
+   - the rounds run this run;
+   - `no verdict` when the latest round is not a verdict round;
+   - the latest verdict round's must-revise, advisory and invalid counts, as you graded them;
+   - the unresolved must-revise count: the latest verdict round's must-revise findings you did not fix;
+   - the final-bytes phrase;
+   - `degraded` when any round this run ran inline.
 
-   Every later write site, in any Step 4 reference (a Step 3.6 re-dispatch write, the sub-step 4 overwrite, the amend-body (`.md` and `.json`) and amend-readback writes in `references/step-4-amend.md`, and the attestation-fetch and 5c record writes in `references/step-4-create.md`), runs in a later turn, so it takes the bound root from `query-draft-binding "<slug>" --nonce "<nonce>"`'s `bound=` field — never context recall, never a second `--ensure-run-dir` main-root resolution while a binding exists; `<bound-root>` in the sub-step 3 display note is that same root. The presentation write above is the exception: same turn, root already in hand. **When the binding read reported a bare `bound=none` (no `reason=`) or returned no answer, the run is legitimately unbound: re-run the sub-step 2 `--ensure-run-dir --slug <slug> --resolve main-root` line for *this* turn and write under the `run_dir=`/`main_root=` it prints** — never compose a relative `none/…` path from the token, and never reach for a root printed in an earlier turn. Take the `bound=none` display arm in sub-step 3 alongside it. On the file arm, forward the exact absolute canonical path to `record-dispatch --write-path <that path>`, which the state owner refuses with `write-path-mismatch` on divergence.
+   Round counts, round numbers and which round is latest, here and in 3a's question text, span the whole run; only
+   3a's round cap restarts. In the unresolved count, the quotes below and the question text's fixed count, a finding
+   against text that a redraft for a different option at a Step 2 *Settled approach* re-ask replaced counts as fixed.
 
-   Keep this one `<slug>` throughout, reusing that exact absolute path from then on. On an embed/inline-arm epoch this saved file is not the source the issue is created from; on a file-arm epoch it *is* the posting source — but only through the gated `emit-body` emitter (sub-step 5), never by passing the path to `--body-file <path>` directly. If the write fails (read-only main root / sandbox), note it briefly and take the forced-render arm (sub-step 1).
+   Render it as one line, e.g. *"Fresh-context audit: 2 rounds; latest verdict round: 0 must-revise, 2 advisory,
+   1 invalid; 0 unresolved must-revise; final bytes audited."* With rounds run but no verdict round, the line
+   omits the three counts and shows the unresolved count as `unavailable`. With no round run, the line reads
+   `Fresh-context audit: not run; final bytes NOT audited` and that count is 0. Beside the line, disclose each
+   draft-check report still standing after its re-run (`references/step-3-6-audit.md`), or `draft checks not run` when
+   the working-draft file never landed.
 
-3. Render the audit summary line and disclosures — ask nothing here; the confirm/edit question is 3a's too, and 3a states the confirmation message's layout.
+   Below the line, quote each finding of the latest verdict round you did not fix, verbatim from that round's return,
+   beside your grade for it.
 
-   Per-finding disclosure block. A run that opened no audit round graded nothing and skips this block entirely — `query-adjudication-records` requires a `--round`, and there is none. On a run that opened a round, read `query-adjudication-records "<slug>" --nonce "<nonce>" --round "<round>"`; when it returns records rather than `records=none`, render each advisory and invalid finding's `summary`, `rationale`, `impact_class` tag, and the auditor's own `auditor_block` beside the grader's restatement, then report that rendering exactly as the calibration paragraph of `references/step-3-6-audit-adjudication.md` states. The audit summary line's own class counts stay unchanged.
+   Then render the draft-path note — *"Draft saved to `<absolute working-draft file path>` — title: `<title>`."* — and
+   the record note — *"Investigation record saved to `<absolute record file path>`."*, or *"Investigation record:
+   empty."* A run whose working-draft file never landed renders no draft-path note. State beside the summary line that
+   the title and the investigation record are outside the final-bytes check.
 
-   The summary line is one of the root's non-degradable invariants: it renders on every arm and every round count. Do not assemble its fields from recollection. The last state-owner call this sub-step makes — `query-final-byte` below — prints a `summary-block` line carrying the compact fixed `query-summary` subset the line renders: findings count, revisions applied, verdict, rounds run, whether a consumer `## Audit dimensions` section was appended, `degraded`/`user_declined`/`cap_reached`, any embed markers, `adjudicated_verdict` with the per-actionability-class counts (`must_revise`/`advisory`/`invalid`), `unresolved_must_revise`, `effective_unresolved`, `convergence_basis`, the `steering`/`steering_reason` pair, and the trailing `attestation=<match|mismatch|attestation-unavailable|none>` (`none` = before any creation attempt). The block also carries the structural `state` and `scoped_round` fields the summary line does not render — the tool's `--help` enumerates the block's full field set. Read the line's fields from that block rather than a standalone `query-summary` — its recovery instrument, should the block be lost to a context compaction (`query-summary "<slug>" --nonce "<nonce>" --draft-file "<…>"`).
-
-`query-final-byte` also prints the final-byte fields the line names — `final_byte_reason` among them, which the summary block does not carry — so it is both the source of that block and the one gate read this sub-step makes, ahead of sub-step 3a's:
-
-```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py query-final-byte "<slug>" --nonce "<nonce>" --draft-file "<absolute issue-draft-<slug>.md path>"
-```
-
-3a re-reads it there for its own offer decision.
-
-#### Markers the summary line must carry
-
-Steering. When `steering` is anything but `established`, the line carries a dedicated skill-composed marker naming it — `audit independence unestablished (<steering_reason>)` — rendered alongside whatever other skill-composed markers this line carries and distinct from the reserved `degraded` token. It never blocks filing. An `established` round is never described as provably steering-free.
-
-Coverage and adjudication counts. The line reports the bundle's coverage (`axes evidenced, axes marked N/A, axes unestablished`), the post-adjudication counts by actionability class, labelled with the whole-draft round they describe (`counts_round`), the unresolved must-revise findings attributable to an axis on the effective list as frozen at that round's close, and — distinctly, never collapsed onto it — the run-wide effective unresolved count after every post-close resolution, reopen, invalidation and supersession. A round whose actionability or axis attribution could not be established renders `unestablished` rather than a number.
-
-Final-byte coverage. The line carries the final-byte coverage value on every dispatch arm and every round count outside the zero-round form — the degraded inline arm included — as `final bytes audited` on `covered`, `final bytes NOT audited (<final_byte_reason>)` on `uncovered`, and `final-byte coverage unestablished (<final_byte_reason>)` on `unestablished`; when `final_byte_exhausted=yes`, append `— final-byte passes exhausted`. Read `<final_byte_reason>` from this sub-step's own `query-final-byte` line. A recorded `attestation=match` never stands in for that phrase.
-
-Convergence basis. When `convergence_basis` names a resolution basis, the line additionally carries the phrase `converged via self-verified resolution` — on the stale variant `converged via self-verified resolution (stale — later revisions unverified)`.
-
-Criterion count. The line also carries the criterion count as a skill-composed marker — `<n> acceptance criteria`. It is the length of the `acceptance_criteria` array returned by the `python3 … scripts/parse-acs.py --format json` invocation the run already performs at the run bootstrap's canonical write (which runs regardless of whether an audit round is elected); perform no second parse, and compose the marker in the skill rather than reading it from `query-summary`. It is reported, never enforced.
-
-The number renders only when this run holds an established `acceptance_criteria` array from its own gate invocation; its absence — however it arose — renders a token instead, and a hand count is never substituted. Render `acceptance criteria count unavailable (unreadable item shape)` when the invocation reported `acceptance_criteria_unreadable`, and `acceptance criteria count unavailable` on every other absence. A `state-owner unavailable` fallback entered *after* the run bootstrap's canonical write still carries the parsed array and renders the number normally; only one entered *before* it never reached the gate site.
-
-For an exhausted Acceptance Criteria rewrite disclosure, see `references/fallback-step4-exhausted-ac-election.md` per `references/degradation-routing.md`.
-
-The count is as of the bytes that gate invocation read; later revisions are not re-counted. The gate is single-site by design, so a draft that changes across audit rounds or a Step 4 overwrite still renders the first landed canonical draft's count. Carry that residual — `<n> acceptance criteria (as of the first landed canonical draft; later revisions not re-counted)` — whenever any revision landed after that invocation.
-
-#### Criterion-disposition confirmation (report-only, every run)
-
-Before approval is asked, confirm the omit/merge/add disposition record (`references/issue-template.md`'s Acceptance Criteria contract) against the criteria the draft actually carries. Drive the check from the criteria the rendered draft carries, never a fixed slice of the artifact; for each, look for its disposition line in the `## Criterion disposition record` section of `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md`. Name, as a skill-composed disclosure beside the criterion-count marker, any added criterion the draft carries whose disposition line the record does not show, marking it **undischarged** — a disposition line the read does not reach is reported undischarged, never silently passed — and when the record cannot be read at all — unreadable, absent, or, on the read-only arm, only an inline stand-in block posted per `references/fallback-read-only-sandbox.md` — read that inline block where one exists, else report the record **unestablished** rather than clean; render nothing when every added criterion the draft carries shows a disposition line. It sits here, not in Step 3.6, because a no-audit run never enters Step 3.6 and a criterion added during adjudication lands after that step's entry gate. Naming is all it does — it blocks neither presentation nor creation, and it re-runs on every re-presentation (a sub-step 4 revision returns here).
-
-#### Rendering the line and the draft-path note
-
-Render them as one line (e.g. *"Fresh-context audit: 2 findings, 1 revision applied, VERDICT: FILE, 2 rounds (no consumer audit dimensions), 14 acceptance criteria; bundle: 5 axes evidenced, 2 N/A, 0 unestablished; adjudication (round 1, whole draft): 1 must-revise, 1 advisory, 0 invalid, 1 unresolved at close, 0 effective; body's final bytes audited; converged via self-verified resolution."*), carrying each flag the query reports: the word "degraded" when it reports degraded, the phrase `user declined further audit` when it reports a decline, the ceiling when it reports the cap, and the embed marker when it names one. On the `state-owner unavailable` fallback — where the query itself is what failed — the line carries that marker instead and is composed in-chat; it still renders. Label the class counts with the whole-draft round they describe, read from the summary block's `counts_round`: render them as `adjudication (round <counts_round>, whole draft): <must_revise> must-revise, <advisory> advisory, <invalid> invalid, <unresolved_must_revise> unresolved at close, <effective_unresolved> effective`. When `scoped_round` is not `none`, add the clause `targeted round <scoped_round> ran after it and is not counted in those class counts` when `scoped_round` is greater than `counts_round`, and the clause `targeted round <scoped_round> ran before it and is not counted in those class counts` otherwise. When `counts_round` is `none` — no whole-draft round has completed, so the class counts are all `none` — render `adjudication (no whole-draft round yet): <must_revise> must-revise, <advisory> advisory, <invalid> invalid, <unresolved_must_revise> unresolved at close, <effective_unresolved> effective` and omit the targeted-round comparison clause.
-
-When the summary block reports both `state=ok` and `rounds_run=0`, render the zero-round form instead — e.g. *"Fresh-context audit: not run; body and investigation record unaudited; 11 acceptance criteria; bundle: 11 axes evidenced, 3 N/A, 0 unestablished."* — carrying the criterion-count marker with any criterion-disposition disclosure, the bundle coverage counts, and the decline phrase and ceiling when the block reports them. It omits findings, revisions applied, verdict, rounds run, the round-derived `degraded` word and embed marker, the consumer audit-dimensions clause, the adjudication clause, the steering marker, the convergence phrase and the final-byte clause, so the Steering, Final-byte coverage and Convergence basis rules and the class-count and unresolved parts of Coverage and adjudication counts do not apply to it. `state=unestablished` also reports `rounds_run=0` and keeps the full line.
-
-Display the absolute path built from the bound root (`<bound-root>/.prflow/tmp/spec/<slug>/issue-draft-<slug>.md`, `<bound-root>` read back from `query-draft-binding`'s `bound=` field), never `$MAIN_ROOT` from context recall and never a bare relative `.prflow/tmp/…` string. Render the note as its own line — e.g. *"Draft also saved to `<bound-root>/.prflow/tmp/spec/<slug>/issue-draft-<slug>.md` for review."* — after the audit summary and disclosures. If the sub-step 2 write failed, omit the note entirely rather than showing a path to a nonexistent file.
-
-For a `bound=none` unbound run's draft-path note, see `references/fallback-step4-bound-none-display.md` per `references/degradation-routing.md`.
-
-Display the investigation record alongside the brief — on EVERY arm, including the withheld one. After the audit summary line, render the investigation-record bucket (the content `references/issue-template.md`'s routing rule sorted out of the brief) as its own clearly-labeled inline block in chat. It renders even when `spec.investigation_record_enabled` is `false`. This is display, not attestation: `emit-body`'s digest covers only the bound draft file. When the bucket is empty, say so plainly rather than rendering an empty block.
-
-Outside the zero-round form, scope the summary line's final-byte phrase to the body (e.g. *"body's final bytes audited"*), and state beside it that the investigation record is not audited.
-
-3a. **Ask ONE combined decision question.** Read the gates first — `query-eligibility --mode approve`; `query-final-byte "<slug>" --nonce "<nonce>" --draft-file "<absolute issue-draft-<slug>.md path>"` (its one decided line `final_byte_trigger= final_byte_coverage= final_byte_reason= final_byte_passes= final_byte_exhausted=`; `not-hold` with `final_byte_reason=resolution-settled` is the state owner suppressing the offer, not a gate); and the `query-boundary` answer Step 3.6 carried here — then ask one question through the runner's user-question tool (`AskUserQuestion` on Claude Code, or the equivalent your runner exposes, as in Step 2). **On each presentation, the first ask comes in the same reply as sub-step 3's confirmation message, with the question last.** That message never contains the draft body and is, in order: the audit summary line, the per-finding disclosure block when recorded, the investigation record, then the draft-save-location note (the absolute `<bound-root>/.prflow/tmp/spec/<slug>/issue-draft-<slug>.md` path from sub-step 2). On a forced-render arm the full body is printed above them, as sub-step 1 states. A re-ask within the same presentation — after *Print the full draft in chat*, a bare decline, or a reply outside the options — does not repeat that message. Its options, in this order, each present only when its condition holds; labels are used verbatim, the audit option and *File anyway* completing their `<…>` slot:
+3a. **Ask ONE combined decision question** through the runner's user-question tool
+   (`AskUserQuestion` or its equivalent, as in Step 2). Its options, in this order, each appear
+   only when its condition holds; labels are used verbatim, *Create* filling `<n>` with
+   sub-step 3's unresolved count, `unavailable` included:
 
    | Option | Present when | Choosing it |
    |---|---|---|
-   | **Run a fresh-context audit round** (first round) / **Run one more fresh-context audit round — `<ground>`** | an offer ground below holds **and** the boundary read's `offer` component is not `offer_withheld=yes` (a last REVISE round whose findings are unrevised, or whose count is unestablished, withholds it — apply the revision first, which `record-offer --accepted` also refuses to fund until then) | record the acceptance on that ground's channel; load parts 2 and 3 of the Step 3.6 set (a run that elected nothing has not read them); run the round through the ordinary machinery — the pre-dispatch canonical-draft write, the generated dispatch instructions, `query-arm` → `record-dispatch` → dispatch → `record-return`, then sub-step 4's return handling — and re-present, where this question is asked again |
-   | **Print the full draft in chat** | the draft file was written and its path shown at sub-step 3 | post the exact title and full body verbatim as Markdown (sub-step 1's render), then re-ask this question without this option. It elects nothing and records nothing; the saved bytes stay digest-bound to the file |
-   | **Create it as-is** | no file-anyway ground below holds | this IS the explicit approval of these exact bytes, printed or not, because on a file-arm epoch they are digest-bound to the saved file. Record any offered round's decline on its ground's channel; when that offered ground's decline is not itself a `user-decline` override (the final-byte ground today, whose decline still goes through `record-final-byte-offer` and records no user-decline override), also record this approval as `record-override --kind user-decline --surface step4-offer` (`--draft-file`-bound on a file-arm epoch) before sub-step 5, so `query-eligibility --mode approve` grounds `eligible=yes` on the override; then sub-step 5 |
-   | **File anyway — `<ground>`** | a file-anyway ground holds, read from the summary block: `effective_unresolved` above zero (unresolved must-revise findings); `steering` not `established` on a completed round (a clean `VERDICT: FILE` counts); or an exhausted Acceptance Criteria rewrite (either exhaustion input above — disclose that implementing runs will not read the drafted criteria). Name every ground that holds | the explicit file-anyway election: record any offered round's decline on its channel plus `record-override --kind user-decline --surface step4-approval-after-exhausted-offer` (`--draft-file`-bound on a file-arm epoch), then sub-step 5 |
+   | **Run a fresh-context audit round** (no round run yet) / **Run one more fresh-context audit round** | the working-draft file landed, fewer than 3 rounds count toward the round cap (those started since the run began, or since the latest Step 2 *Settled approach* re-ask that ended on a different option), and the summary line reads `final bytes NOT audited` | load `references/step-3-6-audit-dispatch.md` and run one round, then present again |
+   | **Print the full draft in chat** | not on a forced-render arm | post sub-step 1's render (title, full body, then the record), then re-ask this question without this option |
+   | **Create (`<n>` unresolved must-revise)** | always | the user's explicit approval of the presented draft; go to sub-step 5 |
    | **Change something first** | always | sub-step 4 |
 
-   Exactly one of *Create it as-is* / *File anyway* is present, so filing is never blocked on any arm. Neither is keyed on `query-eligibility`: a run that completed no round answers `no-verdict-round` until the offered round's decline is recorded (the override ground), and sub-step 5 re-queries after that record. A draft-only request never reaches this path.
+   **The question text tells the user how the audit stands:** before the run's first round, that the draft is
+   unaudited; after one, only the latest round by its run-wide number, how many must-revise findings you fixed after
+   it (your statement after that round, verdict or not, with its findings sub-step 3 counts as fixed) and whether the
+   final draft was audited (sub-step 3's final-bytes phrase), then *Run another round?* when offered, or *no rounds
+   left* when 3 rounds count toward the cap and it is unaudited — e.g. *"Audit round 3 fixed 1 must-revise finding,
+   unaudited; no rounds left. Create?"*, *"Audit round 1: nothing fixed; final draft audited. Create?"* On a widen it
+   also names the issue number and says approving replaces that issue's title and body.
 
-   **Offer grounds, in precedence order, each with its channel.** Offer at most one round per question: the first ground that holds names the option; the others that hold are disclosed in the question text, not re-asked. The option row's `offer_withheld=yes` gate overrides every ground.
-   1. Final-byte (`final_byte_trigger=hold`) — accept and decline both go through `record-final-byte-offer "<slug>" --nonce "<nonce>" --draft-file "<…>"`, `--accepted` on accept; never a `user-decline` override. Both arms spend the dedicated slot (outside the user-round cap, so offerable at the cap and under `cap-reached`) for these exact bytes; a recorded revision that changes the digest re-arms it, bounded by the per-run cap. A run that completed no round has coverage `unestablished`, on which this ground never holds.
-   2. Steering (`query-eligibility` answers `reason=steering-unestablished`) — an unsteered re-dispatch: `record-offer "<slug>" --nonce "<nonce>"` (`--accepted` on accept); decline `record-override --kind user-decline --surface t1t2-boundary`.
-   3. Boundary (`query-boundary` reports `t1=`, `t2=`, `coverage=` or `calibration=` at `hold`, or an `unledgered_revise` round) — conducted as `references/fallback-audit-boundary-offer.md` states, on the same channels as 2.
-   4. Post-revision (this presentation follows a sub-step 4 revision) — `record-offer "<slug>" --nonce "<nonce>"` (`--accepted` on accept); decline `record-override --kind user-decline --surface step4-offer` (`--draft-file`-bound on a file-arm epoch), which is what lets `query-eligibility --mode approve` answer `eligible=yes` for still-unaudited bytes.
-   5. Discovery (no round elected yet, user-round cap unspent) — the same channels as 4. This is what funds the first round: the state owner opens no round the user did not elect, and a user satisfied with what they read pays no audit rounds.
+   **The call also asks *"Assign this issue to you?"* and, when the offer gate holds, whether to post
+   `/prflow:implement <issue_number>` on the issue.** Before each presentation's message, judge the gate: (a)
+   the draft has no `## Dependencies` section with a `Blocked by #N` line and no `## 🚫 Blocked` section; (b) this read
+   prints exactly `true`:
+   ```bash
+   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .workflows.prflow false
+   ```
+   A denied or failed read establishes no tier, whatever it printed; attempt no other config reader. When the gate
+   withholds the prompt, print a one-line reason naming the exact failed condition before the question: *declared
+   dependencies present*, *blocked decisions present*, *cloud implement tier disabled or unconfigured* (the read
+   succeeded without printing `true`; add that the alternative is to start `/prflow:implement` in a fresh session), or
+   *tier state unestablished* (the read was denied or failed). A one-question tool asks the assignment question, then
+   any gated offer, right after the *Create* election, before sub-step 5; any reply but yes, silence included, is no.
+   Answers count only with, or right after, that election; others are discarded and re-asked at the next ask.
 
-   **The question text tells the user how the audit stands.** Read it from sub-step 3's `summary-block`, never recollection. Before the first round: that the draft is unaudited. After a completed round: the latest whole-draft round's verdict, its findings by class (`must_revise`/`advisory`/`invalid`), the unresolved must-revise count, and the revisions applied since — plus, on grounds 1–2, one sentence saying why another round is offered (the current bytes were never audited; the latest completed round's steering was not established).
+   **A reply outside the options** is routed by what it asks for: a change request → *Change something first*; an
+   unambiguous approval of the draft as shown → *Create*; a decline of the offered round with nothing else → re-ask.
+   Anything else, and a silent non-response, is not an answer: re-ask this question in the final chat message and stop
+   (Step 2's silent-non-response rule) — never dispatch, create, or proceed on silence.
 
-   **A reply outside the options** is routed by what it asks for: a change request → *Change something first*; an unambiguous approval of the draft as shown → *Create it as-is*, or *File anyway* when that is the option present and the reply names the refusal; a decline of the offered round with nothing else → record the decline on its channel and re-ask. Anything else, and a silent non-response, is not an answer: re-ask this question in the final chat message and stop (Step 2's silent-non-response rule) — never dispatch, create, or proceed on silence.
+   **A non-interactive run elects *Create* only when the unresolved must-revise count is zero and the latest
+   `parse-acs.py` run read the criteria; otherwise it pauses for the user's explicit election.** It answers no to the
+   assignment and implement-offer questions.
 
-   **A non-interactive run self-answers this question:** it declines any offered round on that ground's decline channel, re-queries `query-eligibility --mode approve`, and elects *Create it as-is* on `eligible=yes`. When that re-query instead answers `eligible=no reason=unaudited-revision` — and only when no file-anyway ground holds, so *Create it as-is* is the option present — it records the same filing election the *Create it as-is* cell describes, `record-override --kind user-decline --surface step4-offer --draft-file <canonical>`, as its own election, re-queries, and elects *Create it as-is* on the resulting `eligible=yes`. Every other refusal, and any refusal on a run where a file-anyway ground holds, still stops the run paused reporting the refusal ground with no override recorded, since only a user can elect *File anyway*.
+4. **Iterate on feedback.** Make each change the user asks for as a draft change (`references/step-3-6-audit.md`); a
+   title change goes to `.prflow/tmp/spec/<slug>/issue-title-<slug>.txt` (to your message when the draft is there), and
+   both files keep their names. Present again from sub-step 2 and ask 3a's question on the revised draft. Repeat until
+   the user elects *Create*.
+5. **File only after the *Create* election at 3a** — the user's explicit approval in an
+   interactive run, or the non-interactive election under 3a's conditions.
 
-   For an accepted final-byte pass return, see `references/fallback-step4-final-byte-carveout.md` per `references/degradation-routing.md`.
+   Load `references/step-4-create.md` per the *Reference routing* rules in the turn of that election. A run that re-enters Step 4 past this point loads it again before continuing.
 
-4. **Iterate on feedback.** If the user requests any change, revise the draft, re-run the no-options gate (Step 3), then run **Revision-delta verification**, then **run Step 3.5 again against the complete post-verification draft before overwriting or offering approval**. Step 3.5 is deliberately last among the draft-mutating checks: it reruns the Desired-Behavior projection and replaces the structured Steelman projection state for the bytes that reach the overwrite; a newly added Desired Behavior obligation with no representing AC prevents the overwrite/approval path. Overwrite the canonical draft through the *Staged canonical-draft write* shared procedure in `references/step-3-6-audit-shared.md`, which names this site. Then run **Ledger maintenance after a revision** (`references/step-3-6-audit-shared.md`). Ledger maintenance records state only; it must not edit the draft between this final projection and the overwrite.
+   The final outcome names every out-of-scope item the body states with its known tracking issue or as
+   unfiled, discloses an unestablished Step 1 duplicate check (quoting any search error), and names by number and reason
+   each issue the check found or the request named that the run did not widen.
 
-   Overwrite the same `<bound-root>/.prflow/tmp/spec/<slug>/issue-draft-<slug>.md` file — the identical absolute path from the recorded binding, read back via `query-draft-binding`, never re-resolved — keeping the original filename even if the title changes. It runs that procedure in full, step 4's write-failure recovery included; a verified multi-finding revision wave applies as exactly one `apply` and one `record-revision`. Branch the read-back as sub-step 2 does, under the later-write-site rule above, and omit the draft-path note when re-presenting per sub-step 3's `bound=none` arm. Never apply edits and create in the same turn without re-presenting the updated draft.
-
-   Never treat a revision as approval: a just-revised draft is shown under `query-eligibility --mode iterate` (`iterate=ok ordinal=N`), which authorizes the re-show only. Re-present it (the draft-path note; the body only when *Print the full draft in chat* is chosen again), then ask 3a's question on those bytes, where the post-revision ground is an offer ground. Repeat until the user elects *Create it as-is* or *File anyway*.
-
-   For a re-audit on user feedback, see `references/fallback-step4-dispatched-reaudit.md` per `references/degradation-routing.md`.
-5. **Create only on explicit approval.** **Creation-time confirmation re-check (path-agnostic — the last of the re-read anchors `references/fallback-no-task-tool.md` enumerates; it runs on every path, tool or fallback, whether or not that reference was ever loaded).** Immediately before running `gh issue create`, re-confirm two things in the current conversation: the user has explicitly approved the rendered draft, and the active tracking mechanism shows item 6 in progress — read it from the task tool (its read-back call, or the conversation record of the last status update where the tool exposes no read-back), or from the checklist state file on the inline-checklist fallback path. On that fallback an absent or unreadable state file is a pipeline-paused signal, not a clear-to-create one: rebuild and rewrite it, and create only on explicit in-conversation approval, never on the guard's silence.
-
-   Once the user has elected *Create it as-is* or *File anyway* at 3a and its records landed, re-confirm `query-eligibility --mode approve` answers `eligible=yes` (the override ground). A `not-eligible` answer here names a caller-side recovery, never a third option, and these are exactly the reasons `query-eligibility --mode approve` can answer — the complete set of 8, complete by construction (`no-revision-recorded` is an `iterate`-mode-only reason and is never answered here): `unaudited-revision` — the current draft carries no clean audit verdict; record the election the user just made at 3a with `record-override --kind user-decline --surface step4-offer --draft-file <canonical>`, then re-query; `no-verdict-round` — the same recovery, then re-query; `steering-unestablished` — record that election on the steering ground's own decline channel, `record-override --kind user-decline --surface t1t2-boundary --draft-file <canonical>`, then re-query; `stale-override` — the edit-sequencing recovery in `references/step-3-6-audit-adjudication.md`, which re-presents and re-asks 3a; `no-digest-supplied` — re-issue with `--draft-file`; `draft-undigestible` — re-run the canonical write (`references/step-3-6-audit.md`); `state-unestablished` / `foreign-nonce` — their fallbacks, reached per the *Reference routing* rules.
-
-   Load the arm's own reference per the *Reference routing* rules in the same turn as that re-query, never a turn of its own: `references/step-4-create.md` when filing a new issue, `references/step-4-amend.md` when Step 1's duplicate check found an open issue to widen (the amend arm). Never load the other arm's reference. A run that re-enters Step 4 past this point loads its arm's reference again before continuing.
-
-   On either arm, the final outcome names as unfiled each out-of-scope item the filed body leaves without a `Related work: #N` pointer.
-
-5d. Remove this run's scratch (best-effort, success path only). The created issue with its investigation-record comment, or the widened issue, is now the durable record, so this run's scratch under `.prflow/tmp/spec/<slug>/` is no longer needed. Delete it keyed to this run's recorded `<slug>` (never a pattern or age sweep, so a concurrent run's or another producer's scratch survives), across both anchor roots the run wrote under — the worktree/cwd root and the bound main root:
+5d. Remove this run's scratch under `.prflow/tmp/spec/<slug>/` (best-effort, success path only), keyed to this run's
+    recorded `<slug>` (never a pattern or age sweep):
 
    ```bash
-   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-spec-run.sh --slug "<slug>" --resolve cwd --resolve main-root
+   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-spec-run.sh --slug "<slug>" --root .
    ```
 
-   The helper removes the run directory `<root>/.prflow/tmp/spec/<slug>/` (and with it its registry entry) and any legacy `issue-run-slug.*` pointer whose first line is `<slug>` — never the unsuffixed pointer and never one naming a different slug; an empty or unsafe `<slug>` deletes nothing and exits non-destructively, so a run whose slug never bound leaves its scratch untouched. A run that ended without creating or widening the issue leaves its run directory in place as the diagnostic record. Report the reasoning blocks this cleanup deleted that no record comment (5c, `references/step-4-create.md`) preserves. Cleanup is best-effort: a failure never blocks the flow — name it in the final outcome and, after a creation, continue to sub-step 6 (`references/step-4-create.md`).
-
-This gate has no exceptions: neither Step 2's resolved decision forks, nor an earlier "just create it" / "you decide", nor a disengaged user, nor brevity substitutes for an explicit go-ahead on *the draft that will be filed*. If the user never returns to confirm, leave the pipeline paused at todo 6 — do not create the issue to "finish".
-
-Red flags — STOP, you are about to skip the gate: you are constructing the `gh issue create` command in the same turn you drafted the body with no approving user message in between; you are creating because Step 2 was "complete"; or you are treating an earlier "just create it" as approval of a draft the user has not seen. Each means: present the draft, ask, and wait for an explicit yes.
+   A run that stopped before this sub-step, or that sent the working-draft file without a read-back matching both
+   digest and title, leaves its run directory in place as the diagnostic record. Cleanup is best-effort: a failure never blocks the flow — name it
+   in the final outcome and, after filing, continue to sub-step 6 (`references/step-4-create.md`).
 
 <!-- prflow:spec-ref step=4 file=skills/spec/references/step-4-present-create.md end -->

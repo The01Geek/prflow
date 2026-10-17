@@ -15,7 +15,7 @@ agent-executed prose — is what lets it carry regression coverage for the
 
 The reconciliation takes a third input: the orchestrator's tagged criteria list, whose
 per-criterion `class` decides each criterion's *expected sides* — both verifiers for a
-`command` criterion, the evidence verifier alone for a `non-command` one. The per-side slot
+`command` criterion, the evidence verifier alone for a `non-command` or `source-read` one. The per-side slot
 gate and the status pairing apply only to expected sides, and each record carries a
 `missing_sides` list (the expected sides that returned no record) plus a single `remedy`
 token the orchestrator routes on. Passing no criteria treats every reported criterion as
@@ -29,7 +29,7 @@ Reconciliation contract (one row per criterion, matched by 1-based `criterion`):
     - A criterion present in only one report  -> the missing side is `unestablished`
       (fail closed), so the pair disagrees unless the present side also read
       `unestablished`.
-  - `non-command` criterion — evidence side alone expected: the recorded status IS the
+  - `non-command` or `source-read` criterion — evidence side alone expected: the recorded status IS the
     evidence side's status after its slot gate; a claim record present for it is ignored
     (with a stderr breadcrumb) and no claim slot appears in `undischarged_slots`.
   - A criterion in a report but ABSENT from the criteria file, or one poisoned by a duplicate
@@ -42,10 +42,12 @@ Reconciliation contract (one row per criterion, matched by 1-based `criterion`):
     to `unestablished` BEFORE the two statuses are paired (issue #1580), so an
     abbreviated check reconciles `unestablished` rather than riding the other
     verifier's agreement into `satisfied`. A stated `no` discharges its slot
-    fully and changes no status by itself — with one exception: an evidence-side
-    `command-run: no` under a `satisfied` status is forced to `unestablished` and
-    stamped `reason: unexecuted` (issue #350), because a `satisfied` that ran no
-    command rests on a read, not an executed and observed command.
+    fully and changes no status by itself — with one exception: on any criterion not
+    tagged `source-read`, an evidence-side `command-run: no` under a `satisfied` status
+    is forced to `unestablished` and stamped `reason: unexecuted` (issue #350), because
+    a `satisfied` that ran no command rests on a read, not an executed and observed
+    command. A `source-read` criterion's claim is what text says, so a read is its
+    evidence (issue #2246).
 
 Blocking: `unmet` and `unestablished` both block; only `satisfied` does not.
 `unestablished` blocking exactly as `unmet` blocks is the structural point of the
@@ -75,7 +77,7 @@ Output: one JSON object on stdout —
                     "evidence_dispositions", "claim_dispositions",
                     "missing_sides", "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
-`sides` is the criterion's expected verifier roster — `["evidence"]` for non-command,
+`sides` is the criterion's expected verifier roster — `["evidence"]` for non-command and source-read,
 `["evidence", "claim"]` for command, `[]` when absent from the criteria file or poisoned;
 the dispositions projection reads it to decide which side's fields to emit (issue #681).
 The optional `stated_terms`/`observed_value` pair (issue #387) carries the evidence
@@ -129,10 +131,11 @@ CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
 PAIR_SLOT = "evidence:stated-observed-pair"
 
 # The criterion class decides the verifier roster: a `command` criterion is checked by both
-# verifiers (the merge script requires their agreement); a `non-command` criterion by the
-# evidence verifier alone. An absent, non-string, or out-of-vocabulary class reconciles as
-# `command` (the fail-safe default — doubt buys a second vote).
-CLASS_VALUES = ("command", "non-command")
+# verifiers (the merge script requires their agreement); a `non-command` or `source-read`
+# criterion by the evidence verifier alone. An absent, non-string, or out-of-vocabulary class
+# reconciles as `command` (the fail-safe default — doubt buys a second vote).
+CLASS_VALUES = ("command", "non-command", "source-read")
+SINGLE_SIDE_CLASSES = ("non-command", "source-read")
 
 # The remedy vocabulary the reconciler emits per criterion, complete by construction; the
 # phase prose routes each criterion from its token alone. Do not widen or reorder without the
@@ -243,7 +246,7 @@ def _dispositions_of(record, slots, side=""):
     return stated, undischarged
 
 
-def _side(record, slots, tag):
+def _side(record, slots, tag, cls="command"):
     """Resolve one side into `(status, reported_status, dispositions, undischarged, forced_reason)`.
 
     `reported_status` is what the side itself concluded, retained even when the slot
@@ -262,7 +265,8 @@ def _side(record, slots, tag):
     read for an absent record, and the #1580 downgrade for an undispositioned charter
     step — are stated once rather than mirrored in the caller's loop body; the #350
     execution-backed downgrade below is the one evidence-side-only rule, gated on
-    `tag == 'evidence'`, so the claim side never sets `forced_reason`.
+    `tag == 'evidence'`, so the claim side never sets `forced_reason`. It is skipped for
+    `cls == 'source-read'` alone (issue #2246); `cls` is the criterion's parsed class.
 
     An ABSENT record — and equally a duplicate-poisoned one — reports no undischarged
     slots. Each is a vote the side never usably cast, already blocking on its own;
@@ -286,7 +290,9 @@ def _side(record, slots, tag):
     # Execution-backed evidence gate (issue #350): an evidence-side `satisfied` whose
     # `command-run` verdict is `no` ran no command, so force `unestablished` here — before
     # pairing, leaving `missing`/undischarged_slots untouched (re-parse: `stated` dropped it).
-    if tag == "evidence" and _normalize_status(reported) == "satisfied":
+    # Do not widen the exemption to `non-command`: only a `source-read` claim is settled by a read.
+    if (tag == "evidence" and cls != "source-read"
+            and _normalize_status(reported) == "satisfied"):
         verdict, _reason = parse_disposition(dispositions.get("command-run"))
         if verdict == "no":
             status = "unestablished"
@@ -518,12 +524,13 @@ def _expected_sides(cls):
     """The verifier sides a criterion of class `cls` is checked by.
 
     A poisoned criterion (and, at the call site, one absent from the criteria file) has no
-    expected sides. `non-command` is the evidence verifier alone; `command` (and the fail-safe
-    default) is both. Returned in a fixed order so `missing_sides` never needs sorting.
+    expected sides. `non-command` and `source-read` are the evidence verifier alone; `command`
+    (and the fail-safe default) is both. Returned in a fixed order so `missing_sides` never
+    needs sorting.
     """
     if cls is _POISON_CLASS:
         return ()
-    if cls == "non-command":
+    if cls in SINGLE_SIDE_CLASSES:
         return ("evidence",)
     return ("evidence", "claim")
 
@@ -550,7 +557,7 @@ def _remedy(status, reason, expected, e_reported, c_reported, missing_sides, und
 
     Derived in this order, first matching rule winning — the ordered rule list of AC9.
     `expected` scopes rules 3 and 6 to the criterion's own verifier roster, so a
-    non-command criterion is never routed on a claim side it never had. Rules 4 and 6 emit the
+    single-side criterion is never routed on a claim side it never had. Rules 4 and 6 emit the
     evidence-side token when both sides qualify; once that side is re-run, the next
     reconciliation emits the claim-side token (the side has dropped out of the qualifying set).
     """
@@ -602,11 +609,12 @@ def reconcile(evidence_records, claim_records, criteria=None):
                          if (e_rec if s == "evidence" else c_rec) is None]
 
         # Resolve only the EXPECTED sides through the slot gate; an unexpected side stays
-        # inert (contributes no status, no slots). A present claim record on a `non-command`
+        # inert (contributes no status, no slots). A present claim record on a single-side
         # criterion is ignored with a breadcrumb naming the criterion (AC6).
+        cls = class_by_num.get(num)
         if "evidence" in expected:
             e_status, e_reported, e_disp, e_undischarged, e_forced_reason = _side(
-                e_rec, EVIDENCE_SLOTS, "evidence")
+                e_rec, EVIDENCE_SLOTS, "evidence", cls)
         else:
             e_status, e_reported, e_disp, e_undischarged, e_forced_reason = (
                 "unestablished", "unestablished", {}, [], None)
@@ -614,8 +622,8 @@ def reconcile(evidence_records, claim_records, criteria=None):
             c_status, c_reported, c_disp, c_undischarged, _c_forced_reason = _side(
                 c_rec, CLAIM_SLOTS, "claim")
         else:
-            if class_by_num.get(num) == "non-command" and c_rec is not None:
-                print(f"reconcile-ac-verifiers: criterion {num} is non-command; ignoring "
+            if cls in SINGLE_SIDE_CLASSES and c_rec is not None:
+                print(f"reconcile-ac-verifiers: criterion {num} is {cls}; ignoring "
                       f"the claim report present for it", file=sys.stderr)
             c_status, c_reported, c_disp, c_undischarged = (
                 "unestablished", "unestablished", {}, [])
@@ -626,10 +634,10 @@ def reconcile(evidence_records, claim_records, criteria=None):
             # reconciled from the reports — force `unestablished`, and `_remedy` routes `judge`.
             status, evidence, evidence_source = "unestablished", "", ""
         elif "claim" not in expected:
-            # Single-side (`non-command`): the reconciled status IS the evidence side's status
-            # after its slot gate; the evidence pointer, if any, is carried through. The AC6
-            # no-evidence downgrade (docstring lines 38-40) is a GLOBAL invariant, not a
-            # command-only one: a satisfied non-command record with no evidence pointer would
+            # Single-side (`non-command`, `source-read`): the reconciled status IS the evidence
+            # side's status after its slot gate; the evidence pointer, if any, is carried through.
+            # The AC6 no-evidence downgrade (docstring lines 38-40) is a GLOBAL invariant, not a
+            # command-only one: a satisfied single-side record with no evidence pointer would
             # otherwise tick with no evidence, so it fails closed to `unestablished` here exactly
             # as reconcile_one does for the command path.
             status = _normalize_status(e_status)
@@ -648,7 +656,7 @@ def reconcile(evidence_records, claim_records, criteria=None):
         # `stated_terms` and the `observed_value` it saw in the shipped artifact, and `status`
         # is set from their match — so an evidence pointer plus a fit judgment with no recorded
         # match is not `satisfied`. It runs AFTER the pointer/slot pairing above and reads only
-        # the evidence record, so it applies identically on the command and non-command paths.
+        # the evidence record, so it applies identically on the command and single-side paths.
         # Gated on `expected`: a criterion with no legitimate verifier roster (poisoned or
         # absent from the criteria file) keeps its fail-closed `unestablished` and is never
         # turned `satisfied` by a coincidental pair match. Skipped only when the evidence report
@@ -660,7 +668,7 @@ def reconcile(evidence_records, claim_records, criteria=None):
         # resolved non-satisfied (a claim-verifier disagreement, an unexecuted command, or an
         # undischarged slot), so one side's coincidental value match cannot override the
         # two-verifier cross-check. A `satisfied` status here already carries an evidence
-        # pointer (the AC6 no-evidence downgrade ran on the command and non-command branches
+        # pointer (the AC6 no-evidence downgrade ran on the command and single-side branches
         # above), so the retained pointer stays valid on a downgrade.
         # An evidence side that reported `satisfied` over a failing pair contradicted its own
         # record, so the pair is named as an undischarged evidence slot (issue #1068) even when

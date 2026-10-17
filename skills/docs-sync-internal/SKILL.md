@@ -62,7 +62,7 @@ The documentation tree has a stated shape; every write this skill makes preserve
 - **Taxonomy:** one level of subdirectories under `[[INTERNAL_DOC_LOCATION]]`; directories are business-domain names (`orders/`, `authentication/`), never code layers (`backend/`, `api/` as a layer) and never a catch-all (`misc/`, `guides/`); lowercase-with-hyphens; 3-15 categories total. `.gitkeep` files are never removed, including from directories that gain documents — other tooling reads them as the emptiness sentinel.
 - **`glossary.md` at the root defines repo-private vocabulary.** When your prose uses a coined or repo-private term not already defined there, add a one-line definition row in the same pass (create the file and link it from `index.md` if absent) — an undefined term costs every future reader a search.
 - **One canonical page per fact.** Each fact lives on exactly one page; every other mention is a one-line pointer to that page carrying the marker `<!-- canonical: <relative path> -->` so a later pass can verify the pointer instead of re-verifying a copy. When you find the same fact stated in full on two pages, keep the owning page's copy and reduce the other to a pointer. A rule whose home is code or a skill body gets a pointer there, not its conditions restated.
-- **Pinned-path guard.** Before renaming, moving, or deleting ANY file under `[[INTERNAL_DOC_LOCATION]]`, search the rest of the repository (source, scripts, CI, and test directories — using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`) for its exact path. A path that code or tests reference is load-bearing: do not rename or delete it — report the pin in your analysis output instead, because a silent rename breaks the referencing tool with no doc-side signal.
+- **Pinned-path guard.** Before renaming, moving, or deleting ANY file under `[[INTERNAL_DOC_LOCATION]]`, search the rest of the repository (source, scripts, CI, and test directories — using the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/`) for its exact path, escaping its regex metacharacters; a refused search, or one exiting above 1, proves nothing, so treat the path as pinned. A path that code or tests reference is load-bearing: do not rename or delete it — report the pin in your analysis output instead, because a silent rename breaks the referencing tool with no doc-side signal.
 - **Size ceiling.** A page you touch that exceeds ~60 KB cannot be read by an agent in one pass and has stopped serving the mission: do not keep appending to it — flag it in your analysis output with a concrete split proposal (which sections move to which new pages). Do not perform the split in this run unless the branch's changes require it.
 
 ---
@@ -187,7 +187,7 @@ Step 2: Read the Index, Then Analyze Each Code File
 Read `[[INTERNAL_DOC_LOCATION]]/index.md` first (creating it per the Structure Contract if absent). Then, for EACH code file that changed:
 - Examine the exact code changes (what was added or modified)
 - Decide whether the change alters behavior, and at what impact:
-  - HIGH IMPACT: New features, API changes, new methods, changed behavior → Search for ALL related documentation, using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories)
+  - HIGH IMPACT: New features, API changes, new methods, changed behavior → Search for ALL related documentation, using the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/`, escaping a literal's regex metacharacters; a refused search, or one exiting above 1, proves nothing: report it in your analysis output
   - LOW IMPACT: Removed attributes, config tweaks, bug fixes with no behavior change → Update only directly affected documentation
 - Identify the owning page for each behavior change via `index.md`, confirming with a content search that no other page also states the fact
 - Compare the owning page's prose with the actual code changes
@@ -211,7 +211,7 @@ Edit files in `[[INTERNAL_DOC_LOCATION]]`, routing every write through the Struc
 - ADD documentation: For new behavior, write it on the owning page; create a new page only when no existing page owns the topic, place it per the taxonomy, and register it in `index.md` in the same pass
 - CORRECT documentation: For changed behavior, rewrite the owning page's affected sentences in place so the page describes only the current behavior
 - Reduce duplicate statements of a fact you touched to canonical pointers per the Structure Contract
-- Use the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) to find all documentation files mentioning the changed code before editing
+- Use the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/`, escaping a literal's regex metacharacters, to find all documentation files mentioning the changed code before editing; a refused search, or one exiting above 1, proves nothing: report it in your analysis output
 
 Step 5: Verify Every Factual Claim Against the Codebase
 ⚠️ **MANDATORY — do not skip. Write docs from the code, never from the issue body, the plan, or your memory of what the change "should" do.**
@@ -241,7 +241,7 @@ Before completing, verify you have:
 - [ ] Ran the three-dot `git diff` against the configured base branch (Step 1) to see ONLY this branch's changes
 - [ ] Read `[[INTERNAL_DOC_LOCATION]]/index.md` first and routed every write through it (creating it if absent)
 - [ ] Examined EVERY code change and decided whether it changes behavior
-- [ ] Searched for related documentation using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) for each behavior change
+- [ ] Searched for related documentation using the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/` for each behavior change
 - [ ] Determined the owning page and action (add / correct in place / none) for each behavior change
 - [ ] Provided markdown-formatted analysis output listing ALL behavior changes and their documentation status
 - [ ] Recorded the **Public-doc impact** list (or its explicit "Public-doc impact: none" line) in the analysis output

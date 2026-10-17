@@ -6,20 +6,27 @@
 # cooldown_days config.
 #
 # Usage:
-#   bash lib/actionable-patterns.sh <retrospectives.jsonl> <overrides.json> [--full]
+#   bash lib/actionable-patterns.sh <retrospectives.jsonl> <overrides.json> [--full] [--scan <scan.json>]
 #
 # Args:
 #   $1  path to retrospectives.jsonl
 #   $2  path to overrides.json
-#   $3  optional: --full, emitting the UNFILTERED whole-pattern view the run
-#       report renders (every lifecycle status, below-threshold and suppressed
-#       included) instead of the actionable subset. An unset or empty $3 selects
-#       the default (filtered) view; any other value, and any argument beyond $3,
-#       is rejected with rc 2. Note the emitted `status` is one of the six
-#       lifecycle values under --full, not just open/regressed.
+#   --full  optional: emit the UNFILTERED whole-pattern view the run report
+#       renders (every lifecycle status, below-threshold and suppressed
+#       included) instead of the actionable subset. Note the emitted `status` is
+#       one of the six lifecycle values under --full, not just open/regressed.
+#   --scan <scan.json>  optional: this run's scan file (lib/scan.sh's array of
+#       {mergedAt, ...}); sets each pattern's `scan_window`. Without --full it
+#       also prints, on stderr, one `Pattern <tag>: …` report line per
+#       cooldown-inactive pattern in its output that it holds back or cannot
+#       decide, or one `Pattern …` line saying those lines could not be derived.
+#   After the two paths, any other argument (an empty one included) and a --scan
+#   path that is empty or starts with `-` are rejected with rc 2.
 #
 # Output (stdout):
-#   Compact JSON array of actionable pattern objects, each shaped as:
+#   JSON array of actionable pattern objects in rank order. The default
+#   view keeps one cooldown-inactive entry per category (the first-ranked) plus
+#   every cooldown-active entry; --full keeps every entry. Each is shaped as:
 #     {
 #       "tag":              <string>,          # the entry's own (opaque) filing key (== slug)
 #       "slug":             <string>,          # URL-safe issue-filing key (== tag)
@@ -42,6 +49,14 @@
 #       "cooldown_active":  <bool>             # true if an open filed retrospective
 #                                              #   issue for this slug was created
 #                                              #   within cooldown_days
+#       "scan_window":      null without --scan, else
+#                           {held, newest, earliest, unestablished}: held is true
+#                           only when every occurrence merge time and every
+#                           scanned record's mergedAt are well-formed and the newest
+#                           occurrence is earlier than the earliest scanned
+#                           mergedAt; unestablished names the value
+#                           that could not be established (held is then false).
+#                           Marked, never dropped: the caller filters.
 #     }
 #
 # Environment:
@@ -73,29 +88,47 @@ trap 'rm -rf "$_JQ_TMP"' EXIT
 
 RETRO_FILE="$1"
 OVERRIDES_FILE="$2"
+shift 2
 # --full emits the UNFILTERED pattern view (every pattern, every status) so the
 # orchestrator can carry the whole picture into the run report (issue #788); the
-# default emits only the actionable subset (open/regressed above threshold).
+# default emits only the actionable subset.
 FULL=0
-# Reject an unrecognized argument LOUDLY. A near-miss (`--ful`, `-full`,
-# `--full=1`) or a --full that lands PAST $3 would otherwise silently yield the
-# FILTERED view, which the caller then writes to patterns-full.json and the
-# report renders under a heading promising the unfiltered picture — well-formed,
-# non-empty, and wrong, with every downstream guard passing. Mirrors
-# pattern-state.sh's strict arg handling.
-#
-# The arity check is what makes that claim true for $4 and beyond: a `case` on
-# $3 alone structurally cannot see a later argument, so without this the flag
-# landing in $4 is accepted in silence — exactly the failure named above.
-if [ "$#" -gt 3 ]; then
-    echo "actionable-patterns: unexpected argument '$4' (expected at most <retrospectives> <overrides> [--full])" >&2
-    exit 2
+SCAN_FILE=""
+# Reject a malformed argument LOUDLY: a near-miss (`--ful`, `--full=1`, or a --full
+# swallowed as the --scan path) would otherwise silently yield the FILTERED view the
+# caller writes to patterns-full.json, and an empty --scan path no scan window.
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --full) FULL=1 ;;
+        --scan)
+            case "${2:-}" in
+                ''|-*) echo "actionable-patterns: --scan needs a scan-file path, got '${2:-}'" >&2; exit 2 ;;
+            esac
+            SCAN_FILE="$2"; shift ;;
+        *) echo "actionable-patterns: unknown argument '$1' (expected --full or --scan <scan.json>)" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+# ── Scan window (issue #1410) ────────────────────────────────────────────────
+SCAN_MODE=0
+SCAN_REASON=""
+_SCAN_ACTUAL="$_JQ_TMP/scan-stub.json"
+: > "$_SCAN_ACTUAL"
+if [ -n "$SCAN_FILE" ]; then
+    SCAN_MODE=1
+    if [ ! -e "$SCAN_FILE" ]; then
+        SCAN_REASON="scan file '$SCAN_FILE' is missing"
+    elif [ ! -f "$SCAN_FILE" ]; then
+        SCAN_REASON="scan file '$SCAN_FILE' is not a regular file"
+    elif [ ! -s "$SCAN_FILE" ]; then
+        SCAN_REASON="scan file '$SCAN_FILE' is empty"
+    elif ! _scan_err=$("$DEVFLOW_JQ" empty "$SCAN_FILE" 2>&1 >/dev/null); then
+        SCAN_REASON="scan file '$SCAN_FILE' could not be read as JSON (jq: ${_scan_err%%[$'\r\n']*})"
+    else
+        _SCAN_ACTUAL="$SCAN_FILE"
+    fi
 fi
-case "${3:-}" in
-    '') : ;;
-    --full) FULL=1 ;;
-    *) echo "actionable-patterns: unknown argument '$3' (expected --full)" >&2; exit 2 ;;
-esac
 
 MIN="$(devflow_conf '.prflow_retrospective.min_occurrences' 2)"
 COOLDOWN="$(devflow_conf '.prflow_retrospective.cooldown_days' 3)"
@@ -159,14 +192,22 @@ fi
 # indistinguishably from the benign no-records case. When the real experiment file was used
 # (the `_EXPERIMENTS_ACTUAL == EXPERIMENTS_FILE` arm, i.e. present, non-empty, and parseable)
 # yet NO pattern came out covered, emit one advisory ::warning:: so that silent collapse is
-# observable. `|| true` + the non-numeric arm keep an unestablished count from fabricating a
-# zero heartbeat (unknown is not zero); the warning never changes the emitted output.
+# observable. Only an established count of 0 fires it (unknown is not zero), and it never
+# changes the emitted output. It names uncounted runs only when the store holds no sample to
+# cover; a sample that joins no occurrence, or a failed probe, keeps the drift warning.
 if [ "$_EXPERIMENTS_ACTUAL" = "$EXPERIMENTS_FILE" ]; then
   _COVERED_ANY="$(printf '%s' "$PATTERN_VIEW" | "$DEVFLOW_JQ" '[to_entries[] | select((.value.covered_occurrence_count // 0) > 0)] | length' 2>/dev/null || true)"
-  case "$_COVERED_ANY" in
-    ''|*[!0-9]*) : ;;
-    0) echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' is present and parses but yielded zero cost coverage for every pattern — cost-weighted ranking has degraded to occurrence-count-only; if unexpected, check scripts/build-experiment-records.py for producer-schema drift (a non-number 'pr' or a renamed 'efficiency_runs' the per-record type guards drop silently)" >&2 ;;
-  esac
+  if [ "$_COVERED_ANY" = 0 ]; then
+    _EXP_SHAPE="$("$DEVFLOW_JQ" -rs '[.[] | objects | select((.pr | type) == "number" and (.efficiency_runs | type) == "array")] as $ok
+      | if ($ok | length) > 0 and all($ok[].efficiency_runs[]; type == "object" and has("iterations") and (.iterations | type == "number" or type == "null"))
+           and ([$ok[].efficiency_runs[] | select(.source != "review") | .iterations | numbers | select(. > 0)] | length) == 0
+        then "uncounted" else "drift" end' \
+      "$EXPERIMENTS_FILE" 2>/dev/null || true)"
+    case "$_EXP_SHAPE" in
+      uncounted) echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' yielded zero cost coverage for every pattern — no pattern's PR has a fix-loop run with a counted iteration (standalone review runs and cost-only records carry none), so patterns rank by occurrence count only" >&2 ;;
+      *) echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' is present and parses but yielded zero cost coverage for every pattern — cost-weighted ranking has degraded to occurrence-count-only; if unexpected, check scripts/build-experiment-records.py for producer-schema drift (a non-number 'pr' or a renamed 'efficiency_runs' the per-record type guards drop silently)" >&2 ;;
+    esac
+  fi
 fi
 
 # ── Fetch open filed retrospective issues and build slug→createdAt map ───────
@@ -256,12 +297,6 @@ fi
 COOLDOWN_EPOCH="$(python3 -c "import sys, datetime as d; sys.stdout.reconfigure(newline='\n'); print(int((d.datetime.now(d.timezone.utc)-d.timedelta(days=${COOLDOWN})).timestamp()))")"
 
 # ── Build output array ───────────────────────────────────────────────────────
-# Default mode: each tag in the pattern view whose status is "open" or
-# "regressed", where a `regressed` tag bypasses the MIN occurrence threshold
-# outright (issue #788). --full mode drops BOTH filters and emits every tag.
-# Either way the entry carries cooldown_active resolved. The two `select` lines
-# below are the authoritative statement of this; keep them in step.
-
 # Route the corpus-sized operands (the --slurpfile flags below) through files
 # rather than --argjson argv slots: they grow monotonically with the corpus and, at
 # scale, overflow the kernel arg limit (jq: "Argument list too long") when passed as
@@ -269,15 +304,36 @@ COOLDOWN_EPOCH="$(python3 -c "import sys, datetime as d; sys.stdout.reconfigure(
 # reference dereferences [0].
 printf '%s' "$PATTERN_VIEW"   > "$_JQ_TMP/pattern_view.json"
 printf '%s' "$OPEN_ISSUE_MAP" > "$_JQ_TMP/open_issue_map.json"
-OUTPUT="$(
-  # argjson-ok: min, full, cooldown_epoch -- bounded scalars (small ints / a 0|1
-  # flag / an epoch int) — safe as argv; the corpus-sized operands use --slurpfile.
+_SELECTION="$(
+  # argjson-ok: min, full, scan_mode, cooldown_epoch -- bounded scalars (small ints /
+  # 0|1 flags / an epoch int) — safe as argv; the corpus-sized operands use --slurpfile.
   "$DEVFLOW_JQ" -n --slurpfile pattern_view    "$_JQ_TMP/pattern_view.json" \
         --slurpfile open_issue_map  "$_JQ_TMP/open_issue_map.json" \
+        --slurpfile scan            "$_SCAN_ACTUAL" \
         --argjson min             "$MIN" \
         --argjson full            "$FULL" \
+        --argjson scan_mode       "$SCAN_MODE" \
+        --arg     scan_reason     "$SCAN_REASON" \
         --argjson cooldown_epoch  "$COOLDOWN_EPOCH" '
-    [
+    # Check the form before comparing: jq orders null, booleans and numbers below
+    # every string and arrays and objects above, so an unchecked value would land
+    # on one side of the window silently.
+    def ts_ok: if type == "string" then test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$") else false end;
+    (if $scan_mode == 0 then null
+     elif $scan_reason != "" then {earliest: null, reason: $scan_reason}
+     elif ($scan | length) != 1 then {earliest: null, reason: "scan file holds \($scan | length) JSON documents, not one array"}
+     elif ($scan[0] | type) != "array" then {earliest: null, reason: "scan file is of type \($scan[0] | type), not an array"}
+     elif ($scan[0] | length) == 0 then {earliest: null, reason: "scan file lists no scanned PR"}
+     else
+       ([$scan[0] | to_entries[]
+         | if (.value | type) != "object" then "scan record \(.key) is of type \(.value | type), not an object"
+           elif (.value | has("mergedAt") | not) then "scan record \(.key) has no mergedAt"
+           elif (.value.mergedAt | ts_ok | not) then "scan record \(.key) mergedAt is not a YYYY-MM-DDTHH:MM:SSZ timestamp: \(.value.mergedAt | tojson)"
+           else empty end] | first) as $bad
+       | if $bad != null then {earliest: null, reason: $bad}
+         else {earliest: ([$scan[0][].mergedAt] | min), reason: null} end
+     end) as $window
+    | [
       $pattern_view[0]
       | to_entries[]
       # Default (actionable) mode: only open/regressed patterns above the
@@ -299,6 +355,18 @@ OUTPUT="$(
           else false
           end
         ) as $cooldown_active
+      | ($v.occurrences // []) as $occs
+      | (if $window == null then null
+         elif $window.reason != null then {held: false, newest: null, earliest: null, unestablished: $window.reason}
+         else
+           ([$occs[] | select(.ts | ts_ok | not)
+             | "occurrence of PR \(.pr) has merge time \(.ts | tojson), not a YYYY-MM-DDTHH:MM:SSZ timestamp"] | first) as $bad_occ
+           | if $bad_occ != null then {held: false, newest: null, earliest: $window.earliest, unestablished: $bad_occ}
+             elif ($occs | length) == 0 then {held: false, newest: null, earliest: $window.earliest, unestablished: "the pattern has no occurrence merge time"}
+             else ([$occs[].ts] | max) as $newest
+               | {held: ($newest < $window.earliest), newest: $newest, earliest: $window.earliest, unestablished: null}
+             end
+         end) as $scan_window
       | {
           tag: $tag,
           slug: $slug,
@@ -318,7 +386,8 @@ OUTPUT="$(
           # #1828). null cost signals zero coverage — never a fabricated 0.
           cost_mean_iterations: $v.cost_mean_iterations,
           covered_occurrence_count: ($v.covered_occurrence_count // 0),
-          cooldown_active: $cooldown_active
+          cooldown_active: $cooldown_active,
+          scan_window: $scan_window
         }
     ]
     # Cost-weighted ranking (issue #1828): covered patterns first, ordered by descending
@@ -332,8 +401,35 @@ OUTPUT="$(
         -(.cost_mean_iterations // 0),
         -(.occurrence_count)
       )
+    # Default mode keeps only the first cooldown-inactive entry of each category: a
+    # second one would send Stage B an identical audit. Cooldown-active entries pass
+    # through; reduce after the sort to keep rank order.
+    | if $full == 1 then {out: .} else
+        reduce .[] as $p ({kept: {}, dropped: {}, out: []};
+          if $p.cooldown_active then .out += [$p]
+          elif .kept[$p.category] then .dropped[$p.category] += [$p.tag]
+          else .kept[$p.category] = $p.tag | .out += [$p]
+          end)
+      end
   '
 )" || { echo "::error::actionable-patterns: failed to build the actionable-pattern output (jq exited non-zero — e.g. a malformed pattern view; the former oversized-operand arg-limit overflow is now mitigated via --slurpfile)" >&2; exit 1; }
+OUTPUT="$(printf '%s' "$_SELECTION" | "$DEVFLOW_JQ" '.out')" \
+  || { echo "::error::actionable-patterns: could not extract the actionable-pattern array from the selection (jq exited non-zero)" >&2; exit 1; }
+_DROP_NOTICE="$(printf '%s' "$_SELECTION" | "$DEVFLOW_JQ" -r '
+    .kept as $k | (.dropped // {}) | to_entries | select(length > 0)
+    | "dropped \(map(.value | length) | add) cooldown-inactive pattern(s) sharing a category with a higher-ranked one, so Stage B audits each category at most once — "
+      + (map("\(.key): kept \($k[.key]), dropped \(.value | join(" "))") | join("; "))
+  ')" || { echo "::warning::actionable-patterns: the per-category drop notice could not be derived (jq exited non-zero) — patterns may have been dropped unreported" >&2; _DROP_NOTICE=""; }
+if [ -n "$_DROP_NOTICE" ]; then
+    echo "::notice::actionable-patterns: $_DROP_NOTICE" >&2
+fi
+if [ "$SCAN_MODE" -eq 1 ] && [ "$FULL" -eq 0 ]; then
+    printf '%s' "$OUTPUT" | "$DEVFLOW_JQ" -r '.[] | select(.cooldown_active == false) | "Pattern \(.tag): " + (.scan_window
+        | if .held then "held back, newest occurrence merged \(.newest), before the earliest scanned merge \(.earliest)"
+          elif .unestablished then "scan window unestablished (\(.unestablished)), not held back"
+          else empty end)' >&2 \
+      || echo "Pattern scan-window lines could not be derived (jq exited non-zero): a held-back pattern may be unnamed" >&2
+fi
 
 # ── Liveness warning (issue #788) ─────────────────────────────────────────────
 # When the actionable (eligible) set is EMPTY while at least one pattern is

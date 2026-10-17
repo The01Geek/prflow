@@ -54,14 +54,15 @@ Then check the execution path. These are the common mismatches:
 
 - `prflow.allowed_tools` does not apply to implementation.
 - `prflow_implement.allowed_tools` does not apply to the light cloud command path.
+- An `allowed_tools` entry that is not a non-empty single-line string is skipped, and the cloud config job shows a warning naming the key. The other entries still apply.
 - `prflow_runner` and `workflows.prflow-review` have no effect in a fresh installation, because the automatic-review files are not shipped.
 - Provider selection is set per section, not once for the whole file.
 
 </Accordion>
 
-<Accordion title="A per-agent model or effort override did nothing">
+<Accordion title="A per-agent model override did nothing">
 
-**Symptom:** you set a model or an effort for one review agent, the run completes normally and the agent behaves exactly as before.
+**Symptom:** you set a model for one review agent, the run completes normally and the agent behaves exactly as before. (A per-agent `effort` is ignored: every review agent runs at the session effort.)
 
 Print the overrides block:
 
@@ -80,12 +81,11 @@ Check each value against what is accepted:
 | Field | Accepted values | What a bad value does |
 | --- | --- | --- |
 | `model` | `sonnet`, `opus`, `haiku`, `fable` | Dropped with a warning. The agent falls back to the top-level `claude_model`. |
-| `effort` | `low`, `medium`, `high`, `xhigh`, `max` | Dropped with a warning. The agent falls back to the session effort. |
 | `iterations` | `first-only` | Dropped with a warning. The agent runs on every iteration. |
 
 An empty string, a whitespace-only string and a nested object are all treated as bad values. A provider-specific model identifier belongs at the top-level `claude_model`, not here.
 
-Resolution is per entry. An agent that has its own entry uses only that entry, and the `default` entry does not fill in its missing fields. `default` supplies a model and effort only for agents that have no entry of their own.
+Resolution is per entry. An agent that has its own entry uses only that entry, and the `default` entry does not fill in its missing fields. `default` supplies a model and `iterations` only for agents that have no entry of their own.
 
 <Warning>
 An entry whose key is not one of the nine review agents is refused by the schema, so validate against `.prflow/config.schema.json` before you commit. An entry that is present but is not an object is ignored with a warning, and `default` then applies to that agent instead.

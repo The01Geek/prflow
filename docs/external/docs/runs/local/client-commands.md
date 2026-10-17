@@ -51,7 +51,7 @@ Arguments follow the skill name, separated by spaces. Square brackets below mean
 
 | **Skill** | **Arguments** | **What It Does** |
 | --- | --- | --- |
-| `prflow:spec` (alias `prflow:create-issue`) | `<user story>` | Turns a rough description into a written GitHub issue. `spec` is the preferred name; `create-issue` is a transitional alias that forwards to it. |
+| `prflow:spec` (alias `prflow:create-issue`) | `<user story>` | Turns a rough description into a written GitHub issue. `spec` is the preferred name; `create-issue` is a permanent alias that forwards to it. |
 | `prflow:implement` | `<issue-number>` | Turns an existing issue into a branch and a pull request. |
 | `prflow:review` | `[pr-number] [--issue N]` | Reviews a pull request or the current branch and reports a verdict. |
 | `prflow:review-and-fix` | `[pr-number] [--push-each-iteration] [--issue N]` | Reviews, applies fixes and repeats until the verdict is clean. |
@@ -86,7 +86,7 @@ A fresh cloud installation answers four comment commands. Everything else in the
 
 Two differences matter when you move between the two:
 
-- **A cloud comment command ignores a trailing number.** `/prflow:review`, `/prflow:review-and-fix` and `/prflow:pr-description` always act on the thread they were posted on. Locally, a bare number selects a different pull request.
+- **A cloud comment command ignores a trailing number.** `/prflow:review` and `/prflow:review-and-fix` always act on the thread they were posted on. Locally, a bare number selects a different pull request. A comment-triggered `/prflow:pr-description` starts on the default branch and does not update the description; see [Pull Request Description](/docs/workflows/pr-description).
 - **`/prflow:implement` in the cloud runs only from a comment on an issue.** A comment on a pull request never starts one.
 
 See [Cloud Triggers](/docs/runs/cloud/triggers) for the full comment rules.

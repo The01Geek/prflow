@@ -9,38 +9,29 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 
 | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
 | --- | --- | --- | --- | --- |
-| `prflow_review.verdict_severity_threshold` | `critical`, `important` or `suggestion` | `critical` | Standalone review and review-and-fix review pass. Also weighs failed verification-checklist items by their severity, except that at `critical` or `important` one about inert prose weighs as a suggestion; an inconclusive item never rejects. Lowering the threshold makes more findings and failed checklist items reject. | `"verdict_severity_threshold": "critical"` |
+| `prflow_review.verdict_severity_threshold` | `critical`, `important` or `suggestion` | `critical` | Standalone review and review-and-fix review pass. Also weighs failed verification-checklist items by their severity, except that one about inert prose counts at its capped grade, and one re-checking an earlier finding about a self-contradicting change rejects at any severity; an inconclusive item never rejects. Lowering the threshold makes more findings and failed checklist items reject. | `"verdict_severity_threshold": "critical"` |
 | `prflow_review.live_progress_comment_enabled` | Boolean | `true` | Pull-request review. When true, each run maintains its own progress comment. Comment writes are best effort. | `"live_progress_comment_enabled": true` |
-| `prflow_review.stale_prose.enabled` | Boolean | Fallback `true`; scaffold: `false`. Anything except explicit false enables | Shared review engine. Fresh installs scaffold this off, because the check is tuned to prose idioms that are common in the PRFlow repository itself and its false-positive suppression channel only works for bot-authored review comments. Set it to true to enable the automatic check for prose that contains stale numeric claims. | `"enabled": false` |
-| `prflow_review.stale_prose.severity` | `critical`, `important` or `suggestion` | `important` | Shared review engine. The chosen severity participates in verdict computation. | `"severity": "important"` |
+| `prflow_review.stale_prose.enabled`, `prflow_review.stale_prose.severity` | Boolean; `critical`, `important` or `suggestion` | Ignored | Deprecated: the review engine no longer runs the stale-prose check. Existing values still validate; remove them when convenient. | — |
 | `review_status_labels.enabled` | Boolean | `false`; only the JSON boolean `true` or the string `"true"` enables | Cloud pull-request review. Off by default, so no label request is made unless you opt in. When on, a cloud review keeps one managed label — `PRFlow:Reviewing`, `PRFlow:Approved`, `PRFlow:ReviewRejected` or `PRFlow:ReviewStuck` — on the pull request and each issue it closes, so review state is visible from the issue and pull-request lists. Best-effort: label errors never change a run's outcome, and unmanaged labels are left in place. Local reviews and review-and-fix runs write no label. | `"review_status_labels": { "enabled": true }` |
-
-<Note>
-  `prflow_review.stale_prose.enabled` is the second place where the scaffolded file and the fallback disagree. `/prflow:init` writes `false`, while an absent key resolves to `true`. Set the value explicitly rather than deleting the key.
-</Note>
 
 ## Review and Fix
 
 | **Setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
 | --- | --- | --- | --- | --- |
-| `prflow_review_and_fix.fix_severity_threshold` | `critical`, `important` or `suggestion` | `important` | Local review-and-fix and implementation's inline fix loop. Also routes failed verification-checklist items by their severity; an inconclusive item is never sent to the fixer. Findings and failed checklist items severe enough to cause a rejection remain eligible for correction at every value. | `"fix_severity_threshold": "important"` |
-| `prflow_review_and_fix.fix_below_threshold_iterations` | Integer zero or greater | `1` | Local review-and-fix and implementation's inline fix loop. Only affects a repository that set `fix_severity_threshold` to `suggestion`; at the default threshold no below-`important` findings are admitted, so this key has no effect. Below-`important` findings route to the fixer only during this many leading iterations; after that window, an iteration with no Critical or Important finding parks each below-`important` finding as advisory and holds back each below-`important` failed checklist item. Set at or above `max_iterations` to restore the previous behavior; set `0` to park below-`important` findings from the first iteration. Findings that drove a rejection always route regardless. | `"fix_below_threshold_iterations": 1` |
+| `prflow_review_and_fix.fix_severity_threshold` | `critical`, `important` or `suggestion` | `important` | Local review-and-fix and implementation's inline fix loop. Also routes failed verification-checklist items by their severity; an inconclusive item is never sent to the fixer. Findings and failed checklist items severe enough to cause a rejection, and findings exempt from rejection because a decided acceptance criterion decides them, remain eligible for correction at every value. | `"fix_severity_threshold": "important"` |
+| `prflow_review_and_fix.fix_below_threshold_iterations` | Integer zero or greater | `1` | Local review-and-fix and implementation's inline fix loop. Only affects a repository that set `fix_severity_threshold` to `suggestion`; at the default threshold no below-`important` findings are admitted, so this key has no effect. Below-`important` findings route to the fixer only during this many leading iterations; after that window, an iteration with no Critical or Important finding parks each below-`important` finding as advisory and holds back each below-`important` failed checklist item. Set at or above `max_iterations` to restore the previous behavior; set `0` to park below-`important` findings from the first iteration. Findings that drove a rejection, and findings exempt from rejection because a decided acceptance criterion decides them, always route regardless. | `"fix_below_threshold_iterations": 1` |
 | `prflow_review_and_fix.max_iterations` | Integer one or greater | `5`; values below one clamp to one | Review-and-fix. Higher values can increase cost. | `"max_iterations": 5` |
-| `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `true` | Review-and-fix. False disables the effectiveness record and prevents denied-command records from being persisted on the telemetry branch. | `"efficiency_telemetry_enabled": true` |
+| `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `false` | Review-and-fix. False disables the effectiveness record and denied-command records; run workpads and cloud cost records still persist unless `telemetry.enabled` is false. | `"efficiency_telemetry_enabled": true` |
 | `prflow_review_and_fix.efficiency_cut_candidate_min_dispatch` | Integer one or greater | `3` | Cross-run analysis. It is recorded for later analysis and does not cut an agent during the current run. | `"efficiency_cut_candidate_min_dispatch": 3` |
 | `receiving_review.fix_severity_threshold` | `critical`, `important` or `suggestion` | `critical` | Direct use of the fix skill only. The review-and-fix loop uses its own threshold. | `"fix_severity_threshold": "critical"` |
 
-## Valid Review Example
+## Review Example with Effectiveness Opt-In
 
 ```json
 {
   "prflow_review": {
     "verdict_severity_threshold": "critical",
-    "live_progress_comment_enabled": true,
-    "stale_prose": {
-      "enabled": false,
-      "severity": "important"
-    }
+    "live_progress_comment_enabled": true
   },
   "prflow_review_and_fix": {
     "fix_severity_threshold": "important",
@@ -54,7 +45,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 }
 ```
 
-Expected result: a review rejects only on a critical finding, the fix loop corrects findings of important severity or worse and stops after at most five iterations, and each run keeps its own progress comment on the pull request.
+Expected result: a review rejects only on a critical finding, the fix loop corrects findings of important severity or worse and stops after at most five iterations, each run keeps its own progress comment on the pull request, and effectiveness telemetry is explicitly enabled.
 
 To add house review rules that no setting expresses, such as a pattern your reviewers must always flag, write a [prompt extension](/docs/configuration/skill-extensions) for `review` and `review-and-fix`.
 

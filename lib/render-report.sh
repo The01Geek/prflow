@@ -57,9 +57,7 @@ devflow_render_report() {
     printf 'analyzed: %s\n' "$analyzed_count"
     printf 'skipped: %s\n' "$skipped_count"
 
-    # Skips (issue #626) — every skip class writes a one-line record so no skip is
-    # ever silent: the mechanical no-provenance pre-dispatch skip, the Stage A
-    # Cancelled skip, and the Stage A interim skip. Omitted when nothing was skipped.
+    # Skipped PRs and run notes (issue #626), one line per record. Omitted when there are none.
     local skips_n
     # Count ONLY an actual array; every other shape emits nothing, which the
     # numeric case below degrades to 0 so the section is merely omitted.
@@ -76,7 +74,7 @@ devflow_render_report() {
     skips_n="$(echo "$summary_json" | "$DEVFLOW_JQ" -r 'if (.skips // [] | type) == "array" then (.skips // [] | length) else empty end' 2>/dev/null || true)"
     case "$skips_n" in ''|*[!0-9]*) skips_n=0 ;; esac
     if [ "$skips_n" -gt 0 ]; then
-        printf '\n### Skipped PRs (mechanical no-provenance / Cancelled / interim)\n\n'
+        printf '\n### Skipped PRs and run notes\n\n'
         _rr_emit skips '(.skips // [])[] | "- " + (. | tostring | gsub("\n";" "))'
     fi
 
@@ -261,6 +259,16 @@ devflow_render_report() {
         _rr_emit withheld_patterns '(.withheld_patterns // [] | map(select(type == "object")))[] | "- `\(.tag // .slug // "(unnamed)")` — withheld by `\((.cap | strings) // "(unknown cap)")`"'
     fi
 
+    # Scan window (issue #1410) — actionable-patterns.sh's `Pattern …` report lines.
+    # Same type-test + numeric-degrade guard `skips_n` documents above.
+    local scan_window_n
+    scan_window_n="$(echo "$summary_json" | "$DEVFLOW_JQ" -r 'if (.scan_window // [] | type) == "array" then (.scan_window // [] | length) else empty end' 2>/dev/null || true)"
+    case "$scan_window_n" in ''|*[!0-9]*) scan_window_n=0 ;; esac
+    if [ "$scan_window_n" -gt 0 ]; then
+        printf '\n## Scan window\n\n'
+        _rr_emit scan_window '(.scan_window // [])[] | "- " + (. | tostring | gsub("\n";" "))'
+    fi
+
     # Truncated Stage B evidence (issue #894) — every pattern where Stage B was
     # delivered fewer occurrence bundles than the pattern has occurrences, because
     # `audit_bundle_cap` dropped older ones (and/or a fetch failed). Each entry
@@ -294,7 +302,7 @@ devflow_render_report() {
     case "$declined_refiled_n" in ''|*[!0-9]*) declined_refiled_n=0 ;; esac
     if [ "$declined_refiled_n" -gt 0 ]; then
         printf '\n## Won'"'"'t-fix patterns re-raised this run\n\n'
-        printf 'These recurred after being closed not-planned. To stop one permanently, add a human `dismissed{}` entry to `.prflow/learnings/overrides.json`.\n\n'
+        printf 'These recurred after being closed not-planned. To stop one permanently, run `retro-helper.sh dismiss <pattern-key>`, which adds it to the learnings store'"'"'s `dismissed{}` map.\n\n'
         _rr_emit declined_refiled '(.declined_refiled // [])[] | "- `\(. | tostring)`"'
     fi
 

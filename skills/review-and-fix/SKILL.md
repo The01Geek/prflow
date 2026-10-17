@@ -8,359 +8,116 @@ argument-hint: "[pr-number] [--push-each-iteration] [--issue N]"
 
 You are the review-and-fix orchestrator. Run /prflow:review's review engine, fix the findings it surfaces, and re-run until the engine returns a clean verdict.
 
-Input: `$ARGUMENTS` may contain an optional PR number, the flag `--push-each-iteration`, and/or the flag `--issue N`. Parse the three independently — any, all, or none may be present. If no PR number is given, review and fix the current branch. The bare numeric token (if any) is `$PR_NUMBER`; the `--issue` value (if any) is `$ISSUE_OVERRIDE`. A value following `--issue` is never read as the PR number — only a bare numeric token binds `$PR_NUMBER`. Every later PR-mode predicate and every `gh` command reads `$PR_NUMBER` — never the raw `$ARGUMENTS` string, which fails an is-a-PR-number test and leaks the flag tokens into any command it is interpolated into.
+Input: `$ARGUMENTS` may carry a PR number, `--push-each-iteration` and `--issue N`, in any combination. Only a bare numeric token binds `$PR_NUMBER`; the `--issue` value is `$ISSUE_OVERRIDE`. With no PR number, review and fix the current branch. Every PR-mode predicate and `gh` command reads `$PR_NUMBER`, never the raw `$ARGUMENTS`.
 
-`--push-each-iteration` (default off). When set, each fix and Loop Exit use the gated base checkpoint and push, keeping the PR and CI current. Otherwise fix commits stay local and the base is untouched. The flag never posts a GitHub verdict; mandatory telemetry persistence remains independent. Loop correctness uses local `HEAD` (with the PR head override), not pushed state.
+`--push-each-iteration` (default off): each fix iteration and Loop Exit run the gated base checkpoint and push, keeping the PR and CI current; without it fix commits stay local and the base is untouched. It never posts a GitHub verdict. Loop correctness uses local `HEAD` (with the PR head override), not pushed state.
 
 Key principle: You perform fixes DIRECTLY in this session. Do NOT delegate fixes to a subagent. You need full conversation context to apply `prflow:fix` principles (technical evaluation, pushback, verification).
 
-Subagent dispatch is user-requested at the loop's own dispatch points (injection-condition clause). Invoking `/prflow:review-and-fix` is the user's request for subagent dispatch at the points that are this loop's own — the Step 2.6 shadow fan-out, the Step 3.5 fix-delta gate, the Step 3 scoped `comment-analyzer` re-dispatch, the parked-class sweep, and the Loop Exit post-shadow edit gate — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else, and authorizing none of the inline work: you still perform fixes DIRECTLY and never delegate a fix, or the whole engine, to a subagent. (The shared engine's own dispatch points are authorized by the `/prflow:review` clause this loop inherits and does not copy.)
+Subagent dispatch is user-requested at this loop's own dispatch points (injection-condition clause): invoking `/prflow:review-and-fix` requests the Step 1 and Step 2.6 engine subagents and the Step 3.5 fix-delta reviewer, satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else. It never authorizes delegating a fix. The engine's own dispatch points carry the `/prflow:review` clause.
+
+Dispatch barrier. Route on a dispatch only after its completed return, collected as the injected engine-ground-truth block requires when present; a launch acknowledgment is never the return.
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill spell the skill directory as `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. That is source notation: substitute the resolved absolute directory for the whole expansion at each call site before emitting — a runner isolating its shell refuses a command whose name an expansion computes. Take `$CLAUDE_SKILL_DIR`'s value when the runner reports one, else locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — from the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line), accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Substitute inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
-Cloud command-shape discipline. A granted command *head* is not sufficient: the cloud runner's harness — the `command` tier this bundle runs under, and the review tier the shared engine runs under — denies whole command *shapes* even when every head is granted, silently, burning budget until a run can end with no verdict. This is additive to the three call-form rules in this bundle root — the inline-resolved portable anchor, the granted vendored-literal leading token, and the tier-agnostic invocation procedure. Keep every command you emit to a permitted shape, consistent with the equivalent discipline in `skills/review/SKILL.md` whose engine this bundle executes inline. The permitted and denied shapes are:
+Cloud command-shape discipline. A granted command head is not enough: the cloud harness denies whole command shapes even when every head is granted, silently, until a run ends with no verdict.
 
-- Permitted: only shapes with evidence on this profile: authoring a file with the **Write tool** under `.prflow/tmp/**`, the specific recorded `tee` forms, and the specifically recorded command-substitution forms. A granted command head does not establish that a statement containing a redirect is permitted; each complete shape needs its own evidence.
-- **Denied — never emit:** a helper invocation that is not the statement's leading token — no leading `VAR=value` assignment or env-prefix (`M=x cmd …`), no leading `cd`, and no `echo … &&` or other command prefix ahead of the helper; a scratch write targeting `/tmp` rather than `.prflow/tmp/**` (a `> /tmp/…` or `>> /tmp/…` redirect, or any other authoring under `/tmp`); the Write tool outside `.prflow/tmp/**`; a `cat`-headed heredoc write to any target (use the Write tool or `tee` instead); a stderr redirect that AUTHORS a file, measured refused even for a target inside the workspace — read stderr from the invocation's own tool result instead (`2>/dev/null` discards rather than authoring, and is unmeasured either way); an interpreter head (`python3` / `python` / `node`); the *unexpanded* helper anchor placeholder as a leading token (emit the resolved vendored-literal path instead; this does not bar the tier-agnostic procedure's anchor fallback arm).
-- **Scratch writes target `.prflow/tmp/**`, never `/tmp`.** Author run-scoped scratch with the Write tool — or a `tee` heredoc where no Write tool exists — under `.prflow/tmp/**`; a `/tmp`-targeted redirect or heredoc is a denied shape.
-- **Hard rule: after a second permission denial of a shape, switch to a permitted alternative from this list — never iterate variants of the denied shape.** Iterating denied variants is what exhausts the run's budget and ends it with no verdict.
+- Permitted: authoring a file with the **Write tool** under `.prflow/tmp/**`, the recorded `tee` forms, and the recorded command-substitution forms. A granted head does not make a redirect shape permitted.
+- **Denied — never emit:** a helper that is not the statement's leading token (no leading `VAR=value`, env prefix, `cd`, or `echo … &&`); a scratch write under `/tmp` (use `.prflow/tmp/**`); the Write tool outside `.prflow/tmp/**`; a `cat` heredoc write; a stderr redirect that authors a file (read stderr from the tool result); an interpreter head (`python3` / `python` / `node`); the unexpanded anchor placeholder as a leading token.
+- **Hard rule: after a second permission denial of a shape, switch to a permitted alternative from this list — never iterate variants of the denied shape.**
 
-Local-tier denial refuses the command *form*, never the work: re-form it — the direct leading-token form, then `python3 <path>` where interpreter heads aren't denied, else the second-denial switch rule above — but never reproduce the denied *effect* (an edit, a git state) through another tool, interpreter, or checkout; that is the boundary the denial drew, so record the step blocked. A denied verification is recorded as unestablished, never as passed, and never a reason to switch to a different evidence channel.
+Helper retry rule. Each helper fence names the vendored literal (`.prflow/vendor/prflow/…`, the form the cloud tiers grant) first. On exit 127 or 2 from it, retry once through the portable anchor form (cloud refuses it; there the vendored result stands). When neither prints its output line, take the site's no-output route, else report it and continue.
 
-Vendored-version check (run start, before the extension load or any helper; skipped when the invoking caller holds `$ISSUE_NUMBER`, a `/prflow:implement` run that already ran it). With the file-read tool, Read `.prflow/vendor/prflow/.claude-plugin/plugin.json`. If not found, Read `.prflow/vendor/prflow/`: a does-not-exist error means absent, skip silently; a listing or an is-a-directory error means present, warn once (no vendored manifest); any other failure, warn once naming it. If found, Read `<skill-dir>/../../.claude-plugin/plugin.json`. Equal non-empty string `version`s: silent. Differing ones: warn once naming both versions, both paths and the remedies (update the checkout to the latest default branch; re-run the installer at the loaded release and merge the refreshed committed tree; delete an untracked leftover `.prflow/vendor/prflow/`). Anything else (a failed Read, invalid JSON, a non-object manifest, no non-empty string `version`): warn once naming the cause. No outcome stops the run.
+Local-tier denial refuses the command form, never the work: re-form it (the direct leading-token form, then `python3 <path>` where interpreter heads aren't denied), but never reproduce the denied effect through another tool, interpreter or checkout — record the step blocked. A denied verification is unestablished, never passed.
 
-Consumer prompt extension (load first). This skill's consumer extension reaches you through exactly one channel — the invocation ladder below — so load it yourself with that ladder, unconditionally, at the start of the run; nothing else delivers consumer policy into this skill. Read the ladder's output whole — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so. This load covers only this file: the review engine this skill loads by `Read`ing `skills/review/SKILL.md` as a file carries its own ladder, which the engine runs on the prose path inside the fix loop. From the repo root, run the granted vendored-literal leading token — the cloud matcher denies the unexpanded anchor as a leading token, so this is the form that executes on the cloud tiers:
+Vendored-version check (warn-only; skipped when the caller holds `$ISSUE_NUMBER`): at run start Read `.prflow/vendor/prflow/.claude-plugin/plugin.json` and `<skill-dir>/../../.claude-plugin/plugin.json`, and when both carry a `version` and they differ, warn once naming both.
+
+Consumer prompt extensions. Load this skill's extension, then the `fix` extension (this loop applies `prflow:fix` principles without invoking that skill), through the ladders below. Read each output whole: no `>/dev/null`, `| head` or other truncation. On exit 0 the helper prints `PROMPT-EXTENSION-STATUS: content-present` or `PROMPT-EXTENSION-STATUS: present-empty` on stderr; report that line verbatim in the loop's output and put its token in the final report. `content-present` appends the stdout text to this skill's prompt. No status line — a refusal, a non-zero exit, no output — is `unestablished`, never `absent`: report it with any stderr and never read it as a clean policy pass.
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh review-and-fix
 ```
 
-Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. On a `command not found` / `No such file` / exit-127 reading (a checkout where the vendored path is absent, such as a non-Claude-Code runner), fall back to the portable anchor form below:
-
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh review-and-fix
 ```
-
-Every extension-state failure arm below fires unconditionally — this ladder is the only channel, so a failure you do not report drops consumer policy from the run silently. A missing helper path (`No such file`/exit 127) on every form above is the anchor-resolution failure above — report it in the loop's output, since it breaks every other bundled-helper call site in this run; fix the anchor, don't report a missing extension. A harness refusal of the command — a permission denial rather than a missing file — leaves the extension's state **unestablished**: report that in the loop's output and never read it as a clean policy pass (*unknown is not zero*). Any other non-zero exit means a consumer extension exists but could not be loaded — surface its stderr, never proceed silently. On exit 0 the helper prints a `PROMPT-EXTENSION-STATUS: content-present` or `PROMPT-EXTENSION-STATUS: present-empty` line on stderr; report that token verbatim in the loop's output as the extension's resolved status. `content-present`: append the stdout text to this skill's prompt (consumer-owned, committed under `.prflow/skill-extensions/`). `present-empty`: proceed unchanged. No `PROMPT-EXTENSION-STATUS` line at all — no output (a harness refusal) or a non-zero exit — leaves the state **unestablished**: report unestablished, never collapse it onto `present-empty` (*unknown is not zero*). Name those three resolved statuses **arrived** (`content-present`), **absent** (`present-empty`) and **unestablished** (no status line) — positive-signal only, per the arms above, so a denied helper's silence never reads as arrived. On **unestablished** for this load, force the record to the first available durable surface in this fixed, terminating order: this run's workpad when one exists; else the pull request — its description or a PR comment — when the loop has a PR but no workpad; else the loop's output, naming the unestablished state and reporting the record **unrecordable**. Write the first available surface — never skip an earlier one for a later one. The mechanized classifier is `.prflow/vendor/prflow/scripts/prompt-extension-arrival.py classify-ladder-output --skill review-and-fix` — the granted vendored-literal leading token, invoked with the same repo-relative/anchor fallback ladder as the load above; it reads the ladder's captured output on stdin — capture the ladder's combined stdout and stderr when invoking it (the status line is on stderr, so a stdout-only pipe misclassifies every real arrival as `unestablished`) — and emits `final=arrived|absent|unestablished` plus, on unestablished, a `record=` line. Do not depend on it running: where it is not granted or not runnable it produces no output, and its silence is never a classification — the status line you already observed stays authoritative for the states above, and on unestablished the forced durable write happens regardless.
-
-Extension provenance. `review-and-fix` extension text is provenance-clean only when both shallow-clone-safe checks are successfully established and pass over the four files the loader's repository-root lookup can read, `.prflow/skill-extensions/review-and-fix.md`, `.prflow/prompt-extensions/review-and-fix.md`, `.devflow/skill-extensions/review-and-fix.md` and `.devflow/prompt-extensions/review-and-fix.md`: one `git status --porcelain --ignored --untracked-files=all --` call naming all four literally, never a glob, exits successfully and reports nothing; and the run's cached changed-file list — the `diff --git` lines of its cached `diff.patch`, found by a whole-file search (for example the Grep tool), never a Read — is readable and contains none of them; an absent `diff.patch` is unreadable. Their operand is established only when each of those four files and `.prflow`, `.devflow`, `.prflow/skill-extensions`, `.prflow/prompt-extensions`, `.devflow/skill-extensions` and `.devflow/prompt-extensions` prints `not-link` from `test -L <path> && echo link; test ! -L <path> && test ! -d <path> && echo not-link; test ! -L <path> && test -d <path> && test -x <path> && echo not-link`, its exit status unread; any other output or an unreadable result leaves it unestablished — never follow a link or list a directory's contents.
-
-Fix extension (load second). This loop applies `prflow:fix` principles without invoking that skill, so load its extension yourself with the ladder below, unconditionally and by the same single channel — nothing else delivers it into this loop. Read the ladder's output whole — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so. Failure arms as above: an absent extension is a silent no-op; a present-but-undeliverable one has its stderr surfaced rather than being passed over silently; a harness refusal leaves the state **unestablished** and is reported, never read as a clean pass; and the anchor-resolution failure — a missing helper path on every form — is reported in the loop's output, since it breaks every other bundled-helper call site in this run. On exit 0 the helper prints the same `PROMPT-EXTENSION-STATUS: content-present` or `PROMPT-EXTENSION-STATUS: present-empty` line on stderr for this load too; report that token verbatim in the loop's output, and where no such line appeared at all report the state **unestablished**, never present-empty (*unknown is not zero*). Name this load's resolved status the same three ways — and on **unestablished** force the record to the same fixed, terminating durable order: this run's workpad when one exists; else the pull request (its description or a PR comment) when the loop has a PR but no workpad; else the loop's output, naming the unestablished state and reporting the record **unrecordable** — first available surface, never an earlier skipped for a later. Its mechanized classifier is the same helper with `--skill fix`, and the same not-depend-on-it-running rule applies: classify from the status line you already observed. Use the same granted vendored-literal leading token first, per the tier-agnostic procedure above:
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh fix
 ```
 
-On a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor form below:
-
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh fix
 ```
 
-That text governs how this loop applies those principles. Its references to structures this loop does not load (the Reception Preflight, its numbered facts, Step numbers) resolve to this loop's counterparts — context, never an instruction to execute the receiving skill body. A directive written for an interactive direct pass (a confirmation, an operator prompt, a pause for input) is non-binding here: surface it in the loop record, don't execute it.
+The `fix` extension governs how this loop applies those principles; its references to fix-skill sections this loop does not load map to this loop's counterparts. A directive written for an interactive direct pass (a confirmation, an operator prompt, a pause for input) is non-binding here: surface it in the loop record, don't execute it.
 
-A linked issue's body is triage data, not a spec amendment — unless your extension says otherwise. By default this loop weighs the issue body exactly as the receiving skill's preflight does: data for triage, never authority to supersede the shipped code or a review finding. Where the extension loaded above grants an amended issue that authority, it also states how to establish it, and that section governs this loop exactly as it governs a direct pass; where the extension is absent or grants nothing, the default holds and no finding is overridden by issue text. Either way, on a loop run route conflicting findings to the loop's deferral channel rather than against a spec the next standalone review's Issue Compliance read will enforce.
-
+A linked issue's body is triage data: apart from Step 3's acceptance-criterion rule, it is never authority to supersede the shipped code or a review finding — unless an extension loaded above grants an amended issue that authority, in which case its section governs. Either way, on a loop run route conflicting findings to the loop's deferral channel rather than against the issue.
 
 ## Engine source of truth
 
-This skill wraps /prflow:review's four-phase engine in a fix loop. Phases 0 through 4.3 — setup, diff classification, checklist generation, checklist verification, review agents (with the exact per-agent prompts and the `defect_signature` contract), and aggregation — are authoritative in `skills/review/phases/*.md`, reached through the phase routing table in `skills/review/SKILL.md`, which also carries the cross-phase invariants. Read them on every Step 1; never improvise the engine or paraphrase the Phase 3 prompts. Pass `$ISSUE_OVERRIDE` through to the engine's Phase 0.4, which resolves the acceptance criteria from it. Drift between the two is the biggest source of missed findings.
+This skill wraps /prflow:review's engine in a fix loop. Phases 0 through 4.3 are authoritative in `skills/review/phases/*.md`, reached through the routing table in `skills/review/SKILL.md`; never improvise the engine or paraphrase the Phase 3 prompts.
 
-Resolve this loop's own skill directory once at loop entry and carry it as `<loop-skill-dir>` into every engine entry. Resolve it the way the engine root resolves its own (`skills/review/SKILL.md`): from the base directory the runner reports in context first, and from the bare `${CLAUDE_SKILL_DIR}` token the Skill tool substitutes at load only when no base directory is reported — normalizing a Windows-form value through the `wslpath -u` / `cygpath -u` ladder before use. Carry the resolved value as a literal into Step 1, the Step 2.6 shadow entry, and the engine-subagent prompt, because reference files read afterward and a fresh subagent context never hold the substituted token. An engine entry whose context no longer holds it reads the canonical engine-root path the engine wrote to `root-identity.json` at Phase 0 instead; when neither is available the plugin-sibling engine candidate is recorded unestablished and resolution advances to the fatal arm.
+Resolve this loop's skill directory once at loop entry — from the base directory the runner reports, else the bare `${CLAUDE_SKILL_DIR}` token, normalizing a Windows-form value through `wslpath -u` / `cygpath -u` — and pass it as the literal `<loop-skill-dir>` into every engine entry; a subagent context never holds the substituted token.
 
-This skill skips /prflow:review's Phase 4.4 entirely — no formal review and no verdict comment. A standalone PR-mode run still seeds and ticks the inline engine's run-keyed progress comment. When `/prflow:implement` is the caller, the wrapper passes its internal `progress_surface = workpad`, so the engine creates no second progress comment and ticks no issue-workpad row; the fix loop records the tuple-declared review-boundary rows in the existing issue workpad (Step 1.8 the five phase rows, Loop Exit `Run complete`). The final report is emitted to chat only; the human reviewer decides whether to convert it into a formal merge signal by running `/prflow:review <PR>` separately. On top of the engine it adds the loop wrapper documented in the references: a fix-delta handoff (Step 0.9), a run-scoped persistent iteration record (`.prflow/tmp/review/<slug>/<run-id>/iter-<N>.json`), a shadow review pass (Step 2.6), a `## Coverage` section and per-phase telemetry summary at Loop Exit.
+The loop skips /prflow:review's Phase 4.4: it posts no review or verdict comment, and its final report goes to chat. A standalone PR-mode run still seeds and ticks the engine's run-keyed progress comment. Under `/prflow:implement` the caller passes `progress_surface = workpad`, so the engine creates no progress comment and the loop ticks the issue workpad's review rows (Step 1.8 the five phase rows, Loop Exit `Run complete`).
 
 ---
 
+### Iteration record
 
-### Schema
+`.prflow/vendor/prflow/lib/iter-record.schema.json` (local fallback `<loop-skill-dir>/../../lib/iter-record.schema.json`) defines the run-scoped record `.prflow/tmp/review/<slug>/<run-id>/iter-<N>.json`; Read it once per context before your first record write. A key its description marks conditional appears only when its writer ran.
 
-```json
-{
-  "iter": 1,
-  "fix_commit_sha": "abc1234abc1234abc1234abc1234abc1234abc12",
-  "fix_files": ["src/example_pkg/foo.py", "tests/test_foo.py"],
-  "diff_produced_at_head": "def5678", /* conditional: the sha this iteration's engine entry produced its diff at; absent on an iteration that ran no engine entry */
-  "iteration_head": "0123abcd0123abcd0123abcd0123abcd0123abcd", /* conditional: the 40-hex HEAD after Step 3.5's last commit; present when the record carries a 40-hex `fix_commit_sha`, absent otherwise */
-  "restored_from": "35498610609-1", /* conditional: the killed attempt's run id, stamped by `references/loop-control.md`'s continuation on the records it copies into this run; absent on a record this run wrote */
-  "loop_role": "fix | promoted",
-  "promotion_provenance": "shadow | park-calibration-post-shadow | park-calibration-pre-shadow (promoted iterations only)",
-  "current_step": "2.6",
-  "current_substep": "run_shadow_fanout",
-  "pending_dispatch": {"kind": "shadow_reviewer_fanout", "roster": ["prflow:code-reviewer", "prflow:silent-failure-hunter"], "dispatched_at": "20260516T204600Z", "issued_by": "2.6"},
-  "sweep_defs_read": [{"path": "phase-2-implement.md", "read": "whole", "sweeps": ["2.3.0"]}, {"path": "phase-2-sweeps-contract.md", "read": "whole", "sweeps": ["2.3.0a"]}, {"path": "phase-2-sweeps-quality.md", "read": "whole", "sweeps": ["2.3.1"]}, {"path": "references/sweep-2-3-1-orphaned-setup.md", "read": "whole", "sweeps": ["2.3.1"]}],
-  "sweep_evidence": {"status": "run"},
-  "checklist": [
-    {
-      "id": "VC-1",
-      "verification_mode": "lite",
-      "claim_signature": "api_contract:foo.py:spdx-header-present",
-      "verdict": "PASS",
-      "severity": "critical",
-      "reused_from_iter_prev": false,
-      "reused_from_iter": 1 /* conditional: present only when reused_from_iter_prev is true — the iteration whose verifier produced the carried verdict */
-    }
-  ],
-  "dispatched_effort": [
-    {"agent": "prflow:checklist-generator", "phase": "1", "requested": "low", "resolved": "low", "application_point": "session-fallback", "effective": null, "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"}
-  ],
-  "dispatch_mode": null,
-  "dispatch_disposition": null, /* conditional: "refused" | "dead" | "malformed" | null — why this Step-1 dispatch produced no usable return; written when the engine_step1 pending_dispatch is cleared, never itself cleared; see references/loop-control.md */
-  "phase3_dispatched": [
-    "prflow:code-reviewer",
-    "prflow:silent-failure-hunter",
-    "prflow:comment-analyzer",
-    "prflow:requesting-code-review",
-    "prflow:type-design-analyzer",
-    "prflow:pr-test-analyzer"
-  ],
-  "expected_reviewers": [
-    "prflow:code-reviewer",
-    "prflow:silent-failure-hunter",
-    "prflow:comment-analyzer",
-    "prflow:requesting-code-review",
-    "prflow:type-design-analyzer",
-    "prflow:pr-test-analyzer"
-  ],
-  "phase3_failed_agents": ["prflow:type-design-analyzer"], /* unconditional: dispatched agents that did not return a usable result, or a dispatch the runner refused before any subagent existed ([] when all returned); same identifier strings as phase3_dispatched */
-  "diff_profile": {
-    "small_diff": false,
-    "config_only": false,
-    "has_new_types": true,
-    "checklist_skipped": null
-  },
-  "phase3_findings": [
-    {
-      "agent": "prflow:code-reviewer",
-      "severity": "Critical",
-      "description": "...",
-      "defect_signature": {"file": "src/example_pkg/foo.py", "line_range": [42, 47], "kind": "null_deref"},
-      "corroboration_count": 2,
-      "step25_classification": "codebase | web_confirmed | web_refuted | web_inconclusive | over_budget | tools_unavailable",
-      "fix_decision": "applied | pushed_back | deferred | advisory | severity-calibrated"
-    }
-  ],
-  "fix_decisions": [
-    {"finding_id": "F-3", "decision": "applied", "commit": "abc1234"},
-    {
-      "finding_id": "F-7",
-      "decision": "pushed_back",
-      "source_file": "src/example_pkg/foo.py",
-      "claim_text": "function returns None when input is empty",
-      "skip_category": "claim-quality",
-      "evidence": "lines 200-220 of foo.py show the empty-input branch raises ValueError instead",
-      "parking_evidence": {
-        "basis": "the code handles the empty-input branch correctly; the claim misreads it",
-        "failing_input": "empty input to the function",
-        "source": "src/example_pkg/foo.py:200-220",
-        "finding_ref": {"iter": 1, "index": 1}
-      }
-    },
-    {
-      "finding_id": "F-9",
-      "decision": "deferred",
-      "source_file": "src/example_pkg/bar.py",
-      "claim_text": "race condition in concurrent writer",
-      "skip_category": "already-tracked",
-      "evidence": "issue 42",
-      "parking_evidence": {
-        "basis": "a separate open issue already tracks this defect",
-        "failing_input": "the concurrent-writer race the finding describes",
-        "source": "issue 42",
-        "finding_ref": {"iter": 1, "index": 2}
-      }
-    },
-    {
-      "finding_id": "F-11",
-      "decision": "deferred",
-      "source_file": "src/example_pkg/baz.py",
-      "claim_text": "preexisting style violation on line 88",
-      "skip_category": "out-of-scope",
-      "evidence": "git blame shows line 88 unchanged by this PR (last touched in commit 9abcdef, three months ago)",
-      "parking_evidence": {
-        "basis": "the flagged line is pre-existing code this PR's diff does not touch",
-        "failing_input": "the pre-existing style violation on line 88",
-        "source": "git blame: line 88 last touched in commit 9abcdef, three months ago",
-        "finding_ref": {"iter": 1, "index": 3}
-      }
-    },
-    {
-      "finding_id": "F-13",
-      "decision": "deferred",
-      "source_file": "src/example_pkg/qux.py",
-      "claim_text": "log message is slightly imprecise about which retry attempt failed",
-      "skip_category": "uncategorized",
-      "evidence": "real but minor wording nit; not worth a fix-loop iteration"
-    },
-    {
-      "finding_id": "F-15",
-      "decision": "advisory",
-      "source_file": "src/example_pkg/quux.py",
-      "claim_text": "claim about a specific Postgres lock mode behavior",
-      "skip_category": "advisory-parked",
-      "evidence": "Step 2.5 demoted this finding after WebFetch verification; refuted by https://www.postgresql.org/docs/current/explicit-locking.html",
-      "parking_evidence": {
-        "basis": "web verification refuted the claim against the canonical Postgres locking docs",
-        "failing_input": "the specific lock-mode interaction the finding asserted",
-        "source": "https://www.postgresql.org/docs/current/explicit-locking.html",
-        "finding_ref": {"iter": 1, "index": 4}
-      }
-    },
-    {
-      "finding_id": "F-16",
-      "decision": "below-threshold",
-      "source_file": "src/example_pkg/quuz.py",
-      "claim_text": "same-class advisory instance",
-      "skip_category": "below-threshold-parked",
-      "evidence": "parked-origin: below-threshold"
-    },
-    {
-      "finding_id": "F-17",
-      "decision": "severity-calibrated",
-      "source_file": "src/example_pkg/corge.py",
-      "claim_text": "missing key crashes the loader",
-      "original_severity": "Critical",
-      "calibrated_severity": "Important",
-      "evidence": "over-grade gate shape 1 (fail-closed): the loader raises KeyError on the missing key and test_loader_missing_key catches it RED — a loud bounded stop, not a silent corruption; recorded technical evaluation, did not auto-demote"
-    }
-  ],
-  "convergence_inputs": {
-    "fixes_applied": 4,
-    "fix_diff_lines": 22,
-    "new_corroborated_critical_count": 0
-  },
-  "cap_drops": {
-    "count": 0,
-    "by_category": {}
-  },
-  "parked_class_sweep": {
-    "classes": [
-      {
-        "source_finding_ids": ["F-16"],
-        "kind_literal": "unchecked_type",
-        "sites_examined": ["src/example_pkg/quuz.py:40-72"],
-        "new_siblings": [
-          {"finding_id": "F-18", "site": "src/example_pkg/quuz.py:63-66", "severity": "Suggestion", "disposition": "advisory", "marker": "parked-sibling: class-sweep", "parking_evidence": {"basis": "parked by the parked-class sweep registration as a below-threshold sibling of class unchecked_type", "failing_input": null, "source": "src/example_pkg/quuz.py:63-66", "finding_ref": {"iter": 1, "index": 5}}}
-        ]
-      }
-    ],
-    "truncation": null,
-    "dispatch": "verified"
-  },
-  "reference_reads": {"fix_delta": {"status": "verified|not_verified", "outcome": "clean|refixed|promoted", "reason": null}},
-  "shadow_skipped": {"reason": "iteration-1-clean", "head": "abc1234"}, /* conditional: written only by loop-control.md's Clean-iteration-1 exit, never beside a `shadow` block */
-  "shadow": {
-    "dispatch_mode": null,
-    "dispatch_disposition": null, /* conditional: "refused" | "dead" | "malformed" | null — why this shadow (engine_shadow) dispatch produced no usable return; written when the engine_shadow pending_dispatch is cleared, never itself cleared */
-    "ran_at": null,
-    "reviewed_sha": null,
-    "verdict": null,
-    "coverage": null,
-    "prompt_addenda": null,
-    "reviewers_dispatched": [],
-    "expected_reviewers": [],
-    "reason": null,
-    "checklist_skipped": null,
-    "phase3_findings": [],
-    "phase2_fails": [],
-    "comparison": {
-      "shadow_total": 0,
-      "overlap_with_iter_N": 0,
-      "new": 0,
-      "new_critical": 0,
-      "new_important": 0
-    },
-    "promoted_to_iter_next": false
-  },
-  "park_calibration": {
-    "evidence_comparisons": [
-      {
-        "parked_finding_ref": {"iter": 1, "index": 4},
-        "parked_finding_id": "F-15",
-        "shadow_finding_index": 0, /* see loop-control.md's park_calibration shape */
-        "relation": "equivalent",
-        "rationale": "shadow re-raises the same Postgres lock-mode claim on the same evidentiary basis, adding no new failing input",
-        "operands_present": true,
-        "disposition": "preserved"
-      }
-    ]
-  },
-  "telemetry": {
-    "phase_0":    {"calls": 0, "tokens": 0,     "wall_clock_s": 1.2},
-    "phase_0_5":  {"calls": 0, "tokens": 0,     "wall_clock_s": 0.3},
-    "phase_1":    {"calls": 2, "tokens": 9400,  "wall_clock_s": 28},
-    "phase_1_5":  {"calls": 1, "tokens": 3100,  "wall_clock_s": 11},
-    "phase_2":    {"calls": 27,"tokens": 95000, "wall_clock_s": 220},
-    "phase_3":    {"calls": 5, "tokens": 48000, "wall_clock_s": 180},
-    "step_2_5":   {"calls": 0, "tokens": 0,     "wall_clock_s": 4,  "webfetches": 2},
-    "step_2_6":   {"calls": 35,"tokens": 155000,"wall_clock_s": 440}, /* aggregates a full Phases 0–4.3 fan-out (tens of agent calls), not a single call — contrast phase_3's 5 above */
-    "phase_4_x":  {"calls": 0, "tokens": 0,     "wall_clock_s": 1}
-  }
-}
-```
+### Field rules
 
-Field semantics — `loop_role`, `dispatched_effort`, `phase3_dispatched`, `expected_reviewers`, `phase3_failed_agents`, `diff_profile`, `cap_drops`, `dispatch_mode`, `shadow`, and the durable operands `current_step`/`current_substep`/`pending_dispatch` — are documented in `references/loop-control.md` (*Schema field semantics*). `convergence_inputs`'s three operands (`fixes_applied`, `fix_diff_lines`, `new_corroborated_critical_count`) are specified in `references/fixing.md` item 7 and `references/convergence.md` Step 4.5.
-
-Observed-timestamp fields — `pending_dispatch.dispatched_at` and `evidence_recovery.attempted_at` — are the output of `date -u +%Y%m%dT%H%M%SZ` (ISO 8601 basic-format UTC, the same call the run-key fallback uses) read immediately before the Write that records the field, or JSON `null` when that command prints nothing or anything not in that shape. Keep an iteration's existing `evidence_recovery` marker on a rewrite; `dispatched_at` marks dispatch preparation, not proof of dispatch. Historical records are not rewritten, and no trace code reads these values.
+- `loop_role` is `fix`, or `promoted` for an iteration a Decide-outcome-2 or park-calibration promotion started, which carries `promotion_provenance`.
+- `phase3_dispatched` lists the Phase 3 agents launched this iteration, `expected_reviewers` the roster Phase 3.1's plan selected, `phase3_failed_agents` (every iteration, `[]` when none) each dispatched agent that returned nothing usable or whose dispatch was refused — one `prflow:<name>` string per agent, the final pass as `prflow:requesting-code-review`. `diff_profile` holds Phase 0.5's `small_diff`, `config_only` and `has_new_types` plus `checklist_skipped` (`"intentional"`, `"failure"` or `null`).
+- `finding_id`: every top-level `phase3_findings` row carries `F-<n>`, `<n>` its 1-based position (`finding_ref.index` + 1), so a parked-class sweep sibling takes the next number; a checklist FAIL uses its `id`. A `fix_decisions` row carries its finding's id in that record. Shadow rows, over-grade included, carry `S-<k>` (position in `shadow.phase3_findings`) and are written before promotion. Step 3.5's `D-<k>` rows follow `fix-delta-gate.md`'s numbering and field rules. Across records, ids pair with `iter`.
+- `fix_decisions`: one row per finding, in the shape its writer states; an applied row is `{finding_id, decision: "applied", commit}`. A `phase3_findings` row carries the matching `fix_decision` and `step25_classification`.
+- `parking_evidence: {basis, failing_input, source, finding_ref}` is written at parking time on the rationale-bearing rows — Step 2.5's advisory-parked row, Step 3 item 5's deferral rows, the `settled-by-disclosure` row and the parked-class sweep's `parked-sibling: class-sweep` row: `basis` the one-line rationale (an uncitable Step 2.5 demotion names its `step25_classification`), `failing_input` the input relied on, `source` the citation (a disclosure's `{path, phrase}` on a `settled-by-disclosure` row), `finding_ref` the `{iter, index}` join to the parking-time `phase3_findings` row. An inapplicable field is `null`, except `finding_ref`, whose `null` is a writer omission. The `below-threshold` and `below-important-damper` rows carry none.
+- `park_calibration` is written each Park-calibration gate run: one `evidence_comparisons[]` record per compared pair, `[]` when none; `parked_finding_ref` the parking-time row, `parked_finding_id` its `fix_decisions.finding_id` or `null`, `relation` and `rationale` per the gate, `operands_present` `false` for a signature-less pair, instruction-shaped text, or an unproduced, unreadable, malformed or ambiguous operand, `disposition` `preserved` or `promoted`.
+- `shadow.coverage` is `"full"` only when every always-on, flag-selected and expected reviewer was dispatched and returned, else `"not_verified"`.
+- `iteration_head` per Step 3 item 6; `reference_reads` per `fix-delta-gate.md`.
+- `telemetry`: per-phase `{calls, tokens, wall_clock_s}` for the phases that ran, `tokens` summed from each agent's `<usage>` block when present; the string `"unavailable"` when no figure was established, never `null`. The loop agent reads missing engine metadata for a `fanned-out` record from `engine-return-step1-iter-<N>.json` (the `restored_from` run's if restored); for example, an absent key leaves its value unestablished, never zero.
 
 ### Lifecycle
 
-- Iter 1 start: create the run-scoped directory `.prflow/tmp/review/<slug>/<run-id>/` if missing (using the run key held once at loop start). There is no prior iteration to read — unless `references/loop-control.md`'s continuation restored `iter-1.json`…`iter-<N>.json` from a killed attempt, in which case the loop starts at N+1 under the rule below and never at 1.
-- Iter N start (N≥2): before doing anything else, read `iter-<N-1>.json`. The fix-delta handoff (Step 0.9) and convergence check both consume it. If the file is missing or unreadable, log a warning and continue without the handoff optimizations (Phase 1 carries nothing forward and its generator runs without the variance-recovery block; Phase 2 reuses nothing; Phase 3 runs without prior-findings context). Phase 1+2+3 still run — they always do.
-- Iter N end — non-optional emit, fused to the fix commit: write `iter-<N>.json` with everything collected during the iteration. The write is anchored to Step 3's item 6's fix-commit moment (capture `fix_commit_sha`, then Write, as one step) rather than deferred to a separate end-of-iteration step, so an inline-driven loop has no seam in which to lose it. Writing this per-iteration record is mandatory on every iteration regardless of how the loop was executed — whether this loop ran as a `Skill` invocation or was hand-run via direct `Agent` dispatch on a degraded path — and it is written with the Write tool, never a shell output redirect or heredoc. The one iteration that never reaches this emit is a Step 1 entry halted at `engine-root: incomplete` (`references/engine-entry.md`'s engine-directory resolution, whose Step 1-entry stop is routed in `references/loop-control.md`): it stops before Step 3, and the caller's blocked record — or this reported non-convergence where no workpad exists — is that iteration's record instead. The `lib/efficiency-trace.sh --persist` synthesis backstop is a *floor* that reconstructs a minimal record from the fix commits when this emit is dropped — never license to skip it. See Step 3's item 7 for the full record shape and fields. When Step 1 dispatched the engine as a subagent (`dispatch_mode: fanned-out`), that subagent's `phase3_findings`, `phase3_failed_agents` and `diff_produced_at_head` are read from its entry-scoped return file and folded into this same write, and `lib/efficiency-trace.sh --persist` fills the telemetry-only keys Step 3's item 7 names; the fix loop remains the sole writer of `iter-<N>.json` and writes no `engine-return-*` file (the subagent writes those). Copy this entry's top-level `dispatch_mode` from that entry's return file — `fanned-out` from a fan-out, `unavailable` from a no-delegation return — and record `null` only after a refused, dead, or malformed dispatch — otherwise a run that silently fell back to inline is indistinguishable from a dispatched one. Never self-assign `dispatch_mode`. When the `engine_step1` `pending_dispatch` stamp is cleared on a dispatch that produced no usable return, write `dispatch_disposition` (top-level: `refused` if the harness refused the dispatch, `dead` if the subagent returned nothing, `malformed` if the return failed the well-formedness check); it is never itself cleared.
-- Step 2.6 end (shadow pass) — non-optional emit, fused to the pass's termination: when the shadow review pass runs, append the `shadow` block to the latest iter's iteration record (re-writing `iter-<N>.json` with the shadow result included) with the **Write tool**. This is mandatory on every shadow pass regardless of how the loop was executed, and it is fused to the moment the pass *terminates* — covering both termination paths (Parse-and-compare completion for a full fan-out, and the honest-degradation fail-safe for an outcome-3 pass that dies mid-fan-out). If the shadow promotes new findings into iter (N+1), iter (N+1) is a normal iter from a lifecycle standpoint — it will write its own `iter-<N+1>.json` per the regular end-of-iter rule. When the shadow ran as its own engine subagent (`dispatch_mode: fanned-out`), its results are folded in from the subagent's return file by this same fix-loop write, which stays the sole writer and writes no `engine-return-*` file (the subagent writes those); `shadow.dispatch_mode` is copied from that entry's return file (`fanned-out` from a fan-out, `unavailable` from a no-delegation return) and is `null` only after a refused, dead, or malformed dispatch (never self-assigned). When the `engine_shadow` `pending_dispatch` stamp is cleared on a dispatch that produced no usable return, write `shadow.dispatch_disposition` (`refused` / `dead` / `malformed` under the same meanings as the top-level field); it is never itself cleared.
+- Iter 1 start: create `.prflow/tmp/review/<slug>/<run-id>/` if missing. There is no prior iteration — unless the loop's continuation restored `iter-1.json`…`iter-<N>.json`, in which case the loop starts at N+1.
+- Iter N start (N≥2): read `iter-<N-1>.json` first; Step 4.5 consumes it. If it is missing or unreadable, log a warning and run without it.
+- Record write — every write of `iter-<N>.json`, each rewrite included: Write the whole record to `iter-<N>.json.draft` (Write tool, no shell redirect), then install it:
 
-The iteration record (the fix loop's local per-iteration JSON file `.prflow/tmp/review/<slug>/<run-id>/iter-<N>.json`) is best-effort and informational — it is a local scratch file, distinct from the GitHub issue comment that `/prflow:implement` calls the *workpad*. A write failure should not abort the loop — log it and continue.
+  ```bash
+  .prflow/vendor/prflow/scripts/loop-verdict-marker.py install-record --run-root .prflow/tmp/review/<slug>/<run-id> --iteration <N>
+  ```
+
+  `status: ok` installed it; print each `warnings` entry. Any other status refuses the record: clear each `violations` entry by editing the draft, or an `error`'s `reason` (a missing draft is written again), then run it again. After two refused corrections, or when neither form prints JSON, Write the draft's content to `iter-<N>.json` yourself and log a write failure in the loop's output.
+- Iter N end — non-optional emit, fused to the fix commit: the record write at Step 3 item 6's fix-commit moment, or, with no fix commit, before moving to Step 2.6, Step 4 or Loop Exit; mandatory on every iteration regardless of how the loop was executed. An iteration that stops first has its reported non-convergence as its record. When Step 1 dispatched the engine, fold that entry's `phase3_findings`, `phase3_failed_agents` and `diff_produced_at_head` in from its return file. The loop is the sole writer of `iter-<N>.json`; outside an inline engine entry it writes no `engine-return-*` file.
+- Step 2.6 end — fused to the shadow pass's termination: rewrite the latest `iter-<N>.json` with its `shadow` block, on every pass, an outcome-3 pass that died mid-fan-out included. A promoted iteration N+1 writes its own record.
+
+The iteration record is local scratch, distinct from the issue workpad `/prflow:implement` keeps. A write failure is logged, never fatal.
 
 ---
 
-
 ## Running the loop
 
-The loop control — config resolution, Iteration Start, Step 0.5 (PR-mode branch sync), Step 0.9 (fix-delta handoff), Step 1 (run the engine — load `/prflow:review`'s SKILL.md), and Step 2 (check verdict) — lives in `references/loop-control.md`. Load it at loop entry per the *Reference-loading contract*, follow it, and from Step 2's verdict route to the step references via the Step routing table below. Like every reference it is loaded on demand, not held resident.
+`references/loop-control.md` holds config resolution, Iteration Start, Steps 0.5, 1 and 2 and the engine entry; load it at loop entry and route from Step 2's verdict by the table below.
 
 ## Step routing (which reference implements each step)
 
-Every loop step's authoritative procedure lives in a file under `skills/review-and-fix/references/` and is loaded at step entry (the *Reference-loading contract* below governs how); the root retains the invocation contract, `### Schema`, `### Lifecycle`, routing, terminal mapping, and fail-closed handling, and never paraphrases a reference's procedure. When any prose names "Step N.M", resolve it to its reference via this table.
-
-| Step (`current_step`) | Reference file | Fires when |
+| Step | Reference file | Fires when |
 | --- | --- | --- |
-| `loop-control` — Iteration setup + Steps 0.5–2 | `references/loop-control.md` | loop entry, and throughout config resolution, branch sync, fix-delta handoff, review-engine execution, and verdict routing |
-| `2.5` — Pre-fix verification gate + Parked-class sweep | `references/pre-fix-gates.md` | Step 2 routed to a fix path (REJECT, a REJECT-driver, or an at-or-above-`$FIX_THRESHOLD` finding), **or** a tentative non-REJECT verdict carries parked findings needing the pre-shadow parked-class sweep |
-| `2.6` — Shadow review | `references/shadow-review.md` | a tentative non-REJECT verdict at convergence time (unless `references/loop-control.md`'s *Clean-iteration-1 exit* applies) or Loop Exit's eligible REJECT downgrade, plus any additional trigger a consumer prompt extension declares (evaluated at the iteration transition) |
-| `3` — Fix Findings | `references/fixing.md` | after the Step 2.5 gate resolves the effective fix set |
-| `3.5` — Fix-delta verification gate | `references/fix-delta-gate.md` | every iteration that committed a fix (unconditional; skipped only on a no-fix iteration) |
-| `2.6` or `3.5` (the caller's) — Over-grade calibration gate | `references/over-grade-gate.md` | before a Decide outcome 2 promotion on a new `Critical`/`Important` Phase 3 finding, or when a severity-graded fix-delta gate check raises a new Critical/Important finding |
+| `loop-control` — Iteration setup + Steps 0.5–2 | `references/loop-control.md` | loop entry, and throughout config resolution, branch sync, the engine entry, and verdict routing |
+| `2.5` — Pre-fix verification gate + Parked-class sweep | `references/pre-fix-gates.md` | Step 2 routed to a fix path, **or** a tentative non-REJECT verdict carries parked findings |
+| `2.6` — Shadow review | `references/shadow-review.md` | a tentative non-REJECT verdict at convergence time, unless the *Clean-iteration-1 exit* applies |
+| `3` — Fix Findings | `references/fixing.md` | after Step 2.5 resolves the effective fix set |
+| `3.5` — Fix-delta verification gate | `references/fix-delta-gate.md` | every iteration that committed a fix |
 | `4.5` — Convergence check | `references/convergence.md` | before looping back to Step 1, on iteration ≥ 2 |
 | `loop-exit` — Loop Exit | `references/loop-exit.md` | the loop terminates (converged, capped, or final REJECT) |
+| rare arms | `references/rare-arms.md` | a hot reference sends you to one of its sections |
 
 ## Reference-loading contract (fail-closed)
 
-Every step reference loads at entry, before any action in that step, and a reference that cannot be loaded whole takes the mapped fail-closed outcome below — never an improvised step from memory.
-
-Entry-gate read shape:
-
-1. Stamp the position (best-effort Write, non-blocking): set `current_step` (and `current_substep` when meaningful) in the active `iter-<N>.json` before reading, so a compacted/resumed run recovers its position from the record, not recall. Exception — first `loop-control` entry: its slug/run-key recipe lives there; read it first, then stamp (may create a stamps-only `iter-<N>.json`, completed by item 6's Write). Use `current_step: "loop-control"` while executing config resolution and Steps 0.5–2. Immediately before every `Agent`/`Task`/`Skill` dispatch, also write `pending_dispatch: {kind, roster, dispatched_at, issued_by}` — the stamping reference writes its own active `current_step` into `issued_by`, the durable discriminator the re-read rule keys on. That obligation covers the dispatches this reference itself issues; a dispatch made while executing the review engine's phases inline is the engine's own and is not stamped here. Clear it after the returned attempt is joined or dispositioned, including failure, timeout, exhausted-retry, and not-verified outcomes; retain it only while the attempt is unresolved. A dispatch without those writes has not satisfied the continuation contract.
-2. Read the reference. Resolve the skill directory per the *Portable helper anchor* rule above and `Read` `<skill-dir>/references/<name>.md`.
-3. Completeness check — the single ordered start/end boundary rule. The returned content's first non-blank line MUST be the reference's canonical `# Reference: <title>` heading and its last non-blank line MUST be the canonical `<!-- END <name>.md -->` marker, each occurring exactly once, in that order. A reference returned only in pages — a partial-view notice with an `offset`/`limit` continuation — is not unreadable: page it forward until no continuation is offered or a page adds nothing new, apply this check to the assembled whole document, and report the recovery in the iteration record. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice joins the unreadable cases below. A `Read` failure, an empty result, a truncated result, a result missing either marker, a **duplicated** marker, a **reversed** order (END before START), or a marker at a **noncanonical** position (not at the document edge) all mean reference unreadable and take the failure-map row below.
-4. On success, execute the reference's procedure; on failure, apply the failure-map row — do not enter the step.
-
-Failure-map (per reference):
-
-| Unreadable reference | Outcome |
-| --- | --- |
-| `pre-fix-gates.md` | **STOP before any mutation.** No fix without gate coverage. Record a `blocked` reflection; report non-convergence. |
-| `shadow-review.md` | Record `shadow.coverage: "not_verified"` on the active iter (the existing outcome-3 shape) — **prohibits a clean approve**. Then branch on the **trigger context**: a **convergence-time** trigger proceeds to Loop Exit reported not-verified, the downgrade entry as `REJECT`; an **early** extension-declared trigger (fired at an iteration's Iteration Start) instead continues the loop as in the `convergence.md` row. An unreadable reference is a covered degradation cause, so both arms above are legal; what is prohibited is *electing* to skip the shadow to save budget — a run that never dispatched the shadow may not report its result as independently audited, nor present the shortfall as though the audit had happened to it, since that reports an unaudited PR as a reviewed one. The legal exit is the one `shadow-review.md`'s never-elective paragraph names: a workpad-holding caller stops at a non-terminal or `Blocked` status naming what prevented the fan-out, and a caller with no workpad reports non-convergence and posts no clean approve-family verdict (the `pre-fix-gates.md`/`fixing.md` terminal). |
-| `fixing.md` | **STOP before any mutation.** Never apply a fix blind. Record a `blocked` reflection; report non-convergence. |
-| `fix-delta-gate.md` | Record a not-verified fix-delta outcome (the existing gate-subagent-failure shape) in the formal `reference_reads.fix_delta` field, which **prohibits a clean APPROVE-family verdict** for this run. |
-| `over-grade-gate.md` | Decide outcome 2 trigger: treat each finding the gate would evaluate as flagged with no recorded technical evaluation — it neither promotes nor is dropped, and Loop Exit's *Over-grade gate non-convergence* applies. Fix-delta trigger: the finding keeps its emitted severity and takes the re-fix arm, and the gate's `reference_reads.fix_delta` persist records `{"status":"not_verified","outcome":null,"reason":"over-grade-gate.md unreadable"}` in place of any verified outcome. |
-| `convergence.md` | Treat as "a convergence condition failed" — never early-exit: loop back to Step 1 for iteration N+1, or at the cap proceed to Loop Exit reporting non-convergence. |
-| `loop-exit.md` | Run the persistence backstop directly (`lib/efficiency-trace.sh --persist`), record an **incomplete terminal state** reflection, and emit a generic non-clean chat message (never an APPROVE-family template) — **prohibits a clean approve**. |
-| `loop-control.md` | The loop spine (config, Iteration Start, Steps 0.5/0.9/1/2), loaded at loop entry: **STOP before any mutation**. Record a `blocked` reflection; report non-convergence. |
-| `error-handling.md` | Contextual guidance (not a loop step) — **best-effort**: log and continue; its absence degrades only guidance, never a gate. Its fail-closed-*looking* prose (the shadow-reviewer exception, the engine-location fatal) echoes contracts *owned* by `shadow-review.md` and `loop-control.md`/Step 1, each with its own row above. |
-
-Always-resident re-read rule. Two returns of control fire it: an `Agent`/`Task`/`Skill`-tool return that resolves — in whole or in part — a `pending_dispatch` whose recorded `issued_by` names the active reference, and the handback that ends an engine entry this reference executed inline (control coming back to Step 1's verdict routing, or to the Step 2.6 shadow's parse-and-compare). After every such return, and before the next cross-reference routing action, re-`Read` the active reference — identified by `current_step`/`current_substep` in the active `iter-<N>.json`, not by conversational memory — and resume the interrupted substep; never re-dispatch the agent/skill that just returned. A dispatch made while executing the review engine's own phases inline, which this reference never stamped — including every Phase 3 reviewer the engine dispatches during Step 1 — does not fire it: the engine's own phase procedure governs its phases, and its Entry-gate in `skills/review/SKILL.md` binds every phase entry and every shadow entry — read the requirement there; it is deliberately not restated here. The durable operands are the step predicate; agent recall is never the sole predicate. Absent operand → fail closed, never recall. Absent `current_step`/`current_substep` (unstamped, or an unreadable `iter-<N>.json`) is re-stamped from the last reference entry-gate, or — if unrecoverable — takes the step's fail-closed not-verified failure-map outcome; a `pending_dispatch` of kind `engine_step1` or `engine_shadow` found on resume with no return file for that entry is a loop-issued engine-dispatch stamp (the fix loop, not the engine, issues these under Step 1 / the Step 2.6 shadow): route it to the disposition arm — write that entry's `dispatch_disposition: dead`, clear the stamp, and run the engine inline without dispatching again — never to the absent-stamp fail-closed arm; a `pending_dispatch` carrying no `issued_by` — a record written before this discriminator, or one whose stamp did not complete — is not read as loop-issued and takes that fail-closed not-verified outcome directly, never re-derived from the parent's live operands; a `pending_dispatch` absent entirely is treated as a lost loop stamp — firing the re-read of the active reference the recorded `current_step` identifies, never re-dispatching — only when that `current_step` names a fix-loop step at which this loop itself issues a stamped dispatch (never `loop-control`, whose dispatches are the engine's own, governed by its entry-gate); an absent `current_step`, or any value that does not, fails closed to the not-verified outcome. Neither is ever inferred from conversational memory.
-
+Read each step reference at that step's entry, before any action in it: `Read` `<skill-dir>/references/<name>.md` (Step 3 also reads `<skill-dir>/../fix/references/fix-discipline.md`). Its first non-blank line must be its `# Reference: <title>` heading and its last non-blank line its `<!-- END <name>.md -->` marker, each exactly once, in that order. A reference returned in pages — a partial-view notice with an `offset`/`limit` continuation — is paged forward until no continuation is offered or a page adds nothing new, then checked whole. A failed or empty read, a gap in the pages, a missing marker, a **duplicated** marker, a **reversed** order (END before START), or a marker at a **noncanonical** position (not at the document edge) makes the reference unreadable: stop before any further mutation and report non-convergence, never an approve-family verdict.
 
 ### Step 4: Continue Loop
 
@@ -368,11 +125,9 @@ After iteration 1, first evaluate `references/loop-control.md`'s *Clean-iteratio
 
 Output: `Fixed {N} issues, skipped {M}. Re-running review...`
 
-
-
 ## Terminal verdict → chat output (mapping)
 
-The externally-visible terminal contract that downstream callers (e.g. `/prflow:implement` Phase 3.3) rely on. The authoritative rendering (headlines, counts, deferrals manifest, coverage/telemetry appendix) lives in `references/loop-exit.md` under *Verdict → chat output*, and may only be rendered after its Pre-mapping gates have run (see the *Step routing* `loop-exit` row).
+The contract downstream callers (`/prflow:implement` Phase 3.3) rely on; `references/loop-exit.md` renders it.
 
 | Converged verdict | Terminal chat outcome |
 | --- | --- |
@@ -380,9 +135,7 @@ The externally-visible terminal contract that downstream callers (e.g. `/prflow:
 | `APPROVE WITH ADVISORY NOTES` | approve, surfacing the parked advisory findings |
 | `APPROVE WITH CAVEAT` | approve, surfacing the verification-coverage caveat (incl. shadow `not_verified`) |
 | `APPROVE WITH UNRESOLVED SHADOW FINDINGS` | non-clean approve — iteration-cap outcome 2 |
-| `REJECT` | non-clean — cap exhausted, convergence exit still REJECT, a post-shadow Critical, or an overturned downgrade |
-| incomplete / not-verified (any fail-closed reference outcome above) | a generic non-clean message; **never** an APPROVE-family template |
+| `REJECT` | non-clean — cap exhausted, convergence exit still REJECT, or a post-shadow Critical |
+| incomplete / not-verified (an unreadable reference) | a generic non-clean message; **never** an APPROVE-family template |
 
-Alongside the human headline, the loop emits one producer-emitted machine-readable marker line carrying the same verdict + coverage facts, as line 1 of the chat output, so a caller need not string-match the prose across a plugin-version boundary. It is composed by `scripts/loop-verdict-marker.py`, never hand-written; the authoritative rendering rule (its fields, its fixed line-1 position, and the both-directions version-gap compatibility) lives in `references/loop-exit.md` under *Verdict → chat output*.
-
-Read `references/error-handling.md` at invocation, before the loop (*When NOT to use* gates applicability), and again on any tool/commit/test failure.
+Line 1 of the chat output is a machine-readable marker composed by `scripts/loop-verdict-marker.py`, never hand-written.

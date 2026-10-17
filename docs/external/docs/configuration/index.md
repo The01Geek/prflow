@@ -67,7 +67,7 @@ Expected result: local commands keep working exactly as before, cloud runs are e
     Verdict thresholds, fix routing, progress comments and retained legacy settings.
   </Card>
   <Card title="Review Agents" icon="users" href="/docs/configuration/review-agents">
-    Per-agent model, effort and iteration overrides inside the review engine.
+    Per-agent model and iteration overrides inside the review engine.
   </Card>
   <Card title="Skill Extensions" icon="file-pen" href="/docs/configuration/skill-extensions">
     Your team's own instructions, appended to a command on every run.

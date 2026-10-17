@@ -46,40 +46,15 @@ other phrase (any `shadow agreement not verified …` variant, an empty phrase, 
 unrecognized one) normalizes to `not-verified`. This direction is deliberate and
 fail-safe: the marker never over-claims full coverage or a skip.
 
-Six subcommands, all stdlib-only and needing no config / gh. Four reach git:
-`compose --run-root` (issue #193) and `check-evidence` (issue #426) each grade the run root
-through review-evidence-gate (grade_run_root_offline / grade_active_entry_offline), which shells
-out to `git apply --numstat` on that read-only path; `continue-run` (issue #893) runs
-`git rev-parse HEAD`, may reach origin twice (`git ls-remote`, then `git fetch` of the
-telemetry branch), and writes `iter-<k>.json` copies into the run root;
-`eval-extension-shadow-trigger` (issue #580) runs `git rev-parse --show-toplevel` to locate
-the path-set file and writes one stamp into the run root. `write-active-entry-binding`
-(issue #516) only writes its own binding file, and it — like `read` — reaches no git
-at all:
-
-  compose --result "<human result>" --coverage "<shadow-status phrase>" --run-root DIR
-          [--entry <step1|shadow> --iteration N --head <40-hex>]
-      Emits the marker line to stdout (exit 0). An unmappable result prints a
-      stderr breadcrumb and exits 3 with NO marker — a caller that gets no line
-      composes its headline prose without a marker rather than stamping a lie.
-      --run-root is REQUIRED (issue #727): the run root is graded offline through
-      review-evidence-gate FIRST, and a non-pass grade refuses identically (stderr
-      breadcrumb, exit 3, no marker) so an approval headline is never stamped over
-      missing execution evidence. There is no ungraded form — a compose with no
-      --run-root refuses (stderr breadcrumb, exit 3, no marker), naming the
-      checklist/verification evidence it would have graded. Supplying
-      --entry/--iteration/--head together (issue #516) grades the named entry's OWN
-      producer evidence rather than the run-wide any-iteration grade; supplying none
-      keeps the run-wide grade. `--entry latest --iteration N` (issue #676, no --head)
-      lets the helper SELECT the binding to grade: the step1 binding at N when it
-      exists; else, when the run-root diff authorizes an intentional checklist skip,
-      it passes with no binding (AC10); else — when iter-<N>.json records a
-      `shadow`/`park-calibration-post-shadow` promotion — the shadow binding at N
-      (falling back to N-1), grading the selected binding with its own recorded head.
-      Selecting no binding refuses (exit 3, no marker) unless the phase log carries the
-      grader's generator-failure record; it also refuses on an empty
-      --run-root, a passed --head, an absent --iteration, an unusable iter-<N>.json, an
-      unpromoted iteration, or a non-pass grade of the selected binding.
+Six subcommands, all stdlib-only and needing no config / gh. `check-evidence` and
+`render-exit` grade a run directory through review-evidence-gate
+(grade_run_root_offline / grade_iteration_offline), which shells out to `git apply --numstat`
+on that read-only path, and `render-exit` also runs `git rev-parse HEAD`; `continue-run` (issue #893) runs `git rev-parse HEAD`, may reach origin
+twice (`git ls-remote`, then `git fetch` of the telemetry branch), and writes `iter-<k>.json`
+copies into the run root. `lib/iter-record.schema.json` defines the iteration record:
+`install-record` checks its listed keywords, treating integer fields as JSON integer tokens;
+`build-deferrals` and `continue-run`
+warn on a top-level key outside it. `read`, `build-deferrals` and `install-record` reach no git:
 
   read [FILE|-]
       Reads the chat output from FILE (or stdin) and inspects LINE 1 ONLY. Prints
@@ -101,16 +76,12 @@ at all:
       either, to the caller's existing not-clean handling. It is never read as a
       clean approve.
 
-  check-evidence --run-root DIR [--entry <step1|shadow> --iteration N --head <40-hex>]
-      Grades DIR through the SAME offline authority `compose --run-root` uses and
-      prints one structured line, emitting NO verdict marker (issue #426). The fix
-      loop calls this after a well-formed engine return, before consuming its
-      verdict, so a run root missing its native checklist/verification evidence is
-      caught early rather than only at terminal compose. Supplying
-      --entry/--iteration/--head together (issue #516) grades that entry's own
-      producer evidence — an earlier iteration's evidence never satisfies it —
-      while supplying none keeps the legacy run-wide grade; a partial set exits 2.
-      Output:
+  check-evidence --run-root DIR [--contract 2 --iteration N]
+      Grades DIR through review-evidence-gate and prints one structured line. With
+      --contract 2 --iteration N, it grades only iteration N's own evidence and requires no
+      Phase 3 block file, as render-exit does. It emits NO verdict marker (issue #426).
+      The fix loop's `entry-close` runs it after
+      every engine entry, before the verdict is consumed. Output:
 
         PASS <run-root> <grade>           0  the run root passes the evidence grade
         FAIL <run-root> <grade>           3  a graded evidence failure
@@ -118,22 +89,9 @@ at all:
                                              an unestablished grade, or an unknown outcome
 
       FAIL and UNESTABLISHED are distinguished by the token, not the exit code;
-      both are non-pass and exit 3. With --entry (issue #673) each grade is recorded at
-      evidence-grade-<entry>-iter-<N>.json, and while ANOTHER entry's last recorded grade is
-      non-pass the command prints `UNESTABLISHED <run-root> unrecovered-evidence-gate: …`
-      (exit 3) without grading; `write-active-entry-binding` and `compose --run-root` refuse
-      on the same condition, so only a passing re-grade of that entry clears it. A grader import/read/parse/internal failure is
+      both are non-pass and exit 3. A grader import/read/parse/internal failure is
       UNESTABLISHED, never PASS (fail-closed). Malformed arguments keep argparse's
       exit-2 behavior.
-
-  write-active-entry-binding --run-root DIR --entry <step1|shadow> --iteration N
-                             --head <40-hex>
-      Producer emission (issue #516): snapshots this entry's checklist/verification/
-      verifier-file evidence into ENTRY-SCOPED copies and writes the binding tying
-      the entry to them (by path, digest, reviewed head, and reuse set). The
-      snapshot is what lets a primary and a shadow entry sharing one run root's
-      iteration-scoped filenames be graded separately. Prints `WROTE <path>` (exit
-      0); a bad entry/iteration/head refuses (stderr breadcrumb, exit 3, no binding).
 
   continue-run --run-root DIR --max-iterations N --telemetry-branch NAME
       Mid-loop continuation for a resumed implement run (issue #893). Resolves HEAD
@@ -141,15 +99,16 @@ at all:
       whose highest well-formed `iter-<N>.json` binds HEAD. Its bound head is
       `iteration_head` when present (issue #1537), else `fix_commit_sha` when it is a
       40-hex string, else (absent or null) `diff_produced_at_head` under the same test;
-      any other shape of the field consulted excludes the record. A bound head binds when it is a commit here and
+      any other shape of the field consulted excludes the record, as does a record carrying
+      `synthesized: true` or `source: "review"` (no loop state to resume), at any N. A bound head binds when it is a commit here and
       equals HEAD or is met by HEAD's first-parent chain through merge commits only (base
       merges). On-disk siblings under DIR's parent are
       consulted first (never DIR itself); only when none binds is `.prflow/logs/review/
       <slug>/` on NAME read, fetched from origin into `refs/remotes/origin/NAME`. A tie at
       the same N takes the run id that sorts last. It copies `iter-1.json`..`iter-<N>.json`
       from that run into DIR, each stamped `restored_from: "<run id>"`, never overwriting
-      a file already present and never a record above N or any other artifact. Prints
-      exactly one line:
+      a file already present and never a record above N or any other artifact; each restored
+      record's top-level key outside the schema is named on stderr. Prints exactly one line:
 
         continue-run: restored iteration=<N> source=<run-id> head=<bound head>   0
         continue-run: none reason=<token>                                 1
@@ -162,54 +121,88 @@ at all:
       ancestry read fails or prints an unparseable, empty or disconnected result). An argparse error also
       exits 2 with no `continue-run:` line. The loop continues at N+1 only on `restored`.
 
-  eval-extension-shadow-trigger --run-root DIR [--iteration N] [--path-set FILE]
-      Iteration Start's early-shadow question (issue #580): does a consumer-declared path
-      set owe an extra Step 2.6 shadow pass before iteration N's (default 2) engine? Reads
-      the path-set file — `<repo root>/.prflow/skill-extensions/early-shadow-path-set.json`
-      (or the superseded `.devflow/` spelling; repo root from `git rev-parse
-      --show-toplevel`, else the cwd) unless --path-set names it — and iteration N-1's
-      changed files, parsed from the `diff --git` headers of DIR/diff.patch (the run-root
-      diff Phase 0.2 cached; never a fresh `git diff`). Writes DIR/early-shadow-eval.json
-      `{dispatch, owed, pass_ran, reason, iteration, matched_paths, changed_paths,
-      path_set, diff_patch, prior_shadow, evaluated_at}` and prints exactly one line whose
-      FIRST token is the closed outcome — exit 0 on both:
+  build-deferrals --run-root DIR --iteration N
+      Writes DIR/deferrals.json from the `fix_decisions` of iter-1..N.json: every
+      `claim-quality` / `out-of-scope` / `already-tracked` row (a `criterion conflict:` row
+      excluded) and every `settled-by-disclosure` row that no matching row in a later iteration
+      supersedes. Within one iteration, only a later `applied`, `pushed_back` or deferral row
+      supersedes it. Two rows match when their findings share
+      `defect_signature` file and kind with overlapping line ranges (a missing range overlaps
+      any), else when their checklist items (the Step 1 return's checklist, else the record's)
+      share a `claim_signature`, else when their `source_file` and `claim_text` are equal; ids
+      are per record and never compared. A row joins a finding of its own record by a
+      string `finding_id`: a `phase3_findings` row carrying that id, else `F-<n>` by position n
+      or `S-<n>` by position in `shadow.phase3_findings`; a joined row takes the finding's
+      agent, severity, `defect_signature` file/line_range/kind, summary and symbol (the first
+      backticked span of the description), any other its `source_file` and `claim_text`. Each
+      entry and `rejected` row names its `iter`. The widens-surface guard uses match-deferrals.py's
+      diff-hunk parser and ±10-line tolerance over DIR/diff.patch (absent: the newest retained
+      `evidence-<entry>/iter-<k>/diff.patch`): a row whose file has a hunk
+      overlapping its line range (no line range: any hunk in the file), any row when the guard
+      cannot run (`guard-not-run`: no readable diff, no parser or a parser fault; the cause is a
+      warning ending `not carried`), a
+      row with no file, or a foreclosure without a `{path, phrase}` disclosure is left out and
+      listed in `rejected` with its `reason`. No surviving row removes the manifest
+      (omit-on-zero). An unreadable earlier record, a `fix_decisions` or record `checklist` that
+      is not an array or a `fix_decisions` row that is not an object, an unusable Step 1 return (its record's checklist matched instead), a
+      retained diff read in place of DIR/diff.patch, or a record's top-level key outside the schema
+      (ending `not carried` when its object, or an object in its array, carries `skip_category`) is a
+      `warnings` entry. Prints
+      {"status":"ok","path":<manifest|null>,"written","rejected","warnings"} (exit 0); an
+      unusable iter-N.json or a failed write is status "error" (exit 1) and removes an earlier
+      manifest (one it cannot remove is named in the `reason`); a bad --iteration exit 2.
 
-        OWED <run-root> reason=<token> matched=<n>     run Step 2.6 now, before the engine
-        NOT_OWED <run-root> reason=<token>             proceed to the engine
+  render-exit --run-root DIR --iteration N --result "<loop result>"
+              [--shadow-dispatch attempted|never|unestablished] [--not-verified GATE]...
+      Loop Exit's mechanical half over iter-1..N.json. Selects the shadow evidence (the final
+      record's `shadow_skipped` when it has no `shadow` block, honored only on a fresh
+      iteration 1, else the latest `shadow` block), requires its recorded head to prefix HEAD
+      and, for a clean approve result, a block with no `promoted_to_iter_next` and zero new
+      Critical and Important findings, renders the `{shadow status}` phrase, and writes
+      DIR/loop-exit-coverage.md (the `## Coverage` section: the shadow sentence, then each
+      checklist FAIL and INCONCLUSIVE item of the last non-promoted iteration that ran Phase
+      1+2, read from its `engine-return-step1-iter-<k>.json`, else its record's `checklist`; a
+      FAIL that iteration applied a fix to is marked `(fix applied)`; an iteration whose items
+      cannot be read, its record included, gets a `not listed` line instead). A clean approve result
+      whose final record holds no `park_calibration` object with an `evidence_comparisons`
+      array is listed in `incomplete` and renders not verified. The --not-verified GATEs,
+      joined with "and", add a Coverage line after the shadow sentence and leave the shadow
+      status and the marker's coverage to the shadow. The marker grades the most recent entry's retained
+      `evidence-<entry>/iter-<k>/` copy: a shadow copy that does not pass is passed over with a
+      warning, the most recent step1 copy decides, and only a promoted iteration is walked back
+      past for want of one. Prints {"status":"ok"|"evidence-missing","marker":<line|null>,
+      "shadow_status","coverage_path","graded_iteration","graded_entry","incomplete",
+      "warnings"} (exit 0; a non-pass grade is "evidence-missing" with no marker); an
+      unwritable run root is "error" (exit 1); a bad --iteration or an unmappable --result
+      is "error" (exit 2).
 
-      NOT_OWED: `iteration-below-2` (no predecessor to owe for), `path-set-absent` (no file
-      — a consumer without the declaration keeps the shipped convergence-only shadow),
-      `shadow-already-recorded:<where>` (a `shadow`
-      active-entry binding or an `iter-<k>.json` `shadow` block already exists at N-1 or
-      N — the pass, or a promoting convergence-time shadow of the same pair, ran; the stamp
-      records `pass_ran: true`), `no-match` (no changed path is in the set). OWED: `match`,
-      or the unestablished arms `path-set-malformed:<detail>` (a present file the helper
-      cannot apply) and `changed-files-unestablished:<detail>` (diff.patch missing,
-      unreadable, or holding no parseable header) — unknown is never read as not owed.
-      The path-set file is a JSON object `{"arms": [...]}` with typed arms:
-      `{"kind": "dir", "dirs": ["skills", "agents"]}` (a path under a repo-root
-      directory), `{"kind": "prompt-extension", "state_dirs": [".prflow", ".devflow"]}`
-      (an `.md` file below a `skill-extensions/` or `prompt-extensions/` directory of a
-      named state directory, at any depth) and `{"kind": "basename", "names":
-      ["CLAUDE.md"]}` (a basename at any depth). A stamp that cannot be written prints a
-      stderr breadcrumb beside the same line. Argparse errors keep exit 2 with no line; an
-      older vendored helper answers an unknown-subcommand error the same way, which the
-      caller reads as NOT_OWED — only a literal first token `OWED` dispatches the pass.
+  install-record --run-root DIR --iteration N
+      Installs DIR/iter-<N>.json.draft over DIR/iter-<N>.json with os.replace. The draft is
+      refused when it starts with a UTF-8 BOM, is not UTF-8 JSON parsing to an object, repeats a key, has an `iter` other
+      than the integer N, or fails the schema; and, when the installed iter-<N>.json is not
+      older than DIR/loop-setup.json (one it cannot stat: always), when it lacks a top-level
+      key the installed record holds, or holds fewer rows of a top-level array with a given
+      `finding_id` (else `id`, null counted) value. An installed record that cannot be read or
+      does not parse to an object is not compared (a warning). Prints {"status":"ok","path","warnings"} (exit 0),
+      {"status":"refused","path":<draft>,"violations":[{"path":<JSON path>,"message"}]} (exit 1,
+      neither file changed), {"status":"error","reason"} for a missing or unreadable draft, an
+      unreadable schema or a failed replace (which adds "warnings") (exit 1), or a bad
+      --iteration (exit 2).
 """
 
 from __future__ import annotations
 
 import argparse
-import glob
-import hashlib
+import datetime
 import importlib.util
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+from path_forms import posix_path
 
 
 def _force_utf8_streams():
@@ -294,30 +287,20 @@ def _normalize_coverage(raw: str) -> str:
     return "not-verified"
 
 
-def _load_review_evidence_gate():
-    """Import scripts/review-evidence-gate.py install-relative (a sibling in this scripts/
-    dir), mirroring how that gate imports scripts/workpad.py (issue #193). Returns
-    (module, None) or (None, reason) — a vendored consumer checkout resolves it the same way,
-    relative to this installed file. The hyphenated filename is why this uses
-    spec_from_file_location rather than a plain import."""
-    here = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.join(here, "review-evidence-gate.py")
+def _load_sibling(name: str, filename: str):
+    """(module, None) or (None, reason) for a sibling script loaded by path relative to this
+    installed file (a hyphenated filename has no plain import). Loading runs the sibling's module
+    scope: its stderr breadcrumbs pass through, and its sys.exit is the reason."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
     try:
-        spec = importlib.util.spec_from_file_location("loop_review_evidence_gate", path)
+        spec = importlib.util.spec_from_file_location(name, path)
         if spec is None or spec.loader is None:
-            return None, "no import spec for review-evidence-gate.py"
+            return None, f"no import spec for {filename}"
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module, None
-    except Exception as e:  # any import fault refuses, never a crash
+    except (Exception, SystemExit) as e:  # an import fault (or its sys.exit) is a reason, never a crash
         return None, f"{type(e).__name__}: {e}"
-
-
-# Active-entry operands (issue #516): the entry kinds a fix loop grades, and the reviewed-head
-# shape. The producer writes one binding per (entry, iteration); the grader requires the
-# caller's operands to match it, so a primary binding never answers a shadow ask.
-_ACTIVE_ENTRIES = frozenset({"step1", "shadow"})
-_HEAD_RE = re.compile(r"\A[0-9a-fA-F]{40}\Z")
 
 
 def _classify_grade_result(get_token) -> tuple[str, str]:
@@ -325,8 +308,8 @@ def _classify_grade_result(get_token) -> tuple[str, str]:
     unavailable grader, a grader fault, or an unrecognized grade token is `unestablished` —
     never `pass` and never `fail` — so an ungradeable run is told apart from a graded failure
     and a grader fault can never become a pass. `get_token(gate)` names which offline grade
-    to run (run-wide or active-entry), so both share this one invocation/classification path."""
-    gate, err = _load_review_evidence_gate()
+    to run (run-wide or per-iteration), so both share this one invocation/classification path."""
+    gate, err = _load_sibling("loop_review_evidence_gate", "review-evidence-gate.py")
     if gate is None:
         return "unestablished", f"grader-unavailable ({err})"
     try:
@@ -342,608 +325,14 @@ def _classify_grade_result(get_token) -> tuple[str, str]:
     return "unestablished", f"unexpected-grade ({token})"
 
 
-def _classify_run_root_grade(run_root: str) -> tuple[str, str]:
-    """Grade `run_root` offline through the legacy run-wide review-evidence boundary `compose
-    --run-root` uses (review-evidence-gate.grade_run_root_offline) — issue #426, unchanged by
-    #516."""
+def _classify_run_root_grade(run_root: str, iteration: int | None = None) -> tuple[str, str]:
+    """Grade `run_root` offline: iteration `iteration`'s own evidence through
+    review-evidence-gate.grade_iteration_offline when given, else the run-wide
+    grade_run_root_offline (issue #426)."""
+    if iteration is not None:
+        return _classify_grade_result(
+            lambda gate: gate.grade_iteration_offline(run_root, iteration))
     return _classify_grade_result(lambda gate: gate.grade_run_root_offline(run_root))
-
-
-def _classify_active_entry_grade_raw(run_root: str, entry: str, iteration: int,
-                                     head: str) -> tuple[str, str]:
-    """Grade `run_root` offline against the named entry's OWN producer evidence through
-    review-evidence-gate.grade_active_entry_offline (issue #516). Same three-way classification
-    as the run-wide grade, so an earlier iteration's evidence never becomes this entry's pass."""
-    return _classify_grade_result(
-        lambda gate: gate.grade_active_entry_offline(run_root, entry, iteration, head))
-
-
-def _classify_active_entry_grade(run_root: str, entry: str, iteration: int,
-                                 head: str) -> tuple[str, str]:
-    """Grade the named entry (issue #516) and, on a NON-PASS, append the entry's
-    `evidence_recovery` state from iter-<N>.json as diagnostic detail (issue #673). The outcome
-    and exit are unchanged; a PASS never reads the marker. Enforcement is `_unrecovered_gate`."""
-    outcome, detail = _classify_active_entry_grade_raw(run_root, entry, iteration, head)
-    if outcome == "pass":
-        return outcome, detail
-    return outcome, detail + _recovery_state_suffix(run_root, entry, iteration, head)
-
-
-def _active_entry_operands(args: argparse.Namespace):
-    """Resolve the shared active-entry operands (issue #516). Returns (entry, iteration, head)
-    when all three are supplied, the sentinel ('__partial__', None, None) when only some are
-    (a caller wiring bug — refuse rather than silently grade legacy), or (None, None, None) for
-    the legacy run-wide path when none are supplied."""
-    provided = (getattr(args, "entry", None), getattr(args, "iteration", None),
-                getattr(args, "head", None))
-    if all(v is None for v in provided):
-        return None, None, None
-    if any(v is None for v in provided):
-        return "__partial__", None, None
-    return args.entry, args.iteration, args.head
-
-
-def _sha256_of(path: str) -> str | None:
-    """The sha256 hex of a file's bytes, or None when it cannot be read. Reads bytes so a
-    non-UTF-8 artifact digests without raising."""
-    try:
-        with open(path, "rb") as fh:
-            return hashlib.sha256(fh.read()).hexdigest()
-    except OSError:
-        return None
-
-
-def _reuse_from_checklist(path: str, iteration: int) -> list[dict]:
-    """Read this iteration's checklist and record a reuse entry for each item carrying a truthy
-    `reused_from_iter_prev` flag (phase-1-checklist.md §1.0 carry-forward). `from_iteration`
-    is the item's own `reused_from_iter` when a positive int, else the immediately prior
-    iteration. An unreadable or malformed checklist yields an empty reuse set — the grader then
-    requires this entry's own producer evidence for every item (the fail-closed direction)."""
-    try:
-        with open(path, encoding="utf-8") as fh:
-            items = json.loads(fh.read())
-    except (OSError, ValueError, UnicodeError):
-        return []
-    if not isinstance(items, list):
-        return []
-    reuse = []
-    for item in items:
-        if not isinstance(item, dict) or not item.get("reused_from_iter_prev"):
-            continue
-        item_id = item.get("id")
-        if not isinstance(item_id, str) or not item_id:
-            continue
-        frm = item.get("reused_from_iter")
-        if not (isinstance(frm, int) and not isinstance(frm, bool) and frm >= 1):
-            frm = iteration - 1
-        reuse.append({"item_id": item_id, "from_iteration": frm})
-    return reuse
-
-
-def _snapshot_file(src: str, dst: str) -> None:
-    """Copy `src` to `dst` when `src` exists; do nothing when it does not (an absent source
-    leaves no snapshot, and the grader then reports the named artifact missing — fail, never a
-    spurious pass). Best-effort on a copy error, for the same reason."""
-    try:
-        shutil.copyfile(src, dst)
-    except OSError:
-        pass
-
-
-def _snapshot_verdicts(src_dir: str, dst_dir: str, replace: bool = False) -> None:
-    """Copy every `<item-id>-*.json` nonce verifier file from `src_dir` into `dst_dir`. An
-    absent source directory leaves the snapshot empty, so the grader reports each agent item's
-    verifier file missing rather than passing on unrelated evidence. With `replace`, the
-    destination's own `*.json` files are removed first, so a re-bind during recovery captures
-    what `src_dir` holds NOW and never retains a wider first-attempt claim set (issue #621).
-    A removal that fails leaves a residue the grader may read as this entry's evidence, so it
-    prints a named stderr breadcrumb — the diagnosable residue shape, not a silent retention —
-    and the snapshot still proceeds."""
-    try:
-        os.makedirs(dst_dir, exist_ok=True)
-    except OSError:
-        return
-    if replace:
-        for stale in glob.glob(os.path.join(dst_dir, "*.json")):
-            try:
-                os.remove(stale)
-            except OSError as e:
-                sys.stderr.write(
-                    f"loop-verdict-marker: could not remove the prior snapshot file "
-                    f"{stale}: {e} — it stays in the snapshot\n")
-    for src in glob.glob(os.path.join(src_dir, "*.json")):
-        _snapshot_file(src, os.path.join(dst_dir, os.path.basename(src)))
-
-
-# Step 1.8 grade records (issue #673). `check-evidence --entry` records each entry's latest grade
-# at evidence-grade-<entry>-iter-<N>.json. While any OTHER entry's last grade is non-pass,
-# `write-active-entry-binding`, `check-evidence --entry` and `compose --run-root` refuse, so the
-# loop cannot reach a later entry or loop exit past an unrecovered gate; only a passing re-grade of
-# that entry (its bounded recovery) clears it. No record means that entry was never graded here.
-_GRADE_RECORD_RE = re.compile(r"\Aevidence-grade-(step1|shadow)-iter-([1-9][0-9]*)\.json\Z")
-_GRADE_OUTCOMES = frozenset({"pass", "fail", "unestablished"})
-
-
-def _write_grade_record(run_root: str, entry: str, iteration: int, head: str, outcome: str,
-                        detail: str) -> str | None:
-    """Atomically record this entry's latest grade. Returns None, or the write error."""
-    path = os.path.join(run_root, f"evidence-grade-{entry}-iter-{iteration}.json")
-    record = {"entry": entry, "iteration": iteration, "reviewed_head": head,
-              "outcome": outcome, "detail": detail}
-    try:
-        with open(path + ".tmp", "w", encoding="utf-8") as fh:
-            json.dump(record, fh)
-        os.replace(path + ".tmp", path)
-    except OSError as e:
-        return str(e)
-    return None
-
-
-def _read_grade_record(path: str) -> tuple[str, str]:
-    """(outcome, detail) of one grade record, or ('malformed', reason). A guard: every shape it
-    cannot read refuses rather than passing (CLAUDE.md matrix)."""
-    try:
-        with open(path, "rb") as fh:
-            raw = fh.read()
-    except OSError:
-        return "malformed", "is unreadable"
-    try:
-        obj = json.loads(raw)
-    except (ValueError, UnicodeError):
-        return "malformed", "is not valid JSON"
-    except RecursionError:
-        return "malformed", "is nested too deeply to parse"
-    if not isinstance(obj, dict):
-        return "malformed", "is not a JSON object"
-    outcome = obj.get("outcome")
-    if not isinstance(outcome, str) or outcome not in _GRADE_OUTCOMES:
-        return "malformed", "carries no valid outcome"
-    detail = obj.get("detail")
-    return outcome, detail if isinstance(detail, str) else ""
-
-
-def _unrecovered_gate(run_root: str, exclude: tuple[str, int] | None = None) -> str | None:
-    """None when no recorded entry other than `exclude` was last graded non-pass; else the
-    `unrecovered-evidence-gate` refusal detail naming that entry, iteration and grade."""
-    try:
-        names = os.listdir(run_root)
-    except FileNotFoundError:
-        return None
-    except OSError as e:
-        return f"unrecovered-evidence-gate: the run root cannot be listed ({e})"
-    keys = sorted((int(m.group(2)), m.group(1), name)
-                  for name in names if (m := _GRADE_RECORD_RE.match(name)))
-    for iteration, entry, name in keys:
-        if (entry, iteration) == exclude:
-            continue
-        outcome, detail = _read_grade_record(os.path.join(run_root, name))
-        if outcome == "malformed":
-            return f"unrecovered-evidence-gate: {name} {detail}"
-        if outcome != "pass":
-            detail = detail.replace("\r", " ").replace("\n", " ")
-            return (f"unrecovered-evidence-gate: {entry} iteration {iteration} was last graded "
-                    f"{outcome} ({detail}) and no re-grade has passed")
-    return None
-
-
-def _verdicts_subdir(entry: str, n: int) -> str:
-    """The binding's emitted `verdicts_subdir`: forward slash on every host."""
-    return f"verdicts-{entry}/iter-{n}"
-
-
-def _cmd_write_active_entry_binding(args: argparse.Namespace) -> int:
-    """Producer emission (issue #516): snapshot this entry's checklist, verification and
-    verifier-file evidence into ENTRY-SCOPED copies and write a binding naming them (by path
-    and digest), the reviewed head, and the reuse set. The snapshot is what makes a primary
-    and a shadow entry sharing one run root's iteration-scoped filenames separately gradeable:
-    the other entry's later overwrite of the shared `checklist-iter-<N>.json` /
-    `verdicts/iter-<N>/` cannot disturb this entry's captured copy, so a terminal re-grade of
-    this entry still reads its own evidence (AC4/AC6). Refuses on a bad entry/iteration/head —
-    no binding written — the same stderr+exit-3 shape as compose's refusals, so a caller that
-    gets no confirmation never assumes a binding it does not have."""
-    if args.entry not in _ACTIVE_ENTRIES:
-        sys.stderr.write(
-            f"loop-verdict-marker: --entry must be one of {sorted(_ACTIVE_ENTRIES)} "
-            f"(got {args.entry!r}) — no active-entry binding written\n")
-        return 3
-    if args.iteration < 1:
-        sys.stderr.write(
-            "loop-verdict-marker: --iteration must be a positive integer — "
-            "no active-entry binding written\n")
-        return 3
-    if not _HEAD_RE.match(args.head or ""):
-        sys.stderr.write(
-            "loop-verdict-marker: --head must be a 40-character hex commit sha — "
-            "no active-entry binding written\n")
-        return 3
-    n, entry, root = args.iteration, args.entry, args.run_root
-    gate_detail = _unrecovered_gate(root, exclude=(entry, n))
-    if gate_detail is not None:
-        sys.stderr.write(
-            f"loop-verdict-marker: {gate_detail} — refusing to bind {entry} iteration {n}; "
-            "no active-entry binding written\n")
-        return 3
-    src_checklist = os.path.join(root, f"checklist-iter-{n}.json")
-    src_verification = os.path.join(root, f"verification-iter-{n}.json")
-    dst_checklist_name = f"checklist-{entry}-iter-{n}.json"
-    dst_verification_name = f"verification-{entry}-iter-{n}.json"
-    dst_verdicts_subdir = _verdicts_subdir(entry, n)
-    _snapshot_file(src_checklist, os.path.join(root, dst_checklist_name))
-    _snapshot_file(src_verification, os.path.join(root, dst_verification_name))
-    # The shadow re-binds on recovery, and its snapshot must then hold exactly what
-    # `verdicts/iter-<n>/` holds now — a retained first-attempt file would be graded as
-    # evidence for a claim the recovered checklist no longer carries (issue #621).
-    _snapshot_verdicts(os.path.join(root, "verdicts", f"iter-{n}"),
-                       os.path.join(root, dst_verdicts_subdir), replace=(entry == "shadow"))
-    binding = {
-        "schema_version": 1,
-        "entry": entry,
-        "iteration": n,
-        "reviewed_head": args.head.lower(),
-        "checklist_artifact": dst_checklist_name,
-        "checklist_sha256": _sha256_of(os.path.join(root, dst_checklist_name)),
-        "verification_artifact": dst_verification_name,
-        "verification_sha256": _sha256_of(os.path.join(root, dst_verification_name)),
-        "verdicts_subdir": dst_verdicts_subdir,
-        "reuse": _reuse_from_checklist(src_checklist, n),
-    }
-    out_path = os.path.join(root, f"active-entry-{entry}-iter-{n}.json")
-    try:
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump(binding, fh)
-    except OSError as e:
-        sys.stderr.write(
-            f"loop-verdict-marker: could not write active-entry binding to {out_path}: {e}\n")
-        return 3
-    sys.stdout.write(f"WROTE {out_path}\n")
-    return 0
-
-
-def _run_root_grade_passes(run_root: str) -> tuple[bool, str]:
-    """Grade `run_root` offline (issue #193 AC5). Returns (True, token) only on an explicit
-    `pass ` result; (False, reason) on any non-pass grade or an unavailable grader — the
-    fail-closed direction, so a marker is never composed on unverified evidence. Expressed
-    over `_classify_run_root_grade` so `compose` and `check-evidence` share one
-    grader-invocation path; `compose` only ever consumed the boolean, so its behavior is
-    unchanged."""
-    outcome, detail = _classify_run_root_grade(run_root)
-    return outcome == "pass", detail
-
-
-# `--entry latest` selection (issue #676): the loop-exit stamp passes `--entry latest
-# --iteration N` and the helper picks which binding to grade, so a fix loop that exits after a
-# shadow-promoted iteration (which runs no step1 engine, so has no step1 binding at N) stamps
-# the shadow review that actually covered the final diff instead of refusing.
-_PROMOTING_PROVENANCE = frozenset({"shadow", "park-calibration-post-shadow"})
-# The iter-<N>.json reader's refusal reasons (issue #676; CLAUDE.md best-effort-parser matrix).
-_ITER_REASON_TEXT = {
-    "absent": "is absent",
-    "unreadable": "is unreadable or not valid JSON",
-    "not-object": "is not a JSON object",
-    "too-deep": "is nested too deeply to parse",
-    "non-string": "carries a non-string promotion_provenance",
-}
-
-
-def _evidence_missing_stderr(run_root: str, detail: str, *, selected: str = "") -> None:
-    """Write the shared `evidence-missing` refusal breadcrumb — the run-wide grade, the
-    active-entry grade, and the `--entry latest` selected-binding grade all refuse with this one
-    sentence, so a single formatter keeps their wording from drifting apart. `selected` names the
-    chosen binding when the refusal grades one."""
-    where = f" for the selected {selected}" if selected else ""
-    sys.stderr.write(
-        f"loop-verdict-marker: run root '{run_root}' did not pass the review-evidence "
-        f"grade{where} ({detail}) — refusing to compose a verdict marker (no line emitted); "
-        "the run is evidence-missing\n")
-
-
-def _binding_file_exists(run_root: str, entry: str, iteration: int) -> bool:
-    """Whether this entry's active-entry binding FILE exists at (entry, iteration). Existence,
-    not validity, decides selection: a present-but-corrupt binding is still selected, and the
-    grader then refuses it with its own unreadable/malformed/mismatch reason rather than the
-    selector silently falling through to a different binding."""
-    return os.path.isfile(
-        os.path.join(run_root, f"active-entry-{entry}-iter-{iteration}.json"))
-
-
-def _binding_reviewed_head(gate, run_root: str, entry: str, iteration: int) -> str:
-    """The reviewed_head recorded in the (entry, iteration) binding, or '' when it is
-    absent/unreadable/malformed. `--entry latest` passes no --head, so the selected binding's
-    OWN recorded head is what the grader is asked for — feeding a mislabeled binding its
-    file-suffix iteration with the head it records is what still surfaces as binding-mismatch.
-    A '' feeds a refusing grade, never a silent pass."""
-    binding, _reason = gate._read_active_entry_binding(run_root, entry, iteration)
-    if binding is None:
-        return ""
-    head = binding.get("reviewed_head")
-    return head if isinstance(head, str) else ""
-
-
-def _load_iter_object(run_root: str, iteration: int) -> tuple[dict | None, str | None]:
-    """Load iter-<iteration>.json as a JSON object (issues #676, #673): the shared file-load and
-    parse guard both iter-<N>.json readers use. Returns (obj, None) for a dict root, else
-    (None, reason) with reason in absent|unreadable|too-deep|not-object. The loop writes this file and an
-    agent can corrupt it, so every non-object shape refuses rather than being read (CLAUDE.md
-    best-effort-parser matrix: object/array/scalar/valid-falsy/missing/wrong-type)."""
-    path = os.path.join(run_root, f"iter-{iteration}.json")
-    try:
-        with open(path, "rb") as fh:
-            raw = fh.read()
-    except FileNotFoundError:
-        return None, "absent"
-    except OSError:
-        return None, "unreadable"
-    try:
-        obj = json.loads(raw)
-    except (ValueError, UnicodeError):
-        return None, "unreadable"
-    except RecursionError:
-        return None, "too-deep"
-    if not isinstance(obj, dict):
-        return None, "not-object"
-    return obj, None
-
-
-def _read_promotion_provenance(run_root: str, iteration: int) -> tuple[str | None, str | None]:
-    """Read iter-<N>.json's promotion_provenance (issue #676). Returns (provenance, None) for a
-    JSON OBJECT carrying a string promotion_provenance, else (None, reason) with reason in
-    absent|unreadable|not-object|non-string — every non-object/non-string shape refuses rather
-    than being read as a promotion."""
-    obj, reason = _load_iter_object(run_root, iteration)
-    if reason is not None:
-        return None, reason
-    prov = obj.get("promotion_provenance")
-    if not isinstance(prov, str):
-        return None, "non-string"
-    return prov, None
-
-
-def _read_evidence_recovery_marker(run_root: str, entry: str, iteration: int,
-                                   reviewed_head: str) -> tuple[str, str | None]:
-    """Read this entry's evidence_recovery marker from iter-<iteration>.json (issue #673).
-    Returns ('absent', None) — no recovery attempted for THIS {entry, iteration, reviewed_head}
-    key: a normal state, and the state a stale/foreign key (a different head, iteration, or
-    entry already recorded) also reads as, never laundered into a spent attempt; ('present',
-    attempted_at) when a well-typed marker's key matches exactly; or a refusal kind with no
-    value — 'iter-absent'/'iter-unreadable'/'iter-not-object' for the file itself (the
-    `_load_iter_object` reason re-prefixed so the marker-'absent' state stays distinct from a
-    file that is absent), 'recovery-malformed' for a non-object marker or a mistyped/missing
-    field, or 'shadow-malformed' for a present, non-null shadow block that is not an object. A
-    guard, not a best-effort parser (CLAUDE.md matrix: object/array/scalar/valid-falsy/
-    missing/wrong-type): an unreadable shape refuses rather than resolving to 'absent', which
-    would launder the unrecovered failure this reader exists to surface. The marker is top-level
-    for the step1 entry and nested under `shadow` for the shadow entry (loop-control.md schema)."""
-    obj, reason = _load_iter_object(run_root, iteration)
-    if reason is not None:
-        return f"iter-{reason}", None
-    if entry == "shadow":
-        container = obj.get("shadow")
-        # A run with no shadow block yet (key absent or an explicit null) has no shadow
-        # recovery — absent, not malformed. But a PRESENT, non-null shadow block that is not an
-        # object is corruption (CLAUDE.md wrong-type / valid-falsy cells): refuse rather than
-        # read it as absent, which would launder the reason of an already non-passing grade.
-        if "shadow" not in obj or container is None:
-            return "absent", None
-        if not isinstance(container, dict):
-            return "shadow-malformed", None
-    else:
-        container = obj
-    if "evidence_recovery" not in container:
-        return "absent", None
-    rec = container.get("evidence_recovery")
-    # An array, scalar, or valid-falsy value (false, 0, "") is not the object the schema
-    # defines — malformed, never read as an absent-or-present marker.
-    if not isinstance(rec, dict):
-        return "recovery-malformed", None
-    rec_entry = rec.get("entry")
-    rec_iteration = rec.get("iteration")
-    rec_head = rec.get("reviewed_head")
-    if not isinstance(rec_entry, str) or not rec_entry:
-        return "recovery-malformed", None
-    # A bool is an int subclass (True == 1), so reject it explicitly — only a real int is an
-    # iteration (mirrors review-evidence-gate._read_active_entry_binding's landmine).
-    if not isinstance(rec_iteration, int) or isinstance(rec_iteration, bool):
-        return "recovery-malformed", None
-    if not isinstance(rec_head, str) or not rec_head:
-        return "recovery-malformed", None
-    # Key discrimination: a marker for another {entry, iteration, reviewed_head} is not this
-    # key's recovery, so it reads as absent for THIS key — a HEAD change or a stale iteration's
-    # marker cannot answer, nor consume, the current key's one-attempt allowance.
-    if (rec_entry != entry or rec_iteration != iteration
-            or rec_head.lower() != (reviewed_head or "").lower()):
-        return "absent", None
-    attempted_at = rec.get("attempted_at")
-    return "present", attempted_at if isinstance(attempted_at, str) else None
-
-
-def _recovery_state_suffix(run_root: str, entry: str, iteration: int, head: str) -> str:
-    """The recovery-state clause appended to a non-passing active-entry grade's detail (issue
-    #673): the file+reason on an unreadable shape, 'no recovery attempted' on an absent key, or
-    the spent attempt on a present one."""
-    kind, attempted_at = _read_evidence_recovery_marker(run_root, entry, iteration, head)
-    if kind == "absent":
-        return f"; no Step 1.8 recovery attempted for {entry} iteration {iteration}"
-    if kind == "present":
-        when = f" at {attempted_at}" if attempted_at else " (time unrecorded)"
-        return (f"; a Step 1.8 recovery was attempted{when} for {entry} iteration "
-                f"{iteration} but the entry is still non-passing")
-    # kind is 'recovery-malformed', 'shadow-malformed' (a present, non-null shadow block that is
-    # not an object), or an 'iter-absent'/'iter-unreadable'/'iter-not-object' iter-file state that
-    # reuses the shared iter-file reason text (stripping the 'iter-' prefix that keeps it distinct
-    # from a marker-absent).
-    if kind == "recovery-malformed":
-        tail = "carries a malformed evidence_recovery marker"
-    elif kind == "shadow-malformed":
-        tail = "shadow block is not an object"
-    else:
-        tail = _ITER_REASON_TEXT[kind[len("iter-"):]]
-    return f"; the Step 1.8 recovery state is unreadable: iter-{iteration}.json {tail}"
-
-
-def _grade_selected_latest(args: argparse.Namespace, gate, entry: str,
-                           iteration: int) -> int | None:
-    """Grade the selected (entry, iteration) binding with its OWN recorded head. Returns None
-    when it passes (the caller emits the marker), or 3 after a stderr breadcrumb — no fallback
-    to another binding, exactly as the loop refuses a failed active-entry grade today."""
-    head = _binding_reviewed_head(gate, args.run_root, entry, iteration)
-    outcome, detail = _classify_active_entry_grade(args.run_root, entry, iteration, head)
-    if outcome == "pass":
-        return None
-    _evidence_missing_stderr(args.run_root, detail,
-                             selected=f"{entry} binding at iteration {iteration}")
-    return 3
-
-
-def _refuse_no_binding(gate, run_root: str, message: str) -> int | None:
-    """No binding was selected, so the grader's phase-log no-binding pass still applies (AC7):
-    a `generator-failure` record legitimately stands in for the checklist
-    phases, exactly as `--entry step1` accepts it for a missing binding. Returns None on that
-    pass, else 3 after a breadcrumb — the log's own unreadable/malformed reason when it has one,
-    otherwise `message`."""
-    grade = gate._special_record_grade(run_root)
-    if grade is None:
-        sys.stderr.write(message)
-        return 3
-    if grade[0] == "special":
-        return None
-    _evidence_missing_stderr(run_root, str(grade[1]))
-    return 3
-
-
-def _compose_latest_gate(args: argparse.Namespace) -> int | None:
-    """Select and grade the binding a `--entry latest --iteration N` stamp covers (issue #676).
-    Returns None when the run may be stamped (the caller emits the marker) or 3 after a stderr
-    breadcrumb. Order matters: --head/-run-root/-iteration shape refusals fire first (AC7), then
-    the step1-binding-at-N short-circuit, then the diff-authorized checklist skip (which needs no
-    binding — AC10), then the iter-<N>.json shadow promotion that grades the shadow binding at N,
-    else N-1; every arm that selects no binding ends at `_refuse_no_binding`, which admits the
-    grader's remaining no-binding pass before refusing."""
-    if getattr(args, "head", None) is not None:
-        sys.stderr.write(
-            "loop-verdict-marker: --head must not be supplied with --entry latest (the selected "
-            "binding's own recorded head is graded) — no marker emitted\n")
-        return 3
-    root = getattr(args, "run_root", None)
-    if not root:
-        sys.stderr.write(
-            "loop-verdict-marker: --entry latest requires a non-empty --run-root — no marker "
-            "emitted\n")
-        return 3
-    if getattr(args, "iteration", None) is None:
-        sys.stderr.write(
-            "loop-verdict-marker: --entry latest requires --iteration — no marker emitted\n")
-        return 3
-    gate, err = _load_review_evidence_gate()
-    if gate is None:
-        sys.stderr.write(
-            f"loop-verdict-marker: could not load the review-evidence grader ({err}) — no marker "
-            "emitted\n")
-        return 3
-    n = args.iteration
-    # 1. A step1 binding at N grades that binding, exactly as the loop stamps a non-shadow final
-    #    iteration today (a diff-authorized skip inside the grade still passes with no evidence).
-    if _binding_file_exists(root, "step1", n):
-        return _grade_selected_latest(args, gate, "step1", n)
-    # 2. No step1 binding at N. The grader's entry-independent owed precheck passes a
-    #    diff-authorized checklist skip with no binding, so run it BEFORE reading iter-<N>.json —
-    #    a skip run marks without ever consulting the promotion record (AC10). It settles only
-    #    the skip arm; the other no-binding pass (the phase-log record) needs the selection to
-    #    have failed first, so it is consulted in `_refuse_no_binding` at each refusal below.
-    #    A binding graded below re-runs this precheck inside `grade_active_entry_offline`; the
-    #    repeat is deliberate, because that public grader is also reached without this function
-    #    (`check-evidence --entry …`) and must keep its own skip arm. Idempotent and offline.
-    owed_token, owed_detail, _disproof = gate._offline_owed_check(root)
-    if owed_token is not None:
-        if owed_token.startswith("pass "):
-            return None
-        detail = "".join(owed_detail) if isinstance(owed_detail, list) else str(owed_detail)
-        _evidence_missing_stderr(root, detail)
-        return 3
-    # 3. Checklist owed and no step1 binding at N: consult iter-<N>.json for a shadow promotion.
-    prov, reason = _read_promotion_provenance(root, n)
-    if reason is not None:
-        return _refuse_no_binding(
-            gate, root,
-            f"loop-verdict-marker: iter-{n}.json {_ITER_REASON_TEXT[reason]} — the step1 binding "
-            f"at iteration {n} is absent and no shadow promotion could be read; no marker "
-            "emitted\n")
-    if prov not in _PROMOTING_PROVENANCE:
-        return _refuse_no_binding(
-            gate, root,
-            f"loop-verdict-marker: iter-{n}.json records promotion_provenance={prov!r}, not a "
-            f"shadow promotion, and no step1 binding exists at iteration {n} — no marker "
-            "emitted\n")
-    # A shadow promotion: grade the shadow binding at N, else the shadow binding at N-1.
-    if _binding_file_exists(root, "shadow", n):
-        return _grade_selected_latest(args, gate, "shadow", n)
-    if _binding_file_exists(root, "shadow", n - 1):
-        return _grade_selected_latest(args, gate, "shadow", n - 1)
-    return _refuse_no_binding(
-        gate, root,
-        f"loop-verdict-marker: iter-{n}.json records a shadow promotion but no shadow binding "
-        f"exists at iteration {n} or {n - 1} — no marker emitted\n")
-
-
-def _cmd_compose(args: argparse.Namespace) -> int:
-    # `--entry latest` (issue #676): select and grade the binding this stamp covers before
-    # composing. Handled ahead of the run-root guard below because its --run-root/-iteration/
-    # --head shape refusals (AC7) must fire even when --run-root is absent or empty, rather than
-    # being masked by the else-arm's generic no-run-root refusal below.
-    if getattr(args, "entry", None) == "latest":
-        rc = _compose_latest_gate(args)
-        if rc is not None:
-            return rc
-    # Run-root evidence gate (issue #193 AC5): when a run root is supplied, refuse to compose
-    # a verdict marker on a non-pass grade — no marker, a stderr diagnostic, exit 3, the same
-    # shape as the unmappable-result refusal below.
-    elif getattr(args, "run_root", None):
-        entry, iteration, head = _active_entry_operands(args)
-        if entry == "__partial__":
-            sys.stderr.write(
-                "loop-verdict-marker: --entry, --iteration and --head must be supplied "
-                "together for an active-entry grade — no marker emitted\n")
-            return 3
-        if entry is not None:
-            # Active-entry grade (issue #516): this entry's own producer evidence, not the
-            # run-wide grade, gates whether the terminal marker may be stamped.
-            outcome, detail = _classify_active_entry_grade(
-                args.run_root, entry, iteration, head)
-            ok = outcome == "pass"
-        else:
-            ok, detail = _run_root_grade_passes(args.run_root)
-        if not ok:
-            _evidence_missing_stderr(args.run_root, detail)
-            return 3
-    else:
-        # No --run-root and not `--entry latest` (issue #727): compose has no ungraded form.
-        # Refuse before any result/coverage handling — the same shape as the refusals above
-        # (stderr breadcrumb, exit 3, no marker) — so a review that owed the checklist/verification
-        # phases but never ran them cannot be stamped clean. Checked ahead of _normalize_result so a
-        # bad --result with no --run-root reports the run-root refusal, not the result one.
-        sys.stderr.write(
-            "loop-verdict-marker: compose requires --run-root (the loop's held review run "
-            "root) so the checklist-artifact and verification-artifact evidence is graded "
-            "before a marker is composed — no --run-root given, no marker emitted\n")
-        return 3
-    if getattr(args, "run_root", None):
-        gate_detail = _unrecovered_gate(args.run_root)
-        if gate_detail is not None:
-            _evidence_missing_stderr(args.run_root, gate_detail)
-            return 3
-    token = _normalize_result(args.result)
-    if token is None:
-        sys.stderr.write(
-            f"loop-verdict-marker: result '{args.result}' is not one of the six loop-level "
-            "results (APPROVE / APPROVE with notes / APPROVE WITH CAVEAT / "
-            "APPROVE WITH ADVISORY NOTES / APPROVE WITH UNRESOLVED SHADOW FINDINGS "
-            "/ REJECT) — refusing to compose a marker (no line emitted)\n"
-        )
-        return 3
-    coverage = _normalize_coverage(args.coverage)
-    # Reuse MARKER_PREFIX so the producer and the reader's _MARKER_RE can never drift
-    # on the marker's leading literal.
-    sys.stdout.write(f"{MARKER_PREFIX}result={token} coverage={coverage} -->\n")
-    return 0
 
 
 def _cmd_read(args: argparse.Namespace) -> int:
@@ -1008,27 +397,8 @@ CHECK_EVIDENCE_TOKENS = {"pass": "PASS", "fail": "FAIL", "unestablished": "UNEST
 
 
 def _cmd_check_evidence(args: argparse.Namespace) -> int:
-    entry, iteration, head = _active_entry_operands(args)
-    if entry == "__partial__":
-        sys.stderr.write(
-            "loop-verdict-marker: --entry, --iteration and --head must be supplied together "
-            "for an active-entry grade\n")
-        return 2
-    if entry is not None:
-        gate_detail = _unrecovered_gate(args.run_root, exclude=(entry, iteration))
-        if gate_detail is not None:
-            outcome, detail = "unestablished", gate_detail
-        else:
-            outcome, detail = _classify_active_entry_grade(args.run_root, entry, iteration, head)
-            if entry in _ACTIVE_ENTRIES and iteration >= 1:
-                err = _write_grade_record(args.run_root, entry, iteration, head, outcome, detail)
-                if err is not None:
-                    # An unrecorded PASS cannot clear an earlier non-pass record of this entry.
-                    detail += f"; grade record unwritable ({err})"
-                    if outcome == "pass":
-                        outcome = "unestablished"
-    else:
-        outcome, detail = _classify_run_root_grade(args.run_root)
+    iteration = getattr(args, "iteration", None)
+    outcome, detail = _classify_run_root_grade(args.run_root, iteration)
     # `detail` can carry a grader exception message with embedded CR/LF; flatten it so the
     # docstring's "one structured line" holds and the reader's splitlines()[0] sees the whole
     # record, not a truncated first physical line.
@@ -1040,7 +410,7 @@ def _cmd_check_evidence(args: argparse.Namespace) -> int:
 # ── continue-run (issue #893): the mid-loop continuation reader; contract in the module docstring ──
 
 _ITER_FILE_RE = re.compile(r"\Aiter-([1-9][0-9]*)\.json\Z")
-_SHA40_RE = _HEAD_RE   # a 40-hex sha in either case; compared lowercased
+_SHA40_RE = re.compile(r"\A[0-9a-fA-F]{40}\Z")   # a 40-hex sha in either case; compared lowercased
 _TELEMETRY_REVIEW_PREFIX = ".prflow/logs/review/"
 _MISSING = object()
 
@@ -1116,10 +486,233 @@ def _parse_iter_record(raw: bytes, iteration: int) -> tuple[dict | None, str]:
         return None, "nested too deeply to parse"
     if not isinstance(obj, dict):
         return None, f"is not a JSON object ({'string' if isinstance(obj, str) else _field_shape(obj)})"
+    why = _iter_mismatch(obj, iteration)
+    return (None, why) if why else (obj, "")
+
+
+def _iter_mismatch(obj: dict, iteration: int) -> str:
+    """'' when the record's `iter` is the integer `iteration` (never a boolean), else why."""
     it = obj.get("iter")
     if isinstance(it, bool) or not isinstance(it, int) or it != iteration:
-        return None, f"iter field {it!r} does not equal the filename's {iteration}"
-    return obj, ""
+        return f"iter field {it!r} does not equal the filename's {iteration}"
+    return ""
+
+
+# ── the iteration-record schema (issue #2038) ────────────────────────────────────────────
+
+_SCHEMA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "lib", "iter-record.schema.json")
+_SCHEMA_CACHE: list = []
+_JSON_TYPES = {
+    "object": lambda v: isinstance(v, dict),
+    "array": lambda v: isinstance(v, list),
+    "string": lambda v: isinstance(v, str),
+    "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "boolean": lambda v: isinstance(v, bool),
+    "null": lambda v: v is None,
+}
+_PLAIN_KEY_RE = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*\Z")
+
+
+def _load_schema() -> tuple[dict | None, str]:
+    """(the schema, '') or (None, why); a top level without an object `properties` is unusable."""
+    if not _SCHEMA_CACHE:
+        try:
+            with open(_SCHEMA_PATH, "rb") as fh:
+                schema = json.loads(fh.read())
+            why = "" if isinstance(schema, dict) and isinstance(schema.get("properties"), dict) \
+                else "it holds no top-level properties object"
+        except OSError as e:
+            schema, why = None, f"unreadable ({_os_reason(e)})"
+        except (ValueError, UnicodeError, RecursionError) as e:
+            schema, why = None, f"not JSON ({type(e).__name__})"
+        _SCHEMA_CACHE.append((None, f"iteration-record schema {why}") if why else (schema, ""))
+    return _SCHEMA_CACHE[0]
+
+
+def _json_type(value) -> str:
+    return next((name for name, test in _JSON_TYPES.items() if name != "number" and test(value)),
+                "number")
+
+
+def _key_path(path: str, key: str) -> str:
+    return f"{path}.{key}" if _PLAIN_KEY_RE.match(key) else f"{path}[{json.dumps(key)}]"
+
+
+def _unknown_key_message(key: str) -> str:
+    return (f"top-level key {key} is not in the iteration-record schema; pushback rows belong in "
+            'fix_decisions with "decision": "pushed_back", consumer data in verification_evidence')
+
+
+def _schema_violations(value, schema: dict, path: str, out: list) -> None:
+    """Append {path, message} for each way `value` breaks `schema` (keywords: type, properties,
+    required, additionalProperties, items, pattern)."""
+    types = schema.get("type")
+    if types is not None:
+        names = [types] if isinstance(types, str) else list(types)
+        if not any(_JSON_TYPES.get(name, lambda v: False)(value) for name in names):
+            out.append({"path": path, "message": f"is {_json_type(value)}, expected {' or '.join(names)}"})
+            return
+    if isinstance(value, str) and "pattern" in schema and not re.fullmatch(schema["pattern"], value):
+        out.append({"path": path, "message": f"does not match pattern {schema['pattern']}"})
+    if isinstance(value, dict):
+        props = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
+        for key in schema.get("required", ()):
+            if key not in value:
+                out.append({"path": _key_path(path, key), "message": "required key is missing"})
+        for key, item in value.items():
+            if isinstance(props.get(key), dict):
+                _schema_violations(item, props[key], _key_path(path, key), out)
+            elif key not in props and schema.get("additionalProperties") is False:
+                out.append({"path": _key_path(path, key), "message": _unknown_key_message(key)})
+    elif isinstance(value, list) and isinstance(schema.get("items"), dict):
+        for i, item in enumerate(value):
+            _schema_violations(item, schema["items"], f"{path}[{i}]", out)
+
+
+def _unknown_top_keys(record: dict) -> tuple[list[str], str]:
+    """(the record's top-level keys outside the schema's properties, '') or ([], the warning)."""
+    schema, why = _load_schema()
+    if schema is None:
+        return [], f"{why}; unknown top-level keys not checked"
+    return [key for key in record if key not in schema["properties"]], ""
+
+
+def _id_counts(rows) -> dict:
+    """{(id field, JSON id value): count} over the object rows carrying `finding_id`, else `id`."""
+    counts: dict = {}
+    for row in _rows(rows):
+        field = "finding_id" if "finding_id" in row else "id" if "id" in row else None
+        if field:
+            ident = (field, json.dumps(row[field], sort_keys=True, ensure_ascii=False))
+            counts[ident] = counts.get(ident, 0) + 1
+    return counts
+
+
+def _held_violations(draft: dict, installed: dict, name: str, props: dict) -> list:
+    """What the draft drops of the installed record: a top-level key, or id-bearing rows."""
+    out = []
+    for key, held in installed.items():
+        path = _key_path("$", key)
+        if key not in draft and key not in props:
+            out.append({"path": path, "message": f"the installed {name} holds {key}, a key outside "
+                        "the iteration-record schema, so no draft can install over it; keep the "
+                        "draft without it: no edit clears this refusal, which counts toward the "
+                        "direct-Write fallback"})
+            continue
+        if key not in draft:
+            out.append({"path": path, "message": f"the installed {name} holds {key}; a rewrite "
+                                                 "keeps every schema field already written"})
+        if not isinstance(held, list):
+            continue
+        have = _id_counts(draft.get(key))
+        for (field, ident), count in _id_counts(held).items():
+            missing = count - have.get((field, ident), 0)
+            if missing > 0:
+                out.append({"path": path, "message": f"drops {missing} row(s) with {field} {ident} "
+                                                     f"that the installed {name} holds"})
+    return out
+
+
+def _no_duplicates(pairs: list, duplicates: list) -> dict:
+    """json.loads' object hook: the object, with each repeated key appended to `duplicates`."""
+    obj: dict = {}
+    for key, value in pairs:
+        if key in obj:
+            duplicates.append(key)
+        obj[key] = value
+    return obj
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"invalid JSON number: {value}")
+
+
+def _cmd_install_record(args: argparse.Namespace) -> int:
+    if args.iteration < 1:
+        _emit_json({"status": "error", "reason": "--iteration must be a positive integer"})
+        return 2
+    n = args.iteration
+    target = os.path.join(args.run_root, f"iter-{n}.json")
+    draft = target + ".draft"
+    try:
+        with open(draft, "rb") as fh:
+            raw = fh.read()
+    except FileNotFoundError:
+        _emit_json({"status": "error", "reason": f"iter-{n}.json.draft is missing; nothing installed"})
+        return 1
+    except OSError as e:
+        _emit_json({"status": "error", "reason": f"iter-{n}.json.draft unreadable ({_os_reason(e)})"})
+        return 1
+    schema, why = _load_schema()
+    if schema is None:
+        _emit_json({"status": "error", "reason": f"{why}; nothing installed"})
+        return 1
+    violations, warnings = [], []
+    if raw.startswith(b"\xef\xbb\xbf"):
+        violations.append({"path": "$", "message": "starts with a UTF-8 BOM; write it without one"})
+    duplicates: list = []
+    try:
+        obj = json.loads(raw.decode("utf-8-sig"), parse_constant=_reject_json_constant,
+            object_pairs_hook=lambda pairs: _no_duplicates(pairs, duplicates))
+    except (ValueError, UnicodeError, RecursionError) as e:
+        violations.append({"path": "$", "message": f"is not valid UTF-8 JSON ({type(e).__name__}: {e})"})
+        obj = _MISSING
+    violations += [{"path": "$", "message": f"repeats key {key} within one object (at any depth); "
+                                                "JSON keeps only its last value"}
+                   for key in duplicates]
+    if obj is not _MISSING and not isinstance(obj, dict):
+        violations.append({"path": "$", "message": f"is a JSON {_json_type(obj)}, not an object"})
+    if isinstance(obj, dict):
+        _schema_violations(obj, schema, "$", violations)
+        mismatch = _iter_mismatch(obj, n)
+        if mismatch and not any(v["path"] == "$.iter" for v in violations):
+            violations.append({"path": "$.iter", "message": mismatch})
+        installed = _compared_record(target, os.path.join(args.run_root, "loop-setup.json"),
+                                     warnings)
+        if installed is not None:
+            violations += _held_violations(obj, installed, f"iter-{n}.json", schema["properties"])
+    if violations:
+        _emit_json({"status": "refused", "path": posix_path(draft), "violations": violations})
+        return 1
+    try:
+        os.replace(draft, target)
+    except OSError as e:
+        _emit_json({"status": "error", "reason": f"iter-{n}.json not installed ({_os_reason(e)})",
+                    "warnings": warnings})
+        return 1
+    _emit_json({"status": "ok", "path": posix_path(target), "warnings": warnings})
+    return 0
+
+
+def _compared_record(target: str, setup: str, warnings: list) -> dict | None:
+    """The installed record a draft must keep, or None: absent, older than loop-setup.json (an
+    earlier invocation's), or unreadable or not a JSON object (named in `warnings`). A
+    loop-setup.json it cannot stat leaves the record compared."""
+    name = os.path.basename(target)
+    try:
+        with open(target, "rb") as fh:
+            raw = fh.read()
+            installed_mtime = os.fstat(fh.fileno()).st_mtime_ns
+    except FileNotFoundError:
+        return None
+    except OSError as e:
+        warnings.append(f"the installed {name} is unreadable ({_os_reason(e)}); not compared")
+        return None
+    try:
+        if installed_mtime < os.stat(setup).st_mtime_ns:
+            return None
+    except OSError:
+        pass  # no usable loop-setup.json: compare, the stricter direction
+    try:
+        installed = json.loads(raw, parse_constant=_reject_json_constant)
+    except (ValueError, UnicodeError, RecursionError):
+        installed = None
+    if not isinstance(installed, dict):
+        warnings.append(f"the installed {name} is not a JSON object; not compared")
+        return None
+    return installed
 
 
 def _chain_binds(bound: str, head: str) -> tuple[bool | None, str]:
@@ -1182,7 +775,8 @@ class _Source:
             return
         self.records.setdefault(run_id, {})[iteration] = raw
         obj, reason = _parse_iter_record(raw, iteration)
-        if obj is None:
+        reason = reason or _unresumable(obj)
+        if reason:
             sys.stderr.write(f"continue-run: {label} excluded: {reason}\n")
             return
         bound, reason = _bound_head(obj)
@@ -1221,7 +815,7 @@ def _scan_disk(review_dir: str, own_run_id: str, head: str) -> _Source | None:
     except FileNotFoundError:
         return source
     except OSError as e:
-        sys.stderr.write(f"continue-run: cannot list {review_dir.replace(os.path.sep, '/')}: {_os_reason(e)}\n")
+        sys.stderr.write(f"continue-run: cannot list {posix_path(review_dir)}: {_os_reason(e)}\n")
         return None
     for run_id in entries:
         run_dir = os.path.join(review_dir, run_id)
@@ -1311,10 +905,20 @@ def _scan_telemetry(branch: str, slug: str, own_run_id: str, head: str) -> tuple
     return source, ""
 
 
+def _unresumable(obj: dict) -> str:
+    """Why a record holds no loop state to resume from, else ''."""
+    if obj.get("synthesized") is True:
+        return "a synthesized record (synthesized: true)"
+    if obj.get("source") == "review":
+        return 'a standalone review record (source: "review")'
+    return ""
+
+
 def _restore(source: _Source, anchor: tuple[int, str, str], run_root: str) -> str | None:
     """Copy iter-1..N from the anchor run into `run_root`, each stamped `restored_from`,
     never overwriting a file already there. Returns an error string when the run root
-    itself cannot be written; a lower record that is absent or malformed is skipped with a
+    itself cannot be written; a lower record that is absent, malformed or unresumable (a
+    synthesized or standalone review record) is skipped with a
     breadcrumb and named again in one summary line, so a non-contiguous restore is legible
     on stderr while the stdout line keeps its closed shape."""
     n, prior, _ = anchor
@@ -1323,6 +927,7 @@ def _restore(source: _Source, anchor: tuple[int, str, str], run_root: str) -> st
     except OSError as e:
         return f"cannot create {run_root}: {e}"
     skipped: list[int] = []
+    schema_warned = False
     for k in range(1, n + 1):
         raw = source.records.get(prior, {}).get(k)
         dst = os.path.join(run_root, f"iter-{k}.json")
@@ -1337,8 +942,9 @@ def _restore(source: _Source, anchor: tuple[int, str, str], run_root: str) -> st
             obj = json.loads(raw)
         except (ValueError, UnicodeError, RecursionError):
             obj = None
-        if not isinstance(obj, dict):
-            sys.stderr.write(f"continue-run: {source.name} {prior}/iter-{k}.json is not a JSON object; not restored\n")
+        why = _unresumable(obj) if isinstance(obj, dict) else "not a JSON object"
+        if why:
+            sys.stderr.write(f"continue-run: {source.name} {prior}/iter-{k}.json is {why}; not restored\n")
             skipped.append(k)
             continue
         obj["restored_from"] = prior
@@ -1347,6 +953,13 @@ def _restore(source: _Source, anchor: tuple[int, str, str], run_root: str) -> st
                 fh.write((json.dumps(obj, indent=2) + "\n").encode("utf-8"))
         except OSError as e:
             return f"cannot write {dst}: {e}"
+        unknown, schema_why = _unknown_top_keys(obj)
+        if schema_why and not schema_warned:
+            sys.stderr.write(f"continue-run: {schema_why}\n")
+            schema_warned = True
+        for key in unknown:
+            sys.stderr.write(f"continue-run: {source.name} {prior}/iter-{k}.json top-level key {key} "
+                             "is outside the iteration-record schema; restored as written\n")
     if skipped:
         sys.stderr.write(f"continue-run: restored range 1..{n} from {prior} is non-contiguous: "
                          f"iteration(s) {','.join(map(str, skipped))} not restored\n")
@@ -1415,243 +1028,511 @@ def _cmd_continue_run(args: argparse.Namespace) -> int:
     return 0
 
 
-# ── eval-extension-shadow-trigger (issue #580) ────────────────────────────────────────────
-# The Iteration Start early-shadow question. Outcome set closed by construction: OWED / NOT_OWED.
-_ES_PATH_SET_REL = "skill-extensions/early-shadow-path-set.json"  # stamped repo-relative: forward slash
-_ES_STATE_DIRS = (".prflow", ".devflow")          # canonical, then the superseded spelling
-_ES_EXTENSION_DIRS = frozenset({"skill-extensions", "prompt-extensions"})
-_ES_STAMP = "early-shadow-eval.json"
-# `diff --git a/<path> b/<path>`; git quotes a path carrying a special character.
-_ES_HEADER_RE = re.compile(r'^diff --git (?:"a/(?P<qa>(?:[^"\\]|\\.)*)"|a/(?P<a>\S+)) '
-                           r'(?:"b/(?P<qb>(?:[^"\\]|\\.)*)"|b/(?P<b>\S+))$')
+# ── Loop Exit: build-deferrals and render-exit; contracts in the module docstring ──────────
+
+_DEFERRAL_CATEGORIES = ("claim-quality", "out-of-scope", "already-tracked")
+_FORECLOSURE = "settled-by-disclosure"
+_BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 
 
-def _es_str_list(value) -> list[str] | None:
-    """A non-empty list of non-empty strings, else None (the arm is unusable)."""
-    if not isinstance(value, list) or not value:
-        return None
-    if not all(isinstance(v, str) and v for v in value):
-        return None
-    return value
+def _emit_json(obj: dict) -> None:
+    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-def _es_parse_arms(obj) -> tuple[list[tuple[str, list[str]]] | None, str]:
-    """(arms, '') for a well-typed path-set object, else (None, detail). Every shape the helper
-    cannot apply is a detail, never an empty set (CLAUDE.md matrix: object/array/scalar/
-    valid-falsy/missing/wrong-type)."""
-    if not isinstance(obj, dict):
-        return None, "not-object"
-    arms = obj.get("arms")
-    if not isinstance(arms, list) or not arms:
-        return None, "arms-missing"
-    parsed: list[tuple[str, list[str]]] = []
-    for i, arm in enumerate(arms):
-        if not isinstance(arm, dict):
-            return None, f"arm-{i}-not-object"
-        kind = arm.get("kind")
-        key = {"dir": "dirs", "prompt-extension": "state_dirs", "basename": "names"}.get(kind)
-        if key is None:
-            return None, f"arm-{i}-kind-unknown"
-        values = _es_str_list(arm.get(key))
-        if values is None:
-            return None, f"arm-{i}-{key}-invalid"
-        parsed.append((kind, [v.strip("/") for v in values]))
-    return parsed, ""
-
-
-def _es_path_matches(path: str, arms: list[tuple[str, list[str]]]) -> bool:
-    parts = [p for p in path.replace("\\", "/").split("/") if p and p != "."]
-    if not parts:
-        return False
-    for kind, values in arms:
-        if kind == "dir":
-            if len(parts) > 1 and parts[0] in values:
-                return True
-        elif kind == "basename":
-            if parts[-1] in values:
-                return True
-        elif kind == "prompt-extension":
-            if not parts[-1].endswith(".md"):
-                continue
-            for i in range(len(parts) - 2):
-                if parts[i] in values and parts[i + 1] in _ES_EXTENSION_DIRS:
-                    return True
-    return False
-
-
-def _es_changed_paths(diff_path: str) -> tuple[list[str] | None, str]:
-    """(paths, '') parsed from the diff's `diff --git` headers (the post-image `b/` side, so a
-    rename reports its new name), else (None, detail) — missing, unreadable, or no header."""
+def _read_record(run_root: str, k: int) -> tuple[dict | None, str]:
+    """(iter-<k>.json as a dict, '') or (None, why)."""
+    path = os.path.join(run_root, f"iter-{k}.json")
     try:
-        with open(diff_path, "rb") as fh:
+        with open(path, "rb") as fh:
             raw = fh.read()
+    except OSError as e:
+        return None, f"iter-{k}.json unreadable ({_os_reason(e)})"
+    record, why = _parse_iter_record(raw, k)
+    return record, why and f"iter-{k}.json {why}"
+
+
+def _rows(value) -> list[dict]:
+    """The object rows of a list field; anything else holds none."""
+    return [r for r in value if isinstance(r, dict)] if isinstance(value, list) else []
+
+
+def _finding_by_id(record: dict, finding_id) -> dict | None:
+    """The finding a row's id names: a `phase3_findings` row by its own finding_id, else `F-<n>`
+    by position n; `S-<n>` is position n of the record's `shadow.phase3_findings`."""
+    if not (isinstance(finding_id, str) and finding_id):
+        return None
+    rows = _rows(record.get("phase3_findings"))
+    for row in rows:
+        if row.get("finding_id") == finding_id:
+            return row
+    m = re.fullmatch(r"([FS])-([1-9][0-9]*)", finding_id)
+    if m and m.group(1) == "S":
+        shadow = record.get("shadow")
+        rows = _rows(shadow.get("phase3_findings")) if isinstance(shadow, dict) else []
+    if m and int(m.group(2)) <= len(rows):
+        return rows[int(m.group(2)) - 1]
+    return None
+
+
+def _signature(finding: dict | None) -> tuple[str | None, str | None, list | None]:
+    """A finding's `defect_signature` (file, kind, line_range); a missing or malformed part is None."""
+    sig = finding.get("defect_signature") if finding else None
+    sig = sig if isinstance(sig, dict) else {}
+    file_ = sig.get("file") if isinstance(sig.get("file"), str) and sig.get("file") else None
+    kind = sig.get("kind") if isinstance(sig.get("kind"), str) and sig.get("kind") else None
+    line_range = sig.get("line_range")
+    if not (isinstance(line_range, list) and len(line_range) == 2
+            and all(isinstance(n, int) and not isinstance(n, bool) for n in line_range)
+            and line_range[0] <= line_range[1]):
+        line_range = None
+    return file_, kind, line_range
+
+
+def _record_claims(run_root: str, k: int, record: dict, warnings: list) -> dict:
+    """{checklist id: claim_signature} of iteration k's checklist (the Step 1 return's, else the
+    record's own); ids are numbered per checklist, so only the signature names a claim across
+    records."""
+    checklist, why = _return_checklist(run_root, k)
+    if checklist is None:
+        if why:
+            warnings.append(f"{why}; iteration {k}'s record checklist matched instead")
+        checklist, why = _record_checklist(record, k)
+        if why:
+            warnings.append(f"{why}; its claims are not matched")
+    return {item.get("id"): item.get("claim_signature") for item in checklist or []
+            if isinstance(item.get("id"), str) and isinstance(item.get("claim_signature"), str)
+            and item.get("claim_signature")}
+
+
+def _row_identity(record: dict, row: dict, claims: dict) -> tuple:
+    """What a `fix_decisions` row is about: its finding's signature, its checklist item's
+    claim_signature, and its own (source_file, claim_text). Ids are per record, never compared."""
+    def text(key):
+        value = row.get(key)
+        return value if isinstance(value, str) and value else None
+    fid = row.get("finding_id")
+    return (_signature(_finding_by_id(record, fid)), claims.get(fid) if isinstance(fid, str) else None,
+            (text("source_file"), text("claim_text")))
+
+
+def _same_finding(a: tuple, b: tuple) -> bool:
+    """Review Phase 3.2's identity rule — same file and kind, overlapping line_range (None
+    overlaps any) — when both rows have a signature; else an equal checklist claim_signature;
+    else an equal (source_file, claim_text)."""
+    (fa, ka, ra), sig_a, claim_a = a
+    (fb, kb, rb), sig_b, claim_b = b
+    if fa and ka and fb and kb:
+        return fa == fb and ka == kb and (ra is None or rb is None
+                                          or (ra[0] <= rb[1] and rb[0] <= ra[1]))
+    if sig_a and sig_b:
+        return sig_a == sig_b
+    return all(claim_a) and all(claim_b) and claim_a == claim_b
+
+
+def _is_deferral(row: dict) -> bool:
+    category = row.get("skip_category")
+    evidence = row.get("evidence")
+    if category in _DEFERRAL_CATEGORIES:
+        return not (isinstance(evidence, str) and evidence.startswith("criterion conflict:"))
+    return category == _FORECLOSURE
+
+
+def _overlaps(hunks: list, line_range, tolerance: int) -> bool:
+    start, end = line_range
+    return any(h_start - tolerance <= end and h_end + tolerance >= start for h_start, h_end in hunks)
+
+
+def _drop_manifest(manifest: str, reason: str) -> str:
+    """Remove an earlier manifest on an error exit, so implement files none of its superseded
+    deferrals; returns `reason`, extended when one remains."""
+    try:
+        os.remove(manifest)
     except FileNotFoundError:
-        return None, "diff-missing"
-    except OSError:
-        return None, "diff-unreadable"
-    paths: list[str] = []
-    for line in raw.decode("utf-8", "replace").splitlines():
-        m = _ES_HEADER_RE.match(line)
-        if m is None:
+        pass
+    except OSError as e:
+        return f"{reason}; an earlier deferrals.json remains ({_os_reason(e)})"
+    return reason
+
+
+def _cmd_build_deferrals(args: argparse.Namespace) -> int:
+    if args.iteration < 1:
+        _emit_json({"status": "error", "reason": "--iteration must be a positive integer"})
+        return 2
+    run_root = posix_path(args.run_root)
+    entries, rejected, warnings = [], [], []
+    decided = []
+    for k in range(1, args.iteration + 1):
+        record, why = _read_record(run_root, k)
+        if record is None:
+            if k == args.iteration:
+                _emit_json({"status": "error",
+                            "reason": _drop_manifest(os.path.join(run_root, "deferrals.json"), why)})
+                return 1
+            warnings.append(f"{why}; its deferrals are not carried")
             continue
-        path = m.group("qb") if m.group("qb") is not None else m.group("b")
-        if path:
-            paths.append(path)
-    if not paths:
-        return None, "no-header"
-    return paths, ""
-
-
-def _es_prior_shadow(run_root: str, iteration: int) -> str | None:
-    """Where a shadow for this iteration pair is already recorded — `binding:iter-<k>` (the
-    helper-written active-entry binding) or `record:iter-<k>` (the loop's `shadow` block) at
-    k in (N-1, N) — else None. A convergence-time shadow of iteration N-1 that promoted into N
-    binds at N-1 too, so it counts: the pair already had its blinded pass."""
-    for k in (iteration - 1, iteration):
-        if k < 1:
+        unknown, schema_why = _unknown_top_keys(record)
+        if schema_why and schema_why not in warnings:
+            warnings.append(schema_why)
+        for key in unknown:
+            held = record[key]
+            misplaced = any("skip_category" in row
+                            for row in _rows(held if isinstance(held, list) else [held]))
+            warnings.append(f"iter-{k}.json top-level key {key} is outside the iteration-record "
+                            "schema; " + ("its skip_category rows are not carried" if misplaced
+                                          else "it is not read"))
+        decisions = record.get("fix_decisions")
+        if not isinstance(decisions, list):
+            what = ("missing" if "fix_decisions" not in record else "null" if decisions is None
+                    else f"a JSON {type(decisions).__name__}")
+            warnings.append(f"iter-{k}.json fix_decisions is {what}, not an array; "
+                            "its deferrals are not carried")
+        elif len(_rows(decisions)) < len(decisions):
+            warnings.append(f"iter-{k}.json fix_decisions holds "
+                            f"{len(decisions) - len(_rows(decisions))} row(s) that are not "
+                            "objects; those rows are not carried")
+        claims = _record_claims(run_root, k, record, warnings)
+        decided += [(k, record, row, _row_identity(record, row, claims))
+                    for row in _rows(decisions)]
+    # Same-iteration bookkeeping does not supersede a deferral; later iterations still do.
+    rows = [(k, record, row, ident) for i, (k, record, row, ident) in enumerate(decided)
+            if _is_deferral(row)
+            and not any(_same_finding(ident, ident2)
+                        and (k2 > k or row2.get("decision") in ("applied", "pushed_back")
+                             or _is_deferral(row2))
+                        for k2, _, row2, ident2 in decided[i + 1:])]
+    manifest = os.path.join(run_root, "deferrals.json")
+    hunks = None
+    if rows:
+        md, err = _load_sibling("lvm_match_deferrals", "match-deferrals.py")
+        # The last entry's diff; an entry that died before Phase 0.2 leaves none, so the newest
+        # retained copy stands in.
+        candidates = ["diff.patch"] + [f"evidence-{e}/iter-{k}/diff.patch"
+                                       for k in range(args.iteration, 0, -1)
+                                       for e in ("shadow", "step1")]
+        diff_text, why = None, "diff.patch absent"
+        for rel in candidates:
+            try:
+                with open(os.path.join(run_root, rel), encoding="utf-8") as fh:
+                    diff_text = fh.read()
+                if rel != "diff.patch":
+                    warnings.append(f"diff.patch absent; the widens-surface guard read {rel}")
+                break
+            except FileNotFoundError:
+                continue
+            except (OSError, UnicodeDecodeError) as e:
+                why = f"{rel} unreadable ({type(e).__name__})"
+                break
+        if diff_text is None:
+            err = err or why
+        if md is not None and diff_text is not None:
+            try:
+                hunks = md._parse_diff_hunks(diff_text)
+                norm, tolerance = md._norm_path, md.WIDENS_SURFACE_TOLERANCE
+            except Exception as e:  # a parser or sibling-name fault is the guard's reason
+                hunks, err = None, f"{type(e).__name__}: {e}"
+        if hunks is None:
+            warnings.append(f"widens-surface guard could not run: {err}; its deferrals are not carried")
+    for k, record, row, ident in rows:
+        fid = row.get("finding_id")
+        finding = _finding_by_id(record, fid)
+        file_, kind, line_range = ident[0]
+        if file_ is None:
+            file_ = row.get("source_file") if isinstance(row.get("source_file"), str) else None
+        if hunks is None:
+            rejected.append({"iter": k, "finding_id": fid, "file": file_, "reason": "guard-not-run"})
             continue
-        if _binding_file_exists(run_root, "shadow", k):
-            return f"binding:iter-{k}"
-        obj, _reason = _load_iter_object(run_root, k)
-        if obj is not None and isinstance(obj.get("shadow"), dict):
-            return f"record:iter-{k}"
-    return None
+        if not file_:
+            rejected.append({"iter": k, "finding_id": fid, "file": None, "reason": "no-file"})
+            continue
+        file_hunks = hunks.get(norm(file_), [])
+        if file_hunks and (line_range is None or _overlaps(file_hunks, line_range, tolerance)):
+            lines = f"{line_range[0]}-{line_range[1]}" if line_range else "whole file"
+            rejected.append({"iter": k, "finding_id": fid, "file": file_, "reason": "widens-surface",
+                             "lines": lines})
+            continue
+        entry = {"iter": k, "finding_id": fid}
+        if finding:
+            description = finding.get("description") if isinstance(finding.get("description"), str) else ""
+            symbol = _BACKTICK_RE.search(description)
+            joined = {"agent": finding.get("agent"), "severity": finding.get("severity"),
+                      "file": file_, "line_range": line_range,
+                      "symbol": symbol.group(1) if symbol else "",
+                      "kind": kind, "summary": description}
+            entry.update({key: value for key, value in joined.items() if value is not None})
+        else:
+            claim = row.get("claim_text")
+            entry.update({"file": file_, "symbol": "",
+                          "summary": claim if isinstance(claim, str) else ""})
+        entry["category"] = row.get("skip_category")
+        entry["explanation"] = row.get("evidence") if isinstance(row.get("evidence"), str) else ""
+        if entry["category"] == _FORECLOSURE:
+            source = (row.get("parking_evidence") or {}).get("source") \
+                if isinstance(row.get("parking_evidence"), dict) else None
+            if not (isinstance(source, dict) and isinstance(source.get("path"), str)
+                    and isinstance(source.get("phrase"), str)):
+                rejected.append({"iter": k, "finding_id": fid, "file": file_,
+                                 "reason": "disclosure-missing"})
+                continue
+            entry["disclosure"] = {"path": source["path"], "phrase": source["phrase"]}
+        entries.append(entry)
+    try:
+        if entries:
+            stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            doc = {"schema_version": 1, "generated_at": stamp, "deferrals": entries}
+            tmp = manifest + ".tmp"
+            with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+                fh.write(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+            os.replace(tmp, manifest)
+        elif os.path.exists(manifest):
+            os.remove(manifest)
+    except OSError as e:
+        _emit_json({"status": "error",
+                    "reason": _drop_manifest(manifest, f"deferrals.json not written ({_os_reason(e)})"),
+                    "rejected": rejected})
+        return 1
+    _emit_json({"status": "ok", "path": manifest if entries else None, "written": len(entries),
+                "rejected": rejected, "warnings": warnings})
+    return 0
 
 
-def _es_resolve_path_set(explicit: str | None) -> tuple[str, str] | None:
-    """(path to read, path to stamp) of the path-set file, or None when none exists. An
-    explicit --path-set is read as given and stamped forward-slashed; otherwise the first
-    existing candidate under the repo root (`git rev-parse --show-toplevel`, else the cwd)
-    wins, canonical spelling first, and the stamp carries its repo-relative name."""
-    if explicit is not None:
-        if not os.path.exists(explicit):
-            return None
-        return explicit, explicit.replace(os.path.sep, "/")
-    rc, out, _err = _git(["rev-parse", "--show-toplevel"])
-    root = out.strip() if rc == 0 and out.strip() else os.getcwd()
-    for state_dir in _ES_STATE_DIRS:
-        rel = f"{state_dir}/{_ES_PATH_SET_REL}"
-        if os.path.exists(os.path.join(root, rel)):
-            return os.path.join(root, rel), rel
-    return None
+_DISPATCH_FACT = {
+    "attempted": "this run launched the Step 2.6 fan-out",
+    "never": "no shadow fan-out was ever dispatched",
+    "unestablished": "not established",
+}
 
 
-def _cmd_eval_extension_shadow_trigger(args: argparse.Namespace) -> int:
-    """Print `OWED …` or `NOT_OWED …` (exit 0 either way) and stamp the run root."""
-    run_root = args.run_root
-    iteration = args.iteration
-    stamp = {
-        "dispatch": None, "owed": None, "pass_ran": False, "reason": None,
-        "iteration": iteration, "matched_paths": [], "changed_paths": None,
-        "path_set": None, "diff_patch": os.path.join(run_root, "diff.patch").replace(os.path.sep, "/"),
-        "prior_shadow": None, "evaluated_at": None,
-    }
+def _sha_matches(recorded, head: str) -> bool:
+    return (isinstance(recorded, str) and len(recorded) >= 7
+            and re.fullmatch(r"[0-9a-fA-F]+", recorded) is not None
+            and head.lower().startswith(recorded.lower()))
 
-    def finish(dispatch: str, reason: str) -> int:
-        stamp["dispatch"] = dispatch
-        stamp["reason"] = reason
-        stamp["evaluated_at"] = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        path = os.path.join(run_root, _ES_STAMP)
-        try:
-            os.makedirs(run_root, exist_ok=True)
-            with open(path + ".tmp", "w", encoding="utf-8") as fh:
-                json.dump(stamp, fh, indent=2, sort_keys=True)
-                fh.write("\n")
-            os.replace(path + ".tmp", path)
-        except OSError as e:
-            sys.stderr.write(f"eval-extension-shadow-trigger: stamp not written at {path}: {e}\n")
-        suffix = f" matched={len(stamp['matched_paths'])}" if dispatch == "OWED" else ""
-        sys.stdout.write(f"{dispatch} {run_root} reason={reason}{suffix}\n")
+
+def _shadow_status(records: dict, n: int, head: str | None, result_token: str | None,
+                   dispatch: str) -> tuple[str, str]:
+    """(the {shadow status} phrase, the Coverage section's shadow sentence)."""
+    unaudited = "the loop's tentative verdict stands but was not independently audited."
+    final = records.get(n)
+    skipped = final.get("shadow_skipped") if final else None
+    if final is not None and "shadow" not in final and isinstance(skipped, dict):
+        if n != 1 or final.get("restored_from") is not None:
+            return ("shadow agreement not verified (an iteration-1 skip recorded on another iteration)",
+                    (f"Shadow agreement NOT verified — the clean-iteration-1 skip applies only "
+                     f"to a fresh iteration 1; {unaudited}"))
+        if head and _sha_matches(skipped.get("head"), head):
+            return ("shadow skipped, iteration 1 clean",
+                    ("Shadow pass skipped — iteration 1 was clean; the caller's PR-level review "
+                     "is the independent pass."))
+        return ("shadow agreement not verified (HEAD moved after the skip)",
+                f"Shadow agreement NOT verified — HEAD is not the commit iteration 1 reviewed; {unaudited}")
+    k, block = next(((k, records[k]["shadow"]) for k in range(n, 0, -1)
+                     if records.get(k) and isinstance(records[k].get("shadow"), dict)), (None, None))
+    if block is None:
+        if result_token == "reject":
+            return ("shadow agreement not verified",
+                    "Shadow pass did not run — final verdict was REJECT before convergence.")
+        return ("shadow agreement not verified (shadow result not recorded)",
+                ("Shadow agreement NOT verified — the shadow result was not recorded; shadow "
+                 f"fan-out dispatched: {_DISPATCH_FACT[dispatch]}"))
+    if block.get("coverage") != "full":
+        reason = block.get("reason")
+        reason = reason if isinstance(reason, str) and reason else "specific reason not recorded"
+        return (f"shadow agreement not verified ({reason})",
+                f"Shadow agreement NOT verified — {reason}; {unaudited}")
+    if not head or not _sha_matches(block.get("reviewed_sha"), head):
+        return ("shadow agreement not verified (HEAD moved after the shadow)",
+                (f"Shadow agreement NOT verified — HEAD is not the commit the iteration-{k} "
+                 f"shadow reviewed; {unaudited}"))
+    if block.get("dispatch_disposition") is not None or block.get("dispatch_mode") == "unavailable":
+        return ("shadow agreement not verified (inline engine execution)",
+                (f"Shadow agreement NOT verified — the shadow engine ran inline in the informed "
+                 f"loop context; {unaudited}"))
+    cmp_ = block.get("comparison") if isinstance(block.get("comparison"), dict) else {}
+
+    def number(key):
+        v = cmp_.get(key)
+        return v if isinstance(v, int) and not isinstance(v, bool) else None
+    if result_token in _CLEAN_APPROVE_TOKENS and (
+            block.get("promoted_to_iter_next") is True
+            or number("new_critical") != 0 or number("new_important") != 0):
+        return ("shadow agreement not verified (the shadow's new findings are unresolved)",
+                (f"Shadow agreement NOT verified — the iteration-{k} shadow raised new Critical or "
+                 f"Important findings, or recorded no comparison; {unaudited}"))
+    roster = block.get("reviewers_dispatched")
+    roster = ", ".join(r for r in roster if isinstance(r, str)) if isinstance(roster, list) else "?"
+
+    def count(key):
+        v = number(key)
+        return "?" if v is None else str(v)
+    sentence = (f"Shadow ran with full reviewer coverage ({roster}). It raised "
+                f"{count('shadow_total')} findings; {count('overlap_with_iter_N')} were already in "
+                f"iteration {k}; {count('new')} were new ({count('new_critical')} Critical, "
+                f"{count('new_important')} Important).")
+    return "shadow agreed, full coverage", sentence
+
+
+def _return_checklist(run_root: str, k: int) -> tuple[list | None, str]:
+    """(the joined `checklist` of `engine-return-step1-iter-<k>.json`, '') — None when the file is
+    absent or the entry ran no Phase 1+2 — or (None, why) when the file cannot be used."""
+    name = f"engine-return-step1-iter-{k}.json"
+    try:
+        with open(os.path.join(run_root, name), "rb") as fh:
+            value = json.loads(fh.read().decode("utf-8"))
+    except FileNotFoundError:
+        return None, ""
+    except OSError as e:
+        return None, f"{name} unreadable ({_os_reason(e)})"
+    except (UnicodeDecodeError, ValueError, RecursionError) as e:
+        return None, f"{name} is not JSON ({type(e).__name__})"
+    if not isinstance(value, dict):
+        return None, f"{name} is a JSON {type(value).__name__}, not an object"
+    checklist = value.get("checklist")
+    if checklist is None:
+        return None, ""
+    if not isinstance(checklist, list):
+        return None, f"{name} checklist is a JSON {type(checklist).__name__}, not an array"
+    return _rows(checklist), ""
+
+
+def _record_checklist(record: dict | None, k: int) -> tuple[list | None, str]:
+    """(iter-<k>.json's own `checklist` rows, '') — None when absent — or (None, why) when it is
+    not an array."""
+    checklist = record.get("checklist") if record is not None else None
+    if checklist is None or isinstance(checklist, list):
+        return (None if checklist is None else _rows(checklist)), ""
+    return None, f"iter-{k}.json checklist is a JSON {type(checklist).__name__}, not an array"
+
+
+def _coverage_items(records: dict, n: int, run_root: str, warnings: list) -> list[str]:
+    """`- <id>: VERDICT (severity) — <claim_signature>` for each checklist FAIL and INCONCLUSIVE
+    item of the last non-promoted iteration that ran Phase 1+2, a FAIL its iteration applied a
+    fix to marked so. The checklist is the Step 1 engine return's, else the record's own; an
+    iteration whose checklist cannot be read, or whose record is unreadable with no Step 1
+    return, gets a `not listed` line instead."""
+    for k in range(n, 0, -1):
+        rec = records.get(k)
+        if rec is not None and rec.get("loop_role") == "promoted":
+            continue
+        checklist, why = _return_checklist(run_root, k)
+        if checklist is None:
+            checklist, own_why = _record_checklist(rec, k)
+            if checklist is not None and why:
+                warnings.append(f"{why}; iteration {k}'s record checklist listed instead")
+            why = "; ".join(filter(None, (why, own_why)))
+        if checklist is None and not why and rec is None and not os.path.exists(
+                os.path.join(run_root, f"engine-return-step1-iter-{k}.json")):
+            why = f"iter-{k}.json unreadable"
+        if checklist is None:
+            if why:
+                return [f"- Checklist items of iteration {k} not listed: {why}."]
+            continue
+        applied = {r.get("finding_id") for r in _rows(rec.get("fix_decisions") if rec else None)
+                   if r.get("decision") == "applied"}
+        out = []
+        for item in checklist:
+            verdict = item.get("verdict")
+            if verdict in ("FAIL", "INCONCLUSIVE"):
+                fixed = " (fix applied)" if verdict == "FAIL" and item.get("id") in applied else ""
+                out.append(f"- {item.get('id')}: {verdict} ({item.get('severity') or 'critical'}) — "
+                           f"{item.get('claim_signature') or 'no claim signature'}{fixed}")
+        return out
+    return []
+
+
+def _grade_last_entry(run_root: str, n: int, records: dict,
+                      warnings: list) -> tuple[str, str, int | None, str | None]:
+    """(outcome, detail, iteration, entry) for the most recent entry's retained evidence
+    `evidence-<entry>/iter-<k>/`. A shadow copy that does not pass is passed over with a warning;
+    the most recent step1 copy decides. Only a promoted iteration, which runs no Step 1, is
+    walked back past for want of a step1 copy."""
+    for k in range(n, 0, -1):
+        shadow = f"{run_root}/evidence-shadow/iter-{k}"
+        if os.path.isdir(shadow):
+            outcome, detail = _classify_run_root_grade(shadow, k)
+            if outcome == "pass":
+                return outcome, detail, k, "shadow"
+            warnings.append(f"evidence-shadow/iter-{k} did not pass ({detail}); not graded")
+        step1 = f"{run_root}/evidence-step1/iter-{k}"
+        if os.path.isdir(step1):
+            outcome, detail = _classify_run_root_grade(step1, k)
+            return outcome, detail, k, "step1"
+        rec = records.get(k)
+        if not (isinstance(rec, dict) and rec.get("loop_role") == "promoted"):
+            return ("unestablished", f"iteration {k} retained no evidence-step1/iter-{k}/ copy",
+                    k, "step1")
+    return ("unestablished", f"no evidence-step1/iter-<k>/ copy under {run_root} for k <= {n}",
+            None, None)
+
+
+def _cmd_render_exit(args: argparse.Namespace) -> int:
+    token = _normalize_result(args.result)
+    if args.iteration < 1 or token is None:
+        _emit_json({"status": "error", "reason": "--iteration must be a positive integer"
+                    if args.iteration < 1 else f"--result {args.result!r} is not a loop result"})
+        return 2
+    run_root = posix_path(args.run_root)
+    records, warnings = {}, []
+    for k in range(1, args.iteration + 1):
+        rec, why = _read_record(run_root, k)
+        records[k] = rec
+        if rec is None:
+            warnings.append(why)
+    rc, out, _err = _git(["rev-parse", "HEAD"])
+    head = out.strip() if rc == 0 and isinstance(out, str) and _SHA40_RE.match(out.strip()) else None
+    if head is None:
+        warnings.append("HEAD unresolved; shadow agreement cannot be verified")
+    phrase, sentence = _shadow_status(records, args.iteration, head, token, args.shadow_dispatch)
+    incomplete = []
+    final = records.get(args.iteration)
+    pc = final.get("park_calibration") if final else None
+    if token in _CLEAN_APPROVE_TOKENS and not (isinstance(pc, dict)
+                                               and isinstance(pc.get("evidence_comparisons"), list)):
+        incomplete.append("park_calibration")
+        phrase = "shadow agreement not verified (park calibration not recorded)"
+        sentence = ("Shadow agreement NOT verified — the park-calibration gate left no record; "
+                    "the loop's tentative verdict stands but was not independently audited.")
+    sentences = [sentence]
+    gate = " and ".join(g.strip() for g in args.not_verified or () if g.strip())
+    if gate:
+        sentences.append(f"{gate} NOT verified.")
+    items = _coverage_items(records, args.iteration, run_root, warnings)
+    coverage = "\n".join(["## Coverage", "", *(f"- {s}" for s in sentences), *items]) + "\n"
+    coverage_path = f"{run_root}/loop-exit-coverage.md"
+    try:
+        with open(coverage_path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(coverage)
+    except OSError as e:
+        _emit_json({"status": "error", "reason": f"coverage not written ({_os_reason(e)})"})
+        return 1
+    outcome, detail, graded, graded_entry = _grade_last_entry(run_root, args.iteration, records,
+                                                              warnings)
+    result = {"shadow_status": phrase, "coverage_path": coverage_path, "graded_iteration": graded,
+              "graded_entry": graded_entry, "incomplete": incomplete, "warnings": warnings}
+    if outcome != "pass":
+        _emit_json({"status": "evidence-missing", "marker": None, "detail": detail, **result})
         return 0
-
-    if iteration < 2:
-        return finish("NOT_OWED", "iteration-below-2")
-    resolved = _es_resolve_path_set(args.path_set)
-    if resolved is None:
-        return finish("NOT_OWED", "path-set-absent")
-    path_set, stamp["path_set"] = resolved
-
-    prior = _es_prior_shadow(run_root, iteration)
-    if prior is not None:
-        stamp["prior_shadow"] = prior
-        stamp["pass_ran"] = True
-        stamp["owed"] = True
-        return finish("NOT_OWED", f"shadow-already-recorded:{prior}")
-
-    try:
-        with open(path_set, "rb") as fh:
-            raw = fh.read()
-    except OSError:
-        stamp["owed"] = True
-        return finish("OWED", "path-set-malformed:unreadable")
-    try:
-        obj = json.loads(raw)
-    except (ValueError, UnicodeError):
-        stamp["owed"] = True
-        return finish("OWED", "path-set-malformed:not-json")
-    except RecursionError:
-        stamp["owed"] = True
-        return finish("OWED", "path-set-malformed:too-deep")
-    arms, detail = _es_parse_arms(obj)
-    if arms is None:
-        stamp["owed"] = True
-        return finish("OWED", f"path-set-malformed:{detail}")
-
-    paths, detail = _es_changed_paths(stamp["diff_patch"])
-    if paths is None:
-        stamp["owed"] = True
-        return finish("OWED", f"changed-files-unestablished:{detail}")
-    stamp["changed_paths"] = len(paths)
-    matched = [p for p in paths if _es_path_matches(p, arms)]
-    stamp["matched_paths"] = matched
-    stamp["owed"] = bool(matched)
-    if matched:
-        return finish("OWED", "match")
-    return finish("NOT_OWED", "no-match")
+    marker = f"{MARKER_PREFIX}result={token} coverage={_normalize_coverage(phrase)} -->"
+    _emit_json({"status": "ok", "marker": marker, **result})
+    return 0
 
 
-def _add_active_entry_args(sub_parser: argparse.ArgumentParser) -> None:
-    """Add the optional active-entry operands (issue #516) to a compose/check-evidence parser.
-    All three together select the entry-bound grade; none selects the legacy run-wide grade;
-    a partial set is refused by the command handler (a caller wiring bug)."""
+# ── CLI ─────────────────────────────────────────────────────────────────────────────────────
+def _add_iteration_args(sub_parser: argparse.ArgumentParser) -> None:
     sub_parser.add_argument(
-        "--entry", default=None,
-        help="optional (issue #516): the fix-loop entry (step1|shadow) to grade against its "
-        "own producer evidence. Supply --entry, --iteration and --head together. compose also "
-        "accepts `latest` (issue #676): supply --iteration only (no --head) and the helper "
-        "selects the binding to grade.")
+        "--contract", default=None,
+        help="2: the iteration-scoped grade below; required with --iteration")
     sub_parser.add_argument(
         "--iteration", default=None, type=int,
-        help="optional (issue #516): the engine iteration of the active entry.")
-    sub_parser.add_argument(
-        "--head", default=None,
-        help="optional (issue #516): the reviewed head (40-char hex) of the active entry.")
+        help="grade only this fix-loop iteration's own evidence in --run-root")
 
 
 def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(
         prog="loop-verdict-marker.py",
-        description="Compose or read the review-and-fix loop-verdict marker (issue #1212).",
+        description="Render or read the review-and-fix loop-verdict marker (issue #1212).",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
-
-    p_compose = sub.add_parser("compose", help="emit the marker line for a verdict")
-    p_compose.add_argument("--result", required=True, help="the loop's human result string")
-    p_compose.add_argument(
-        "--coverage",
-        required=True,
-        help="the loop's {shadow status} phrase (e.g. 'shadow agreed, full coverage')",
-    )
-    p_compose.add_argument(
-        "--run-root",
-        default=None,
-        help="required (issue #727): the loop's held review run root. compose refuses "
-        "(exit 3, no marker) unless the run root passes the offline review-evidence grade; "
-        "there is no ungraded form.",
-    )
-    _add_active_entry_args(p_compose)
-    p_compose.set_defaults(func=_cmd_compose)
 
     p_read = sub.add_parser("read", help="parse line 1 of a chat output for the marker")
     p_read.add_argument("file", nargs="?", default="-", help="input file, or - for stdin")
@@ -1665,25 +1546,10 @@ def main(argv: list[str] | None = None) -> int:
     p_check.add_argument(
         "--run-root",
         required=True,
-        help="the loop's held review run root to grade through the same offline evidence "
-        "authority compose --run-root uses",
+        help="the loop's held review run root to grade through review-evidence-gate",
     )
-    _add_active_entry_args(p_check)
+    _add_iteration_args(p_check)
     p_check.set_defaults(func=_cmd_check_evidence)
-
-    p_bind = sub.add_parser(
-        "write-active-entry-binding",
-        help="producer emission (issue #516): write the active-entry binding tying an entry's "
-        "verdict to its own checklist/verification/verifier-file evidence",
-    )
-    p_bind.add_argument("--run-root", required=True, help="the entry's held review run root")
-    p_bind.add_argument("--entry", required=True,
-                        help="the fix-loop entry kind: step1 (primary) or shadow")
-    p_bind.add_argument("--iteration", required=True, type=int,
-                        help="the engine iteration this entry produced")
-    p_bind.add_argument("--head", required=True,
-                        help="the reviewed head (40-char hex) this entry's diff was produced at")
-    p_bind.set_defaults(func=_cmd_write_active_entry_binding)
 
     p_cont = sub.add_parser(
         "continue-run",
@@ -1698,22 +1564,36 @@ def main(argv: list[str] | None = None) -> int:
                         help="the telemetry branch name the loop read from config (.telemetry.branch)")
     p_cont.set_defaults(func=_cmd_continue_run)
 
-    p_eval = sub.add_parser(
-        "eval-extension-shadow-trigger",
-        help="answer Iteration Start's early-shadow question (issue #580) from the consumer "
-        "path-set file and the run root's cached diff; print OWED or NOT_OWED and stamp DIR",
-    )
-    p_eval.add_argument("--run-root", required=True,
-                        help="this run's held review run root (.prflow/tmp/review/<slug>/<run-id>)")
-    p_eval.add_argument("--iteration", default=2, type=int,
-                        help="the iteration being started (default 2); its predecessor's diff "
-                        "is evaluated")
-    p_eval.add_argument("--path-set", default=None,
-                        help="the path-set file to read instead of the repo-root default "
-                        "<state dir>/skill-extensions/early-shadow-path-set.json")
-    p_eval.set_defaults(func=_cmd_eval_extension_shadow_trigger)
+    p_def = sub.add_parser("build-deferrals",
+                           help="write the run's deferrals.json from the fix_decisions of iter-1..N")
+    p_def.add_argument("--run-root", required=True)
+    p_def.add_argument("--iteration", required=True, type=int)
+    p_def.set_defaults(func=_cmd_build_deferrals)
+
+    p_exit = sub.add_parser("render-exit",
+                            help="the Loop Exit marker, {shadow status} phrase and Coverage section")
+    p_exit.add_argument("--run-root", required=True)
+    p_exit.add_argument("--iteration", required=True, type=int)
+    p_exit.add_argument("--result", required=True)
+    p_exit.add_argument("--shadow-dispatch", choices=sorted(_DISPATCH_FACT), default="unestablished")
+    p_exit.add_argument("--not-verified", action="append", metavar="GATE",
+                        help="a gate that did not complete (repeatable): a Coverage line; the marker is unchanged")
+    p_exit.set_defaults(func=_cmd_render_exit)
+
+    p_inst = sub.add_parser("install-record",
+                            help="check iter-<N>.json.draft against the iteration-record schema "
+                            "and install it over iter-<N>.json")
+    p_inst.add_argument("--run-root", required=True)
+    p_inst.add_argument("--iteration", required=True, type=int)
+    p_inst.set_defaults(func=_cmd_install_record)
 
     args = parser.parse_args(argv)
+    if args.cmd == "check-evidence" and (
+            (args.contract is None) != (args.iteration is None) or args.contract not in (None, "2")
+            or (args.iteration is not None and args.iteration < 1)):
+        # An older helper has no --contract, so --contract 2 makes it exit 2.
+        parser.error("--iteration N (a positive integer) requires --contract 2, and "
+                     "--contract 2 requires --iteration N")
     return args.func(args)
 
 

@@ -1,128 +1,35 @@
 ---
 name: requesting-code-review
-description: PRFlow's final-pass review requester, dispatched by the review engine and available directly. Use when completing tasks, implementing major features, or before merging to verify work meets requirements
+description: Use when completing a task or major feature, or before merging, to have PRFlow's final-pass reviewer check the work against its requirements.
 ---
 
 # Requesting Code Review
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill spell the skill directory as `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. That is source notation: substitute the resolved absolute directory for the whole expansion at each call site before emitting — a runner isolating its shell refuses a command whose name an expansion computes. Take `$CLAUDE_SKILL_DIR`'s value when the runner reports one, else locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — from the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line), accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Substitute inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
-Consumer prompt extension (load first). Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run the vendored-literal leading token first:
+This skill originates in the MIT-licensed `superpowers` plugin (© 2025 Jesse Vincent) and has been substantially modified by PRFlow.
+
+Invoking it is the user's request to dispatch its reviewer. First load the repository's extension for this review, from the repository root:
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review
 ```
 
-On a `command not found` / `No such file` / exit-127 reading, fall back to the portable anchor form:
+On `command not found` / `No such file` / exit 127, use the anchor form:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh requesting-code-review
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text on stdout, treat that stdout text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/skill-extensions/`. If it exits 0 and prints nothing on stdout, proceed unchanged. The helper may also write a stderr breadcrumb naming the extension directory the environment that dispatched this review resolved; that breadcrumb is diagnostic output and is never extension content, so it never makes an empty extension count as printed text.
+Not-found on both forms is the anchor failure above: fix the anchor; do not report a missing extension. Any other non-zero exit means a consumer extension exists but could not be loaded: surface its stderr. No `PROMPT-EXTENSION-STATUS:` line on stderr, as after a refusal, is an unestablished extension to report, never an empty one.
 
-When a dispatching prompt supplies an explicit helper command (an orchestrator that invokes this skill inside a subagent may pre-resolve the helper path and hand you the exact command to run for this prompt extension), run that supplied command verbatim in place of the anchor recipe above — do not resolve the anchor yourself for this helper — and interpret its outcome by the same exit-code rules just stated. The anchor recipe above remains the behavior for a direct invocation of this skill, where no command is supplied.
+Then dispatch the `prflow:requesting-code-review` agent with a prompt holding:
 
-PRFlow context. This skill originates in the MIT-licensed `superpowers` plugin (© 2025 Jesse Vincent) and has been substantially modified by PRFlow.
+- a one-line description of what was built;
+- the requirements or plan it must meet;
+- the base and head commits (e.g. `origin/main` and `HEAD`);
+- on `content-present`, `Consumer review policy:` and the extension's text: the helper's output minus every diagnostic it prints, even one run onto the text's last line.
 
-Dispatch a code reviewer subagent to catch issues before they cascade. The reviewer gets precisely crafted context for evaluation — never your session's history. This keeps the reviewer focused on the work product, not your thought process, and preserves your own context for continued work.
+For test edits, read `../fix/references/fix-discipline.md` from this skill's directory; include its *Tests* evidence. Stop if unreadable.
 
-Core principle: Review early, review often.
-
-Subagent dispatch is user-requested here (injection-condition clause). Invoking this skill constitutes the user's request to dispatch the reviewer subagent this skill describes, thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition for that dispatch and for no other.
-
-## When to Request Review
-
-Mandatory:
-- After each task in subagent-driven development
-- After completing major feature
-- Before merge to main
-
-Optional but valuable:
-- When stuck (fresh perspective)
-- Before refactoring (baseline check)
-- After fixing complex bug
-
-## How to Request
-
-1. Get git SHAs:
-```bash
-BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
-HEAD_SHA=$(git rev-parse HEAD)
-```
-
-2. Dispatch code reviewer subagent:
-
-Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md](code-reviewer.md)
-
-Placeholders:
-- `{DESCRIPTION}` - Brief summary of what you built
-- `{PLAN_OR_REQUIREMENTS}` - What it should do
-- `{BASE_SHA}` - Starting commit
-- `{HEAD_SHA}` - Ending commit
-
-3. Act on feedback:
-- Fix Critical issues immediately
-- Fix Important issues before proceeding
-- Note Minor issues for later
-- Push back if reviewer is wrong (with reasoning)
-
-## State Mutation Evidence for the Tests You Present
-
-When the change you send for review adds or alters tests, a green run is not evidence those tests *work* — a vacuous test passes too. State the **mutation evidence** for each test you present: which behavior you broke to confirm the test fails, and that it failed for the reason it pins. A review request that presents new or changed tests without their mutation evidence asks the reviewer to trust a green suite that may be asserting nothing.
-
-## Example
-
-```
-[Just completed Task 2: Add verification function]
-
-You: Let me request code review before proceeding.
-
-BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
-HEAD_SHA=$(git rev-parse HEAD)
-
-[Dispatch code reviewer subagent]
-  DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
-  PLAN_OR_REQUIREMENTS: Task 2 from the implementation plan
-  BASE_SHA: a7981ec
-  HEAD_SHA: 3df7661
-
-[Subagent returns]:
-  Issues:
-    Important: Missing progress indicators
-    Minor: Magic number (100) for reporting interval
-  Assessment: Ready to proceed
-
-You: [Fix progress indicators]
-[Continue to Task 3]
-```
-
-## Integration with Workflows
-
-Subagent-Driven Development:
-- Review after EACH task
-- Catch issues before they compound
-- Fix before moving to next task
-
-Executing Plans:
-- Review after each task or at natural checkpoints
-- Get feedback, apply, continue
-
-Ad-Hoc Development:
-- Review before merge
-- Review when stuck
-
-## Red Flags
-
-Never:
-- Skip review because "it's simple"
-- Ignore Critical issues
-- Proceed with unfixed Important issues
-- Argue with valid technical feedback
-
-If reviewer wrong:
-- Push back with technical reasoning
-- Show code/tests that prove it works
-- Request clarification
-
-See template at: [code-reviewer.md](code-reviewer.md)
+Fix Critical findings at once and Important ones before moving on; push back with technical reasoning, and the code or tests that prove it, when the reviewer is wrong.

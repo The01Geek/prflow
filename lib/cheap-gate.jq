@@ -12,10 +12,8 @@
 # population (via lib/scan.sh) — no longer holds. Wiring the marker into this gate
 # would nonetheless change retrospective sampling for every merged PR, which is a
 # separate open decision (issue #1249 kept it explicitly out of scope) rather than
-# a consequence of that superseded coverage argument. The marker's runtime consumer
-# stays the shared review engine's non-blocking advisory
-# (.prflow/skill-extensions/review.md and its byte-identical twin
-# review-and-fix.md), which reads it per-PR on both tiers.
+# a consequence of that superseded coverage argument. No review-side reader of the
+# marker remains (issue #2025 retired the review extensions' advisory).
 #
 # Invocation:
 #   jq -c -f lib/cheap-gate.jq <context-bundle.json

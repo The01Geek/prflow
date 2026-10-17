@@ -1929,6 +1929,11 @@ devflow_apply_all "$PWD" "$PIN" "$REF"
 if [ -x "$SRC/scripts/migrate-telemetry-branch.sh" ]; then
   "$SRC/scripts/migrate-telemetry-branch.sh" "$PWD" || true
 fi
+# Move tracked retrospective learnings onto the telemetry branch; a non-zero exit is
+# logged and does not fail the install.
+if [ -x "$SRC/scripts/retro-helper.sh" ]; then
+  DEVFLOW_RETRO_HELPER_ROOT="$PWD" "$SRC/scripts/retro-helper.sh" learnings-migrate || log "learnings-migrate did not complete (reason above); re-run install.sh --apply or /prflow:init once it is resolved"
+fi
 
 # On a host with no `python3` (stock Windows / Git-Bash), offer the consent-gated shim
 # provisioner so the toolchain can resolve a Python 3 interpreter. No-op where python3

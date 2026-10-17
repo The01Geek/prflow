@@ -18,7 +18,9 @@ Two subcommands:
     five-field `checkout-fingerprint.py` baseline, allocate a FRESH per-attempt directory
     beneath the checkout's `.prflow/tmp/` (so every first-party write the dispatch makes lands
     in ignored space), mint distinct evidence/claim report destinations plus the `criteria_path`
-    the orchestrator writes the tagged criteria list to before dispatch, and print those paths
+    the orchestrator writes the tagged criteria list to before dispatch, write the verifiers'
+    `diff_path` — `git diff origin/<base>...HEAD`, `<base>` being the configured `.base_branch`
+    (default `main`) read through `config-get.sh` — and print those paths
     as one JSON object the orchestrator passes by value into the two dispatch prompts and the
     later `check` call. The `.gitignore` is written before the baseline so every attempt file —
     this attempt's and any earlier attempt's left in the root — drops out of git's untracked
@@ -30,8 +32,9 @@ Two subcommands:
   check --attempt-dir <dir> --evidence-file <path> --criteria-file <path> [--claim-file <path>]
     Re-run the fingerprint and compare it field-by-field against the baseline `prepare` saved.
     An UNCHANGED fingerprint permits report processing: read the tagged criteria list, invoke
-    the reconciler on the assigned files with that list, write a bounded per-criterion
-    dispositions record to `ac-dispositions.md` in the attempt directory, and print one
+    the reconciler on the assigned files with that list, write a dispositions record (the
+    tally plus one bounded line per non-tick criterion) to `ac-dispositions.md` in the attempt
+    directory, and print one
     compact routing line of JSON — `all_satisfied`, `blocking`, each criterion's `criterion`,
     `status`, `remedy` and `reason`, and the record's `dispositions_path`. `--claim-file` is
     optional: omit it only when the criteria file names no `command` criterion (every criterion
@@ -58,10 +61,11 @@ containment.
 Exit codes:
     0 — reconciliation produced on a clean checkout: stdout is the one-line routing JSON
         (`all_satisfied`, `blocking`, the per-criterion routing projection, and
-        `dispositions_path`) and the bounded per-criterion record is written to
+        `dispositions_path`) and the dispositions record is written to
         `ac-dispositions.md` in the attempt directory — even when the reconciliation reports
         blocking criteria, a normal outcome, not a helper failure
-    1 — a `prepare` failure (fingerprint capture, directory allocation, or symlink rejection)
+    1 — a `prepare` failure (fingerprint capture, directory allocation, symlink rejection, an
+        unreadable `.base_branch`, an unresolvable base ref, or an unwritable diff)
     2 — a `check` guard failure: drift, a missing/unreadable baseline, a failed measurement,
         or a symlink-rejected path (the `ac-dispositions.md` destination included) — all
         independently blocking. stdout carries a guard JSON object naming the cause; stderr
@@ -84,6 +88,10 @@ import sys
 import tempfile
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(_HERE), "lib"))
+import bash_launch
+from path_forms import posix_path
+
 # The DEFAULT attempt root is `.prflow/tmp/implement/<issue>/ac-verifier-artifacts/`
 # (issue #240); --scratch-base overrides it (the not-ignored arm passes flat `.prflow/tmp`).
 # Kept under `.prflow/tmp/` either way, so a `.gitignore` ignoring only `tmp/` still covers it.
@@ -112,32 +120,24 @@ def _load_sibling(modname: str, filename: str):
     return mod
 
 
-def _fwd(path: str) -> str:
-    """Emit a machine-read path with forward slashes only.
-
-    Keyed off the active path flavour, so a POSIX host — where a backslash is a legal
-    filename byte — is byte-for-byte unchanged, while a native-Windows Python stops
-    handing the orchestrator a `C:/repo\\.prflow` mix of both separators."""
-    return path.replace(os.path.sep, "/") if os.path.sep != "/" else path
-
-
 class _GuardError(Exception):
     """A checkout-integrity guard could not be satisfied (independently blocking)."""
 
 
 def _toplevel() -> str:
-    # An OSError (e.g. DEVFLOW_GIT names a missing binary) must reach the caller's guard
-    # as a failed measurement (exit 2), never an uncaught traceback (exit 1).
+    # An OSError (e.g. DEVFLOW_GIT names a missing binary) or a non-UTF-8 path (ValueError)
+    # must reach the caller's guard, never an uncaught traceback.
     try:
         proc = subprocess.run(
             [_GIT, "rev-parse", "--show-toplevel"],
             capture_output=True, text=True, encoding="utf-8", check=False,
         )
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         raise _GuardError(f"could not run git: {exc}") from exc
     top = proc.stdout.strip()
     if proc.returncode != 0 or not top:
         raise _GuardError(f"not a git checkout: {proc.stderr.strip()}")
+    sys.stderr.write(proc.stderr)
     return top
 
 
@@ -169,26 +169,37 @@ def _reject_symlink_path(path: str, boundary: str) -> None:
 
 
 def _fingerprint(fp_mod) -> dict:
-    # OSError covers a subprocess that could not spawn git at all (a bad DEVFLOW_GIT), which
-    # build_fingerprint does not wrap in _GitError — route it to the exit-2 guard, not a traceback.
+    # build_fingerprint wraps neither a git it could not spawn (OSError, a bad DEVFLOW_GIT) nor
+    # non-UTF-8 git output such as an untracked file name (ValueError) in _GitError — route both
+    # to the caller's guard, not a traceback.
     try:
         return fp_mod.build_fingerprint()
-    except (fp_mod._GitError, OSError) as exc:
+    except (fp_mod._GitError, OSError, ValueError) as exc:
         raise _GuardError(f"could not measure the checkout fingerprint: {exc}") from exc
 
 
-def _porcelain(top: str) -> list[str]:
-    """`git status --porcelain` lines, or [] when it cannot be read (best-effort detail only)."""
+def _best_effort_git(top: str, *args: str) -> str:
+    """A git read's stdout, or "" with a stderr note when it cannot be read — offending-path
+    detail only, so an unreadable listing never reads as "nothing changed" unannounced."""
     try:
         proc = subprocess.run(
-            [_GIT, "status", "--porcelain"],
-            cwd=top, capture_output=True, text=True, encoding="utf-8", check=False,
+            [_GIT, *args], cwd=top, capture_output=True, text=True, encoding="utf-8", check=False,
         )
-    except OSError:
-        return []
-    if proc.returncode != 0:
-        return []
-    return [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    except (OSError, ValueError) as exc:
+        cause = str(exc)
+    else:
+        sys.stderr.write(proc.stderr)
+        if proc.returncode == 0:
+            return proc.stdout
+        cause = f"rc {proc.returncode}"
+    print(f"ac-verifier-artifacts: check: offending paths unavailable: git {args[0]}: {cause}",
+          file=sys.stderr)
+    return ""
+
+
+def _porcelain(top: str) -> list[str]:
+    """`git status --porcelain` lines (best-effort detail only)."""
+    return [ln for ln in _best_effort_git(top, "status", "--porcelain").splitlines() if ln.strip()]
 
 
 def _tracked_offenders(lines: list[str]) -> list[str]:
@@ -209,16 +220,7 @@ def _untracked_offenders(top: str) -> list[str]:
     fingerprint's `untracked_digest` reads. `git status --porcelain` collapses an untracked
     directory to a single `?? dir/` line, so it cannot name a stray file inside one; the
     exclude-aware `ls-files -o` listing names each file, matching what the fingerprint compared."""
-    try:
-        proc = subprocess.run(
-            [_GIT, "ls-files", "-o", "--exclude-standard", "-z"],
-            cwd=top, capture_output=True, text=True, encoding="utf-8", check=False,
-        )
-    except OSError:
-        return []
-    if proc.returncode != 0:
-        return []
-    return [p for p in proc.stdout.split("\0") if p]
+    return [p for p in _best_effort_git(top, "ls-files", "-o", "--exclude-standard", "-z").split("\0") if p]
 
 
 def _cmd_prepare(args) -> int:
@@ -253,44 +255,95 @@ def _cmd_prepare(args) -> int:
         baseline = _fingerprint(fp_mod)
         attempt_dir = tempfile.mkdtemp(prefix=f"{args.issue}-", dir=attempt_root)
         os.chmod(attempt_dir, 0o700)
-        evidence_path = os.path.join(attempt_dir, "evidence-report.json")
-        claim_path = os.path.join(attempt_dir, "claim-report.json")
-        baseline_path = os.path.join(attempt_dir, "baseline-fingerprint.json")
-        # The orchestrator writes the tagged criteria list here (with the Write tool) before
-        # dispatch, and `check` reads it from here (issue #439).
-        criteria_path = os.path.join(attempt_dir, "criteria.json")
+        paths = _attempt_paths(attempt_dir)
         # Reject a symlink anywhere along each destination before handing it out, so a verifier
         # can never be pointed at a link that redirects its write outside the ignored dir.
-        for dest in (evidence_path, claim_path, baseline_path, criteria_path):
+        for dest in paths.values():
             _reject_symlink_path(dest, boundary)
-        _atomic_write_json(baseline_path, baseline)
+        _atomic_write_json(paths["baseline_fingerprint_path"], baseline)
+        _atomic_write_bytes(paths["diff_path"], _base_diff(top))
     except (_GuardError, OSError) as exc:
         print(f"ac-verifier-artifacts: prepare: {exc}", file=sys.stderr)
         return 1
 
-    sys.stdout.write(_prepare_payload(
-        attempt_dir, evidence_path, claim_path, baseline_path, criteria_path))
+    sys.stdout.write(_prepare_payload(attempt_dir))
     return 0
 
 
-def _prepare_payload(attempt_dir, evidence_path, claim_path, baseline_path,
-                     criteria_path) -> str:
+def _configured_base(top: str) -> str:
+    """`.base_branch` (default `main`) through the sibling `config-get.sh`."""
+    bash = bash_launch.resolve_bash()
+    try:
+        argument = bash_launch.script_argument(
+            os.path.join(_HERE, "config-get.sh"), cwd=top, bash=bash)
+        proc = subprocess.run(
+            bash_launch.command([bash, argument, ".base_branch", "main"]),
+            cwd=top, capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+    except (ValueError, OSError) as exc:
+        raise _GuardError(f"could not read .base_branch through config-get.sh: {exc}") from exc
+    base = proc.stdout.strip()
+    if proc.returncode != 0 or not base:
+        cause = (proc.stderr.strip().splitlines() or ["no stderr"])[0]
+        raise _GuardError(
+            f"could not read .base_branch through config-get.sh (rc {proc.returncode}: {cause})")
+    # config-get.sh can warn on an exit-0 read — keep it visible.
+    sys.stderr.write(proc.stderr)
+    return base
+
+
+def _base_diff(top: str) -> bytes:
+    """The bytes of `git diff origin/<base>...HEAD` — never decoded, so non-UTF-8 survives."""
+    base = _configured_base(top)
+    try:
+        # The prefix flags and --no-textconv stop a consumer's prefix or textconv config from
+        # rewriting the a/ b/ headers or substituting converted text for the committed content.
+        proc = subprocess.run(
+            [_GIT, "diff", "--no-ext-diff", "--no-textconv", "--no-color",
+             "--src-prefix=a/", "--dst-prefix=b/", f"origin/{base}...HEAD"],
+            cwd=top, capture_output=True, check=False,
+        )
+    except OSError as exc:
+        raise _GuardError(f"could not run git diff: {exc}") from exc
+    if proc.returncode != 0:
+        cause = (proc.stderr.decode("utf-8", "replace").strip().splitlines() or ["no stderr"])[0]
+        raise _GuardError(f"could not diff origin/{base}...HEAD (rc {proc.returncode}: {cause})")
+    sys.stderr.write(proc.stderr.decode("utf-8", "replace"))  # rc-0 warnings, e.g. multiple merge bases
+    return proc.stdout
+
+
+# `prepare`'s payload key -> file name inside the attempt dir. The orchestrator writes the
+# tagged criteria list to criteria.json (with the Write tool) before dispatch, and `check`
+# reads it from there (issue #439).
+_ATTEMPT_FILES = (
+    ("evidence_report_path", "evidence-report.json"),
+    ("claim_report_path", "claim-report.json"),
+    ("baseline_fingerprint_path", "baseline-fingerprint.json"),
+    ("criteria_path", "criteria.json"),
+    ("diff_path", "diff.patch"),
+)
+
+
+def _attempt_paths(attempt_dir: str) -> dict:
+    return {key: os.path.join(attempt_dir, name) for key, name in _ATTEMPT_FILES}
+
+
+def _prepare_payload(attempt_dir: str) -> str:
     """`prepare`'s stdout line — the orchestrator's destinations, forward-slashed."""
-    return json.dumps({
-        "attempt_dir": _fwd(attempt_dir),
-        "evidence_report_path": _fwd(evidence_path),
-        "claim_report_path": _fwd(claim_path),
-        "baseline_fingerprint_path": _fwd(baseline_path),
-        "criteria_path": _fwd(criteria_path),
-    }, sort_keys=True) + "\n"
+    payload = {"attempt_dir": attempt_dir, **_attempt_paths(attempt_dir)}
+    return json.dumps({k: posix_path(v) for k, v in payload.items()}, sort_keys=True) + "\n"
 
 
 def _atomic_write_json(path: str, obj) -> None:
+    _atomic_write_bytes(path, json.dumps(obj, sort_keys=True).encode("utf-8"))
+
+
+def _atomic_write_bytes(path: str, data: bytes) -> None:
     directory = os.path.dirname(path)
-    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".json")
+    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".tmp-")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(obj, fh, sort_keys=True)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp, path)
@@ -303,21 +356,8 @@ def _atomic_write_json(path: str, obj) -> None:
 
 
 def _atomic_write_text(path: str, text: str) -> None:
-    """Atomic-replace a UTF-8 text file with `\\n` endings, mirroring `_atomic_write_json`."""
-    directory = os.path.dirname(path)
-    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".tmp-", suffix=".md")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
-            fh.write(text)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    """Atomic-replace a UTF-8 text file, its `\\n` endings untranslated on every platform."""
+    _atomic_write_bytes(path, text.encode("utf-8"))
 
 
 def _ensure_star_gitignore(path: str) -> None:
@@ -363,21 +403,16 @@ def _bound_str(value, limit: int):
 
 
 def _dispositions_line(c: dict) -> dict:
-    """Project one reconciled-criterion record into its bounded dispositions-record line (issue
-    #681). A `tick` criterion carries only the four always-present keys — complete by
-    construction. Any other remedy also carries the fields that explain the block, plus the
-    claim-side pair exactly when the criterion's `sides` includes `claim`. `evidence` is bounded
-    to 400 bytes, `stated_terms`/`observed_value` to 200 each, and slot values keep the 60-byte
-    bound; a non-string value passes through unbounded."""
+    """Project one non-tick reconciled-criterion record into its bounded dispositions-record line
+    (issue #681): the fields that explain the block, plus the claim-side pair exactly when the
+    criterion's `sides` includes `claim`. `evidence` is bounded to 400 bytes,
+    `stated_terms`/`observed_value` to 200 each, and slot values keep the 60-byte bound; a
+    non-string value passes through unbounded."""
     line = {
         "criterion": c["criterion"],
         "status": c["status"],
         "remedy": c["remedy"],
         "evidence": _bound_str(c["evidence"], 400),
-    }
-    if c["remedy"] == "tick":
-        return line
-    line.update({
         "reason": c["reason"],
         "sides": c["sides"],
         "missing_sides": c["missing_sides"],
@@ -386,7 +421,7 @@ def _dispositions_line(c: dict) -> dict:
         "observed_value": _bound_str(c["observed_value"], 200),
         "evidence_status_reported": c["evidence_status_reported"],
         "evidence_dispositions": _bounded_dispositions(c["evidence_dispositions"]),
-    })
+    }
     if "claim" in c["sides"]:
         line["claim_status_reported"] = c["claim_status_reported"]
         line["claim_dispositions"] = _bounded_dispositions(c["claim_dispositions"])
@@ -402,26 +437,24 @@ def _load_report_or_absent(recon, path: str) -> list:
 
 
 def _write_dispositions(path: str, criteria: list) -> None:
-    """Write the per-criterion dispositions record as a collapsed block (issue #681): a
-    `<details><summary>3.4 dispositions: <N> criteria, <K> tick</summary>` first line, one UTF-8
-    JSON line per criterion (`ensure_ascii=False`, `\\n` endings) — the single line
-    `{"criteria": []}` when the reconciliation had no criteria — and a `</details>` last line."""
-    tick = sum(1 for c in criteria if c["remedy"] == "tick")
-    summary = (f"<details><summary>3.4 dispositions: {len(criteria)} criteria, "
-               f"{tick} tick</summary>\n")
-    if not criteria:
-        body = json.dumps({"criteria": []}, ensure_ascii=False) + "\n"
-    else:
-        body = "".join(
-            json.dumps(_dispositions_line(c), ensure_ascii=False, sort_keys=True) + "\n"
-            for c in criteria)
-    _atomic_write_text(path, summary + body + "</details>\n")
+    """Write the dispositions record (issues #681, #1530): the tally
+    `3.4 dispositions: <N> criteria, <K> tick` and one UTF-8 JSON line per criterion whose remedy
+    is not `tick` (`ensure_ascii=False`, `\\n` endings), wrapped as a collapsed
+    `<details><summary>…</summary>` … `</details>` block. With no non-tick criterion the record
+    is the bare tally line alone."""
+    tally = f"3.4 dispositions: {len(criteria)} criteria, " \
+            f"{sum(1 for c in criteria if c['remedy'] == 'tick')} tick"
+    body = "".join(
+        json.dumps(_dispositions_line(c), ensure_ascii=False, sort_keys=True) + "\n"
+        for c in criteria if c["remedy"] != "tick")
+    _atomic_write_text(
+        path, f"<details><summary>{tally}</summary>\n{body}</details>\n" if body else tally + "\n")
 
 
 def _cmd_check(args) -> int:
     fp_mod = _load_sibling("_ava_checkout_fingerprint", "checkout-fingerprint.py")
     attempt_dir = os.path.abspath(args.attempt_dir)
-    baseline_path = os.path.join(attempt_dir, "baseline-fingerprint.json")
+    baseline_path = _attempt_paths(attempt_dir)["baseline_fingerprint_path"]
 
     try:
         top = _toplevel()
@@ -516,10 +549,8 @@ def _cmd_check(args) -> int:
               file=sys.stderr)
         return 3
     result = recon.reconcile(evidence_records, claim_records, class_by_num)
-    # Write the full bounded per-criterion record to a file, then print only the compact routing
-    # line: the orchestrator routes on the line's closed tokens and reads a criterion's own record
-    # line from the file only when its remedy is not `tick`, so the full record never re-enters the
-    # orchestrator's context. A write failure is unestablished output (exit 3), not a guard block.
+    # Write the dispositions record to a file, then print only the compact routing line. A write
+    # failure is unestablished output (exit 3), not a guard block.
     try:
         _write_dispositions(dispositions_path, result["criteria"])
     except OSError as exc:
@@ -538,7 +569,7 @@ def _routing_payload(result, dispositions_path) -> str:
         "criteria": [{"criterion": c["criterion"], "status": c["status"],
                       "remedy": c["remedy"], "reason": c["reason"]}
                      for c in result["criteria"]],
-        "dispositions_path": _fwd(dispositions_path),
+        "dispositions_path": posix_path(dispositions_path),
     }, sort_keys=True)
 
 

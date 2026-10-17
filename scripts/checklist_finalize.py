@@ -3,43 +3,36 @@
 # SPDX-License-Identifier: MIT
 """PRFlow review Phase 1 checklist assembly — the deterministic half.
 
-The review engine is generation-bound, and every Phase 1 rule below is a
-mechanical transform of JSON a subagent already produced. This module owns those
-transforms so the engine need not re-type checklist JSON: generators Write their
-own batch files, the deduper names merge groups by id, and this module carries,
-concatenates, merges, renumbers, caps, tags and writes the durable artifact.
+Generators Write their own batch files; this module carries, merges, caps, tags and writes the
+durable artifact, so the engine never re-types checklist JSON. Reached as
+``normalize-verdicts.py checklist <op> …`` (the leading token every cloud profile grants);
+importable for tests.
 
-Reached as ``normalize-verdicts.py checklist <op> …`` (that helper's leading
-token is the one every cloud profile already grants); importable for tests.
-
-Work directory — ``<run-dir>/phase1-<token>``, the token fresh per engine entry,
-so a re-entrant entry sharing ``<run-dir>`` and ``<N>`` (the shadow) names a
-different directory and does not read this entry's intermediates. Files inside it:
+Work directory — ``<run-dir>/phase1-<token>``, the token fresh per engine entry, so a
+re-entrant entry sharing ``<run-dir>`` and ``<N>`` (the shadow) never reads this entry's
+intermediates. Files inside it:
 
     batch-<k>.json     one generator's JSON array (written by the generator)
     carried.json       ``carry`` output: the prior items carried forward, tagged
-    raw.json           ``raw`` output: every batch item, id ``batch<k>:VC-<i>``
-    groups.json        the deduper's merge groups: [{"keep": id, "merged_from": [ids]}]
     prior-report.md    ``prior`` output: the selected report's body, absent when none is selected
     seeded.json        the seed-mode generator's items, one per prior FAIL or finding
 
 Ops (each prints ONE JSON object on stdout; rc 0 whenever the op ran, ``ok``
 carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
 
-    carry    <work-dir> <N> <prior-head> [--prior FILE]
-    raw      <work-dir> <B>
-    finalize <work-dir> <N> <B> [--no-groups]
+    carry    <work-dir> <N> <prior-head>
+    finalize <work-dir> <N> <B>
     match    <work-dir> <N> <prior-head> <shadow-head>
     prior    <work-dir> <PR> <N> [--exclude-comment <id>]
     prior-lines <work-dir>
 
-``carry`` reads the prior iteration's Step 1.8 snapshot pair at the run root —
+``carry`` reads the prior iteration's pair the fix loop's ``entry-close`` copied at the run root —
 ``checklist-step1-iter-<N-1>.json`` joined by ``id`` with the verdict rows of
-``verification-step1-iter-<N-1>.json`` (the row wins) — or, with ``--prior FILE``,
-that file as already-joined items; an unusable snapshot carries nothing. A prior
-non-``issue_acceptance`` FAIL with a non-empty ``id`` and ``category`` carries whatever its file
-did, even when the cached diff or the changed-file set cannot be read, which carries nothing else;
-it drops its line range unless its file is established unchanged.
+``verification-step1-iter-<N-1>.json`` (the row wins); an unusable snapshot carries nothing. Only a
+prior PASS it reuses carries (``carry_items``); a FAIL, an INCONCLUSIVE and a PASS it cannot reuse do
+not. An unreadable cached diff or changed-file set, or a citation reader or delivery check that
+cannot load, carries nothing. A prior PASS whose retained ``evidence-step1/iter-<N-1>/`` grade names
+it ``delivery-failed:`` is not carried (issue #2022).
 
 ``prior`` pages the PR's issue comments through gh and, newest first, takes the first
 finalized report other than the ``--exclude-comment`` one: a comment whose first line opens
@@ -61,29 +54,40 @@ present.
 ``prior-report: unavailable (no prior-report record)`` when it is absent, and
 ``prior-report: unavailable (prior-report record unreadable)`` when it cannot be read or is malformed.
 
-``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array). It reads
+``finalize`` writes ``<run-dir>/checklist-iter-<N>.json`` (root: the array). With more than
+one batch it merges new items carrying an identical non-empty ``claim_signature`` and the same
+``source_file``, or a repo-wide ``<category>:repo:<slug>`` signature whatever the string
+``source_file`` (``merge_duplicates``). It sets
+``verification_mode: "agent"`` on every item it writes and drops any ``lite_probe``. It reads
 the acceptance criteria from ``<run-dir>/criteria.json`` (written by Phase 0.4's
 ``acs-resolve --criteria-out``) and creates one ``issue_acceptance`` item per criterion
 after the cap, so acceptance items never take a cap slot. It appends after them, with a fresh
 id, each usable ``seeded.json`` item (see ``_read_seeds``). It removes the seed shortfall
 line after writing the checklist, when this entry's ``prior`` selected a report and every
-``seeded.json`` item was usable. Before the cap it drops
+``seeded.json`` item was usable. Before the merge it drops
 each new item that ``same_claim`` finds restating a carried or seeded item
-(``counts.same_claim_dropped``); the carried item stays as carried. A criteria file present but
+(``counts.same_claim_dropped``); the carried item stays as carried. Before that it drops each
+unpaired batch ``absolute_claim`` item — one whose ``claim_provenance`` is not ``source_authored`` or
+whose ``source_excerpt`` is not a string with a non-whitespace character — listing its raw id and cause
+in ``unpaired_dropped_items`` (``counts.unpaired_dropped``), so no unpaired member represents a merged
+group or takes a cap slot; seeded and carried items are not checked. A criteria file present but
 malformed sets ``criteria_error`` and writes no acceptance item, still ``ok: true``, and
 an absent file creates no acceptance item and no error. It fails closed — ``ok: false``,
 no checklist written — on:
 
     bad_batch                  a batch file missing, unparseable, not an array of objects,
-                               or holding an item without a non-empty ``claim``/``category``
-    bad_groups                 without ``--no-groups``: groups.json missing or not an array, or
-                               raw.json (what the deduper read) absent or no longer equal to
-                               the batch files
+                               or holding an item without a non-empty ``claim``/``category``;
+                               a present one is renamed ``batch-<k>.bad.json``, a name a retry's
+                               wait does not count, or removed when the rename fails (a file it can
+                               neither rename nor remove still counts as arrived in that wait);
+                               ``error`` names a rename or removal that fails
     bad_carried                carried.json present but not an array of objects with string ids
-    merge_invariant_violation  some raw id is not in exactly one merged row's ``merged_from``
-    conservation_violation     the array about to be written, plus the capped and same-claim-dropped rows, does not
-                               account for every raw id exactly once; or the carried tail is
-                               not the carried input; or two final ids collide
+    merge_invariant_violation  some generated id is not in exactly one merged or same-claim-dropped
+                               row's ``merged_from``
+    conservation_violation     the array about to be written, plus the capped, same-claim-dropped
+                               and unpaired rows, does not account for every generated id exactly
+                               once; or the carried tail is not the carried input; or two final
+                               ids collide
     artifact_write_unverified  a written file did not read back as the value written
 
 ``match`` joins the ``step1`` and ``shadow`` snapshot pairs of iteration ``<N>`` at the run
@@ -98,15 +102,6 @@ every shadow FAIL as new.
 ``same_claim`` is a mechanical identity, not a defect judgment: a distinct claim of the same
 category in the same file on overlapping lines is dropped as a restatement of the carried
 or seeded item (an accepted risk); ``same_claim_dropped_items[].carried_id`` names that item.
-
-What it does NOT decide: whether two claims state the same defect. A merge group with two
-or more usable ids is applied only when it holds at most one line-anchored site (one pair of
-non-empty ``source_file`` and anchored ``claim_signature``) and its members are connected by
-``plausible_duplicates`` — the mechanically checkable part of the deduper's three rules —
-and is otherwise left unmerged with a breadcrumb; a group with fewer usable ids merges
-nothing. Inside that envelope a wrong deduper judgment still merges two distinct claims,
-exactly as a wrong judgment did when the deduper emitted the array itself; the merged
-row's ``merged_from`` records which ids it absorbed.
 """
 from __future__ import annotations
 
@@ -130,12 +125,10 @@ _WORK_RE = re.compile(rf"\Aphase1-[A-Za-z0-9]{{{TOKEN_MIN},64}}\Z")
 _REQUIRED_FIELDS = ("claim", "category")
 # An item lacking one of these is still verifiable: it is kept and flagged.
 _EXPECTED_FIELDS = ("source_file", "claim_signature")
-# Categories a repo-wide convention check is emitted under (the cross-cutting theme rule).
-_THEME_CATEGORIES = ("api_contract", "string_presence")
 # The verdict fields a carried PASS keeps, joined from its verification row. Must equal the
 # engine-return join's key set (review-engine-io.py VERDICT_KEYS) or a carried item drops a field.
 _PRIOR_VERDICT_FIELDS = ("verdict", "raw_verdict", "normalized", "evidence", "file_checked",
-                         "normalization_ineligible", "view_revision", "demoted", "severity")
+                         "normalization_ineligible", "severity")
 
 
 def _shape(value):
@@ -278,20 +271,25 @@ def _load_sibling(filename, modname):
 _CITED = []  # memo: [(normalize-verdicts.py's _cited_paths or None, cause)]
 
 
-def _collector_cited_paths():
-    """(fn, cause): the collector's ``_cited_paths``, loaded from the sibling
-    normalize-verdicts.py rather than copied, so carry splits a citation the way the collector
-    does. ``fn`` is None, with its cause, when it cannot load."""
-    if not _CITED:
-        module, failure = _load_sibling("normalize-verdicts.py", "prflow_normalize_verdicts")
-        if module is not None and not hasattr(module, "_cited_paths"):
+def _sibling_fn(memo, filename, modname, attr):
+    """(fn, cause): ``attr`` of the sibling script ``filename``, loaded rather than copied and
+    memoized in ``memo``. ``fn`` is None, with its cause, when it cannot load."""
+    if not memo:
+        module, failure = _load_sibling(filename, modname)
+        if module is not None and not hasattr(module, attr):
             failure = "AttributeError"
-        fn = getattr(module, "_cited_paths", None)
-        if failure:  # any load failure turns reuse off; carry still runs
-            _CITED.append((None, f"normalize-verdicts.py _cited_paths unavailable: {failure}"))
+        fn = getattr(module, attr, None)
+        if failure:
+            memo.append((None, f"{filename} {attr} unavailable: {failure}"))
         else:
-            _CITED.append((fn, None) if callable(fn) else (None, "_cited_paths is not callable"))
-    return _CITED[0]
+            memo.append((fn, None) if callable(fn) else (None, f"{attr} is not callable"))
+    return memo[0]
+
+
+def _collector_cited_paths():
+    """(fn, cause): the collector's ``_cited_paths``, so carry splits a citation the way the
+    collector does."""
+    return _sibling_fn(_CITED, "normalize-verdicts.py", "prflow_normalize_verdicts", "_cited_paths")
 
 
 class _Tracked:
@@ -311,8 +309,8 @@ class _Tracked:
 def _carry_cited_paths(fc, tracked, errors=None):
     """The paths ``file_checked`` cites, split as the collector splits them with no view
     prefixes and the tracked set as its inventory; None when the collector cannot load or
-    raises on this value (the exception's name is appended to ``errors``), so only this
-    item verifies fresh."""
+    raises on this value (the exception's name is appended to ``errors``), so this item is
+    not reused."""
     fn, _ = _collector_cited_paths()
     if fn is None:
         return None
@@ -357,7 +355,7 @@ def _regular_file_at_head(path):
 def tracked_at_head():
     """A memoized ``_regular_file_at_head`` probe whose ``has_dir`` answers whether HEAD records
     the path as a tree (the collector's directory test). Anything either cannot establish —
-    including a probe that cannot run — reads as not tracked, so that item alone verifies fresh."""
+    including a probe that cannot run — reads as not tracked, so that item alone is not reused."""
     seen, trees = {}, {}
 
     def probe(path):
@@ -375,25 +373,22 @@ def tracked_at_head():
 
 
 def _reusable(item, changed, tracked, errors=None):
-    """Whether a carried PASS is reused: every path its ``file_checked`` cites is a regular
+    """Whether a prior PASS is reused: every path its ``file_checked`` cites is a regular
     file HEAD records under that exact spelling (``tracked``) and outside the changed-file set.
-    The collector re-gates a reused PASS against the view its ``view_revision`` names, so one citing
-    a path that view recorded ``path-too-long`` grades INCONCLUSIVE.
     A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, a
     directory (the collector admits one, but a fix may have changed a file under it), or any
-    changed or untracked path verifies fresh."""
+    changed or untracked path is not reused."""
     if item.get("verdict") != "PASS":
         return False
     paths = _carry_cited_paths(item.get("file_checked"), tracked, errors)
     return bool(paths) and all(p not in changed and tracked(p) for p in paths)
 
 
-def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_errors=None):
+def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_errors=None, undelivered=None):
     """Apply the carry rule and the tag table. Returns (carried, skipped_malformed); each item
-    whose citation split raised is appended to ``split_errors`` as ``"<id>: <exception>"``.
-    When ``changed`` is None — it could not be established — only prior non-``issue_acceptance``
-    FAILs carry. A carried FAIL whose file changed, or whose file's change is unestablished, loses
-    ``source_line`` and ``source_line_end``."""
+    whose citation split raised is appended to ``split_errors`` as ``"<id>: <exception>"``. Only a
+    non-``issue_acceptance`` PASS on an unchanged in-diff file that ``_reusable`` accepts and
+    ``undelivered(id)`` does not hold for (its verifier file landed) carries, reusing its verdict."""
     carried, malformed = [], 0
     for item in prior_items:
         if not isinstance(item, dict):
@@ -401,33 +396,21 @@ def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_erro
             continue
         ident, src = item.get("id"), item.get("source_file")
         cat, sig = item.get("category"), item.get("claim_signature")
-        failed = item.get("verdict") == "FAIL"
-        if not all(isinstance(v, str) and v for v in ((ident, cat) if failed else (ident, src, cat, sig))):
+        if not all(isinstance(v, str) and v for v in (ident, src, cat, sig)):
             malformed += 1
             continue
-        if cat == "issue_acceptance" or not failed and (
-                changed is None or src not in diff_paths or src in changed):
+        if cat == "issue_acceptance" or src not in diff_paths or src in changed:
             continue
-        out = dict(item, carried=True)
-        if failed and (changed is None or not isinstance(src, str) or src in changed):
-            # Its lines belong to an older head, so rule 2 of same_claim must not match on them.
-            out.pop("source_line", None)
-            out.pop("source_line_end", None)
         raised = []
-        reuse = _reusable(item, changed, tracked, raised)
+        reuse = _reusable(item, changed, tracked, raised) and not (undelivered and undelivered(ident))
         if raised and split_errors is not None:
             split_errors.append(f"{ident}: _cited_paths raised {raised[0]}")
-        if reuse:
-            origin = item.get("reused_from_iter")
-            if isinstance(origin, bool) or not isinstance(origin, int) or origin < 1:
-                origin = iteration - 1
-            out["reused_from_iter_prev"] = True
-            out["reused_from_iter"] = origin
-        else:
-            for key in _PRIOR_VERDICT_FIELDS + ("reused_from_iter",):
-                out.pop(key, None)
-            out["reused_from_iter_prev"] = False
-        carried.append(out)
+        if not reuse:
+            continue
+        origin = item.get("reused_from_iter")
+        if isinstance(origin, bool) or not isinstance(origin, int) or origin < 1:
+            origin = iteration - 1
+        carried.append(dict(item, carried=True, reused_from_iter_prev=True, reused_from_iter=origin))
     return carried, malformed
 
 
@@ -445,9 +428,9 @@ def _read_items(path, label):
 
 def _join_snapshot_pair(run_dir, entry, n, labels=("checklist snapshot", "verification snapshot"),
                         rowless=None):
-    """(items, cause): the ``entry`` Step 1.8 snapshot pair of iteration ``n`` joined by id.
+    """(items, cause): the ``entry`` snapshot pair of iteration ``n`` joined by id.
     Every verdict field comes from the item's verification row (a field the row lacks is
-    dropped) — the row may carry a demotion the item's copied ``verdict: "PASS"`` predates —
+    dropped) — the row is the stored answer, which the item's copied ``verdict: "PASS"`` may predate —
     and an item with no row keeps no verdict field; its id is added to ``rowless`` when given."""
     items, cause = _read_items(os.path.join(run_dir, f"checklist-{entry}-iter-{n}.json"), labels[0])
     if cause:
@@ -475,14 +458,13 @@ def _join_snapshot_pair(run_dir, entry, n, labels=("checklist snapshot", "verifi
     return joined, None
 
 
-def op_carry(work, run_dir, iteration, prior_head, prior_path):
+def op_carry(work, run_dir, iteration, prior_head):
     out_path = os.path.join(work, "carried.json")
     result = {"op": "carry", "ok": True, "out": out_path, "carried": 0, "prior": 0,
-              "reused_pass": 0, "skipped_malformed": 0, "breadcrumb": None}
+              "skipped_malformed": 0, "breadcrumb": None}
 
     def announce():
-        return (f"Carried {result['carried']} of {result['prior']} prior items forward "
-                f"({result['reused_pass']} reusing a prior PASS); generating the rest fresh.")
+        return f"Carried {result['carried']} of {result['prior']} prior items forward; generating the rest fresh."
 
     def none(cause):
         os.makedirs(work, exist_ok=True)
@@ -493,56 +475,50 @@ def op_carry(work, run_dir, iteration, prior_head, prior_path):
 
     if iteration < 2:
         return none("iteration 1 has no predecessor")
-    source = "prior checklist file" if prior_path else "checklist snapshot"
-    if prior_path:
-        items, cause = _read_items(prior_path, source)
-    else:
-        items, cause = _join_snapshot_pair(run_dir, "step1", iteration - 1)
+    items, cause = _join_snapshot_pair(run_dir, "step1", iteration - 1)
     if cause:
         return none(cause)
     result["prior"] = len(items)
     if not items:
-        return none(f"{source} is empty")
-    diff_paths = changed = None
+        return none("checklist snapshot is empty")
     try:
         with open(os.path.join(run_dir, "diff.patch"), encoding="utf-8", errors="surrogateescape") as fh:
             diff_paths = _diff_paths(fh.read())
     except (OSError, ValueError):
-        cause = "cached diff.patch unreadable"
-    else:
-        changed, cause = _changed_since(prior_head)
-    split_errors = []
-    carried, malformed = carry_items(items, diff_paths, changed, iteration, tracked_at_head(), split_errors)
-    result["skipped_malformed"] = malformed
-    if changed is None and not carried:
+        return none("cached diff.patch unreadable")
+    changed, cause = _changed_since(prior_head)
+    if changed is None:
         return none(cause)
+    # The prior step1 entry's retained evidence: a PASS its grade named delivery-failed would owe
+    # a verifier file that never landed.
+    gate, gate_cause = _sibling_fn([], "review-evidence-gate.py", "prflow_review_evidence_gate", "_delivery_failed")
+    _, cause = _collector_cited_paths()
+    if cause or gate_cause:
+        return none(cause or gate_cause)
+    split_errors = []
+    retained = os.path.join(run_dir, "evidence-step1", f"iter-{iteration - 1}")
+    carried, malformed = carry_items(
+        items, diff_paths, changed, iteration, tracked_at_head(), split_errors,
+        lambda ident: gate(retained, iteration - 1, ident))
+    result["skipped_malformed"] = malformed
     os.makedirs(work, exist_ok=True)
     _write_json(out_path, carried)
     result["carried"] = len(carried)
-    result["reused_pass"] = sum(1 for c in carried if c["reused_from_iter_prev"])
-    if changed is None:
-        result["breadcrumb"] = f"carry-forward: prior FAILs only ({cause})"
-        result["announce"] = announce()
-        return result
-    _, cause = _collector_cited_paths()
-    if cause:
-        result["breadcrumb"] = f"carry-forward: reuse off ({cause})"
-    elif split_errors:
+    if split_errors:
         shown = "; ".join(split_errors[:5]) + ("; …" if len(split_errors) > 5 else "")
-        result["breadcrumb"] = f"carry-forward: reuse skipped for {len(split_errors)} item(s) ({shown})"
+        result["breadcrumb"] = f"carry-forward: not carried for {len(split_errors)} item(s) ({shown})"
     result["announce"] = announce()
     return result
 
 
-# ── raw (§1.5 input) ─────────────────────────────────────────────────────────
+# ── batch files (finalize input) ─────────────────────────────────────────────
 
 def load_batches(work, batches):
     """(items, per_batch_counts, bad, flagged). Every item gets the
     unique-by-construction raw id `batch<k>:VC-<i>` (its 1-based position), identical
     to a well-behaved generator's own numbering. No item is silently discarded: one lacking a
     `_REQUIRED_FIELDS` string refuses its whole batch (the generator is retried); one
-    lacking an `_EXPECTED_FIELDS` string or a known `verification_mode` is kept and
-    listed in `flagged`."""
+    lacking an `_EXPECTED_FIELDS` string is kept and listed in `flagged`."""
     items, counts, bad, flagged = [], [], [], []
     for k in range(1, batches + 1):
         status, doc = _read_json(os.path.join(work, f"batch-{k}.json"))
@@ -569,67 +545,26 @@ def load_batches(work, batches):
             row["id"] = f"batch{k}:VC-{i + 1}"
             items.append(row)
             fields = [f for f in _EXPECTED_FIELDS if not (isinstance(it.get(f), str) and it.get(f))]
-            if it.get("verification_mode") not in ("lite", "agent"):
-                fields.append("verification_mode")
             if fields:
                 flagged.append({"id": row["id"], "fields": fields})
     return items, counts, bad, flagged
 
 
-def op_raw(work, batches):
-    items, counts, bad, flagged = load_batches(work, batches)
-    if bad:
-        return {"op": "raw", "ok": False, "error": "bad_batch", "bad_batches": bad}
-    out_path = os.path.join(work, "raw.json")
-    _write_json(out_path, items)
-    return {"op": "raw", "ok": True, "out": out_path, "batches": counts, "items": len(items),
-            "flagged_items": flagged}
-
-
-# ── finalize (§1.5 merge, §1.1.5 cap, §1.0 merge-back, §1.6 write) ───────────
+# ── finalize (cross-batch merge, cap, carried merge-back, write) ─────────────
 
 def _has_line(item):
     line = item.get("source_line")
     return isinstance(line, int) and not isinstance(line, bool)
 
 
-def _pick_representative(members, keep):
-    """The deduper's `keep` when it names a member; otherwise the documented order:
-    line-anchored, longer claim, populated lite_probe, lowest input index. A group
-    holding an `agent` item never resolves to a `lite` representative."""
-    pool = members
-    agents = [m for m in members if m[1].get("verification_mode") == "agent"]
-    if agents and len(agents) != len(members):
-        pool = agents
-    for idx, item in pool:
-        if item["id"] == keep:
-            return idx, item
-    return min(pool, key=lambda m: (not _has_line(m[1]),
-                                    -len(m[1].get("claim") if isinstance(m[1].get("claim"), str) else ""),
-                                    not isinstance(m[1].get("lite_probe"), dict),
-                                    m[0]))
-
-
-def _effective_range(item):
-    probe = item.get("lite_probe")
-    rng = probe.get("line_range") if isinstance(probe, dict) else None
-    if (isinstance(rng, list) and len(rng) == 2
-            and all(isinstance(v, int) and not isinstance(v, bool) for v in rng)):
-        return min(rng), max(rng)
-    if not _has_line(item):
-        return None
-    end = item.get("source_line_end")
-    if isinstance(end, bool) or not isinstance(end, int):
-        end = item["source_line"]
-    return min(item["source_line"], end), max(item["source_line"], end)
-
-
-def _signature_slug(item):
-    """The non-empty third segment of a string claim_signature with exactly three parts,
-    else None; a fourth segment is a line anchor, so an anchored item never links by slug."""
-    sig = item.get("claim_signature")
-    parts = sig.split(":") if isinstance(sig, str) else []
-    return parts[2] if len(parts) == 3 and parts[2] else None
+def _pick_representative(members):
+    """The member kept for a merged group: among its members whose ``claim_provenance`` is
+    exactly ``source_authored`` when it has any, else among all, line-anchored first, then the
+    longer claim, then the lowest input index."""
+    authored = [m for m in members if m[1].get("claim_provenance") == "source_authored"]
+    return min(authored or members, key=lambda m: (not _has_line(m[1]),
+                                                   -len(m[1].get("claim") if isinstance(m[1].get("claim"), str) else ""),
+                                                   m[0]))
 
 
 def _is_anchored(sig):
@@ -637,125 +572,83 @@ def _is_anchored(sig):
     return isinstance(sig, str) and len(sig.split(":")) > 3
 
 
+def _is_repo_wide(sig):
+    """Whether a claim_signature has exactly the repo-wide form ``<category>:repo:<slug>``."""
+    parts = sig.split(":") if isinstance(sig, str) else ()
+    return len(parts) == 3 and parts[1] == "repo" and all(parts)
+
+
 def _same_signature(a, b):
-    """Rule 1 of both ``plausible_duplicates`` and ``same_claim``: an equal non-empty
-    claim_signature, unless it is line-anchored and the two source_files are different
-    non-empty strings — two sites whose basenames collide, not one claim."""
+    """Rule 1 of ``same_claim``: an equal non-empty
+    claim_signature, except different string source_files for repo-wide signatures or
+    different non-empty string source_files for line-anchored signatures."""
     sig, src, src_b = a.get("claim_signature"), a.get("source_file"), b.get("source_file")
     if not (isinstance(sig, str) and sig and sig == b.get("claim_signature")):
         return False
-    return not (_is_anchored(sig) and isinstance(src, str) and isinstance(src_b, str)
-                and src and src_b and src != src_b)
+    return not (isinstance(src, str) and isinstance(src_b, str) and src != src_b
+                and (_is_repo_wide(sig) or (_is_anchored(sig) and src and src_b)))
 
 
-def plausible_duplicates(a, b):
-    """The mechanically checkable part of the deduper's three merge rules. It cannot
-    tell whether two claims state the same defect — that stays the deduper's judgment —
-    but it refuses a pair no rule could have matched."""
-    if _same_signature(a, b):
-        return True                                   # rule 1
-    cat, src = a.get("category"), a.get("source_file")
-    if not isinstance(cat, str) or cat != b.get("category"):
-        return False
-    if isinstance(src, str) and src and src == b.get("source_file"):
-        ra, rb = _effective_range(a), _effective_range(b)
-        if ra is None or rb is None:                  # rule 2
-            return ra is None and rb is None
-        return ra[0] - 3 <= rb[1] and rb[0] - 3 <= ra[1]
-    slug = _signature_slug(a)                         # rule 3: the same repo-wide convention check
-    return cat in _THEME_CATEGORIES and slug is not None and slug == _signature_slug(b)
+def as_agent(item):
+    """``item`` set to ``verification_mode: "agent"`` without a ``lite_probe``: every item is
+    verified by an agent, so a stale generator's ``lite`` item never skips its verifier."""
+    row = {k: v for k, v in item.items() if k != "lite_probe"}
+    row["verification_mode"] = "agent"
+    return row
 
 
-def _reached(members):
-    """The indices of the members reachable from the first through plausible-duplicate pairs."""
-    seen, stack = {0}, [0]
-    while stack:
-        at = stack.pop()
-        for j in range(len(members)):
-            if j not in seen and plausible_duplicates(members[at], members[j]):
-                seen.add(j)
-                stack.append(j)
-    return seen
+def _unpaired_cause(item):
+    """Why a fresh ``absolute_claim`` item is unpaired — its ``claim_provenance`` is not
+    ``source_authored`` or its ``source_excerpt`` holds no non-whitespace character — or None."""
+    if item.get("category") != "absolute_claim":
+        return None
+    prov, excerpt = item.get("claim_provenance"), item.get("source_excerpt")
+    if "claim_provenance" not in item:
+        return "claim_provenance missing"
+    if not isinstance(prov, str):
+        return f"claim_provenance is {_shape(prov)}"
+    if prov != "source_authored":
+        return f"claim_provenance is {json.dumps(prov[:40])}, not \"source_authored\""
+    if "source_excerpt" not in item:
+        return "source_excerpt missing"
+    if not isinstance(excerpt, str):
+        return f"source_excerpt is {_shape(excerpt)}"
+    if not excerpt.strip():
+        return "source_excerpt is whitespace only" if excerpt else "source_excerpt is empty"
+    return None
 
 
-def _splits_sites(members):
-    """Whether members hold two or more distinct line-anchored (source_file, claim_signature)
-    sites; a member without a non-empty string source_file names no site."""
-    return len({(m["source_file"], m["claim_signature"]) for m in members
-                if isinstance(m.get("source_file"), str) and m["source_file"]
-                and _is_anchored(m.get("claim_signature"))}) > 1
-
-
-def merge_groups(raw_items, groups, crumbs, hint_ids=frozenset()):
-    """Collapse raw items by the deduper's groups. `groups` None means the
-    deterministic fallback: merge identical (claim_signature, source_file) only."""
-    by_id = {it["id"]: (i, it) for i, it in enumerate(raw_items)}
-    assigned, plan = set(), []
-    if groups is None:
-        sig_groups = {}
-        for i, it in enumerate(raw_items):
-            sig, src = it.get("claim_signature"), it.get("source_file")
-            if isinstance(sig, str) and sig and isinstance(src, str):
-                sig_groups.setdefault((sig, src), []).append(it["id"])
-        groups = [{"merged_from": ids} for ids in sig_groups.values() if len(ids) > 1]
-    for n, group in enumerate(groups):
-        if not isinstance(group, dict) or not isinstance(group.get("merged_from"), list):
-            crumbs.append(f"dedup group {n + 1} ignored: {_shape(group)} without a merged_from array")
+def merge_duplicates(raw_items):
+    """Collapse items carrying an identical non-empty ``claim_signature`` and the same string
+    ``source_file`` — or, for a repo-wide ``<category>:repo:<slug>`` signature, any string
+    ``source_file`` — into one row, kept by ``_pick_representative``; a merged repo-wide row's
+    ``verify_hint`` names each member's non-empty ``source_file``. Every other field of a row is
+    the kept member's own, never another member's. Every row records ``merged_from``."""
+    groups = {}
+    for i, it in enumerate(raw_items):
+        sig, src = it.get("claim_signature"), it.get("source_file")
+        if isinstance(sig, str) and sig and isinstance(src, str):
+            groups.setdefault((sig, None if _is_repo_wide(sig) else src), []).append((i, it))
+    rep_of, assigned = {}, set()
+    for members in groups.values():
+        if len(members) < 2:
             continue
-        ids = []
-        for ident in group["merged_from"]:
-            if isinstance(ident, str) and ident in hint_ids:
-                crumbs.append(f"dedup group {n + 1}: acceptance hint {ident} never merges, ignored")
-            elif not isinstance(ident, str) or ident not in by_id:
-                crumbs.append(f"dedup group {n + 1}: unknown id {ident!r} ignored")
-            elif ident in assigned or ident in ids:
-                crumbs.append(f"dedup group {n + 1}: id {ident} already merged, ignored")
-            else:
-                ids.append(ident)
-        if len(ids) < 2:
-            continue
-        members = [by_id[i][1] for i in ids]
-        # Keeping a duplicate costs one verifier; dropping a distinct claim costs a missed defect.
-        if _splits_sites(members):
-            crumbs.append(f"dedup group {n + 1} not merged: {', '.join(ids)} hold two or more "
-                          "line-anchored sites — all kept")
-            continue
-        reached = _reached(members)
-        if len(reached) < len(ids):
-            crumbs.append(f"dedup group {n + 1} not merged: no plausible-duplicate rule (claim_signature, "
-                          f"same-file nearby range, convention slug) links "
-                          f"{', '.join(i for j, i in enumerate(ids) if j not in reached)} to "
-                          f"{', '.join(i for j, i in enumerate(ids) if j in reached)} — all kept")
-            continue
-        assigned.update(ids)
-        plan.append((ids, group.get("keep")))
-    rep_of, merged_from = {}, {}
-    for ids, keep in plan:
-        members = sorted(by_id[i] for i in ids)
-        _, rep = _pick_representative(members, keep)
-        if isinstance(keep, str) and keep != rep["id"]:
-            crumbs.append(f"dedup keep {keep!r} not usable; kept {rep['id']}")
-        rep_of[rep["id"]] = (rep, [m[1] for m in members])
-        merged_from[rep["id"]] = [m[1]["id"] for m in members]
+        _, rep = _pick_representative(members)
+        rep_of[rep["id"]] = [m[1] for m in members]
+        assigned.update(m[1]["id"] for m in members)
     out = []
     for it in raw_items:
         ident = it["id"]
         if ident in assigned and ident not in rep_of:
             continue
-        if ident in rep_of:
-            rep, members = rep_of[ident]
-            row = dict(rep)
-            provs = {m.get("claim_provenance") for m in members}
-            if len(provs) > 1 and "source_authored" in provs:
-                authored = next(m for m in members if m.get("claim_provenance") == "source_authored")
-                row["claim_provenance"] = "source_authored"
-                row.pop("source_excerpt", None)  # never a paraphrase member's text as the authored excerpt
-                if "source_excerpt" in authored:
-                    row["source_excerpt"] = authored["source_excerpt"]
-            row["merged_from"] = merged_from[ident]
-        else:
-            row = dict(it)
-            row["merged_from"] = [ident]
+        row = dict(it)
+        members = rep_of.get(ident, [it])
+        files = [f for f in dict.fromkeys(m["source_file"] for m in members) if f] if ident in rep_of else []
+        hint = row.get("verify_hint")
+        if files and _is_repo_wide(row.get("claim_signature")):
+            row["verify_hint"] = (f"{hint} " if isinstance(hint, str) and hint else "") + \
+                f"Check every cited file: {', '.join(files)}."
+        row["merged_from"] = [m["id"] for m in members]
         out.append(row)
     return out
 
@@ -861,6 +754,9 @@ def _build_acceptance_items(criteria, hints, run_dir, crumbs):
 
 
 _SEED_DROP = frozenset(("lite_probe", "merged_from", *_PRIOR_VERDICT_FIELDS))
+# A checklist FAIL's prior_ref: verdict_report.py's _VC_REF, or a FAIL seed loses its claim.
+_FAIL_REF = re.compile(r"VC-\d+")
+_FINDING_CLAIM = "This finding from the previous review no longer holds at the reviewed head: "
 _LINES_FILE = "prior-report-lines.txt"
 _UNSEEDED = "seed shortfall: prior report not seeded"
 
@@ -901,11 +797,24 @@ def _write_lines(run_dir, lines, crumbs):
         crumbs.append(f"{_LINES_FILE} not written: {type(exc).__name__}")
 
 
+def _quote_finding(evidence):
+    """``evidence`` without its trailing HTML comment (the last ``<!--`` through a ``-->`` ending
+    the text, and the whitespace before it); the whole of ``evidence`` when nothing would remain."""
+    text = evidence.rstrip()
+    start = text.rfind("<!--")
+    if start < 0 or not text.endswith("-->") or len(text) - 3 < start + 4:
+        return evidence
+    return text[:start].rstrip() or evidence
+
+
 def _read_seeds(work, crumbs):
-    """(seeds, clean). The seeds are the ``seeded.json`` items carrying a non-empty string ``claim``,
+    """(seeds, clean). The seeds are the ``seeded.json`` items carrying a non-empty string
     ``category`` (not ``issue_acceptance``), ``prior_ref`` and ``prior_evidence``, stripped of
-    ``_SEED_DROP`` and set to ``agent``. ``clean``: this entry's ``prior`` selected a report
-    (``prior-report.md`` exists) and ``seeded.json`` is an array whose every item is a seed."""
+    ``_SEED_DROP`` and set to ``agent``; ``claim`` must also be one, except on a finding seed —
+    ``prior_ref`` not ``VC-<digits>`` and no non-empty string ``source_excerpt`` — which gets
+    ``_FINDING_CLAIM`` quoting ``prior_evidence``, so a generated restatement never decides its verdict. ``clean``: this
+    entry's ``prior`` selected a report (``prior-report.md`` exists) and ``seeded.json`` is an
+    array whose every item is a seed."""
     seeds = []
     status, doc = _read_json(os.path.join(work, "seeded.json"))
     usable = status == "ok" and isinstance(doc, list)
@@ -914,14 +823,22 @@ def _read_seeds(work, crumbs):
             if not isinstance(it, dict):
                 crumbs.append(f"seed item {i} dropped: {_shape(it)}, not an object")
                 continue
+            ref, excerpt = it.get("prior_ref"), it.get("source_excerpt")
+            finding = (isinstance(ref, str) and not _FAIL_REF.fullmatch(ref)
+                       and not (isinstance(excerpt, str) and excerpt))
             bad = [f for f in _REQUIRED_FIELDS + ("prior_ref", "prior_evidence")
-                   if not (isinstance(it.get(f), str) and it[f])]
+                   if not (finding and f == "claim") and not (isinstance(it.get(f), str) and it[f])]
             if bad:
                 crumbs.append(f"seed item {i} dropped: no non-empty string `{bad[0]}`")
             elif it["category"] == "issue_acceptance":
                 crumbs.append(f"seed item {i} dropped: category issue_acceptance")
             else:
-                seeds.append(dict({k: v for k, v in it.items() if k not in _SEED_DROP}, verification_mode="agent"))
+                row = dict({k: v for k, v in it.items() if k not in _SEED_DROP}, verification_mode="agent")
+                if finding:
+                    row.pop("source_excerpt", None)
+                    row.update(claim=_FINDING_CLAIM + _quote_finding(it["prior_evidence"]),
+                               claim_provenance="generated_paraphrase")
+                seeds.append(row)
     elif status != "missing":
         crumbs.append(f"seeded.json {status if status != 'ok' else 'root is ' + _shape(doc)}; no seeded item")
     if not os.path.exists(os.path.join(work, "prior-report.md")):
@@ -933,49 +850,42 @@ def _read_seeds(work, crumbs):
     return seeds, clean
 
 
-def op_finalize(work, run_dir, iteration, batches, no_groups):
+def op_finalize(work, run_dir, iteration, batches):
     crumbs = []
     raw_items, counts, bad, flagged = load_batches(work, batches)
     if bad:
+        for entry in bad:
+            path = os.path.join(work, f"batch-{entry['batch']}.json")
+            if os.path.lexists(path):
+                try:
+                    os.replace(path, os.path.join(work, f"batch-{entry['batch']}.bad.json"))
+                except OSError as e:
+                    entry["error"] += f"; not set aside ({e.strerror or e})"
+                    try:
+                        os.unlink(path)
+                        entry["error"] += ", removed"
+                    except OSError as e2:
+                        entry["error"] += f", not removed ({e2.strerror or e2})"
         return {"op": "finalize", "ok": False, "error": "bad_batch", "bad_batches": bad}
     # Hints never merge, take a cap slot or ship; acceptance items come from criteria.json.
     hint_items = [it for it in raw_items if it.get("category") == "issue_acceptance"]
-    other_items = [it for it in raw_items if it.get("category") != "issue_acceptance"]
+    # An unpaired absolute_claim is dropped before the merge, so it never represents a group.
+    causes = {it["id"]: _unpaired_cause(it) for it in raw_items}
+    unpaired = [{"id": it["id"], "cause": causes[it["id"]]} for it in raw_items if causes[it["id"]]]
+    unpaired_ids = sorted(u["id"] for u in unpaired)
+    other_items = [as_agent(it) for it in raw_items
+                   if it.get("category") != "issue_acceptance" and not causes[it["id"]]]
     hint_id_set = {it["id"] for it in hint_items}
     generated = len(raw_items)
     raw_ids = sorted(it["id"] for it in raw_items)
     other_ids = sorted(it["id"] for it in other_items)
     hint_ids = sorted(hint_id_set)
-    if batches > 1:
-        groups = None
-        if not no_groups:
-            status, groups = _read_json(os.path.join(work, "groups.json"))
-            if status != "ok" or not isinstance(groups, list):
-                detail = f"groups file {status}" if status != "ok" else f"groups root is {_shape(groups)}, not an array"
-                return {"op": "finalize", "ok": False, "error": "bad_groups", "detail": detail}
-            # The groups name ids of the raw.json the deduper read. `raw` and this op each derive
-            # those ids from the batch files, so a batch rewritten in between (a generator retry)
-            # would point a group at a different item: require the two derivations to agree.
-            status, seen = _read_json(os.path.join(work, "raw.json"))
-            if status != "ok" or seen != raw_items:
-                return {"op": "finalize", "ok": False, "error": "bad_groups",
-                        "detail": f"raw.json {status if status != 'ok' else 'no longer matches the batch files'}"
-                                  " — re-run `raw` and the deduper"}
-        merged = merge_groups(other_items, groups, crumbs, hint_id_set)
-    else:
-        merged = [dict(it, merged_from=[it["id"]]) for it in other_items]
-
-    # Merge invariant over the non-acceptance items: each sits in exactly one merged_from.
-    ledger = _id_ledger(merged)
-    if ledger != other_ids:
-        return {"op": "finalize", "ok": False, "error": "merge_invariant_violation",
-                "detail": _ledger_diff(other_ids, ledger)}
 
     carried = []
     carried_path = os.path.join(work, "carried.json")
     status, doc = _read_json(carried_path)
     if status == "ok" and isinstance(doc, list):
-        carried = [c for c in doc if isinstance(c, dict) and isinstance(c.get("id"), str)]
+        carried = [as_agent(c) for c in doc if isinstance(c, dict) and isinstance(c.get("id"), str)]
         if len(carried) != len(doc):
             return {"op": "finalize", "ok": False, "error": "bad_carried",
                     "detail": "carried.json holds an entry that is not an object with a string id"}
@@ -984,9 +894,22 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
                 "detail": f"carried.json {status}" if status != "ok" else f"carried.json root is {_shape(doc)}"}
 
     seeds, seeds_clean = _read_seeds(work, crumbs)
-    restates = [any(same_claim(c, it, _same_lines) for c in carried + seeds) for it in merged]
-    restated = [it for it, dup in zip(merged, restates) if dup]
-    kept, dropped = cap_items([it for it, dup in zip(merged, restates) if not dup])
+    # Drop restatements before the merge: a merged repo-wide row keeps one member's source_file, so
+    # dropping it afterwards would also drop its members cited on other files.
+    restates = [any(same_claim(c, it, _same_lines) for c in carried + seeds) for it in other_items]
+    restated = [dict(it, merged_from=[it["id"]]) for it, dup in zip(other_items, restates) if dup]
+    fresh_items = [it for it, dup in zip(other_items, restates) if not dup]
+    if batches > 1:
+        merged = merge_duplicates(fresh_items)
+    else:
+        merged = [dict(it, merged_from=[it["id"]]) for it in fresh_items]
+
+    # Merge invariant over the non-acceptance items: each sits in exactly one merged_from.
+    ledger = sorted(_id_ledger(merged) + _id_ledger(restated))
+    if ledger != other_ids:
+        return {"op": "finalize", "ok": False, "error": "merge_invariant_violation",
+                "detail": _ledger_diff(other_ids, ledger)}
+    kept, dropped = cap_items(merged)
 
     criteria, criteria_error = _read_criteria(run_dir)
     acceptance_items = _build_acceptance_items(criteria, hint_items, run_dir, crumbs)
@@ -1013,14 +936,16 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
     fresh = len(final)
     final.extend(carried)
 
-    # Every raw id is traced: kept, capped and same-claim-dropped rows by merged_from, hints by the hint-id term.
+    # Every raw id is traced: kept, capped and same-claim-dropped rows by merged_from, hints and unpaired items by id.
     merged_away = sum(len(row["merged_from"]) - 1 for row in final[:fresh] if "merged_from" in row)
     ids = [it["id"] for it in final]
-    traced = sorted(_id_ledger(final[:fresh]) + _id_ledger(dropped) + _id_ledger(restated) + hint_ids)
+    traced = sorted(_id_ledger(final[:fresh]) + _id_ledger(dropped) + _id_ledger(restated) + hint_ids
+                    + unpaired_ids)
     if traced != raw_ids or final[fresh:] != carried or len(set(ids)) != len(ids):
         return {"op": "finalize", "ok": False, "error": "conservation_violation",
                 "detail": dict(_ledger_diff(raw_ids, traced), generated=generated, fresh=fresh,
                                capped=len(dropped), same_claim_dropped=len(restated),
+                               unpaired_dropped=len(unpaired),
                                carried=len(carried), final=len(final),
                                acceptance=len(acceptance_items), unique_ids=len(set(ids)))}
     if batches == 1:
@@ -1032,9 +957,9 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
         cat = it.get("category") if isinstance(it.get("category"), str) else "uncategorized"
         by_category[cat] = by_category.get(cat, 0) + 1
 
-    # A hint, same-claim-dropped or cap-dropped item is not flagged; a hint's problems are its
-    # "hint ... unused" breadcrumbs.
-    unshipped = hint_id_set | set(_id_ledger(restated)) | set(_id_ledger(dropped))
+    # A hint, same-claim-dropped, unpaired or cap-dropped item is not flagged; a hint's problems
+    # are its "hint ... unused" breadcrumbs.
+    unshipped = hint_id_set | set(_id_ledger(restated)) | set(_id_ledger(dropped)) | set(unpaired_ids)
     flagged = [f for f in flagged if f["id"] not in unshipped]
     anchors = carried + final[fresh - len(seeds):fresh]
     restated_items = [{"merged_from": it["merged_from"], "claim_signature": it.get("claim_signature"),
@@ -1049,8 +974,10 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
 
     announce = [f"Generated {generated} verification checklist items."]
     if batches > 1:
-        announce.append(f"Deduped to {len(merged)} of {len(other_items)} items.")
+        announce.append(f"Deduped to {len(merged)} of {len(fresh_items)} items.")
     crumbs.extend(f"item {f['id']} kept but lacks a usable {', '.join(f['fields'])}" for f in flagged)
+    if unpaired:
+        announce.append(f"Dropped {len(unpaired)} absolute_claim item(s) without a source_authored excerpt.")
     if restated:
         announce.append(f"Dropped {len(restated)} new item(s) restating a carried or seeded item.")
     if dropped:
@@ -1067,16 +994,14 @@ def op_finalize(work, run_dir, iteration, batches, no_groups):
         "op": "finalize", "ok": True, "checklist": checklist_path,
         "criteria_error": criteria_error, "issue_acceptance_count": len(acceptance_items),
         "counts": {"generated": generated, "batches": counts, "merged_away": merged_away,
-                   "groups_refused": sum(1 for c in crumbs if " not merged: " in c),
                    "capped": len(dropped), "same_claim_dropped": len(restated),
-                   "new": len(kept), "carried": len(carried), "seeded": len(seeds),
+                   "unpaired_dropped": len(unpaired), "new": len(kept), "carried": len(carried), "seeded": len(seeds),
                    "acceptance": len(acceptance_items),
                    "reused_pass": sum(1 for c in carried if c.get("reused_from_iter_prev") is True),
                    "final": len(final),
-                   "lite": sum(1 for it in final if it.get("verification_mode") == "lite"),
-                   "agent": sum(1 for it in final if it.get("verification_mode") != "lite")},
+                   "lite": 0, "agent": len(final)},
         "cap_drops": {"count": len(dropped), "by_category": by_category},
-        "same_claim_dropped_items": restated_items,
+        "same_claim_dropped_items": restated_items, "unpaired_dropped_items": unpaired,
         "flagged_items": flagged, "announce": announce, "breadcrumbs": crumbs,
     }
 
@@ -1092,8 +1017,8 @@ def _valid_line(value):
 
 
 def _claim_range(item):
-    """(category, source_file, lo, hi) when rule 2 can apply, else None. Not ``_effective_range``
-    or ``_has_line``: unifying them would read ``lite_probe`` and accept ``source_line`` 0."""
+    """(category, source_file, lo, hi) when rule 2 can apply, else None. Not ``_has_line``,
+    which accepts ``source_line`` 0."""
     cat, src, line = item.get("category"), item.get("source_file"), item.get("source_line")
     if not (isinstance(cat, str) and cat and isinstance(src, str) and src and _valid_line(line)):
         return None
@@ -1414,8 +1339,8 @@ def op_prior_lines(run_dir):
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
-_USAGE = ("usage: checklist carry <work-dir> <N> <prior-head> [--prior FILE] | "
-          "checklist raw <work-dir> <B> | checklist finalize <work-dir> <N> <B> [--no-groups] | "
+_USAGE = ("usage: checklist carry <work-dir> <N> <prior-head> | "
+          "checklist finalize <work-dir> <N> <B> | "
           "checklist match <work-dir> <N> <prior-head> <shadow-head> | "
           "checklist prior <work-dir> <PR> <N> [--exclude-comment <id>] | checklist prior-lines <work-dir>")
 
@@ -1433,26 +1358,13 @@ def main(argv):
         return usage(err)
     try:
         if op == "carry":
-            prior = None
-            if "--prior" in rest:
-                at = rest.index("--prior")
-                if at + 1 >= len(rest):
-                    return usage("--prior needs a file path")
-                prior = rest[at + 1]
-                del rest[at:at + 2]
             if len(rest) != 2 or _positive_int(rest[0]) is None:
                 return usage("carry takes <N> <prior-head>")
-            out = op_carry(work, run_dir, _positive_int(rest[0]), rest[1], prior)
-        elif op == "raw":
-            if len(rest) != 1 or _positive_int(rest[0]) is None:
-                return usage("raw takes <B>")
-            out = op_raw(work, _positive_int(rest[0]))
+            out = op_carry(work, run_dir, _positive_int(rest[0]), rest[1])
         elif op == "finalize":
-            no_groups = "--no-groups" in rest
-            rest = [r for r in rest if r != "--no-groups"]
             if len(rest) != 2 or None in (_positive_int(rest[0]), _positive_int(rest[1])):
                 return usage("finalize takes <N> <B>")
-            out = op_finalize(work, run_dir, _positive_int(rest[0]), _positive_int(rest[1]), no_groups)
+            out = op_finalize(work, run_dir, _positive_int(rest[0]), _positive_int(rest[1]))
         elif op == "match":
             if len(rest) != 3 or _positive_int(rest[0]) is None:
                 return usage("match takes <N> <prior-head> <shadow-head>")

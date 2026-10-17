@@ -6,12 +6,11 @@
 Reads the Scope-Acknowledged Findings block from a PR body (between the
 DEVFLOW_DEFERRED_FINDINGS_START/END markers), validates each deferral
 against four guards (guard 4 replaces guard 2 for a `settled-by-disclosure`
-foreclosure entry, so any one deferral is validated against three), and matches the survivors against the current run's
-Phase 3 findings. Emits a JSON demotion map the verdict engine consumes
-to demote matched findings to Informational.
+foreclosure entry, so any one deferral is validated against three), and matches
+the survivors against the current run's Phase 3 findings. Emits a JSON report of
+the matched and rejected deferrals.
 
-Guards (any failing guard rejects the deferral — finding flows through as
-normal):
+Guards (any failing guard rejects the deferral):
     1. Trusted filer:     the PR author passes one arm (see _filer_trust):
                           a non-wildcard `prflow.allowed_bots` entry; a bot on a
                           same-repository head when `allowed_bots` holds `*`;
@@ -40,22 +39,24 @@ normal):
 
 An entry that is not a mapping, or whose `reason`, `reason.category`, `finding`,
 `finding.file`, `finding.line_range` or `follow_up` holds a present value of the
-wrong type, fails before guards 2-4 with reason `malformed-entry` and a `detail`
-naming the field; its siblings are still matched. Other fields are left to the guards.
+wrong type, or whose `finding.line_range` starts after it ends, fails before guards
+2-4 with reason `malformed-entry` and a `detail` naming the field; its siblings are
+still matched. Other fields are left to the guards. A findings element that is not
+an object, or whose non-null `line_range` is not two ints with start <= end, matches
+no deferral; once any deferral survives the guards, it gets one stderr line naming
+its index.
 
 Matching rule (v1, conservative): a current finding matches a surviving
 deferral iff same file AND same kind AND line_range overlaps within ±25
 lines. Summary similarity is not used — file+kind+line_range is strong
 enough to prevent false positives, and a more permissive rule would risk
-demoting genuinely new findings that share vague terminology.
+matching genuinely new findings that share vague terminology.
 
 Usage:
     match-deferrals.py --pr N --diff PATH --findings (PATH | -) [--config PATH]
+                       [--threshold SEVERITY]
 
-Pass `--findings -` to read the findings JSON from stdin. The stdin form is
-required when the caller cannot write a temp file (e.g., /devflow:review
-under devflow.yml's runner `review` profile, which is intentionally
-read-only and does not have the Write tool).
+Pass `--findings -` to read the findings JSON from stdin.
 
 Output (JSON to stdout, always exit 0 when the helper itself ran):
     {
@@ -78,6 +79,13 @@ Output (JSON to stdout, always exit 0 when the helper itself ran):
 
 `trust_failure` is non-null only when no arm trusted the author and at least one arm
 could not be decided; `pr_author_trusted` is then false.
+
+`--threshold` (the verdict severity threshold) adds `deferrals_section`: the report's
+`## Deferrals` markdown, or "" when `block_present` is false. Each matched finding's filed
+`severity` is placed against the threshold (an unrecognized severity reads as critical); the
+verdict's own cap and demotions are the report's, not this section's. The ladder is the sibling
+verdict_report.py's `SEVERITIES`, imported only under this flag: when that import fails the
+helper names the fault on stderr and exits 2, before it reads the PR.
 
 Exit codes:
     0  Helper ran successfully (regardless of match results).
@@ -174,9 +182,7 @@ PAYLOAD_START = "<!-- DEVFLOW_DEFERRED_PAYLOAD"
 # default (so the empty-string edge matches config-get.sh's behavior, but via its
 # fallback rather than a passthrough here).
 
-# Rejection reason codes. skills/review/phases/phase-4-verdict.md names
-# `untrusted-filer` and `disclosure-unverified` and renders every other code as
-# data; edit those two in lockstep with it.
+# Rejection reason codes. `_deferrals_section` renders each as data.
 REASON_UNTRUSTED_FILER = "untrusted-filer"
 REASON_MISSING_FOLLOW_UP_ISSUE = "missing-follow-up-issue"
 REASON_ISSUE_UNREADABLE = "issue-unreadable"
@@ -193,7 +199,7 @@ REASON_DISCLOSURE_UNVERIFIED = "disclosure-unverified"
 REASON_MALFORMED_ENTRY = "malformed-entry"
 
 # `trust_failure` values (issue #1078): the filer-trust check could not complete.
-# skills/review/phases/phase-4-verdict.md renders them as data.
+# `_deferrals_section` renders them as data.
 TRUST_FAILURE_PERMISSION_LOOKUP = "permission-lookup-failed"
 TRUST_FAILURE_ALLOWED_BOTS = "allowed-bots-unreadable"
 TRUST_FAILURE_ALLOWED_USERS = "allowed-users-unreadable"
@@ -224,8 +230,7 @@ def _verify_disclosure(deferral: dict, hunks: dict, diff_hunk_count: int,
     Returns None when the disclosure verifies, else a short `detail` string
     naming the failed arm (paired with REASON_DISCLOSURE_UNVERIFIED by the
     caller). Fails CLOSED on every degraded operand: a foreclosure whose
-    disclosure cannot be verified against the checked-out tree is rejected and
-    the matching finding re-raises at full strength.
+    disclosure cannot be verified against the checked-out tree is rejected.
 
     A foreclosure is honored only when ALL hold:
       * the PR's cached diff was read and parsed to >= 1 hunk (an absent /
@@ -396,14 +401,21 @@ def _config_read(key: str, default: str, config_path: str | None = None) -> str 
 
 
 def _extract_block(pr_body: str) -> str | None:
-    if BLOCK_START not in pr_body or BLOCK_END not in pr_body:
+    """The text between the START marker and the first END marker after it, else None."""
+    if BLOCK_START not in pr_body:
         return None
     start = pr_body.index(BLOCK_START) + len(BLOCK_START)
-    end = pr_body.index(BLOCK_END, start)
-    return pr_body[start:end]
+    end = pr_body.find(BLOCK_END, start)
+    return None if end == -1 else pr_body[start:end]
 
 
-def _parse_yaml_payload(block: str) -> dict:
+def _ignored(cause: str) -> str:
+    """Breadcrumb why a present block is ignored; returns `cause` for `## Deferrals`."""
+    sys.stderr.write(f"match-deferrals.py: {cause}; ignoring the block\n")
+    return cause
+
+
+def _parse_yaml_payload(block: str) -> tuple[dict, str | None]:
     """Parse the YAML payload from the hidden DEVFLOW_DEFERRED_PAYLOAD comment.
 
     The PR-description renderer shows a human-readable Markdown table inside the
@@ -411,6 +423,9 @@ def _parse_yaml_payload(block: str) -> dict:
     comment so it stays invisible in the rendered PR body. The schema is
     unchanged (schema_version + deferrals[]); only the payload's location moved
     out of a visible ```yaml fence into this comment.
+
+    Returns (payload, None), or ({}, why) when the block holds no readable mapping —
+    a missing, unterminated, unparseable or empty comment, or a non-mapping payload.
     """
     try:
         import yaml
@@ -421,36 +436,17 @@ def _parse_yaml_payload(block: str) -> dict:
         re.escape(PAYLOAD_START) + r"\s*\n(.*?)\n-->", block, re.DOTALL
     )
     if not payload_match:
-        # The START/END markers exist (we are inside the extracted block), so a
-        # payload comment is expected. Its absence means the renderer dropped or
-        # malformed it (e.g. an unterminated comment) — warn so a visibly-deferred
-        # PR with no machine payload is diagnosable rather than silently honoring
-        # nothing. Still degrade gracefully to {} (no run failure).
-        sys.stderr.write(
-            "match-deferrals.py: deferrals block present but no parseable "
-            "DEVFLOW_DEFERRED_PAYLOAD comment found; ignoring the block\n"
-        )
-        return {}
+        return {}, _ignored("no parseable DEVFLOW_DEFERRED_PAYLOAD comment")
     try:
         loaded = yaml.safe_load(payload_match.group(1))
     except yaml.YAMLError as e:
         sys.stderr.write(f"match-deferrals.py: YAML parse failed: {e}\n")
-        return {}
+        return {}, "payload YAML does not parse"
     if loaded is None:
-        # Payload comment present but empty/whitespace-only — same operator-visible
-        # outcome as a missing comment (block present, nothing honored), so warn
-        # for the same diagnosability reason.
-        sys.stderr.write(
-            "match-deferrals.py: DEVFLOW_DEFERRED_PAYLOAD comment is empty; "
-            "ignoring the block\n"
-        )
-        return {}
+        return {}, _ignored("DEVFLOW_DEFERRED_PAYLOAD comment is empty")
     if not isinstance(loaded, dict):
-        sys.stderr.write(
-            "match-deferrals.py: payload is not a mapping; ignoring\n"
-        )
-        return {}
-    return loaded
+        return {}, _ignored("payload is not a mapping")
+    return loaded, None
 
 
 def _get_pr_view(pr_number: int) -> dict:
@@ -705,13 +701,39 @@ def _deferral_id(d) -> str:
     return d.get("id", "(no-id)") if isinstance(d, dict) else "(no-id)"
 
 
+def _line_range_shape(line_range) -> str | None:
+    """Name how a non-null `line_range` is not two ints, start <= end, else None."""
+    if not isinstance(line_range, list):
+        return f"{_shape(line_range)}, not an array"
+    if len(line_range) != 2:
+        return f"an array of length {len(line_range)}, not 2"
+    for n in line_range:
+        if not isinstance(n, int) or isinstance(n, bool):
+            return f"an array holding {_shape(n)}, not two integers"
+    if line_range[0] > line_range[1]:
+        return f"reversed ({line_range[0]} > {line_range[1]})"
+    return None
+
+
+def _finding_shape_error(index: int, finding) -> str | None:
+    """Name a malformed findings element's index, field and shape, else None.
+
+    A null or missing `line_range` is not malformed (the reviewer contract allows null).
+    """
+    if not isinstance(finding, dict):
+        return f"findings[{index}] is {_shape(finding)}, not an object"
+    line_range = finding.get("line_range")
+    shape = None if line_range is None else _line_range_shape(line_range)
+    return None if shape is None else f"findings[{index}].line_range is {shape}"
+
+
 def _entry_shape_error(d) -> str | None:
     """Return the first wrong-typed field of a deferral entry, else None.
 
     An absent or null `reason`, `reason.category`, `finding.file`,
     `finding.line_range` or `follow_up` is not malformed — the per-entry guards
     in main() decide it. A present `finding` must be a mapping, and a present
-    `line_range` a list of exactly two ints.
+    `line_range` a list of exactly two ints, start not greater than end.
     """
     if not isinstance(d, dict):
         return "entry"
@@ -729,10 +751,7 @@ def _entry_shape_error(d) -> str | None:
     if file_path is not None and not isinstance(file_path, str):
         return "finding.file"
     line_range = finding.get("line_range")
-    if line_range is not None and not (
-        isinstance(line_range, list) and len(line_range) == 2
-        and all(isinstance(n, int) and not isinstance(n, bool) for n in line_range)
-    ):
+    if line_range is not None and _line_range_shape(line_range) is not None:
         return "finding.line_range"
     follow_up = d.get("follow_up")
     if follow_up is not None and not isinstance(follow_up, dict):
@@ -773,6 +792,92 @@ def _match_finding_to_deferral(finding: dict, deferral: dict) -> bool:
     )
 
 
+# A Phase 3 finding's other severity words, lower-cased, to their ladder word. Kept here, not in
+# verdict_report._severity: stored checklist rows never carry Major/Minor.
+_SEVERITY_ALIASES = {"major": "important", "minor": "suggestion"}
+_UNTRUSTED_LINE = ("**Block claimed but not honored — PR author passed none of the three "
+                   "deferral-filer trust arms.{} All deferrals rejected.**")
+
+
+def _one_line(value) -> str:
+    # Not verdict_report._one_line: this keeps a value's own spacing and prints null as `None`.
+    return _report()._uncomment(str(value).replace("\r", " ").replace("\n", " "))
+
+
+def _report():
+    """The sibling verdict_report.py: its `SEVERITIES` (highest first) are the `--threshold`
+    values, and the section uses its `_severity`. An unimportable sibling exits 2, naming the
+    fault on stderr."""
+    try:
+        import verdict_report
+        return verdict_report
+    except Exception as e:
+        _fail("--threshold needs the severity ladder in verdict_report.py beside this file, "
+              f"which could not be imported ({type(e).__name__}: {e})")
+
+
+def _severity(finding: dict) -> str:
+    """The finding's ladder word by verdict_report's rule, after the aliases above."""
+    severity = finding.get("severity")
+    alias = _SEVERITY_ALIASES.get(severity.lower()) if isinstance(severity, str) else None
+    return _report()._severity(finding if alias is None else {"severity": alias})
+
+
+def _location(finding: dict) -> str:
+    """`an unknown location` when `file` is not a non-blank string; else `file:start`, or `file`
+    alone when line_range[0] is not an int."""
+    file_path = finding.get("file")
+    if not isinstance(file_path, str) or not file_path.strip():
+        return "an unknown location"
+    line_range = finding.get("line_range")
+    start = line_range[0] if isinstance(line_range, list) and line_range else None
+    if isinstance(start, int) and not isinstance(start, bool):
+        return f"{_one_line(file_path)}:{start}"
+    return _one_line(file_path)
+
+
+def _deferrals_section(result: dict, findings: list, threshold: str,
+                       unreadable: str | None = None) -> str:
+    """The report's `## Deferrals` markdown; "" when no block is present. `unreadable` is why a
+    present block yielded no deferrals list."""
+    if not result["block_present"]:
+        return ""
+    if unreadable is not None:
+        return f"## Deferrals\n- Unreadable block: {_one_line(unreadable)}\n"
+    ladder = _report().SEVERITIES
+    lines = ["## Deferrals"]
+    if result["pr_author_trusted"] is False:
+        failure = result["trust_failure"]
+        lines.append(_UNTRUSTED_LINE.format(
+            "" if failure is None else f" (trust check failed: `{_one_line(failure)}`)"))
+    lines += ["A deferral never demotes a finding.",
+              f"- Matched: {len(result['honored'])}"]
+    floor = ladder.index(threshold)
+    for h in result["honored"]:
+        finding = findings[h["finding_index"]]
+        target = ("disclosure" if h["category"] == FORECLOSURE_CATEGORY
+                  else f"#{_one_line(h['follow_up_issue'])}")
+        severity = _severity(finding)
+        gate = ("filed at or above the verdict threshold" if ladder.index(severity) <= floor
+                else "filed below the verdict threshold")
+        lines.append(f"  - {_one_line(h['deferral_id'])} → {target} ({_one_line(h['category'])}): "
+                     f"matches the {severity.capitalize()} finding at {_location(finding)}; {gate}")
+    lines.append(f"- Not applied: {len(result['rejected_deferrals'])}")
+    for r in result["rejected_deferrals"]:
+        detail = r.get("detail")
+        lines.append(f"  - {_one_line(r['deferral_id'])} — {_one_line(r['reason'])}"
+                     + ("" if detail is None else f" ({_one_line(detail)})"))
+    return "\n".join(lines) + "\n"
+
+
+def _emit(result: dict, findings: list, threshold: str | None,
+          unreadable: str | None = None) -> int:
+    if threshold is not None:
+        result["deferrals_section"] = _deferrals_section(result, findings, threshold, unreadable)
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
 def _force_utf8_streams():
     """Force stdin/stdout/stderr to UTF-8, idempotently and defensively, in the CLI
     entry path only (not at import — so unit-test imports don't mutate the
@@ -801,7 +906,13 @@ def main(argv=None):
                         ".prflow/config.json, resolved via git rev-parse "
                         "--show-toplevel with a cwd fallback; issue #295). A "
                         "non-empty explicit value is honored verbatim.")
+    p.add_argument("--threshold",
+                   help="Verdict severity threshold, one of verdict_report.py's SEVERITIES; adds "
+                        "the rendered `deferrals_section`.")
     args = p.parse_args(argv)
+    if args.threshold is not None and args.threshold not in _report().SEVERITIES:
+        p.error(f"argument --threshold: invalid choice: {args.threshold!r} "
+                f"(choose from {', '.join(_report().SEVERITIES)})")
 
     diff_path = Path(args.diff)
     if args.findings == "-":
@@ -827,9 +938,10 @@ def main(argv=None):
                          f"{_shape(pr_body)}, not a string; reading no deferrals block\n")
         pr_body = ""
     block = _extract_block(pr_body)
+    unterminated = block is None and BLOCK_START in pr_body
 
     result = {
-        "block_present": block is not None,
+        "block_present": block is not None or unterminated,
         "pr_author_trusted": None,
         "trust_failure": None,
         "honored": [],
@@ -838,25 +950,23 @@ def main(argv=None):
                   "honored": 0, "unmatched": 0},
     }
 
+    if unterminated:
+        return _emit(result, findings, args.threshold,
+                     _ignored("no DEVFLOW_DEFERRED_FINDINGS_END marker after the START marker"))
     if block is None:
-        print(json.dumps(result, indent=2, default=str))
-        return 0
+        return _emit(result, findings, args.threshold)
 
-    payload = _parse_yaml_payload(block)
+    payload, unreadable = _parse_yaml_payload(block)
     deferrals = payload.get("deferrals")
     if deferrals is None:
         deferrals = []
     elif not isinstance(deferrals, list):
-        sys.stderr.write(
-            f"match-deferrals.py: deferrals is a {type(deferrals).__name__}, "
-            "not a list; ignoring\n"
-        )
-        deferrals = []
+        deferrals, unreadable = [], _ignored(
+            f"deferrals is a {type(deferrals).__name__}, not a list")
     result["stats"]["total_deferrals"] = len(deferrals)
 
     if not deferrals:
-        print(json.dumps(result, indent=2, default=str))
-        return 0
+        return _emit(result, findings, args.threshold, unreadable)
 
     # Only here, past the no-deferrals return, so a PR without deferrals costs no
     # permission lookup.
@@ -869,8 +979,7 @@ def main(argv=None):
                 "deferral_id": _deferral_id(d),
                 "reason": REASON_UNTRUSTED_FILER,
             })
-        print(json.dumps(result, indent=2, default=str))
-        return 0
+        return _emit(result, findings, args.threshold)
 
     hunks = {}
     if diff_path.is_file():
@@ -950,7 +1059,13 @@ def main(argv=None):
 
     result["stats"]["valid_after_guards"] = len(valid_deferrals)
 
+    # A malformed finding is seeded as claimed, so no deferral matches it (issue #1554).
     claimed_finding_indices: set[int] = set()
+    for i, finding in enumerate(findings if valid_deferrals else []):
+        error = _finding_shape_error(i, finding)
+        if error is not None:
+            sys.stderr.write(f"match-deferrals.py: {error}; it matches no deferral\n")
+            claimed_finding_indices.add(i)
     for d in valid_deferrals:
         matched_index = None
         for i, finding in enumerate(findings):
@@ -978,8 +1093,7 @@ def main(argv=None):
         1 for r in result["rejected_deferrals"] if r["reason"] == REASON_UNMATCHED
     )
 
-    print(json.dumps(result, indent=2, default=str))
-    return 0
+    return _emit(result, findings, args.threshold)
 
 
 if __name__ == "__main__":

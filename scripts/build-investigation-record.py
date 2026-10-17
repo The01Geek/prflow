@@ -1,77 +1,88 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Assemble a spec run's investigation-record comment body in place.
+"""Publish a spec run's investigation record as a comment on the issue the run created or updated.
 
-    build-investigation-record.py --record <record-file> --derivation <derivation-file>
+    build-investigation-record.py --issue <n> --record <record-file> --derivation <derivation-file>
+                                  [--config <config-file>]
 
-Rewrites <record-file> as: the marker line; the file's prior content (its first non-blank line
-removed when that line is the marker); the derivation artifact's `Considered-and-rejected:` line
-(the first outside a code fence, else the first inside one); then every
-`## Criterion disposition record`, `## Steelman record`, `## Self-audit record` and
-`## Evidence bundle` section of the artifact, in file order (no spec step writes
-`## Self-audit record` yet: it is a planned new name for `## Steelman record`). Headings are
-CommonMark ATX headings (up to three spaces of indent, an optional closing `#` run); one inside a
-code fence is not a heading, and every line starting `Considered-and-rejected:` is dropped from
-copied sections. A leading BOM is dropped from both files. The trigger tokens `/prflow:`,
-`/devflow:` and `@claude`, in any letter case, are broken with U+200B, and the result is kept
-within 65,536 UTF-8 bytes, a conservative bound on GitHub's 65,536-character comment limit, by
-truncating the largest folded sections first, then omitting sections left at their heading whole
-under one notice naming them; a record that still does not fit is oversize. Run it once per
-written bucket: a re-run folds the sections and the `Considered-and-rejected:` line again.
+First the gate: publication is withheld exactly when `config-get.sh
+.spec.investigation_record_enabled true <config-file>` would print `false`, `telemetry.enabled`
+inheritance included. <config-file> defaults to the repository root's `.prflow/config.json`, as
+config-get.sh resolves it. A withheld record is neither assembled nor posted.
+
+Then the assembly, rewriting <record-file> as: the marker line; the file's prior content (its
+first non-blank line removed when that line is the marker); then the derivation artifact's
+`Considered-and-rejected:` line (the first outside a code fence, else the first inside one). A
+leading BOM is dropped from both files. The trigger tokens `/prflow:`, `/devflow:` and `@claude`,
+in any letter case, are broken with U+200B. A record over 65,536 written UTF-8 bytes, a
+conservative bound on GitHub's 65,536-character comment limit, is oversize. Run it once per
+written bucket: a re-run appends the `Considered-and-rejected:` line again and posts a second
+comment. An empty --derivation argument reads no artifact (state `unestablished`). <record-file> is
+rewritten before the post is attempted, so a posted, gh-unavailable or post-failed outcome, or an
+internal error after that point, leaves it rewritten.
+
+Last the post: `gh api --method POST repos/{owner}/{repo}/issues/<n>/comments -F body=@<record-file>`,
+with gh resolved as DEVFLOW_GH, else `gh`.
 
 Prints exactly one stdout line (none when stdout is unwritable or the print is interrupted) and
-always exits 0; only `record=ready` rewrites the file, barring an interrupt just after the rewrite.
-`folded=` names the sections in the record, `truncated=` those of them that were cut, and
-`omitted=` those left out whole; each field names a heading once, so a heading with one kept and
-one omitted occurrence appears in both `folded=` and `omitted=`:
+always exits 0:
 
-    record=ready bytes=<n> folded=<names|none> truncated=<names|none> omitted=<names|none> considered-and-rejected=<present|absent|unestablished>
+    record=posted bytes=<n> considered-and-rejected=<present|absent|unestablished>
+    record=withheld reason=config
     record=empty
-    record=unavailable reason=<oversize|record-unreadable|write-failed|usage|internal-error>
+    record=not-posted reason=<oversize|record-unreadable|write-failed|gh-unavailable|post-failed|usage|internal-error>
 
-Stderr names each cause (an unreadable file, an oversize record, a failed write, a usage or
-internal error), a temp file it could not remove, any heading that names a folded section but
-differs from it in level, letter case, spacing or punctuation, which starts no folded section, and a
-code fence opener the derivation artifact never closes, which is read as text; the record closes any
-fence still open at a copied section's end.
+Stderr names each cause (an unreadable file or config, a superseded config key, an oversize record, a failed write, an
+unrunnable or failing gh, a usage or internal error), a temp file it could not remove, and a code
+fence opener the derivation artifact never closes, which is read as text.
 """
 import argparse
+import importlib.util
+import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import traceback
-from typing import NamedTuple
+
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'lib'))
+    from ancestor_config import warn_ancestor_config as _warn_ancestor_config
+    from state_dir import state_config_path as _state_config_path
+except Exception:  # A partial vendored copy without lib/: resolve as lib/state_dir.py does.
+    def _state_config_path(repo_root, filename='config.json', stream=None):
+        legacy_only = not os.path.isdir(os.path.join(repo_root, '.prflow')) and os.path.isdir(
+            os.path.join(repo_root, '.devflow'))
+        if legacy_only:
+            print(f'build-investigation-record.py: reading the superseded {repo_root}/.devflow/; run /prflow:init',
+                  file=sys.stderr)
+        return os.path.join(repo_root, '.devflow' if legacy_only else '.prflow', filename)
+
+    def _warn_ancestor_config(repo_root, reader, remedy='', stream=None):
+        return None
+
+try:  # Refreshed-token env for gh calls on native Windows (see gh_fresh_env.py).
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from gh_fresh_env import fresh_gh_env
+except Exception:  # A partial copy without the sibling inherits the ambient token.
+    def fresh_gh_env(env=None, os_name=None):
+        return env
 
 MARKER = '<!-- prflow:investigation-record -->'
 COMMENT_BYTE_LIMIT = 65536
-FOLDED = ('Criterion disposition record', 'Steelman record', 'Self-audit record', 'Evidence bundle')
 CONSIDERED = 'Considered-and-rejected:'
+GATE_KEY = ('spec', 'investigation_record_enabled')
+POSTED = 'record=posted bytes={} considered-and-rejected={}'
+WITHHELD = 'record=withheld reason=config'
 EMPTY = 'record=empty'
-OVERSIZE, RECORD_UNREADABLE, WRITE_FAILED, USAGE, INTERNAL_ERROR = (
-    f'record=unavailable reason={reason}'
-    for reason in ('oversize', 'record-unreadable', 'write-failed', 'usage', 'internal-error'))
+OVERSIZE, RECORD_UNREADABLE, WRITE_FAILED, GH_UNAVAILABLE, POST_FAILED, USAGE, INTERNAL_ERROR = (
+    f'record=not-posted reason={reason}'
+    for reason in ('oversize', 'record-unreadable', 'write-failed', 'gh-unavailable', 'post-failed', 'usage',
+                   'internal-error'))
 _TRIGGER_RE = re.compile(r'(/(?=prflow:|devflow:)|@(?=claude))', re.IGNORECASE)
 _FENCE_RE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
-_HEADING_RE = re.compile(r'^ {0,3}(#{1,6})(?:[ \t]+|$)(.*)$')
-_CLOSING_RUN_RE = re.compile(r'(?:^|[ \t]+)#+[ \t]*$')
-
-
-class Section(NamedTuple):
-    name: str
-    lines: list[str]  # starts with the heading line
-
-
-class Fitted(NamedTuple):
-    rendered: str
-    folded: list[str]
-    truncated: list[str]  # folded sections that were cut
-    omitted: list[str]  # sections left out whole
-
-
-def _byte_len(text):
-    return len(text.encode('utf-8'))
 
 
 def _cause(exc):
@@ -105,17 +116,17 @@ class _Fence:
     """Tracks whether a line sits inside a fenced code block."""
 
     def __init__(self):
-        self._open = None  # (indent, char, length) of the open fence
+        self._open = None  # (char, length) of the open fence
 
     def feed(self, line):
         """Advance past `line`; return True when it is inside a fence or is a fence line."""
         m = _FENCE_RE.match(_bare(line))
         if self._open is None:
             if m and not (m.group(1)[0] == '`' and '`' in m.group(2)):
-                self._open = (_bare(line)[:m.start(1)], m.group(1)[0], len(m.group(1)))
+                self._open = (m.group(1)[0], len(m.group(1)))
                 return True
             return False
-        _, char, length = self._open
+        char, length = self._open
         if m and m.group(1)[0] == char and len(m.group(1)) >= length and not m.group(2).strip():
             self._open = None
         return True
@@ -124,38 +135,13 @@ class _Fence:
     def is_open(self):
         return self._open is not None
 
-    def closer(self):
-        """Return the line closing the open fence at its opener's indent, so a list item's fence closes
-        inside the item; '' when none is open."""
-        if not self.is_open:
-            return ''
-        indent, char, length = self._open
-        return indent + char * length + '\n'
-
-
-def _heading(bare):
-    """Return (level, text) for an ATX heading line, else None."""
-    m = _HEADING_RE.match(bare)
-    if not m:
-        return None
-    return len(m.group(1)), _CLOSING_RUN_RE.sub('', m.group(2)).strip()
-
-
-def _key(name):
-    return re.sub(r'[^0-9a-z]', '', name.lower())
-
-
-_FOLDED_KEYS = {_key(name) for name in FOLDED}
-
 
 def _scan(lines, as_text):
     """One pass over the artifact, with the fence openers at the indexes in `as_text` read as text.
 
-    Return (considered lines by in-fence flag, sections, index of an unclosed opener or None, near-miss headings).
+    Return (considered lines by in-fence flag, index of an unclosed opener or None).
     """
     considered = {}
-    sections, near_misses = [], []
-    current = None
     fence = _Fence()
     opened_at = None
     for index, line in enumerate(lines):
@@ -163,120 +149,30 @@ def _scan(lines, as_text):
         in_fence = index not in as_text and fence.feed(line)
         if fence.is_open and not was_open:
             opened_at = index
-        bare = _bare(line)
-        if bare.startswith(CONSIDERED):
+        if _bare(line).startswith(CONSIDERED):
             considered.setdefault(in_fence, line if line.endswith('\n') else line + '\n')
-            continue
-        heading = None if in_fence else _heading(bare)
-        if heading is not None:
-            level, name = heading
-            if level == 2 and name in FOLDED:
-                current = Section(name, [line])
-                sections.append(current)
-                continue
-            if _key(name) in _FOLDED_KEYS:
-                near_misses.append(bare)
-            if level <= 2:
-                current = None
-                continue
-        if current is not None:
-            current.lines.append(line)
-    return considered, sections, opened_at if fence.is_open else None, near_misses
+    return considered, opened_at if fence.is_open else None
 
 
 def _parse(text):
-    """Return (considered line or None, [Section, ...]) from a derivation artifact, naming each unclosed
-    fence opener and each near-miss heading on stderr."""
+    """Return the derivation artifact's considered line or None, naming each unclosed fence opener on stderr."""
     lines = _lines(text)
     as_text = set()
     while True:
-        considered, sections, unclosed, near_misses = _scan(lines, as_text)
+        considered, unclosed = _scan(lines, as_text)
         if unclosed is None:
             break
         _warn(f'derivation line {unclosed + 1} opens a code fence that never closes; it is read as text')
         as_text.add(unclosed)
-    for bare in near_misses:
-        _warn(f'heading starts no folded section, level or spelling differs: {bare}')
-    return considered.get(False, considered.get(True)), sections
+    return considered.get(False, considered.get(True))
 
 
 def _neutralize(text):
     return _TRIGGER_RE.sub('\\1\u200b', text)
 
 
-def _slug(name):
-    return name.lower().replace(' ', '-')
-
-
-def _names(names):
-    seen = []
-    for name in names:
-        if _slug(name) not in seen:
-            seen.append(_slug(name))
-    return ','.join(seen) or 'none'
-
-
-def _truncate(head, sections):
-    """Cut the largest sections at line boundaries, then omit heading-only ones whole, until the record fits.
-
-    Return a `Fitted`, or None when no omission leaves a record that fits.
-    """
-    notices = {}
-    omitted = []
-    kept = [list(section.lines) for section in sections]
-
-    def render(i):
-        if i in omitted:
-            return ''
-        body = ''.join(kept[i])
-        fence = _Fence()  # Unlike _parse, every opener counts: GitHub renders an unclosed one as a fence.
-        for line in kept[i]:
-            fence.feed(line)
-        tail = fence.closer() + notices.get(i, '')
-        if tail and body and not body.endswith('\n'):
-            body += '\n'
-        return body + tail
-
-    def omission():
-        if not omitted:
-            return ''
-        names = ', '.join(dict.fromkeys(sections[i].name for i in sorted(omitted)))
-        standing = [render(i) for i in range(len(kept)) if i not in omitted]
-        lead = '\n' if standing and not standing[-1].endswith('\n') else ''
-        return f'{lead}[omitted: {names} to keep the record within {COMMENT_BYTE_LIMIT:,} bytes]\n'
-
-    def total():
-        return (_byte_len(head) + sum(_byte_len(render(i)) for i in range(len(kept)))
-                + _byte_len(omission()))
-
-    def largest(indexes):
-        return max(indexes, key=lambda k: (_byte_len(render(k)), -k))
-
-    while total() > COMMENT_BYTE_LIMIT:
-        candidates = [i for i in range(len(kept)) if len(kept[i]) > 1 and i not in omitted]
-        if not candidates:
-            standing = [i for i in range(len(kept)) if i not in omitted]
-            if not standing:
-                return None
-            omitted.append(largest(standing))
-            continue
-        i = largest(candidates)
-        notices[i] = (f'[truncated: {sections[i].name} cut to keep the record within '
-                      f'{COMMENT_BYTE_LIMIT:,} bytes]\n')
-        excess = total() - COMMENT_BYTE_LIMIT
-        while len(kept[i]) > 1 and excess > 0:
-            line = kept[i].pop()
-            excess -= _byte_len(line)
-            # Popping a fence line or an unterminated line can change the closer or newline render adds.
-            if excess <= 0 or _FENCE_RE.match(_bare(line)) or not line.endswith('\n'):
-                excess = total() - COMMENT_BYTE_LIMIT
-    rendered = ''.join(render(i) for i in range(len(kept))) + omission()
-    return Fitted(rendered, [s.name for i, s in enumerate(sections) if i not in omitted],
-                  [sections[i].name for i in sorted(set(notices) - set(omitted))],
-                  [sections[i].name for i in sorted(omitted)])
-
-
 def build(record_path, derivation_path):
+    """Assemble the record in place; return (written bytes, considered-and-rejected state), else the decided line."""
     record = _read_text(record_path, 'record')
     if record is None:
         return RECORD_UNREADABLE
@@ -285,32 +181,22 @@ def build(record_path, derivation_path):
     if first is not None and lines[first].strip() == MARKER:
         del lines[first]
     prior = ''.join(lines)
-    if _byte_len(prior) > COMMENT_BYTE_LIMIT:
-        _warn(f'oversize: the bucket is {_byte_len(prior):,} bytes, over the {COMMENT_BYTE_LIMIT:,}-byte limit')
-        return OVERSIZE
 
-    derivation = _read_text(derivation_path, 'derivation')
+    derivation = _read_text(derivation_path, 'derivation') if derivation_path else None  # '' is a planned skip.
     if derivation is None:
-        considered, sections, state = None, [], 'unestablished'
+        considered, state = None, 'unestablished'
     else:
-        considered, sections = _parse(derivation.removeprefix('\ufeff'))
+        considered = _parse(derivation.removeprefix('\ufeff'))
         state = 'present' if considered else 'absent'
-    if not sections and considered is None and not prior.strip():
+    if considered is None and not prior.strip():
         return EMPTY
 
     if prior and not prior.endswith('\n'):
         prior += '\n'
-    head = MARKER + '\n' + _neutralize(prior + (considered or ''))
-    folded = [Section(s.name, [_neutralize(line) for line in s.lines]) for s in sections]
-    fitted = _truncate(head, folded)
-    if fitted is None:
-        if folded:
-            _warn(f'oversize: the record without its sections takes {_byte_len(head):,} of '
-                  f'{COMMENT_BYTE_LIMIT:,} bytes, too few to name the omitted sections')
-        else:
-            _warn(f'oversize: the record is {_byte_len(head):,} bytes, over the {COMMENT_BYTE_LIMIT:,}-byte limit')
+    out = (MARKER + '\n' + _neutralize(prior + (considered or ''))).encode('utf-8')
+    if len(out) > COMMENT_BYTE_LIMIT:
+        _warn(f'oversize: the record is {len(out):,} bytes, over the {COMMENT_BYTE_LIMIT:,}-byte limit')
         return OVERSIZE
-    out = (head + fitted.rendered).encode('utf-8')
     tmp_path = None
     replaced = False
     try:
@@ -333,8 +219,113 @@ def build(record_path, derivation_path):
                 pass
             except OSError as exc:
                 _warn(f'temp file not removed: {tmp_path}: {_cause(exc)}')
-    return (f'record=ready bytes={len(out)} folded={_names(fitted.folded)} truncated={_names(fitted.truncated)} '
-            f'omitted={_names(fitted.omitted)} considered-and-rejected={state}')
+    return len(out), state
+
+
+def _repo_root():
+    try:
+        res = subprocess.run(['git', 'rev-parse', '--show-toplevel'], capture_output=True, text=True,
+                             encoding='utf-8', check=True, stdin=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    return res.stdout.strip() or None
+
+
+def _default_config_path():
+    root = _repo_root()
+    if root is not None:
+        _warn_ancestor_config(root, 'build-investigation-record.py', 'pass --config <path>')
+    elif not any(os.path.isdir(os.path.join(os.getcwd(), d)) for d in ('.prflow', '.devflow')):  # As config-get.sh.
+        _warn(f'could not resolve a git repo root and no .prflow/ at {os.getcwd()}; using cwd fallback')
+    return _state_config_path(root or os.getcwd())
+
+
+def _coerce(value):
+    """config-get.sh's coerce(): the string that resolver prints for a JSON value."""
+    if value is None:
+        return ''
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, list):
+        return ','.join(_coerce(v) for v in value)
+    if isinstance(value, dict):
+        return '[object Object]'
+    return str(value)
+
+
+def _telemetry_master_off(config_path):
+    """scripts/telemetry-master-off.py's decision: 0 off, 1 on, 2 indeterminate (a shade of on).
+
+    A missing sibling raises, so the record goes unposted (internal-error) rather than past `telemetry.enabled: false`.
+    """
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'telemetry-master-off.py')
+    spec = importlib.util.spec_from_file_location('telemetry_master_off', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.telemetry_master_off(config_path)
+
+
+def _warn_superseded(data, config_path):
+    """config-get.sh's probe_superseded_key for the absent gate key (lib/rename-map.json: create_issue -> spec)."""
+    if isinstance(data, dict) and 'create_issue' in data and (
+            not isinstance(data['create_issue'], dict) or GATE_KEY[1] in data['create_issue']):
+        _warn(f"'.{'.'.join(GATE_KEY)}' is absent from {config_path} but its superseded counterpart "
+              f"'.create_issue.{GATE_KEY[1]}' is present; run /prflow:init to migrate the config keys")
+
+
+def publication_withheld(config_path):
+    """True exactly when `config-get.sh .spec.investigation_record_enabled true <config_path>` prints `false`."""
+    if not os.path.isfile(config_path):
+        return False
+    try:
+        with open(config_path, encoding='utf-8') as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:  # config-get.sh exits 2 with empty stdout, which is not `false`.
+        _warn(f'config unreadable, record published: {config_path}: {_cause(exc)}')
+        return False
+    value = data
+    for part in GATE_KEY:
+        if not isinstance(value, dict) or part not in value:
+            _warn_superseded(data, config_path)
+            value = None
+            break
+        value = value[part]
+    # A command substitution strips trailing newlines, so config-get.sh never prints them.
+    resolved = _coerce(value).rstrip('\n')
+    if resolved:
+        return resolved == 'false'
+    return _telemetry_master_off(config_path) == 0
+
+
+def _post(issue, record_path):
+    """Post the record file as a comment on `issue`; return None on success, else the decided line."""
+    gh = os.environ.get('DEVFLOW_GH') or 'gh'
+    try:
+        res = subprocess.run([gh, 'api', '--method', 'POST', f'repos/{{owner}}/{{repo}}/issues/{issue}/comments',
+                              '-F', f'body=@{record_path}'], capture_output=True, text=True, encoding='utf-8',
+                             errors='replace', stdin=subprocess.DEVNULL, env=fresh_gh_env())
+    except OSError as exc:
+        _warn(f'gh not runnable: {gh}: {_cause(exc)}')
+        return GH_UNAVAILABLE
+    if res.returncode != 0:
+        _warn(f'gh api exited {res.returncode}: {" ".join(res.stderr.split()) or "(no stderr)"}')
+        return POST_FAILED
+    return None
+
+
+def _issue_number(text):
+    if not text.isascii() or not text.isdigit() or int(text) == 0:
+        raise ValueError(text)
+    return text
+
+
+def publish(issue, record_path, derivation_path, config_path):
+    if publication_withheld(config_path or _default_config_path()):
+        return WITHHELD
+    built = build(record_path, derivation_path)
+    if isinstance(built, str):
+        return built
+    return _post(issue, record_path) or POSTED.format(*built)
 
 
 def _force_utf8_streams():
@@ -353,7 +344,7 @@ def _emit(line, stream_name='stdout'):
         return
     try:
         print(line, file=stream, flush=True)
-    except KeyboardInterrupt:  # A cut or missing line makes the caller withhold.
+    except KeyboardInterrupt:
         return
     except (OSError, ValueError):
         try:
@@ -370,15 +361,17 @@ def main(argv=None):
     try:
         _force_utf8_streams()
         parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n\n')[0], add_help=False)
+        parser.add_argument('--issue', required=True, type=_issue_number)
         parser.add_argument('--record', required=True)
         parser.add_argument('--derivation', required=True)
+        parser.add_argument('--config', default='')
         try:
             args = parser.parse_args(argv)
         except SystemExit:  # argparse's usage error; its message is already on stderr.
             line = USAGE
         else:
-            line = build(args.record, args.derivation)
-    except (Exception, KeyboardInterrupt) as exc:  # Still one decided line; the caller withholds on it.
+            line = publish(args.issue, args.record, args.derivation, args.config)
+    except (Exception, KeyboardInterrupt) as exc:  # Still one decided line.
         line = INTERNAL_ERROR
         try:
             frames = traceback.extract_tb(exc.__traceback__)

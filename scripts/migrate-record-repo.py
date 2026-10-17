@@ -13,10 +13,9 @@ the one-time, deterministic, idempotent migration that qualifies them:
                            `patterns[].meta_issues[]` entry
 
 The repository stamped on a record that names none is the `legacy_record_repo`
-from lib/repo-identity.json — the explicit one-time compatibility rule, and the
-only sanctioned substitution. A record that already names a repository is left
-alone, so a store holding records from a second repository survives a re-run
-unchanged.
+from lib/repo-identity.json — the explicit one-time compatibility rule. A record
+that already names a repository keeps it; its `schema_version` is still set and,
+when its `pr` is an integer, so is its `pr_key`.
 
 Idempotency is by construction: the transform is a pure function of each record,
 and re-running it over its own output reproduces that output byte for byte.
@@ -228,6 +227,11 @@ def main(argv: list[str] | None = None) -> int:
 
     root = _repo_root()
     learnings = Path(args.learnings_dir) if args.learnings_dir else _repo_toplevel() / ".prflow" / "learnings"
+    # The store lives on the telemetry branch: no local copy is unknown, never "nothing to stamp".
+    if not any((learnings / f).exists()
+               for f in ("retrospectives.jsonl", "experiment-records.jsonl", "overrides.json")):
+        raise SystemExit(f"migrate-record-repo: no learnings store in {learnings} — run "
+                         "retro-helper.sh learnings-hydrate first to copy it from the telemetry branch")
     identity_file = Path(args.identity_file) if args.identity_file else root / "lib" / "repo-identity.json"
     legacy_repo = _legacy_record_repo(identity_file)
 
@@ -243,7 +247,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         print(f"migrate-record-repo: {total} store change(s) pending", file=sys.stderr)
         return 1 if total else 0
-    print(f"migrate-record-repo: stamped {legacy_repo} onto {total} record(s)/store(s)", file=sys.stderr)
+    print(f"migrate-record-repo: stamped {legacy_repo} onto {total} record(s)/store(s); "
+          "save them with retro-helper.sh learnings-persist (after the learnings-hydrate "
+          "that loaded them), or the next learnings-hydrate replaces this working copy",
+          file=sys.stderr)
     return 0
 
 

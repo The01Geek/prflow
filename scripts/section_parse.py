@@ -38,9 +38,10 @@ The parsing contract, stated once:
     the opening heading's, so a deeper sub-heading inside the section does not
     end it and end-of-input does.
   * Inside it, `- [ ]`, `- [x]`, `* [ ]` and `* [x]` are checkbox items.
-  * An indented, non-blank, non-checkbox line continues the preceding item (a
-    criterion hard-wrapped at ~80 columns round-trips as one string); a blank
-    line or a non-indented non-checkbox line closes it.
+  * An indented (leading space or tab), non-checkbox line continues the
+    preceding item, after any number of blank or whitespace-only lines, so a
+    hard-wrapped criterion or one carrying a nested list or a further paragraph
+    round-trips as one string; a non-indented non-checkbox line closes it.
 
 Distinguishing "section absent" from "section present but unreadable" (issue
 #1198): only checkbox list items are recognised as items, so a section written
@@ -51,8 +52,8 @@ collapsed (the repo's *unknown is not zero* convention). This module does not
 own the signal — it keeps its two primitives orthogonal: `extract_section`
 returns `[]` for an absent section and a non-empty line list for a present one,
 `parse_checkboxes` returns the items. A caller distinguishes the unreadable case
-by combining them — a non-empty section-line list (with at least one non-blank
-line) plus zero parsed items — and `scripts/parse-acs.py` does exactly that,
+by combining them — a non-empty section-line list (with at least one non-blank,
+non-heading line) plus zero parsed items — and `scripts/parse-acs.py` does exactly that,
 emitting an item-shape stderr diagnostic and an `acceptance_criteria_unreadable`
 JSON field for it while still exiting 0.
 """
@@ -75,9 +76,11 @@ def extract_section(body: str, name: str) -> list[str]:
     """Return the list of lines inside the named section, or [] if not found.
 
     Stops at the next heading whose level is equal to or higher than the
-    section's heading. The FIRST matching heading opens the section, and
-    duplicates of it are not special-cased — they are just headings, so which
-    rule applies depends on their level:
+    section's heading. A deeper heading's line is kept, so `parse_checkboxes`
+    closes an open item on it like any other non-indented line. The FIRST
+    matching heading opens the section, and duplicates of it are not
+    special-cased — they are just headings, so which rule applies depends on
+    their level:
 
       * A second copy at the SAME (or a shallower) level ends the section like
         any other such heading, and its own content is excluded entirely along
@@ -85,27 +88,31 @@ def extract_section(body: str, name: str) -> list[str]:
         only `one`'s lines — `two` is dropped.
       * A DEEPER duplicate (e.g. `###` under a `##`) does not end the section,
         so its lines are read as part of the first section. `## AC / one /
-        ### AC / two` yields both `one` and `two`.
+        ### AC / two` yields `one`, the `### AC` line and `two`.
     """
+    span = section_span(body, name)
+    return body.splitlines()[span[0] + 1:span[1]] if span else []
+
+
+def section_span(body: str, name: str) -> tuple[int, int] | None:
+    """(heading index, end index) of the section `extract_section` reads, over
+    `body.splitlines()`, or None when no heading matches."""
     lines = body.splitlines()
-    out: list[str] = []
-    section_level = None
-    for line in lines:
+    start = section_level = None
+    for i, line in enumerate(lines):
         m = HEADING_RE.match(line)
         if m:
             level, heading = len(m.group(1)), m.group(2).strip()
             if section_level is None:
                 if heading.lower() == name.lower() and level in (2, 3):
-                    section_level = level
+                    start, section_level = i, level
                 continue
             if level <= section_level:
-                break
-        elif section_level is not None:
-            out.append(line)
-    return out
+                return start, i
+    return (start, len(lines)) if start is not None else None
 
 
-def parse_checkboxes(section_lines: list[str]) -> list[dict]:
+def parse_checkboxes(section_lines: list[str], strays: list[str] | None = None) -> list[dict]:
     """Parse checkbox items, joining hard-wrapped continuation lines.
 
     Returns `{'text': str, 'ticked': bool}` dicts. Post-merge classification is
@@ -114,6 +121,10 @@ def parse_checkboxes(section_lines: list[str]) -> list[dict]:
     is already in the text. Splitting them keeps the trigger list out of the
     read path, where re-classifying would re-tag criteria the run had already
     deliberately demoted.
+
+    When given, `strays` receives every non-blank line that is neither a checkbox
+    nor an indented continuation of one, including an indented line before the
+    first checkbox.
     """
     items: list[dict] = []
     current = None
@@ -122,12 +133,17 @@ def parse_checkboxes(section_lines: list[str]) -> list[dict]:
         if m:
             current = {'text': m.group(2).strip(), 'ticked': m.group(1).lower() == 'x'}
             items.append(current)
-        elif current is not None and line[:1] in (' ', '\t') and line.strip():
-            # Indented, non-blank, non-checkbox line → continuation of `current`.
+        elif not line.strip():
+            # A blank line leaves the item open.
+            continue
+        elif current is not None and line[:1] in (' ', '\t'):
+            # Indented non-checkbox line → continuation of `current`.
             current['text'] = f"{current['text']} {line.strip()}".strip()
         else:
-            # Blank line or a non-indented non-checkbox line closes the item.
+            # A non-indented non-checkbox line closes the item.
             current = None
+            if strays is not None:
+                strays.append(line)
     return items
 
 

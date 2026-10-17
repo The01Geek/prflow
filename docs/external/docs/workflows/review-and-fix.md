@@ -37,9 +37,9 @@ It runs the same review engine as [Review](/docs/workflows/review), then fixes w
 
 ### What You Get Back
 
-The final chat report opens with a one-line result. On an approval-side outcome it names how many iterations ran and whether the independent shadow pass agreed, in the shape "Review passed after *N* iteration(s) (*shadow status*)". On an approval with parked findings it also states how many advisory findings were left for human review. A REJECT says so and the findings stay in the report below it.
+The final chat report opens with a one-line result. On an approval-side outcome it names how many iterations ran and whether the shadow pass agreed, in the shape "Review passed after *N* iteration(s) (*shadow status*)". On an approval with parked findings it also states how many advisory findings were left for human review. A REJECT says so and the findings stay in the report below it.
 
-Underneath the headline is the same report structure as a standalone review: the verdict, issue compliance, the verification-checklist tally and the findings grouped by severity. Each finding also carries what the loop decided about it — applied, pushed back, deferred, advisory or severity-calibrated. A finding the review itself moved to `Informational — Deferred`, such as an accepted deferral or a confirmed stricter-than-criterion fix, is not sent to the fixer when the loop can match that report line to the finding; an unmatched line is noted and the finding keeps its original severity.
+Underneath the headline is the same report structure as a standalone review: the verdict, the findings and checklist items grouped by severity, issue compliance, and the verification-checklist tally in Run details. Each finding also carries what the loop decided about it — applied, pushed back, deferred, advisory or severity-calibrated. A finding the review itself moved to `Informational — Deferred`, such as one a confirmed stricter-than-criterion fix accounts for, is not sent to the fixer when the loop can match that report line to the finding; an unmatched line is noted and the finding keeps its original severity.
 
 The commits it made are on your branch, one per fix iteration.
 
@@ -57,9 +57,7 @@ Use [Review](/docs/workflows/review) when you do not want your branch changed.
 
 ## Iterations and What Gets Fixed
 
-The default iteration cap is five. Change it with `prflow_review_and_fix.max_iterations`. The loop also exits early when it converges, except after an iteration that ends in REJECT and fixed a REJECT driver or any finding or failed checklist item at or above the fix threshold, or whose fix records cannot be confirmed: it then runs one more iteration to review the fixes, up to the cap.
-
-When the same finding is skipped in two consecutive iterations, PRFlow reports "Finding persists after pushback: *finding*. Manual review needed." once for that finding and keeps going: the message never ends the loop. A finding the earlier iteration settled by disclosure does not trigger it, unless it drives the current iteration's REJECT.
+The default iteration cap is five. Change it with `prflow_review_and_fix.max_iterations`. The loop also exits early when it converges, except after an iteration that ends in REJECT and fixed a REJECT driver, or that fixed anything when its REJECT drivers or fix records cannot be confirmed: it then runs one more iteration to review the fixes, up to the cap.
 
 Which findings reach the fixer is set by `prflow_review_and_fix.fix_severity_threshold`, which defaults to `important`:
 
@@ -69,11 +67,11 @@ Which findings reach the fixer is set by `prflow_review_and_fix.fix_severity_thr
 | `important` (default) | Critical, Important, Major | Suggestion, Minor |
 | `suggestion` | Everything | Nothing |
 
-Any finding or failed checklist item that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore. An inconclusive checklist item never drives a REJECT and gives the fixer nothing to fix, so it is never sent; the report lists it under Unverified.
+Any finding or failed checklist item that drives a REJECT is always fixable, whatever this threshold says. That is deliberate: it means no combination of settings can produce a blocking finding the fixer is configured to ignore. A finding exempt from REJECT because a decided acceptance criterion decides it also stays eligible for the fixer whatever this threshold says. An inconclusive checklist item never drives a REJECT and gives the fixer nothing to fix, so it is never sent; the report lists it under Informational — Deferred.
 
-PRFlow can push back on a finding when the code disproves it, rather than "fixing" something that was never wrong. It can also defer a genuine finding when the deferral rules apply. A test broken by one of its own fixes must be repaired before the loop continues.
+PRFlow can push back on a finding when the code disproves it, rather than "fixing" something that was never wrong. On a numbered pull request in a run with `--push-each-iteration`, it records that pushback as a [rejected-finding line](/docs/workflows/review#rejected-finding-lines) in the description, so later iterations and reviews treat the finding as settled; otherwise, or when that write fails, the line goes in the run's report. For a failed checklist item, it reads the cited code and the requirement the item rests on, and fixes only a defect that reading shows. It pushes back an item whose evidence is accurate but whose requirement the code does not have to meet, an item that misreads the code, and an item the reading cannot settle, naming what it could not establish. It can also defer a genuine finding when the deferral rules apply. A test broken by one of its own fixes must be repaired before the loop continues.
 
-Fixes remove or reuse before they add: for example, an untrue sentence is deleted, or pointed at the rule it restates, before it is reworded. A fix that would weaken or contradict one of the linked issue's acceptance criteria is pushed back; one stricter than a criterion is applied and disclosed in the pull request description.
+Fixes remove or reuse before they add: for example, an untrue sentence is deleted, or pointed at the rule it restates, before it is reworded. A fix that would delete or rewrite text and so bring back a finding about that file that an earlier iteration fixed is reworked so both stay fixed; when that is impossible, the later fix is not made and its finding is pushed back. A fix that would weaken or contradict one of the linked issue's acceptance criteria is pushed back; one stricter than a criterion is applied and, when the run has a pull request, disclosed in its description.
 
 ## Push Behavior
 
@@ -89,7 +87,7 @@ Where the fix commits end up depends on how you started the run.
 
 ## Shadow Review
 
-Before it concludes on the approval side, PRFlow runs a separate shadow review over the candidate. The shadow pass reports which planned reviewers completed and any coverage gaps it knows about.
+Before it concludes on the approval side, PRFlow runs a shadow review with prior findings withheld from its prompts. A separate write directory reduces accidental discovery without isolating reads. The shadow reports reviewer coverage gaps; if its engine runs inline in the informed loop context, agreement is not verified even with a complete reviewer roster.
 
 One case skips it. When the loop runs inside `/prflow:implement` and its first iteration is clean — no failed check and no finding that stands at Important or above — the loop ends without a re-review or a shadow pass, and the result line reads `shadow skipped, iteration 1 clean`. The pull-request review is the independent pass for that run. A standalone `/prflow:review-and-fix` run is unchanged.
 
@@ -119,7 +117,7 @@ Once the loop converges, run an independent assessment:
 /prflow:review 123
 ```
 
-That run reviews the resulting pull request head from scratch and attempts to post the formal GitHub review. If GitHub refuses the post, PRFlow reports which fallback channel it used and that the merge signal is missing. Neither workflow merges the pull request.
+That run reviews the resulting pull request head from scratch and attempts to post the formal GitHub review. If GitHub refuses the post, PRFlow posts the verdict as a pull request comment instead when it can and reports that the merge signal is missing. Neither workflow merges the pull request.
 
 ## Related Articles
 

@@ -49,11 +49,11 @@
 #
 # Two sibling '## '-heading scanners live in scripts/, and their terminator rules
 # DIFFER deliberately — do not "unify" them without re-reading all three contracts:
-#   * scripts/parse-acs.py `_extract_section` terminates on the next heading of the
+#   * scripts/section_parse.py `extract_section` terminates on the next heading of the
 #     SAME-OR-HIGHER level, and it resolves a section name at level 2 OR level 3
 #     (`level in (2, 3)`), so whether a '###' line terminates depends on the level the
-#     document used — unlike this helper, where '###' is always content. It also drops
-#     heading lines from the returned content and matches the name case-INsensitively.
+#     document used — unlike this helper, where '###' is always content. It matches the
+#     name case-INsensitively.
 #   * scripts/workpad.py splits on '## ' in `_split_sections` and matches the heading
 #     name case-INsensitively in its sibling `_find_section` (the split and the match
 #     are two functions; `_split_sections` performs no name comparison of its own).
@@ -103,10 +103,9 @@
 # trailing-newline stripping, so a whitespace-only file differs between the two — each token
 # stays consistent with its own stdout. The token is STDERR-only so stdout stays byte-verbatim,
 # and it makes an absent/empty extension distinguishable from a harness refusal (which produces
-# no output at all). The `load-prompt-extension.sh: ` prefix is what lets the phase-3 reviewer's
-# stdout-classification discriminator, which drops `load-prompt-extension.sh: ` lines, still
-# neutralize this diagnostic. --section mode emits no token, so spec's byte-and-stderr
-# contract is unchanged.
+# no output at all). The `load-prompt-extension.sh: ` prefix marks the line as a diagnostic,
+# not extension content, for a reader of the merged stdout/stderr. --section mode emits no
+# token, so spec's byte-and-stderr contract is unchanged.
 #
 # When the file is absent — or present but empty — this prints nothing on stdout and exits
 # 0 (the no-op path), so a skill that reads stdout behaves exactly as before unless the
@@ -322,7 +321,7 @@ while [ "$#" -gt 0 ]; do
             # emits the WHOLE extension at exit 0 — the opposite of what the caller asked
             # for, and indistinguishable at the call site from a legitimate full-file
             # load. This is the likelier typo than the flag-shaped value refused above
-            # (the four spec re-load sites are model-transcribed commands), so it
+            # (--section callers are model-transcribed commands), so it
             # gets the same loud refusal. A stray plain word keeps its ignored behavior.
             case "$1" in
                 '## '*)
@@ -422,7 +421,7 @@ else
     # canonical-first, then from the superseded directory — per-file because /prflow:init
     # deliberately leaves both directories on conflicts. The DEVFLOW_PROMPT_EXTENSION_ROOT
     # branch names a frozen directory outright and takes none. Confirmation-gated end
-    # criterion (removed once no consumer still carries .prflow/prompt-extensions/): lib/rename-map.json.
+    # criterion: lib/rename-map.json's extension_directory_read_through.
     _lpe_old_ext_dir="${_lpe_state}/prompt-extensions"
 fi
 
@@ -690,7 +689,7 @@ fi
 
 # issue #1299: whole-file status token, computed once, emitted at one STDERR site (never
 # stdout — stdout stays byte-verbatim). Undeliverable shapes exited 2 above. The
-# `load-prompt-extension.sh: ` prefix is load-bearing (phase-3 drops those lines when classifying).
+# `load-prompt-extension.sh: ` prefix marks the line as a diagnostic, not extension content.
 if [ "$section_requested" -eq 0 ]; then
     # issues #200, #216: on a WHOLE-FILE spec load (never --section or --digest, which
     # keep the no-token contract), a stray extension file beside the one the spec run
@@ -718,9 +717,9 @@ if [ "$section_requested" -eq 0 ]; then
         _wf_status=present-empty
     fi
     printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: %s\n' "$_wf_status" >&2
-    # Whole-file digest on STDERR only (stdout stays byte-verbatim). The `load-prompt-extension.sh: `
-    # prefix is load-bearing — phase-3 drops those lines when classifying, so keep it. Fail-soft: a
-    # failed digest prints 'unestablished (<reason>)' and must not touch stdout or the exit status.
+    # Whole-file digest on STDERR only (stdout stays byte-verbatim), under the same diagnostic
+    # prefix. Fail-soft: a failed digest prints 'unestablished (<reason>)' and must not touch
+    # stdout or the exit status.
     if [ -f "$ext_file" ]; then
         _lpe_wf_dtarget="$ext_file"
     else

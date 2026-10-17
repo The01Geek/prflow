@@ -11,9 +11,11 @@
 # the scope note below: (1) a `- **Documentation Needed**` list item (issue #185),
 # (2) a bare blank-line-preceded `**Documentation Needed**` bold paragraph (issue
 # #309), (3) a `### Documentation Needed` level-3 heading (issue #380), and
-# (4) a plain `- Documentation Needed —` list item (issue #506). Both bold
-# openers also accept the colon inside the bold, `**Documentation Needed:**`
-# (issue #1125). The direct
+# (4) a plain `- Documentation Needed` list item (issue #506). The plain label and
+# the inside-bold label accept the common separator after the label — none, em
+# dash, colon, or period (issue #1125 widened the inside-bold colon; issue #2131
+# standardized this set); with no separator the plain label ENDS the line, so
+# `- Documentation Needed for later` does not open. The direct
 # consumer is scripts/read-doc-needed-deliverables.sh, which Phase 4.1 Stage 1
 # (pre-flight briefing) and Stage 2 (post-hoc diff gate) each invoke rather than
 # re-deriving paths by LLM prose interpretation — so the two passes can never disagree
@@ -77,6 +79,18 @@
 #     command-shaped spans are a breadcrumbed under-enforcement residual, not a
 #     leak-safe property. Indented four-space code blocks are a disclosed
 #     non-goal (only the ```` ``` ````/`~~~` GFM fence forms are recognized).
+#   * label descriptions (issue #1691) — a LABEL is a closed backtick span holding
+#     one bare path with a recognized extension, followed directly by `:` or
+#     `**:`. Its DESCRIPTION runs from that colon to the first `;`, `.` followed
+#     by whitespace or the end of the line, next label, or end of the line; the
+#     `;`/`.` stops count only outside spans (paired left-to-right, an unpaired
+#     backtick opens none). Stage A removes each description before printing and
+#     before arms(), so its paths and spans reach neither Stage B nor any
+#     breadcrumb: a description path is well-formed non-deliverable input, not a
+#     degraded parse. The label path, the rest of a list ending in it, and every
+#     path outside a description are extracted as before. STATED RESIDUAL: a
+#     file to edit written only inside another label's description loses its
+#     mandatory status silently; the routine Phase 4.1 documentation pass still runs.
 #   * a token counts as a path only if it ends in a recognized documentation/
 #     source extension OR names an in-tree tracked regular file (the two-part
 #     `[ -f ]` + `git ls-files` rescue for extensionless real files like
@@ -248,6 +262,52 @@ run_stage_a() {
     }
     return 0
   }
+  # is_label(parts, i): is closed span i a label — one bare path token with a
+  # recognized extension, followed directly by `:` or `**:`?
+  function is_label(parts, i,   seg, nxt) {
+    seg = parts[i]
+    if (seg ~ /[^A-Za-z0-9._\/-]/) return 0
+    if (seg !~ ("[A-Za-z0-9._-][.](" extre ")$")) return 0
+    nxt = parts[i + 1]
+    return (substr(nxt, 1, 1) == ":" || substr(nxt, 1, 3) == "**:")
+  }
+  # strip_descriptions(line): the label-description contract is in the header.
+  # Returns line with each description replaced by a space. Spans pair
+  # left-to-right as in clean_spans(), so a `;`/`. ` inside a span never stops a
+  # description. SYNC: Stage B receives the stripped line; do not strip again there.
+  function strip_descriptions(line,   np, parts, i, seg, out, in_desc, pending, k, c, stop, out_tick, at_end) {
+    np = split(line, parts, "`")
+    out = ""; in_desc = 0; pending = 0
+    for (i = 1; i <= np; i++) {
+      seg = parts[i]
+      if ((i % 2 == 0) && (i <= np - 1)) {
+        if (is_label(parts, i)) { in_desc = 0; pending = 1 }
+        else if (in_desc) continue
+        out = out "`" seg "`"
+        continue
+      }
+      # outside text; an even i here is the unpaired trailing segment, whose
+      # leading backtick opens no span.
+      out_tick = (i % 2 == 0) ? "`" : ""
+      if (pending) {
+        if (substr(seg, 1, 3) == "**:") { out = out "**:"; seg = substr(seg, 4) }
+        else { out = out ":"; seg = substr(seg, 2) }
+        pending = 0; in_desc = 1
+      }
+      if (!in_desc) { out = out out_tick seg; continue }
+      stop = 0
+      for (k = 1; k <= length(seg); k++) {
+        c = substr(seg, k, 1)
+        if (c == ";") { stop = k; break }
+        if (c != ".") continue
+        at_end = (k == length(seg))
+        if ((at_end && i == np) || (!at_end && substr(seg, k + 1, 1) ~ /[[:space:]]/)) { stop = k; break }
+      }
+      if (stop) { out = out " " substr(seg, stop); in_desc = 0 }
+      else out = out " "
+    }
+    return out
+  }
   # decl_candidate(line): the standalone-`none` declaration contract is in the
   # header. This returns the line'"'"'s content with the label and the separator run
   # after it stripped, so is_none_declaration() sees the first content token. The
@@ -275,6 +335,20 @@ run_stage_a() {
     if (cand ~ /^none[[:space:]]*$/) return 1           # none standing alone
     return 0
   }
+  # dn_bold_label(line) / dn_plain_opener(line) — the SINGLE-SOURCED label
+  # recognition used by the opener arms AND the plain-peer close exclusion, so an
+  # accepted opener can never self-close because one surface learned a separator
+  # the other did not (issue #2131 — each past fix widened one arm only, and every
+  # recurrence was a handwritten label whose separator one arm did not list). Both
+  # labels accept no separator, em dash, colon, or period. The plain list form
+  # requires a separator or the end of the line right after the label, anchored at
+  # line start, so `- Documentation Needed for later` and a mid-bullet mention
+  # never open. The bold form accepts at most ONE separator inside the bold —
+  # `**Documentation Needed::**` has two and stays a non-label — and the label
+  # closes at the `**`, so arbitrary content after it (semicolons, exclamation
+  # points, outside punctuation) is preserved as before.
+  function dn_bold_label(line) { return (line ~ /^(- )?\*\*Documentation Needed([.:]| ?—)?\*\*/) }
+  function dn_plain_opener(line) { return (line ~ /^- Documentation Needed( ?—|[.:]|[[:space:]]*$)/) }
   BEGIN { prev_blank = 1; in_fence = 0 }   # start-of-file is a paragraph boundary
   # Fence tracking (issue #644) — the FIRST thing, before any scope arm, from the
   # top of the body (a fence can open before any scope opener). A GFM fence
@@ -373,7 +447,7 @@ run_stage_a() {
   # deliverable) from a PRIMARY prose declaration (the deliverable itself). See
   # the Shape 2 comment.
   state >= 1 && ( /^- \*\*[^`]/ || ( /^\*\*[^`]/ && prev_blank ) ) {
-    ns = ($0 ~ /^(- )?\*\*Documentation Needed:?\*\*/) ? 2 : 1
+    ns = dn_bold_label($0) ? 2 : 1
     if (ns == 2 && state != 2) emitted = 0
     # Reset the declaration latch on EVERY Documentation Needed opener (issue
     # #1663): a `none` block must not suppress a later block deliverable. Not gated
@@ -383,12 +457,15 @@ run_stage_a() {
     entered_section = 1
     state = ns
   }
-  # A PLAIN (unbold) `- Documentation Needed —` list-item opener — a fourth
-  # scope-opening shape (issue #506). Anchored to the exact plain label + em-dash so
-  # a bullet that merely mentions the label never opens. list_scope is set so the
-  # same-level plain-peer arm below closes it; that arm excludes this exact spelling
-  # so the opener line does not self-close its own scope.
-  state >= 1 && /^- Documentation Needed —/ {
+  # A PLAIN (unbold) `- Documentation Needed` list-item opener — a fourth
+  # scope-opening shape (issue #506), widened to the accepted separator set by
+  # issue #2131. dn_plain_opener() is anchored to the line start and requires a
+  # separator or the end of the line right after the label, so a bullet that merely
+  # mentions the label never opens. list_scope is set so the same-level plain-peer
+  # arm below closes it; that arm excludes every accepted opener spelling, so the
+  # opener line never self-closes its own scope — not even when its content carries
+  # a later em dash.
+  state >= 1 && dn_plain_opener($0) {
     if (state != 2) emitted = 0
     decl = 0; decl_examined = 0; list_scope = 1
     state = 2
@@ -396,10 +473,12 @@ run_stage_a() {
     entered_section = 1
   }
   # A list-item scope ends at its next same-level plain peer: the label-and-em-dash
-  # shape used by issue prose. Items with a backtick before the em dash, indented
-  # items, and wrapped lines remain inside the Documentation Needed scope. The plain
-  # Documentation Needed opener is excluded here so it does not close its own scope.
-  state == 2 && list_scope && /^- [^`]* — / && $0 !~ /^- \*\*Documentation Needed:?\*\*/ && $0 !~ /^- Documentation Needed —/ {
+  # shape used by issue prose (recognizing plain colon peers is outside the #2131
+  # punctuation fix). Items with a backtick before the em dash, indented items, and
+  # wrapped lines remain inside the Documentation Needed scope. The accepted bold
+  # and plain Documentation Needed openers are excluded here — via the same
+  # functions the opener arms match — so an opener never closes its own scope.
+  state == 2 && list_scope && /^- [^`]* — / && !dn_bold_label($0) && !dn_plain_opener($0) {
     state = 1
     list_scope = 0
   }
@@ -469,8 +548,9 @@ run_stage_a() {
       }
     }
     if (decl) { prev_blank = ($0 ~ /^[[:space:]]*$/); next }
-    print
-    if ( ( $0 ~ /^[[:space:]]*-/ || $0 ~ /^\*\*/ ) && arms($0) ) emitted = 1
+    stripped = strip_descriptions($0)
+    print stripped
+    if ( ( $0 ~ /^[[:space:]]*-/ || $0 ~ /^\*\*/ ) && arms(stripped) ) emitted = 1
   }
   { prev_blank = ($0 ~ /^[[:space:]]*$/) }
   # Fence-blind fallback signal (issue #644): the fence-AWARE pass exits 10 when it

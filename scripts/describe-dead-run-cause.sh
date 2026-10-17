@@ -27,15 +27,19 @@
 #   success          not true   the step exited cleanly and the engine
 #                               reported no error — yet no verdict was
 #                               written (the run-29854795625 mode: Phase 0
-#                               permission denials, no output, clean exit)
+#                               permission denials, no output, clean exit),
+#                               or, with VERDICT_POST_FAILED=true, the verdict
+#                               post failed on both channels (issue #1965)
 #   failure          any        the job failed
 #   cancelled        any        the run was cancelled
 #
 # ARM ORDER IS LOAD-BEARING. The engine-error arm is tested BEFORE the
 # clean-exit arm: both match `outcome == success`, and swapping them would
 # report a run whose engine explicitly errored as "no verdict, no error" —
-# steering the reader away from the cause the workflow already measured. Every
-# later arm is keyed on a non-success outcome, so it cannot collide with either.
+# steering the reader away from the cause the workflow already measured. The
+# failed-post arm excludes an engine error and is tested BEFORE the cause-set
+# arms, because a clean run's result event carries `terminal_reason: completed`.
+# The arms after the clean-exit arm are keyed on a non-success outcome.
 #
 # A raw outcome outside {success, failure, cancelled} — `skipped`, or an empty
 # value when the step never ran at all — is a RESIDUAL, not a fifth mode: it is
@@ -51,7 +55,7 @@
 # (a key present with a JSON null) are all NOT present, so a run whose whole cause
 # set is unavailable falls through to the clause below. The recovery arm shares
 # this test, so a runner name or annotation that is exactly `n/a` renders
-# `unavailable` too. Precedence, first present wins:
+# `unavailable` too. Precedence after the failed-post arm, first present wins:
 #   1. RATE_LIMIT_TYPE  — a rejected rate-limit event; names the limit type and
 #      the raw RATE_LIMIT_RESETS_AT as recorded (no date conversion).
 #   2. TERMINAL_REASON  — names it with SUBTYPE and API_ERROR_STATUS.
@@ -118,6 +122,8 @@ if _present "${RECOVERY_JOB_CONCLUSION:-}"; then
     CLAUSE="${RPREFIX}${RMESSAGE:0:rbudget}..."
   fi
   SKIP_GENERIC_CAP=true
+elif [ "$CLAUDE_OUTCOME" = "success" ] && [ "$ENGINE_IS_ERROR" != "true" ] && [ "${VERDICT_POST_FAILED:-}" = "true" ]; then
+  CLAUSE="review verdict was decided but its post failed on both channels (FAILED no-durable-channel)"
 elif _present "${RATE_LIMIT_TYPE:-}"; then
   CLAUSE="rate-limited (${RATE_LIMIT_TYPE}); resets at ${RATE_LIMIT_RESETS_AT:-unavailable}"
 elif _present "${TERMINAL_REASON:-}"; then

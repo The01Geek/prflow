@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 """Weekly-retrospective delivery outcome record producer (issue #395).
 
-The scheduled retrospective's outward-facing delivery — the state PR push, the
-per-finding issue filing, and the report post — happens last and can fail while
+The scheduled retrospective's outward-facing delivery — the learnings-store save,
+the per-finding issue filing, and the report save — happens last and can fail while
 the agent step still returns success, so a run could lose state and file nothing
 yet conclude success. This helper is the deterministic channel that fixes that:
 the retrospective records each required delivery operation's observed outcome in
@@ -21,7 +21,8 @@ Subcommands:
                 filing helper runs). Idempotent; never resets a resolved status.
   set-op        Record an operation's observed status (success / failure /
                 not_applicable) and diagnostic. A recorded `failure` is sticky:
-                a later success on the same operation never masks it.
+                a later success on the same operation never masks it, unless
+                --clear-failure (a later outcome that supersedes it).
   finalize      Read-and-classify only (no write). Prints one of
                 OK / UNESTABLISHED <reason> / FAILED <op: diag[; ...]> and a
                 matching ::warning::/::error:: annotation. Exit 0 for OK and
@@ -41,7 +42,8 @@ Failure discipline (mirrors scripts/reception-record.py): after argument parsing
 an error in a command body writes an attributable {"ok": false, "reason": …}
 record to STDERR and exits non-zero. Argument errors are argparse's: a missing or
 invalid option exits 2 with usage text before any command body runs. Data-only
-besides git and finalize's read-only `gh api` check (DEVFLOW_GH, else `gh`): no
+besides git, finalize's telemetry-branch name read (bash sourcing
+lib/telemetry-branch.sh) and its read-only `gh api` check (DEVFLOW_GH, else `gh`): no
 remote write, no PyYAML, and no decisive value derived through a non-preflight
 PATH tool. `require-op`/`set-op` with no record outside GitHub Actions (a local
 run; only the workflow runs `init`) are silent no-ops.
@@ -50,15 +52,14 @@ run; only the workflow runs `init`) are silent no-ops.
 from __future__ import annotations
 
 import argparse
-import calendar
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 SCHEMA_VERSION = 1
 KIND = "retro-outcome-record"
@@ -67,8 +68,9 @@ RECORD_DIRNAME = os.path.join(".prflow", "tmp", "retro-outcome")
 RECORD_NAME = "outcome-record.json"
 GIT = os.environ.get("DEVFLOW_GIT") or "git"
 GH = os.environ.get("DEVFLOW_GH") or "gh"
-STATE_BRANCH_PREFIX = "prflow/learnings-"  # lib/open-state-pr.sh's produced prefix
-REPORT_MARKERS = ("<!-- prflow:audit-report -->", "<!-- devflow:audit-report -->")
+# lib/learnings-store.sh's store and report paths on the telemetry branch.
+LEARNINGS_PREFIX = ".prflow/logs/learnings"
+TELEMETRY_BRANCH_LIB = Path(__file__).resolve().parent.parent / "lib" / "telemetry-branch.sh"
 
 # Refreshed-token env for the gh call on native Windows (see gh_fresh_env.py); a
 # partial copy without the sibling inherits the ambient token.
@@ -78,6 +80,14 @@ try:
 except Exception:  # pragma: no cover - partial-copy arm
     def fresh_gh_env(env=None, os_name=None):
         return env
+
+# lib/ is scripts/'s sibling in the source repo and a vendored tree alike. Without the
+# launch helper the telemetry branch stays unresolved and the remote check `unavailable`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+try:
+    import bash_launch as _bl
+except Exception:  # pragma: no cover - partial-copy arm
+    _bl = None
 
 # Operation status vocabulary (closed). `pending` is the AC1 "incomplete" state,
 # distinct from `success` and from `not_applicable` (positively established
@@ -267,13 +277,14 @@ def cmd_set_op(args) -> int:
         return code
     ops = record["operations"]
     current = ops.get(args.op_id)
-    # Failure is sticky: a positively-recorded failure is never downgraded by a
-    # later success on the same operation, so an operation that failed then
-    # "recovered" cannot mask the delivery failure the workflow must fail on.
+    # Failure is sticky: without --clear-failure, a later success on the same
+    # operation never downgrades a recorded failure, so a "recovery" cannot mask
+    # the delivery failure the workflow must fail on.
     if (
         isinstance(current, dict)
         and current.get("status") == "failure"
         and args.status != "failure"
+        and not args.clear_failure
     ):
         sys.stderr.write(
             json.dumps(
@@ -341,34 +352,79 @@ def _gh_pages(endpoint: str):
     return pages if isinstance(pages, list) else None
 
 
-def _remote_miss(op_id: str, record: dict, repo: str) -> str | None:
+def _telemetry_branch(repo_root: str) -> tuple[str | None, str]:
+    """(the branch devflow_telemetry_branch resolves in `repo_root`, "") or (None, why)."""
+    if _bl is None:
+        return None, "lib/bash_launch.py could not be imported"
+    bash = _bl.resolve_bash()
+    lib_arg = _bl.script_argument(TELEMETRY_BRANCH_LIB, cwd=repo_root, bash=bash)
+    try:
+        proc = subprocess.run(
+            [bash, "-c", '. "$1" && devflow_telemetry_branch', "_", lib_arg],
+            stdout=subprocess.PIPE, cwd=repo_root, timeout=60,
+        )
+    except OSError as exc:
+        return None, f"{bash} could not run ({exc.strerror or type(exc).__name__})"
+    except subprocess.TimeoutExpired:
+        return None, "devflow_telemetry_branch timed out"
+    if proc.returncode != 0:
+        return None, f"devflow_telemetry_branch exited {proc.returncode}"
+    try:
+        branch = proc.stdout.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return None, "devflow_telemetry_branch printed non-UTF-8 output"
+    return (branch, "") if branch else (None, "devflow_telemetry_branch printed no branch")
+
+
+def _saved_sha(path: Path, out: str, prefix: str, suffix: str = "") -> str:
+    """The commit id ending the first line of retro-helper's `out` diagnostic beside the
+    record when that line starts `prefix` and ends `suffix`; "" when the file is absent,
+    unreadable or shaped otherwise."""
+    try:
+        line = (path.parent.parent / "retro-helper" / out
+                ).read_bytes().decode("utf-8").partition("\n")[0]
+    except (OSError, UnicodeDecodeError):
+        return ""
+    if not (line.startswith(prefix) and line.endswith(suffix)):
+        return ""
+    sha = line[:len(line) - len(suffix)].rpartition(" at ")[2]
+    hexdigits = "0123456789abcdef"
+    return sha if len(sha) in (40, 64) and all(c in hexdigits for c in sha) else ""
+
+
+def _remote_miss(op_id: str, record: dict, repo: str, repo_root: str,
+                 path: Path) -> str | None:
     """For a pending required op: a diagnostic when remote state proves it did not
-    happen, `unavailable` when that cannot be read, else None (evidence exists)."""
-    if op_id == "state_persistence":
-        try:
-            start = calendar.timegm(time.strptime(record["created_at"], "%Y-%m-%dT%H:%M:%SZ"))
-        except (KeyError, TypeError, ValueError):
-            return "unavailable"
-        names = sorted({STATE_BRANCH_PREFIX + time.strftime("%Y-%m-%d", time.gmtime(t))
-                        for t in (start, time.time())})
-        for name in names:
-            pages = _gh_pages(f"repos/{repo}/git/matching-refs/heads/{name}")
-            if pages is None:
-                return "unavailable"
-            if any(isinstance(p, list) and p for p in pages):
-                return None
-        return "remote: no state branch " + ", ".join(names)
-    state = record["operations"].get("state_persistence")
-    m = re.fullmatch(r"PR (\d+)", str(state.get("diagnostic"))) if isinstance(state, dict) else None
-    if not m or state.get("status") != "success":
-        return "unavailable"  # report_post: no recorded state PR to look on
-    pages = _gh_pages(f"repos/{repo}/issues/{m.group(1)}/comments")
+    happen, `unavailable: <why>` when that cannot be read or attributed, else None
+    (evidence exists). Evidence is a commit since the run started touching the store's
+    reports/ folder (report_post) or its retrospectives.jsonl that learnings-persist
+    last reported saving (state_persistence); no commit, or only hydrate's recovery
+    save, proves the miss."""
+    created = record.get("created_at")
+    try:
+        time.strptime(str(created), "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return "unavailable: the record's created_at is not a UTC timestamp"
+    branch, why = _telemetry_branch(repo_root)
+    if branch is None:
+        return f"unavailable: {why}"
+    store = op_id == "state_persistence"
+    target = f"{LEARNINGS_PREFIX}/retrospectives.jsonl" if store else f"{LEARNINGS_PREFIX}/reports"
+    pages = _gh_pages(f"repos/{repo}/commits?sha={quote(branch, safe='')}&path={target}&since={created}")
     if pages is None:
-        return "unavailable"
-    for c in (c for p in pages if isinstance(p, list) for c in p if isinstance(c, dict)):
-        if any(mk in str(c.get("body")) for mk in REPORT_MARKERS):
-            return None
-    return f"remote: no report comment on PR {m.group(1)}"
+        return f"unavailable: the commits query on {branch} failed"
+    commits = [c for p in pages if isinstance(p, list) for c in p]
+    if not store:
+        return None if commits else f"remote: no commit on {branch} touching {target} since {created}"
+    shas = {c.get("sha") for c in commits if isinstance(c, dict) and isinstance(c.get("sha"), str)}
+    saved = _saved_sha(path, "learnings-persist-out.txt", f"saved: {branch} at ")
+    if saved and saved in shas:
+        return None
+    skip = _saved_sha(path, "learnings-hydrate-out.txt", "hydrated: recovered from ", ")")
+    if any(not (skip and isinstance(c, dict) and c.get("sha") == skip) for c in commits):
+        return "unavailable: no commit attributable to this run's save"
+    other = f" other than learnings-hydrate's recovery save {skip}" if skip else ""
+    return f"remote: no commit on {branch} touching {target}{other} since {created}"
 
 
 def cmd_finalize(args) -> int:
@@ -406,11 +462,12 @@ def cmd_finalize(args) -> int:
                 continue  # quiet week: the scan found nothing, so these never became due
             # pending, or any unrecognized/absent status, leaves the record
             # incomplete — an unfinished record can never read as verified success.
-            miss = _remote_miss(op_id, record, args.repo) if op_id in REQUIRED_OPS and scan == "nonempty" else None
-            if miss and miss != "unavailable":
+            miss = (_remote_miss(op_id, record, args.repo, _repo_root(args), path)
+                    if op_id in REQUIRED_OPS and scan == "nonempty" else None)
+            if miss and not miss.startswith("unavailable"):
                 failures.append(f"{op_id}: {miss}")
             else:
-                pending.append(f"{op_id} (remote check unavailable)" if miss else op_id)
+                pending.append(f"{op_id} (remote check {miss})" if miss else op_id)
 
     # A positively-established failure wins even when other operations are still
     # incomplete: the unestablished-warning rule never suppresses a real failure.
@@ -463,6 +520,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_set.add_argument("--op-id", required=True)
     p_set.add_argument("--status", required=True, choices=STATUS_KINDS)
     p_set.add_argument("--diagnostic", default=None)
+    p_set.add_argument("--clear-failure", action="store_true",
+                       help="Let this status replace a recorded failure.")
     add_common(p_set)
     p_set.set_defaults(func=cmd_set_op)
 

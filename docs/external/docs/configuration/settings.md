@@ -32,7 +32,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `$schema` | [Core Settings](/docs/configuration/core-settings) | Editor validation only. Ignored at runtime. |
 | `base_branch` | [Core Settings](/docs/configuration/core-settings) | The branch reviews and implementation work from. |
 | `claude_model` | [Core Settings](/docs/configuration/core-settings) | The model every section uses unless it overrides it. |
-| `spec.investigation_record_enabled` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whether the investigation record is posted with a new issue. |
+| `spec.investigation_record_enabled` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whether the investigation record is posted with a new or updated issue. |
 | `deferred.labels` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Labels applied to follow-up issues for deferred work. |
 | `docs.changelog_file` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | The changelog the release-note pass reconciles against. |
 | `docs.external` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Where public documentation lives. |
@@ -56,7 +56,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow.workpad_marker` | [Core Settings](/docs/configuration/core-settings) | The marker that identifies a workpad comment. |
 | `prflow_implement.allowed_tools` | [Tool Permissions](/docs/configuration/tool-permissions) | Extra commands granted to implementation runs. |
 | `prflow_implement.claude_model` | [Model Providers](/docs/configuration/providers) | Model override for implementation runs. |
-| `prflow_implement.effort` | [Implementation](/docs/configuration/implementation) | Reasoning effort for implementation runs. |
+| `prflow_implement.effort` | [Implementation](/docs/configuration/implementation) | Reasoning effort for cloud implementation runs. |
 | `prflow_implement.implement_pr_state` | [Implementation](/docs/configuration/implementation) | Whether the finished pull request is published or left as a draft. |
 | `prflow_implement.provider` | [Model Providers](/docs/configuration/providers) | Provider route for implementation runs. |
 | `prflow_implement.stall_backstop.enabled` | [Implementation](/docs/configuration/implementation) | Whether a stalled cloud run is detected after the agent step. |
@@ -77,12 +77,12 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow_retrospective.min_occurrences` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | How often a pattern must recur before it is filed. |
 | `prflow_retrospective.retrospective_model` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | The model used for the analysis stage. |
 | `prflow_retrospective.watched_authors` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whose pull requests the weekly loop scans. |
-| `prflow_review.agent_overrides` | [Review Agents](/docs/configuration/review-agents) | Per-agent `model`, `effort` and `iterations` overrides, plus a `default` entry. |
+| `prflow_review.agent_overrides` | [Review Agents](/docs/configuration/review-agents) | Per-agent `model` and `iterations` overrides, plus a `default` entry; a per-agent `effort` is ignored. |
 | `prflow_review.live_progress_comment_enabled` | [Review](/docs/configuration/review) | Whether a run keeps a live progress comment. |
 | `prflow_review.require_ci_green` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
 | `prflow_review.require_up_to_date` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
-| `prflow_review.stale_prose.enabled` | [Review](/docs/configuration/review) | Whether the stale-prose check runs. |
-| `prflow_review.stale_prose.severity` | [Review](/docs/configuration/review) | The severity a stale-prose finding carries. |
+| `prflow_review.stale_prose.enabled` | [Review](/docs/configuration/review) | Deprecated and ignored. |
+| `prflow_review.stale_prose.severity` | [Review](/docs/configuration/review) | Deprecated and ignored. |
 | `prflow_review.stall_backstop.enabled` | [Review](/docs/configuration/review) | Whether the live no-verdict stall backstop is enabled (retained; not part of the removed tier). |
 | `prflow_review.stall_backstop.max_resume_attempts` | [Review](/docs/configuration/review) | How many times a stalled review may be resumed. |
 | `prflow_review.verdict_severity_threshold` | [Review](/docs/configuration/review) | The severity at which findings and failed checklist items turn the verdict into a rejection. |
@@ -129,7 +129,7 @@ Credentials are never settings. Store them as GitHub Actions secrets, described 
 ## Read Defaults Correctly
 
 <Note>
-  The value the scaffold writes and the value an absent key falls back to can differ. `/prflow:init` writes `prflow.effort: "low"`, while an absent `prflow.effort` falls back to `high`. Each family page names both whenever they differ, so read the fallback column rather than assuming the scaffolded file shows the default.
+  The value the scaffold writes and the value an absent key falls back to can differ. `/prflow:init` writes `prflow.effort: "medium"`, while an absent `prflow.effort` falls back to `high`. Each family page names both whenever they differ, so read the fallback column rather than assuming the scaffolded file shows the default.
 </Note>
 
 Unknown top-level keys are tolerated so that an older config keeps working after an update. Nested sections have closed schemas, so an editor flags an unknown key inside one. Cloud config loading checks that the file is valid JSON, but it does not run a full schema check.

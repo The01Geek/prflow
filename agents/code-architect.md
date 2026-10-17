@@ -2,7 +2,7 @@
 name: code-architect
 description: PRFlow implement's planning agent — designs an implementation blueprint from codebase patterns.
 tools: Glob, Grep, Read, TodoWrite
-model: sonnet
+model: inherit
 color: green
 ---
 

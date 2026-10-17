@@ -44,7 +44,7 @@
 #      absent-signal path still emits a breadcrumb.
 #   2. Cross-class: a /prflow:review-and-fix run that SEEDS a live PR progress
 #      comment seeds the SAME comment this detector reads, so a /prflow:review
-#      issued during one is suppressed. This is correct — the review-and-fix run
+#      issued during one is suppressed, unless it is a CI-green trigger (#1490). This is correct — the review-and-fix run
 #      executes the review engine, so the suppressed review would have been
 #      redundant. It holds ONLY for a hosting run that seeds such a live PR
 #      progress comment, and only for as long as the PR remote head is the one
@@ -141,6 +141,10 @@
 #                  no-verdict auto-resume posted from inside a still-active run;
 #                  it is NEVER suppressed (that run's own progress comment would
 #                  otherwise read as an active peer and swallow the resume).
+#                  One carrying `<!-- prflow:ci-review-trigger sha=… -->` (the
+#                  review requested when CI passed) is NEVER suppressed by this
+#                  mode either: an in-flight review may have started before that
+#                  head's CI finished.
 #   REVIEW_INFLIGHT_MAX_AGE_MINUTES   liveness bound (default 120). A review run
 #                  updates its progress comment per phase, so an in-flight run's
 #                  comment is fresh; a KILLED run leaves the comment frozen in
@@ -190,6 +194,9 @@ SEEDED_HEAD_MARKER='<!-- prflow:review-seeded-head'
 # to the marker scripts/request-review-backstop.sh produces; pinned agreeing).
 BACKSTOP_MARKER='<!-- prflow:review-backstop'
 BACKSTOP_MARKER_SUPERSEDED='<!-- devflow:review-backstop'
+# The marker scripts/post-ci-review-trigger.sh posts when a head's CI goes green
+# (pinned agreeing).
+CI_TRIGGER_MARKER='<!-- prflow:ci-review-trigger sha='
 
 mode="${MODE:-detect}"
 
@@ -217,10 +224,15 @@ fi
 
 # ── detect mode ─────────────────────────────────────────────────────────────
 
+# Keep the ci-review-trigger arm first: a body carrying both markers logs its notice.
 # A stall-backstop review auto-resume is NEVER suppressed: it is posted from
 # inside a still-active run whose own seeded comment would otherwise read as an
 # active peer. Match the marker in the triggering body (bash builtin substring).
 case "${TRIGGER_BODY:-}" in
+  *"$CI_TRIGGER_MARKER"*)
+    echo "::notice::dedupe-review: triggering comment carries the ci-review-trigger marker (the review requested when CI passed); not suppressing." >&2
+    emit suppress false
+    exit 0 ;;
   *"$BACKSTOP_MARKER"*|*"$BACKSTOP_MARKER_SUPERSEDED"*)
     echo "::notice::dedupe-review: triggering comment carries the review-backstop marker (a no-verdict auto-resume); not suppressing." >&2
     emit suppress false

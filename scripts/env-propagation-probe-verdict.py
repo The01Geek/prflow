@@ -16,11 +16,10 @@ THE PREMISE UNDER TEST. Issue #874 moves the review tier's prompt-extension byte
 a trusted base-ref closure and points the loader at it with `DEVFLOW_PROMPT_EXTENSION_ROOT`,
 published through `$GITHUB_ENV` on the review job. Whether a job-scoped environment value
 is visible to a command run through the agent's Bash tool was NOT established when that
-change shipped, and the two protected loads sit at DIFFERENT depths: the `review` load
-runs in the orchestrator's own shell (hop one) while the `requesting-code-review` load
-runs inside a dispatched `general-purpose` Task (hop two). Every other `env:` entry on
-that step is consumed by the CLI process itself, so no existing evidence covers a value
-an agent-run command must READ BACK.
+change shipped. The probe measures two depths: a command in the orchestrator's own shell
+(hop one) and one inside a dispatched `general-purpose` Task (hop two). Every other
+`env:` entry on that step is consumed by the CLI process itself, so no existing evidence
+covers a value an agent-run command must READ BACK.
 
 The design's failure direction is safe at both hops — an unpropagated variable makes the
 loader resolve the repo-root path, where it finds the workflow's truncated file and prints
@@ -226,8 +225,8 @@ def compute_verdict(entries, note_top):
     if hop1 and not hop2:
         return (
             "ORCHESTRATOR_ONLY",
-            ("the sentinel was visible at hop one but NOT inside the dispatched Task, so "
-            "the Phase-3 requesting-code-review load would fall back to the repo-root path"),
+            ("the sentinel was visible at hop one but NOT inside the dispatched Task, so an "
+            "extension load inside a dispatched agent would fall back to the repo-root path"),
             True,
         )
     if hop2 and not hop1:

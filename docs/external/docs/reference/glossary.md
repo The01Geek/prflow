@@ -9,13 +9,13 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **APPROVE**: The clean verdict. The review found nothing that blocks the merge and verified its own coverage.
 
-**APPROVE with notes**: Nothing blocked the merge, and the review still reported findings or failed checklist items that sat below the line where they cause a rejection, or inconclusive checklist items. The verdict is APPROVE WITH CAVEAT instead when the checklist holds at least one item and every item is inconclusive, or when an item is inconclusive because verification itself fell short.
+**APPROVE with notes**: Nothing blocked the merge, and the review still reported findings or failed checklist items that did not block, for example ones below the line where they cause a rejection or a finding a decided acceptance criterion decides, or inconclusive checklist items. The verdict is APPROVE WITH CAVEAT instead when the checklist holds at least one item and every item is inconclusive, or when an item is inconclusive because verification itself fell short.
 
 **APPROVE WITH ADVISORY NOTES**: The review-and-fix loop approved the change and parked one or more findings for a person to judge instead of fixing them.
 
 **APPROVE WITH CAVEAT**: The review approved the change and could not confirm how much of its own checking actually ran. Read it as approved with unknown coverage.
 
-**APPROVE WITH UNRESOLVED SHADOW FINDINGS**: The review-and-fix loop converged, and its final independent pass then surfaced findings it had no iterations left to address. Read it as approved with known, unaddressed work, listed in the report.
+**APPROVE WITH UNRESOLVED SHADOW FINDINGS**: The shadow pass surfaced findings the review-and-fix loop had no iterations left to address. Read it as approved with known, unaddressed work, listed in the report.
 
 **Base branch**: The repository branch a feature branch or pull request is compared with, such as `main`.
 
@@ -39,9 +39,9 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Human merge boundary**: The rule that PRFlow prepares and reviews pull requests, and a person owns the final merge decision.
 
-**Inert prose**: A code comment or internal-documentation line that no tool or agent reads to decide behavior and nobody outside the repository reads. An untrue line of it is capped at Suggestion, so it rejects a review only at a `suggestion` severity threshold. A README, a published doc page, a release note and a user-facing message are never inert.
+**Inert prose**: A code comment, docstring or documentation line that no tool or agent reads to decide behavior. An untrue line of it is capped at Suggestion, or at Important when it ships to readers outside the repository (a README, a published doc page, a release note, a user-facing message), so it never rejects at the default `critical` threshold. Prose a tool or agent acts on is never inert.
 
-**Investigation record**: A separate comment PRFlow posts on an issue it creates, holding the investigation behind the issue — rejected designs, confirmatory evidence and deliberation — so the issue body carries only what an implementer needs.
+**Investigation record**: A separate comment PRFlow posts on an issue it creates or updates, holding the investigation behind the issue — rejected designs, confirmatory evidence and deliberation — so the issue body carries only what an implementer needs.
 
 **Iteration**: One pass of the review-and-fix loop: review, fix what qualifies, then review again.
 
@@ -63,7 +63,7 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Reflection**: A short durable note a run writes on the workpad about friction it hit, a stop it made or a problem with the issue itself. The workpad heading is `PRFlow Reflections`; the section reader also still accepts the older `Devflow Reflection` spelling, so records written before the rename stay readable.
 
-**REJECT**: The blocking verdict. A failed checklist item or a finding reached the severity that blocks a merge, or a rule that ignores severity fired: the change's own diff added a line that is untrue (other than inert prose, which is capped at Suggestion), the change misses a decided acceptance criterion, or the checklist's acceptance items do not match the decided criteria one for one (a missing or surplus item, or criteria that could not be itemized).
+**REJECT**: The blocking verdict. A failed checklist item or a finding reached the severity that blocks a merge, or a rule that ignores severity fired: the change's own diff added a line that is untrue (other than inert prose, which is capped instead), the change misses a decided acceptance criterion, or the checklist's acceptance items do not match the decided criteria one for one (a missing or surplus item, or criteria that could not be itemized).
 
 **Review agent**: One of the nine subagents the review engine dispatches, each looking for a different class of problem — project guidelines, comment accuracy, test coverage, silent failures and type design among them.
 
@@ -71,17 +71,15 @@ Use this glossary to read PRFlow's own output without knowing how the product is
 
 **Run status**: The single word on a workpad saying where a run is. In order: Setup, Discovering, Reproducing, Planning, Implementing, Reviewing, Documenting, then Complete. Blocked, Failed and Cancelled are the ways a run ends early. Each word carries a glyph — 🚀 for any status still running, 🎉 Complete, 👎 Blocked, 💥 Failed and 🛑 Cancelled.
 
-**Scope-acknowledged finding**: A review finding deliberately left unfixed in this pull request and recorded in the pull-request body with a follow-up issue, so the next review reports it as informational instead of rejecting the change again.
+**Scope-acknowledged finding**: A review finding deliberately left unfixed in this pull request and recorded in the pull-request body with a follow-up issue. The next review lists it in its Deferrals section; the deferral does not lower the finding's weight.
 
 **Shadow review**: A separate review pass that looks for significant findings the primary review-and-fix loop missed. It reports whether its coverage was verified, and it cannot prove that every defect was found. When it raises findings the loop cannot resolve within its iteration cap, the verdict says so.
 
-**State pull request**: A pull request containing retrospective learning records instead of product-code changes. A person reviews and merges it.
-
-**Telemetry branch**: A long-lived branch, `prflow-telemetry` by default, that holds per-run efficiency records rather than product code. A fresh cloud installation does not receive the workflow that pushes to it.
+**Telemetry branch**: A long-lived branch, `prflow-telemetry` by default, that holds per-run efficiency records and the weekly retrospective's learning records rather than product code.
 
 **Verdict**: The review's overall answer about a pull request, and the thing that decides whether a merge is blocked. It is one of the APPROVE forms above, or REJECT.
 
-**Verification checklist**: The list of checkable claims the review engine derives from the diff before it dispatches its agents. Each item resolves to PASS, FAIL or INCONCLUSIVE with a severity. A FAIL item causes a REJECT when its severity is at or above `prflow_review.verdict_severity_threshold`; below it, the item does not reject on its own and is listed as a note. An INCONCLUSIVE item never causes a REJECT; the report lists it under Unverified for the human merger.
+**Verification checklist**: The list of checkable claims the review engine derives from the diff before it dispatches its agents. Each item resolves to PASS, FAIL or INCONCLUSIVE with a severity. A FAIL item causes a REJECT when its severity is at or above `prflow_review.verdict_severity_threshold`; below it, the item does not reject on its own and is listed as a note. An INCONCLUSIVE item never causes a REJECT; the report lists it under `### ℹ️ Informational — Deferred` for the human merger.
 
 **Workpad**: The single GitHub issue comment that records an implementation run's branch, status, plan, progress, acceptance criteria and important recovery notes.
 

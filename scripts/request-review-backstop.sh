@@ -93,7 +93,8 @@ emit() { # decision reason [attempt] [marker]
 
 # 1. A positively-observed verdict is a decided end — never resume a REJECT or an
 #    APPROVE (this guard is why finalize_check may call the helper unconditionally
-#    on any arm; it is also the "never fires when a verdict exists" invariant).
+#    on any arm). It sees only the VERDICT passed in: a caller that passes a fixed
+#    `incomplete` gets no protection from a verdict already on the head.
 case "$VERDICT" in
   approve|reject)
     echo "request-review-backstop: verdict '$VERDICT' positively observed for HEAD ${HEAD_SHA:-<unknown>} — a decided end; no auto-resume." >&2

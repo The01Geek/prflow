@@ -1,74 +1,102 @@
 <!-- prflow:spec-ref step=4-create file=skills/spec/references/step-4-create.md start -->
 
-### Step 4 sub-steps 5–6: create a new issue
+### Step 4 sub-steps 5–6: file the issue
 
-   Then bind creation with `record-creation-epoch`, which has two grounds and takes `--draft-file "<absolute issue-draft-<slug>.md path>"` on both file-arm ones. A run with any completed audit round binds the **newest completed round** — the round `last_completed` returns, of any kind (`discovery`, `targeted`, or otherwise) — whatever the eligibility ground (a clean `VERDICT: FILE` verdict or a current `user-decline` override alike): pass `--round <newest completed round>`. `--round 0` is the **zero-round run's operand only**: **the default run completed none, and binds to its recorded `user-decline` election instead** — it passes `--round 0`, which matches no recorded round and so routes the call to that election, and `--draft-file` is *required* there rather than additional: the call refuses without it, and prints `epoch_round=none` with it. When a run with completed rounds mistakenly passes `--round 0` (or any N naming no recorded round), the refusal names the newest completed round as `--round <M>` for the caller to re-issue — the tool diagnoses the round, never selects it. Omit `--draft-file` only on embed/inline epochs, where the audited round body stays the comparand.
+   File a new issue, or — on a run that widens an issue under Step 1's widen rule — replace that issue's title and
+   body in place, never by a comment: the body is the only channel implement takes acceptance criteria from.
+   `<method>` is `POST` and `<endpoint>` is `repos/{owner}/{repo}/issues` for a new issue; on a widen they are `PATCH`
+   and `repos/{owner}/{repo}/issues/<issue_number>`, `<issue_number>` being the widened issue's number. Every step
+   below runs on both unless it names one.
 
-   Source the body from the single presentation source — the posting recipe in `references/issue-template.md`, which owns both epoch arms; creation is always unassigned, sub-step 6 owning the assignment question. Report the issue URL that `gh` prints, and capture the new issue's number from its trailing path segment (e.g. `…/issues/42` → `42`) — sub-steps 5a and 6 need it.
+   When the working-draft file landed, send it itself as the body; otherwise take the heredoc
+   form below. The write sends no labels or assignees: sub-step 5a stamps provenance and
+   sub-step 6 applies 3a's assignment answer. `<title>` is the line in
+   `.prflow/tmp/spec/<slug>/issue-title-<slug>.txt` (from your message when the draft is there),
+   with each `"`, `$`, backtick and `\` backslash-escaped. Send it with `-f`, not `-F`, which
+   reads a leading `@` as a file:
 
-   After creation, attest what actually landed: fetch the created issue's body and pipe those bytes into `record-creation-attestation`, byte-exact through a file, in one single statement (never a `"$(…)"` capture re-emitted via `printf`):
    ```bash
-   if gh api repos/{owner}/{repo}/issues/<issue_number> --jq .body > "<bound-root>/.prflow/tmp/spec/<slug>/issue-fetched-<slug>.md"; then python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-creation-attestation "<slug>" --nonce "<nonce>" < "<bound-root>/.prflow/tmp/spec/<slug>/issue-fetched-<slug>.md"; else python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-creation-attestation "<slug>" --nonce "<nonce>" --attestation-unavailable; fi
+   test -s "<absolute working-draft file path>" && gh api --method <method> <endpoint> -F "body=@<absolute working-draft file path>" -f "title=<title>" --jq .html_url
    ```
-   The tool tolerates exactly one fetch-framing trailing newline (jq's output framing) — reporting `matched modulo the fetch's single trailing newline` on stderr when that tolerance fired — and anything else stays a mismatch.
 
-   Keep the `if`/`else` shape and branch on the fetch's own exit status — never a bare `&&` chain; and never a blanket `||`.
+   On a tier denial of that send, re-send once through `--input` rather than iterating the denied shape;
+   `<json file>` is `.prflow/tmp/spec/<slug>/issue-body-<slug>.json` made absolute from the working directory:
+   ```bash
+   test -s "<absolute working-draft file path>" && "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -Rs --arg title "<title>" '{body: ., title: $title}' "<absolute working-draft file path>" > "<json file>" && gh api --method <method> <endpoint> --input "<json file>" --jq .html_url
+   ```
 
-   When that then-branch `record-creation-attestation` call itself exits non-zero (a `git`/read/persist failure *after* a successful fetch, so nothing was recorded and `query-summary` still reports `attestation=none`), surface it in the summary line as an errored post-fetch attestation — e.g. append `attestation errored post-fetch: <breadcrumb>` — not the bare `attestation=none`, which means *no creation was attempted*.
-5a. Stamp the reserved `PRFlow` provenance label (best-effort). After a successful `gh issue create`, apply the reserved label to the new issue through a single `apply-labels.sh` call, which creates the label if it is missing before applying it. `PRFlow` is a hardcoded provenance constant no config key controls (its superseded `DevFlow` spelling stays selectable on already-labelled history; new issues are stamped only `PRFlow`):
+   A title file you cannot read is Step 3's lost-draft stop. On a non-zero exit with no output, run
+   `test -s "<absolute working-draft file path>"` alone: a non-zero exit there (the working-draft file is empty or
+   missing) is Step 3's lost-draft stop; otherwise the send itself failed, routed below.
+
+   When the working-draft file never landed, send the approved body from your message instead, through a quoted heredoc
+   (quoted so backticks and `$` are not expanded), its lines and `BODY` terminator unindented, and report the read-back
+   comparison as not performed:
+
+```bash
+gh api --method <method> <endpoint> -F body=@- -f "title=<title>" --jq .html_url <<'BODY'
+<the approved body, byte for byte>
+BODY
+```
+
+   When the tier denies the `--input` re-send or the heredoc send, or a step before `gh api` printed its failure,
+   nothing was sent: stop, report filing as not attempted naming the cause, and run nothing below. When `gh api` exits
+   non-zero, or you cannot place the failure, stop, surface the error output verbatim, warn that the issue may already
+   have been created or its title and body replaced so the user checks the issue before re-running, report both 3a answers as not applied, and run nothing below.
+   Otherwise report the issue URL that `gh` prints; for a new issue, capture its number from the URL's trailing path
+   segment (e.g. `…/issues/42` → `42`) — sub-steps 5a–6 need it.
+
+   After a send from the working-draft file, read the stored body back, digest it and print the stored title;
+   `<read-back file>` is `.prflow/tmp/spec/<slug>/issue-readback-<slug>.md` made absolute from the working directory:
+   ```bash
+   gh api repos/{owner}/{repo}/issues/<issue_number> --template '{{.body}}' > "<read-back file>" && git hash-object --no-filters "<read-back file>" && gh api repos/{owner}/{repo}/issues/<issue_number> --template '{{.title}}'
+   ```
+   Report in the final outcome whether that digest equals the working-draft file's digest from sub-step 3 of the
+   approved presentation and the printed title equals the title file's line; when either differs, name the read-back
+   file there. Fewer than two digests, or no printed title, leave the comparison not performed; report that, naming the
+   failure. Continue to sub-step 5a whatever the comparison found.
+5a. Stamp the `PRFlow` provenance label (best-effort); the helper creates the label if missing and prints one outcome
+    token:
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-labels.sh <issue_number> PRFlow
    ```
-   It needs only the `repo` scope and always exits 0, logging the label and apply outcomes. Application goes through `apply-labels.sh`'s REST `POST .../issues/{n}/labels`, never `gh issue edit --add-label`. The always-exit-0 contract applies only once the helper actually runs: an invocation that fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent) is the anchor-resolution failure noted at the top of this skill, not a benign label outcome — fix the anchor and re-run the command. If the anchor cannot be resolved on this runner at all, report the degradation explicitly in the final outcome — issue created, `PRFlow` provenance label NOT applied. Continue to sub-step 5b regardless of the label outcome.
-5b. Register declared prerequisites as GitHub-native blocked-by dependencies (best-effort). After a successful `gh issue create`, register each prerequisite the drafted body declares inside its `## Dependencies` section as a GitHub-native blocked-by dependency on the created issue. `scripts/apply-issue-dependencies.py` mirrors the label-stamp contract: it fetches the created issue's body itself, derives the prerequisites through the same section-scoped recognizer factored out of `scripts/preflight.py` (only the reserved section registers), always exits 0, and leaves a specific `apply-issue-dependencies.py:`-prefixed stderr breadcrumb on every path it can reach. Invoke it as the command's **leading token** with just the created issue's number:
+   Any result but `applied`, no output included, goes in the final outcome as
+   `PRFlow label NOT applied (<token, error, or no output>)`. Continue to sub-step 5b.
+5b. Register declared prerequisites as GitHub-native blocked-by dependencies (best-effort). Run the helper as the
+    command's **leading token**; it reads the filed body's `## Dependencies` section, always exits 0, and leaves
+    `apply-issue-dependencies.py:`-prefixed stderr breadcrumbs:
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-issue-dependencies.py <issue_number>
    ```
-   Read the helper's stderr from the tool result and route on it — the same four-outcome routing `skills/implement/references/deferred-filing.md` states for the same `apply-issue-dependencies.py` dependency registration. A `apply-issue-dependencies.py: linked …` / `… already blocked_by …` / `… declares no prerequisites …` / `… skipped #<n>: … reads as an OUTBOUND relation …` / `… done for #<n>: …` line is a successful registration outcome (the `skipped …` line names a prerequisite dropped because its `## Dependencies` line declares this issue as the prerequisite rather than a blocker — restate it as `blocked by #<n>` on its own line if it must land first). A `… could not link … (API refused …)` or `… every declared prerequisite's registration was refused …` line is an API failure. A `… missing or non-numeric issue-number argument …` line is a caller arg-slip — re-emit the call once with the captured number. No output at all means the harness refused the command, not that nothing needed doing. Name any number the helper could not resolve or link in the run's final outcome, exactly as 5a names an unapplied `PRFlow` label; the remaining numbers are still linked. If the anchor cannot be resolved at all, report the degradation (issue created, prerequisites NOT registered). Continue to sub-step 5c regardless of the outcome.
-5c. Publish the investigation record as the first comment (gated, best-effort, before the implement offer). The draft was composed into two buckets by `references/issue-template.md`'s Brief / investigation-record routing rule — the brief (the created issue body) and the investigation record. Publish that record bucket as the issue's first comment, *after* creation (5) and *before* the implement-offer comment (6). Sorting always ran; publication is what this gate controls. A bundled helper folds the run's decision record into the record, so the reasoning behind each criterion survives the closing cleanup (5d), which deletes the whole run directory: from the cwd/worktree-anchored `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` derivation artifact it copies the passed-over-candidate `Considered-and-rejected:` line and the `## Criterion disposition record`, `## Steelman record`, `## Self-audit record` and `## Evidence bundle` sections. Leave all of those out of the bucket you write, and do not read the artifact yourself. The raw derivation prose, the `## Revision-delta record`, and the run's verified-claims ledger are deliberately not folded — the closing cleanup (5d) deletes them and reports that it did.
+   Route on its last line. `… declares no prerequisites …` means none to register. `… done for #<n>: …` means
+   registration ran: name in the final outcome its `failed:` numbers and every earlier `skipped` line; the rest are
+   linked. A `… missing or non-numeric issue-number argument …` line is a caller arg-slip — re-emit the call once with
+   `<issue_number>`. Any other line, or no output, means prerequisites NOT registered: name that line, or its
+   absence, in the final outcome. On a widen, the final outcome also says that a blocked-by link only the old body
+   declared stays registered, since the helper only adds links. Continue to sub-step 5c.
+5c. Publish the investigation record (sub-step 2's record file) as a comment on the issue, before sub-step 6's
+    implement offer. When this run's record-file write did not land or its leftover delete was refused, invoke nothing
+    and report the record not posted because its save failed. Otherwise run the bundled helper once:
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/build-investigation-record.py --issue <issue_number> --record ".prflow/tmp/spec/<slug>/issue-record-<slug>.md" --derivation ".prflow/tmp/spec/<slug>/issue-derivation-<slug>.md"
+   ```
+   Pass `--derivation ""` when this run's writes to the derivation artifact were refused, so an earlier run's artifact
+   is never read; never read the artifact yourself. The helper applies the `spec.investigation_record_enabled` gate,
+   appends the artifact's `Considered-and-rejected:` line and posts. Name its one stdout line (its docstring lists them)
+   with any stderr, or that it printed none, in the final outcome, then continue to sub-step 5d whatever it printed.
 
-   - Resolve the gate. Read `spec.investigation_record_enabled` (default `true`) through the bundled resolver as the command's **leading token**:
-     ```bash
-     "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .spec.investigation_record_enabled true
-     ```
-     Withhold publication when, and only when, the resolved value is exactly the literal `false` — compare with bash builtins only (`case "$V" in false) … ;; esac`, never `tr`/`sed` lowering). The resolver emits a JSON boolean lowercase by contract, so a real `false` is the literal this compares against; the reachable non-`false` outputs — `0` from a numeric value, `[object Object]` from an object-valued key, a comma-joined array, and the empty stdout of an exit-2 resolver failure — each leave publication enabled (empty ≠ `false`). An absent key, an absent family, an absent file, `null`, and an empty-string value all resolve to the default `true` and publish.
-
-   - Delete any same-slug record leftover first, on every arm. Resolve the write root the way every later write site does — from `query-draft-binding "<slug>" --nonce "<nonce>"`'s `bound=` field, never a second `--ensure-run-dir` main-root resolution while a binding exists. Branch as sub-step 4 does, with one addition: on `reason=foreign-nonce` compose no record path at all. The record file is `.prflow/tmp/spec/<slug>/issue-record-<slug>.md` under that root's `.prflow/tmp/` — never written into `issue-draft-<slug>.md`.
-
-   - When publication is withheld (`false`): post no comment, write no record file at all (never write-then-delete this run's own record — the leftover delete above targets only a *prior run's* stale file), and ensure no record-bucket content reached the created body. Report in the run's final outcome that the investigation record was withheld by config, naming the decision blocks that were therefore not preserved (the criterion disposition record, the steelman record, and the evidence bundle).
-
-   - When publication is enabled: write the record bucket (an empty file when the bucket is empty) to `<bound-root>/.prflow/tmp/spec/<slug>/issue-record-<slug>.md` with the **Write tool**, then run the helper once per bucket written (a re-run folds the decision record in again). Pass both paths as written; never derive one from the other:
-     ```bash
-     python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/build-investigation-record.py --record "<bound-root>/.prflow/tmp/spec/<slug>/issue-record-<slug>.md" --derivation ".prflow/tmp/spec/<slug>/issue-derivation-<slug>.md"
-     ```
-     If this run's writes to the derivation artifact were refused (the read-only sandbox), pass `--derivation ""` instead, so an earlier run's artifact is never folded. Route on its one stdout line:
-     - `record=ready bytes=<n> folded=<sections> truncated=<sections> omitted=<sections> considered-and-rejected=<state>`: post the file as below, and name in the final outcome the folded, truncated and omitted sections and the `Considered-and-rejected:` state (`present`, `absent`, or `unestablished` — the artifact was unreadable or never written), as the line gives them, with any stderr line.
-     - `record=empty`: post nothing and report in the final outcome that there was nothing to record, with any stderr line.
-     - Any other line, or no line (a refusal): post nothing — the record's assembly is unconfirmed — and name in the final outcome that line with any stderr, or its absence, and that the investigation record, decision sections included, was not posted.
-
-     Then post the verified file:
-     ```bash
-     "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/post-issue-comment.sh <issue_number> "<bound-root>/.prflow/tmp/spec/<slug>/issue-record-<slug>.md"
-     ```
-     `post-issue-comment.sh` posts via REST `POST …/issues/{n}/comments` (repo-scoped), reads its body only from a file, and always exits 0, so route on its stderr breadcrumb rather than its exit code. Apply exactly one result row: `devflow: posted comment on #<n>` means posted; `prflow: warning: could not post comment on #<n> …` means NOT posted and the final outcome names the failure; a warning containing `missing issue-number argument (caller argument slip` or `missing body-file argument (caller argument slip` means NOT posted, the final outcome names the caller slip, no API request was made, and the run continues to sub-step 6 without retrying or blocking issue creation; no output, multiple contradictory result breadcrumbs, or an unrecognized breadcrumb is a harness refusal, means NOT posted, and is named in the final outcome.
-
-   - A record post that fails never blocks issue creation, and the failure is named in the run's reported final outcome (issue created, record NOT posted, with the helper's stderr breadcrumb). Continue to sub-step 5d regardless of the record outcome.
-
-6. **The single post-creation pause.** Runs only after `gh issue create` succeeds (exit zero, an issue URL printed) and the URL has been reported; on failure stop and surface `gh`'s error output verbatim instead. Ask the assignment decision and the implement-offer decision as two questions through the runner's user-question tool — batched into one call where the tool takes multiple questions (`AskUserQuestion` on Claude Code, or the equivalent your runner exposes, as in Step 2), and asked one after the other where it does not. The assignment question — *"Assign this issue to you?"* — is asked always; the implement offer — post `/prflow:implement <issue_number>` as a comment on the new issue — is asked only when both gate conditions hold:
-
-   - (a) The created issue's body has no open prerequisites and no unresolved decisions — no `## Dependencies` entry (the section absent, or present with no `Blocked by #N` line) and no `## 🚫 Blocked` section. Read this from the body you just posted.
-   - (b) The cloud implement tier is enabled — `workflows.prflow` resolves to exactly `true` from `.prflow/config.json` (the same fail-closed semantics `.github/workflows/devflow-implement.yml`'s gate job reads as `.workflows.prflow // false`). Read it through the bundled resolver as the command's **leading token**:
-     ```bash
-     "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .workflows.prflow false
-     ```
-     When that invocation is denied or fails (the local-tier classifier can deny a script-by-path call; the anchor may be unresolvable), load `references/fallback-implement-offer-tier-read.md` per `references/degradation-routing.md` and follow its read ladder; a resolver that answers cleanly never loads it.
-
-   When sub-step 6 withholds the implement offer, see `references/fallback-step4-withheld-offer-reason.md` per `references/degradation-routing.md`.
-
-   Route the answers:
-   - **Assign — yes:** read the login with `gh api user --jq .login`, then `gh api -X POST repos/{owner}/{repo}/issues/<issue_number>/assignees -f "assignees[]=<login>"` — two commands, transcribing the printed login. Keep the literal `{owner}/{repo}` placeholders (never `$GITHUB_REPOSITORY`, which is empty off Actions) and never `gh issue edit --add-assignee` (GraphQL; fails silently under a repo-scoped token). A failed assignment never blocks and is named in the final outcome (*issue created, NOT assigned*). No, silence, or any other answer leaves the issue unassigned and is reported plainly — never a stall.
-   - **Implement — yes:** `gh issue comment <issue_number> --body "/prflow:implement <issue_number>"`, the bare form with no `@claude` mention. Report that the comment was posted and that it fires the implement run only when the repo's devflow workflows are enabled and the commenter is authorized — both enforced by the `gate` job in `.github/workflows/devflow-implement.yml` (authorization via `scripts/resolve-implement-trigger.sh`). If the comment fails, surface its error and report that the issue was created but the comment could not be posted. This run never starts implementation itself — implement must begin in a fresh-context agent.
-   - **Implement — no:** post no comment.
-   - A non-interactive run self-answers no to both.
+6. **Apply 3a's counted answers.** Runs only after the send succeeds and the URL has been reported; it asks nothing.
+   Per question, a no, an unanswered question or a discarded answer adds no assignee (reported as *issue filed,
+   no assignee added*) or posts no comment; a withheld offer posts none and is reported as withheld.
+   - **Assign — yes:** read the login with `gh api user --jq .login`, then
+     `gh api -X POST repos/{owner}/{repo}/issues/<issue_number>/assignees -f "assignees[]=<login>"` — two commands,
+     transcribing the printed login. Keep the literal `{owner}/{repo}` placeholders (never `$GITHUB_REPOSITORY`, which
+     is empty off Actions) and never `gh issue edit --add-assignee` (GraphQL; fails silently under a repo-scoped token).
+     A failed assignment never blocks and is named in the final outcome (*issue filed, NOT assigned*).
+   - **Implement — yes** (after sub-step 5c):
+     `gh api --method POST repos/{owner}/{repo}/issues/<issue_number>/comments -f "body=/prflow:implement <issue_number>" --silent`, the bare trigger with no `@claude` mention. Report that the comment was posted and that it fires the implement
+     run only when the repo's devflow workflows are enabled and the commenter is authorized — both enforced by the
+     `gate` job in `.github/workflows/devflow-implement.yml` (authorization via `scripts/resolve-implement-trigger.sh`). If the comment fails, surface its error and report that the issue was filed but the comment could not be
+     posted. This run never starts implementation itself — implement must begin in a fresh-context agent.
 
 <!-- prflow:spec-ref step=4-create file=skills/spec/references/step-4-create.md end -->

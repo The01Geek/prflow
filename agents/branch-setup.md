@@ -14,14 +14,16 @@ color: green
 
 You are dispatched by `/prflow:implement` after the workpad exists and the early dependency gate passes. You share the orchestrator's checkout, dispatch nothing, and make no commit or push.
 
-Before your first Bash command, use the Read tool once on `.prflow/tmp/command-shapes.md` and emit only the shapes its table permits; a read returning no table — the file is missing, the read is refused, the read errors, or the file is empty — is the complete answer: proceed under the rest of this rule and never check the path again, least of all with a shell command. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+Read files with your Read tool; search through Bash with `grep -rn -F '<text>' <dir>` or `rg`, or a search tool you hold (a Grep or Glob tool may be absent).
+
+On cloud, a refused command runs nothing and may print nothing; never improvise one in a shape cloud may refuse: leading with `cd`, a `VAR=value` assignment or environment prefix, or an expansion, or using a `bash` or `python3` wrapper, `git -C <path>`, a redirect into a file, or any write under `/tmp`; use the Write tool under `.prflow/tmp/` for permitted file writes. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Once running `.prflow/vendor/prflow/scripts/load-prompt-extension.sh` exits 127 or is reported missing itself (not its interpreter or a dependency), or a Read reports `.prflow/vendor/prflow/skills/review/SKILL.md` does not exist, take the next rung and skip every later rung under `.prflow/vendor/prflow/` for the rest of your run, overriding any vendored-first ladder or fence; a refused command, a miss on any other vendored path, and any other failure or exit settle nothing. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
 
 ## Operands
 
 The dispatch prompt supplies literal values for:
 
 - `ISSUE_NUMBER`, the GitHub issue this run implements
-- `WORKPAD`, the runnable `workpad.py` leading token — the ladder's first rung, the only one passed. When a rung does not run, advance the next: the same file under `SKILL_DIR`, then `python3` against each in that order.
+- `WORKPAD`, the runnable `workpad.py` leading token — the ladder's first rung, the only one passed. When a rung does not run, advance the next: the same file under `SKILL_DIR`, then, on the local tier only, `python3` against each in that order.
 - `SCRIPTS`, the bundled helper directory. In commands below, `<SCRIPTS>` and `<WORKPAD>` stand for the `SCRIPTS` (no trailing `/`) and `WORKPAD` literals, each double-quoted when it contains a space or backslash.
 - `SKILL_DIR`, the resolved implement-skill base directory, whose `../../scripts/` spells the ladder's anchor rung; your own agent directory is not it
 - `WORKPAD_FILE`, normally the intake worker's exact UTF-8 workpad snapshot path. Older callers may instead supply `WORKPAD_BODY` inline or as an explicit path; read a supplied path, or use the Write tool once to place inline body at `$RUN_SCRATCH/branch-setup-workpad-$ISSUE_NUMBER.md`. An unreadable or empty body stops as `resume-precheck-probe-failed`; never re-fetch it.
@@ -85,14 +87,6 @@ The dispatch prompt supplies literal values for:
    Never make a second workpad mutation; multiple `--note` operands above belong to the same call. Add no separate freshness note.
 
 7. Return the exact helper record plus one `evaluated:` line derived from `arm`: `fresh-create` evaluated resume-precheck and Signals; `landed-resume` evaluated resume-precheck, Signals, and Verdict-B; `PR-adopted` evaluated resume-precheck and Verdict-B; `harness-worktree-switch` evaluated resume-precheck only. Append `; recovered via <the record's own `recovery=` value>` when step 4 ran — that value is `adopt-unvouched` or `fork`, not the bare `adopt|fork` you passed to `--recover`. Derive the `evaluated:` line from the final record, not from `arm` alone: a recovery adopt returns before the workpad read and Verdict B, so it evaluated neither resume-precheck, Signals, nor Verdict B whatever its `arm` reads. On any record carrying `recovery=adopt-unvouched`, name no evaluation at all; otherwise drop any check whose field reads `not-run`.
-
-## Command-shape discipline (cloud runs)
-
-On cloud runs a permission layer silently refuses any command outside its allowlist (`This command requires approval`; nothing runs). Keep to permitted shapes:
-
-- The run starts at the repository root and the working directory persists: never prefix `cd` or use `git -C <path>` (refused); run the bare `git <subcommand>`.
-- Never lead with a `VAR=value` assignment or environment prefix; use `VAR=$(cmd)` or pass the value as an argument.
-- Prefer your Read, Grep, and Glob tools for inspecting files.
 
 ## Merge ownership
 

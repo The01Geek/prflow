@@ -293,8 +293,10 @@ if evidence_gate_fail:
     # derive-review-verdict.sh reads a verdict marker in lines 1-2 before this Verdict line,
     # so a surviving one re-approves the voided run. Blank a stripped line, never delete it:
     # deleting shifts a line-3 marker into lines 1-2, where the deriver reads it.
-    # With no marker the deriver matches its APPROVE_RE/REJECT_RE on any line, so indent
-    # every such heading one space: it still renders as a heading but no longer matches.
+    # lib/review-verdict-union.jq's grammar rung reads a column-0 `## Verdict: APPROVE|REJECT`
+    # heading on any line, so indent every such heading one space: it still renders as a heading
+    # but no longer matches that rung. Its bot-comment rung 3 can still read an indented heading
+    # whose token ends the line (`## Verdict: APPROVE`).
     marker = re.compile(r'<!-- prflow:review-verdict[ >]')
     heading = re.compile(r'##\s+Verdict:\s*(APPROVE|REJECT)')
     lines = new_body.split('\n')

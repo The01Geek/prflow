@@ -13,7 +13,7 @@ A competent developer who does not know this codebase, reading English as a seco
 2. **Prefer the plain long sentence to the compressed expert one.** When a shorter phrasing only lands for someone who already knows this codebase, write the longer version anyone can follow. Extra words are cheap; a reader who guesses wrong acts wrong.
 
 3. **Open with a TLDR in plain language.**
-   - Describing a change — an issue, a PR description, a review finding, a release-note entry — open with two to four sentences saying what is broken and what will change.
+   - Describing a change — a PR description, a review finding, a release-note entry — open with two to four sentences saying what is broken and what will change. An issue opens with the opening summary the spec issue template's Problem Statement defines.
    - Not describing a change — a reference page, or this standard — open with what the page is for and who it is for.
    - Neither opening uses a repository-private term.
 
@@ -27,4 +27,4 @@ A competent developer who does not know this codebase, reading English as a seco
 
 ## Exempt text
 
-Some of this content is parsed by tools. An `## Acceptance Criteria` heading, a `- [ ]` checkbox row, an HTML marker block, and a literal cross-reference token such as `PR #<N>` are matched exactly by downstream code. These, and the approved or prescribed-verbatim wording the spec issue template's no-options rule protects, are exempt from the rules above and survive verbatim.
+Some of this content is parsed by tools. An `## Acceptance Criteria` heading, the `- [ ]` token opening a checkbox row (not the criterion text after it), an HTML marker block, and a literal token such as `PR #<N>` or a trailing `(post-merge)` tag are matched exactly by downstream code. These, and the approved or prescribed-verbatim wording the no-options rule protects, are exempt from the rules above and survive verbatim.

@@ -10,8 +10,7 @@ one per run) into a single slug-level aggregate, passes that aggregate as
 (the finding's category + trimmed explanation + kind; an entry that cannot
 supply a full reason falls back to per-file grouping), and rewrites
 the aggregate with the assigned issue numbers + deterministic deferral IDs. The /devflow:review
-verdict engine then matches these entries against the PR-body block to
-demote already-acknowledged findings.
+report then lists these entries, matched against the PR-body block, in its Deferrals section.
 
 Two classes of entry survive the rewrite carrying NO `follow_up`, because no
 follow-up issue is owed for them. `settled-by-disclosure` is the foreclosure
@@ -685,7 +684,7 @@ def main(argv=None):
     # issue #621: partition foreclosures out of the fileable groups. A
     # foreclosure files no issue but still survives into the rewritten manifest
     # unchanged (with an `id` assigned for the dfr- match), so /pr-description
-    # and /devflow:review can carry and honor it. issue #758 adds the second
+    # can carry it and /devflow:review can match it. issue #758 adds the second
     # such partition, keyed on the deliverable set resolved above.
     # issue #602: group by the shared deferral reason (category + trimmed
     # explanation + kind), not by source file, so findings deferred for one
@@ -750,7 +749,7 @@ def main(argv=None):
 
     # issue #621: pass foreclosure entries through unchanged (no follow_up),
     # assigning the deterministic dfr- id so the PR-body payload and the
-    # verdict matcher can key on it. `setdefault` keeps a prior id on a re-run.
+    # deferral matcher can key on it. `setdefault` keeps a prior id on a re-run.
     for d in foreclosures:
         entry = dict(d)
         entry.setdefault("id", _compute_id(d))

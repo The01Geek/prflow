@@ -119,7 +119,7 @@ jobs:
 
 ## What You Should See
 
-Once your CI job finishes successfully on the pull request, the `PRFlow auto-review request` workflow runs. It posts a `/prflow:review` comment on the pull request, authored by your GitHub App. That comment then starts a normal PRFlow review, exactly as if a collaborator had typed it, and the review posts its progress comment on the same pull request.
+Once your CI job finishes successfully on the pull request, the `PRFlow auto-review request` workflow runs. It posts a `/prflow:review` comment on the pull request, authored by your GitHub App. That comment then starts a normal PRFlow review, exactly as if a collaborator had typed it, and the review posts its progress comment on the same pull request. Unlike a typed request, it is never suppressed by the progress comment of a review already running for that commit.
 
 Three outcomes tell you something went wrong instead:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# retro-helper.sh <subcommand> — fixed-file CLI dispatcher wrapping the 13 cloud-used
+# retro-helper.sh <subcommand> — fixed-file CLI dispatcher wrapping the cloud-used
 # retrospective helper functions (issue #101).
 #
 # Invoked as a bare granted path with a fixed LITERAL subcommand token; it reads inputs
@@ -9,7 +9,10 @@
 # for the open-filed counts), calls the owning library function with all shell work done
 # internally, writes the function's stdout bytes to a fixed output file (except
 # audit-dispatch-ok, a pure predicate whose caller reads only the exit status), and
-# propagates the function's exact exit status.
+# propagates the function's exact exit status. Only `learnings-persist [--report]` and
+# `dismiss <pattern-key>` take an argument; the learnings-* and dismiss subcommands also
+# read and write the telemetry branch, and dismiss and learnings-migrate print to stdout
+# instead of an output file.
 #
 # The owning library is sourced by dirname resolution and the target function is
 # `declare -F`-verified before dispatch (fail-closed). source_lib restores `set +e`
@@ -21,8 +24,8 @@
 #
 # The base directory anchoring the fixed .prflow/** paths defaults to the CWD (the working
 # tree — NOT the script's own location, which on the vendored cloud invocation differs from
-# it); DEVFLOW_RETRO_HELPER_ROOT overrides it (test isolation only — the cloud call sets
-# nothing, so the paths are fixed).
+# it); DEVFLOW_RETRO_HELPER_ROOT overrides it (tests, and install.sh's learnings-migrate —
+# the cloud call sets nothing, so the paths are fixed).
 
 set -uo pipefail
 
@@ -236,6 +239,35 @@ case "$SUB" in
     OUT="$SCRATCH/telemetry-branch-out.txt"
     source_lib "$LIB_DIR/telemetry-branch.sh" devflow_telemetry_branch
     devflow_telemetry_branch > "$OUT"; rc=$?
+    exit "$rc" ;;
+
+  # The learnings store (lib/learnings-store.sh). hydrate/persist write their one-line
+  # diagnostic to a fixed output file the skill reads back; dismiss and learnings-migrate
+  # are maintainer/installer commands and print theirs.
+  learnings-hydrate)
+    OUT="$SCRATCH/learnings-hydrate-out.txt"
+    source_lib "$LIB_DIR/learnings-store.sh" devflow_learnings_hydrate
+    devflow_learnings_hydrate "$BASE" > "$OUT"; rc=$?
+    exit "$rc" ;;
+
+  learnings-persist)
+    OUT="$SCRATCH/learnings-persist-out.txt"
+    case "${2:-}" in
+      ''|--report) ;;
+      *) die2 "learnings-persist takes no argument but --report (got '${2}')" ;;
+    esac
+    source_lib "$LIB_DIR/learnings-store.sh" devflow_learnings_persist
+    devflow_learnings_persist "$BASE" "${2:-}" > "$OUT"; rc=$?
+    exit "$rc" ;;
+
+  dismiss)
+    source_lib "$LIB_DIR/learnings-store.sh" devflow_learnings_dismiss
+    devflow_learnings_dismiss "$BASE" "${2:-}"; rc=$?
+    exit "$rc" ;;
+
+  learnings-migrate)
+    source_lib "$LIB_DIR/learnings-store.sh" devflow_learnings_migrate
+    devflow_learnings_migrate "$BASE"; rc=$?
     exit "$rc" ;;
 
   "")

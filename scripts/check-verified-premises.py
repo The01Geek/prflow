@@ -1,97 +1,48 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Re-check a drafted issue's `Verified:` premises against the current tree.
+"""Re-check an issue body's `Verified:` premises against the current tree.
 
-A `Verified:` bullet is the single most load-bearing line in a PRFlow issue: it
-is what licenses an implementing run to skip its own investigation. Those
-bullets are true *when the issue is drafted*, and nothing re-checks them when
-the issue is later implemented — so a premise that has since become false
-converts "go and check" into "this was already checked", and the run builds
-confidently on it. Issue #857 is the worked case: three of its premises were
-false by the time #864 implemented it, and two acceptance criteria were
-literally unimplementable.
+A `Verified:` bullet licenses an implementing run to skip its own
+investigation, so a premise that has gone false since drafting is worse than
+none. `/prflow:spec` routes on `handle=` and `state=` (a `handle=none` bullet
+is a drafting defect); implement Phase 1.6 Pass 6 routes on the adjudication.
 
-This helper is the mechanical half of the fix (issue #868). It has two
-consumers, both of which read the same output:
+Security boundary: the body is third-party text, so a path it cites is read
+only when it resolves inside `--repo-root`. The helper never executes a
+command from the body, spawns no subprocess and makes no network call; a
+command handle is reported, never run.
 
-  * `/prflow:spec` (drafting side) — does every load-bearing bullet
-    carry a self-contained *re-derivation handle*, so that re-checking is
-    mechanical rather than a re-investigation? A `handle=none` bullet is the
-    drafting defect.
-  * `/devflow:implement` Phase 1.6 Pass 6 (implement side) — does each premise
-    still hold against the tree this run will build on?
+Governing asymmetry: a refutation can make the run discard the premise and file
+issue-accuracy feedback, so only a positively adjudicated miss refutes;
+anything guessed at resolves to `unestablished`.
 
-WHAT IT DOES NOT DO — the security boundary. The issue body is third-party text
-that anyone able to comment can influence. This helper therefore performs
-**read-only file reads and nothing else**: it never executes a command drawn
-from the body, spawns no subprocess, and makes no network call. A bullet whose
-handle is a command is *reported* so the caller can re-run it under its own
-judgment; the helper declines to decide it. That is why the module imports no
-`subprocess`.
+Handles (`handle=`):
+  path-quote  a cited path plus a quoted sentence, or (quoting no sentence) a
+              backticked code literal; the only handle whose content is graded
+  path        a cited path alone; presence is not the premise, so never `holds`
+  quote       a quoted sentence naming no path
+  command     a backticked command; reported, never executed
+  none        no handle at all
 
-**The asymmetry that governs every arm below.** Refuting a premise is the one
-verdict this helper is least entitled to assert cheaply: on a refutation the
-implementing run *discards* the premise and records issue-accuracy feedback
-against the issue. So a refutation requires a claim the helper positively
-adjudicated, and everything it merely guessed at resolves to `unestablished`,
-which costs only an investigation the run would have done anyway.
-
-Handle classes (the label printed as `handle=`):
-
-  path-quote  a cited repository path AND either a quoted sentence or a
-              backticked code literal (in a bullet quoting no sentence) — the
-              strongest handle, and the only one whose *content* is adjudicated
-              rather than merely the path's presence
-  path        a cited path with no quoted sentence — presence is checkable, but
-              presence is not the premise, so this never reports `holds`
-  quote       a quoted sentence naming no path — no domain to search, so the
-              helper reports it rather than guessing
-  command     a backticked command — reported, never executed
-  none        prose asserting a premise with no handle at all; this is the
-              shape #857's three false premises took
-
-States (`state=`):
-
-  holds          the premise re-derives against the tree right now
-  refuted        a cited file is gone, or a quoted sentence no longer occurs in
-                 it — discard the premise and investigate
-  unestablished  the helper could not decide — no handle, a handle it declines
-                 to execute, or a claim it can only guess at; fall back to
-                 ordinary investigation
-
-`unestablished` is deliberately NOT an error: unknown is not zero, and it is
-also not a failure. It downgrades the bullet to "go and check", which is the
-state the run would have been in with no bullet at all.
+States (`state=`): `holds`, `refuted` (a strong cited path is gone or its
+quoted sentence no longer occurs), `unestablished` (undecided; investigate).
 
 Usage:
-    check-verified-premises.py --body-file PATH [--repo-root PATH]
+    check-verified-premises.py --body-file PATH --repo-root PATH
 
 Exit codes:
-  0  ran and decided; no premise was refuted (this includes a body with no
-     bullets at all, and a body whose bullets are merely unestablished)
-  2  at least one premise was REFUTED — one refutation dominates the exit code
-     even when other bullets hold
-  3  the measurement could not be established at all — the body file could not
-     be read, it was empty, the repository root was unusable, the invocation
-     itself was bad, or an unexpected internal error occurred. Never conflated
-     with a clean pass, and deliberately distinct from 2: a caller who could
-     not run the check has not thereby discovered a stale premise.
+  0  no premise refuted (including no bullets, or only unestablished ones)
+  2  at least one premise REFUTED
+  3  unestablished measurement: unreadable/empty body, unusable root, bad
+     invocation, or internal error. Never 2: not running is not a refutation.
 
-Every terminating path prints a `VERIFIED_PREMISES ` line, so a caller may
-treat that line's ABSENCE as "this did not run" rather than inferring anything
-from the exit code alone.
-
-On the normal (non-unavailable) path the adjudicated output is followed by the
-non-adjudicating ungraded-claim pass (issue #1634): zero or more
-`ungraded_claim=<n> region=… phrase=… detail=…` lines and one
-`UNGRADED_CLAIMS total=<n>` summary. These report a verification asserted in a
-shape the `Verified:` marker does not grade; they carry no state token, never
-move the exit code, and their `detail=` is the opaque trailing sentence text.
-When the pass itself fails, the summary is `UNGRADED_CLAIMS unavailable
-reason=internal-error detail=…` instead — never `total=0`, which would be
-byte-identical to a clean "found none" — and the adjudicated output above it
-and the exit code are both unchanged.
+Every terminating path but `--help` prints a `VERIFIED_PREMISES ` line; its
+absence means "did not run". On the normal path a non-adjudicating
+ungraded-claim pass (issue #1634) follows: `ungraded_claim=<n> region=…
+phrase=… detail=…` lines and an `UNGRADED_CLAIMS total=<n>` summary, or
+`UNGRADED_CLAIMS unavailable reason=internal-error detail=…` when the pass
+raises. None of these lines sets the exit code.
 """
 
 import argparse
@@ -102,102 +53,56 @@ import traceback
 from pathlib import Path
 from typing import NamedTuple
 
-# Import `section_parse` IN-PROCESS — never through a `.sh`/subprocess hop,
-# which fails on Windows ([WinError 193]) and breaks this module's
-# no-subprocess boundary. The path insert is what makes that import resolve.
+# Imported in-process: a subprocess hop breaks on Windows and this module's
+# no-subprocess boundary.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from section_parse import HEADING_RE, extract_section
 
-# The exit codes, named rather than spelled as bare integers at the seven
-# terminating sites. The 2-vs-3 distinction is this module's central discipline
-# — 2 makes the implementing run discard a premise and file accuracy feedback,
-# 3 only sends it to the investigation it would have done anyway — and a bare
-# `return 2` reads identically to a bare `return 3` at the call site.
+# Named so a refutation (2) never reads like an unestablished measurement (3).
 EXIT_CLEAN = 0
 EXIT_REFUTED = 2
 EXIT_UNESTABLISHED = 3
 
 
 class CitedPath(NamedTuple):
-    """One path citation mined from a bullet.
-
-    A named triple rather than a bare tuple because `strength` is the field the
-    refutation gate reads (`== 'strong'`) and `bare` is the one every existence
-    check and file read resolves — a positional reorder of two same-typed `str`
-    fields would silently adjudicate the strength of a path and the presence of
-    a strength label, and no test asserting behaviour on well-formed input
-    would catch it. With names, that mistake is an `AttributeError` instead.
-    """
+    """One cited path; fields are read by name, never by position."""
 
     strength: str
     bare: str
     suffix: str
 
 
-# The `Verified` marker, in the shapes filed PRFlow issues actually carry.
-# Matching only `**Verified:**` found zero bullets in bodies using any other
-# spelling and reported a vacuous clean pass. But widening it to any bolded run
-# beginning with the word `Verified` mints PHANTOM bullets out of ordinary
-# prose — "We **Verified that** `x/y.sh` exists" is not a premise bullet, and a
-# phantom that cites a missing path reaches `refuted`, writing a false accuracy
-# accusation back to the issue. So the alternatives are split by position:
-#
-#   A (anywhere)     the pure label `**Verified**` / `**Verified:**` — this is
-#                    the form that legitimately appears mid-sentence
-#   B (line start)   a line or list item OPENING with `Verified:`, bolded,
-#                    backticked or bare
-#   C (item start)   a bolded run opening a list item, whose first word is
-#                    `Verified` — covers `**Verified baseline**` and the
-#                    backtick-inside-bold `**`Verified:` …**` form
-#
-# DISCLOSED RESIDUAL, on both over-recognising arms: arm C cannot distinguish a
-# label from a bolded *sentence* that opens a list item with the word Verified,
-# and arm B matches any line opening `Verified:` — including one inside a fenced
-# code block or a table cell. Either can mint a bullet that is not one. The
-# recognised set is a floor, not a closed set, in BOTH directions — an
-# unrecognised spelling is invisible, and arms B and C may over-recognise. The
-# damage from an over-recognition is bounded by the rest of the module: a
-# phantom reaches `refuted` only by citing a strong path genuinely absent from
-# the tree.
-# Arm B's trailing backtick is CONDITIONAL on a leading label backtick (group 1):
-# `Verified:` backticked whole is consumed intact, but a bare `Verified:` before a
-# backticked path keeps that path's opening backtick — unconditional, it eats it.
+# The `Verified` marker, split by position so ordinary bolded prose ("We
+# **Verified that** …") mints no phantom bullet:
+#   A (anywhere)    the pure label `**Verified**` / `**Verified:**`
+#   B (line start)  a line or list item opening with `Verified:`, bolded,
+#                   backticked or bare
+#   C (item start)  a bolded run opening a list item whose first word is
+#                   `Verified`
+# The recognised set is a floor in both directions: an unrecognised spelling is
+# invisible, and B/C can over-recognise (a fenced or table-cell line, a bolded
+# sentence). A phantom, like any bullet, refutes only through a strong cited path.
+# Arm B's trailing backtick is conditional on a leading one (group 1), so a bare
+# `Verified:` keeps the opening backtick of the path after it.
 _MARKER = re.compile(
     r'\*\*[ \t]*Verified[ \t]*:?[ \t]*\*\*[ \t]*:?'
     r'|(?m:^[ \t]*(?:[-*+]|\d+[.)])?[ \t]*(?:\*\*[ \t]*)?(`)?Verified`?[ \t]*:(?(1)`?))'
     r'|(?m:^[ \t]*(?:[-*+]|\d+[.)])[ \t]*\*\*[`\s]*Verified\b[^*\n]*\*\*:?)')
 
-# A backticked span. The template mandates backticks for the *path* handle, and
-# a command handle is conventionally backticked too; an unbackticked path
-# mentioned in running prose is deliberately not mined, because doing so would
-# manufacture handles out of ordinary sentences. The cost is that a bullet whose
-# command is written bare classifies as `none` — a drafting nit the consumers
-# surface rather than a silent miss.
+# Paths and commands are mined only from backticked spans, never running prose.
 _BACKTICKED = re.compile(r'`([^`\n]+)`')
 
-# A double-quoted sentence, in either the ASCII or the typographic form. Single
-# quotes are excluded on purpose: they occur inside shell commands
-# (`grep -c '^tombstone:'`) far more often than they delimit a quoted premise.
-# The 8-character floor keeps short quoted words from being adjudicated as
-# premises; a bullet whose only quotation is shorter degrades to `handle=path`,
-# which no longer reports `holds`.
+# A double-quoted sentence (ASCII or typographic). Single quotes are excluded:
+# they appear in shell commands far more than as premise delimiters.
 _QUOTED = re.compile(r'["“]([^"“”]{8,})["”]')
 
-# The minimum length of an ELIDED quotation's fragment. `_QUOTED`'s floor
-# applies to the whole quotation; each fragment of an elided one is matched
-# independently, so it needs its own floor or short common words would resolve
-# against any file.
+# Per-fragment floor for an elided quotation, so short words match nothing.
 _MIN_FRAGMENT = 8
 
-# The minimum length of a backticked CODE LITERAL adjudicated as a premise
-# quotation. The templates push authors to backtick a code line, path or literal
-# in place of a double-quoted sentence, so a long-enough non-path-shaped span is
-# searched in the cited file; the floor keeps short backticked words from
-# resolving against any file, mirroring `_QUOTED`'s own eight-character floor.
+# Floor for a backticked code literal graded as a quotation, mirroring `_QUOTED`.
 _MIN_CODE_LITERAL = 8
 
-# The quotation-shape rule, single-sourced so the shape refusals that quote it
-# state one delimiter-and-floor rule a drafter reads the remedy from (#1866).
+# The quotation-shape rule, single-sourced for the refusals that quote it (#1866).
 _QUOTE_RULE = (
     'a premise quotation is a double-quoted sentence that opens and closes in '
     'plain text (a matching pair of ASCII " or typographic “ ” enclosing at least '
@@ -206,40 +111,26 @@ _QUOTE_RULE = (
     'or — in a bullet that cites a repository path and no double-quoted sentence — '
     'a backticked literal of at least eight characters that is not path-shaped')
 
-# A file extension, used only as the WEAK arm of path detection — see
-# `_path_strength`.
+# A file extension: the path-shaped tail `_path_strength` looks for.
 _EXTENSION = re.compile(r'\.[A-Za-z0-9]{1,6}$')
 
-# A shell/glob metacharacter. A span carrying one names a SET of paths, not a
-# path, so it is not adjudicable by a single existence check — and adjudicating
-# it as one produced false refutations against real issue bodies, which cite
-# `.prflow/skill-extensions/*.md`-style patterns routinely.
+# A glob span names a set of paths, so no single existence check adjudicates it.
 _GLOBBY = re.compile(r'[*?\[\]]')
 
-# The start of the next markdown list item. A bullet's span must stop here as
-# well as at a blank line: filed issues put consecutive `Verified:` bullets on
-# adjacent list-item lines with no blank line between them, so a span bounded
-# only by the next MARKER runs past its own item and into the following item's
-# leading prose — mining that item's cited paths as if this bullet had cited
-# them, and then refuting this bullet's quotation against the wrong file.
+# The next list item: a bullet's span stops here so it never mines the
+# following item's citations.
 _NEXT_ITEM = re.compile(r'\n[ \t]*(?:[-*+]|\d+[.)])\s')
 
-# An ellipsis inside a quotation: the author elided text. Such a quotation is
-# not verbatim, so it is adjudicated fragment-by-fragment and a miss on it can
-# never refute — see `recheck`. Elision is detected from the RAW quote, not from
-# the fragment count: a leading or trailing ellipsis yields a single fragment,
-# and counting fragments would route that back to the refuting arm.
+# An ellipsis: the quotation is elided, so it is matched by fragment and a miss
+# never refutes. Detected on the raw quote, since a leading or trailing
+# ellipsis yields one fragment.
 _ELISION = re.compile(r'\s*(?:…|\.\.\.)\s*')
 
-# A locator suffix appended to a path: a pytest node id (`::test_name`), a
-# markdown/URL anchor (`#section`), or a line reference (`:42`). The FILE part
-# is adjudicable; the suffix is not, so it is stripped for the presence check
-# and its presence downgrades the verdict — see `_split_locator`.
+# A locator suffix (`::test`, `#anchor`, `:42`): stripped for the presence
+# check, and its presence downgrades a resolving verdict.
 _LOCATOR_SUFFIX = re.compile(r'(::.+|#.+|:\d+(?:-\d+)?)$')
 
-# Why the undecidable handles cannot be adjudicated, keyed by handle. Module
-# level so the vocabulary sits beside the patterns that produce it, and so the
-# set of undecidable handles has exactly one definition.
+# Why each undecidable handle cannot be adjudicated; the set's single definition.
 _UNDECIDABLE_REASONS = {
     'quote': 'quoted sentence names no path to search',
     'command': 'command handle reported, never executed',
@@ -247,57 +138,42 @@ _UNDECIDABLE_REASONS = {
 }
 
 # --- Ungraded-claim detection (issue #1634) --------------------------------
-# The non-adjudicating pass below must share no STATE token (`holds`,
-# `refuted`, `unestablished`) with the adjudicated vocabulary above, or a
-# downstream verdict parser scanning both would mis-tally.
+# Its own tokens must exclude the state tokens (`holds`/`refuted`/
+# `unestablished`), or a verdict parser scanning both outputs would mis-tally.
 
-# Do not widen this tuple to catch a verification worded outside it ("I checked
-# this"): the missed detection is the deliberate low-false-positive floor.
+# Deliberately narrow: a missed wording is the low-false-positive floor.
 _COLLOCATION_FAMILY = (
     'verified against', 'confirmed against', 'checked against',
     'verified at drafting time')
-# The letter guards keep `verified against` from matching inside `unverified
-# against`. They are lookarounds, not `\b`, so `match.group(0)` stays the bare
-# phrase the report line prints.
+# Letter lookarounds (not `\b`) exclude `unverified against` and keep
+# `group(0)` the bare phrase.
 _COLLOCATION_RE = re.compile(
     '(?<![A-Za-z])(?:{})(?![A-Za-z])'.format(
         '|'.join(re.escape(phrase) for phrase in _COLLOCATION_FAMILY)),
     re.IGNORECASE)
 
-# `_premise_regions` adds every heading line as a fourth region; everything else
-# is the unscanned residual complement, so do not read this tuple as whole-body
-# coverage.
+# Sections scanned for collocations; `_premise_regions` adds every heading line.
+# No other line is scanned for one.
 _PREMISE_SECTIONS = ('Current Behavior', 'Technical Context',
                      'Implementation Notes')
 
-# A collocation inside a fenced block is data, not a premise. `_FENCE_RE` also
-# gates heading detection in `_premise_regions`, so a fenced `##`-shaped line
-# does not falsely close a real section.
+# A fenced block is data; also keeps a fenced `##` line from closing a section.
 _FENCE_RE = re.compile(r'^[ \t]*(?:`{3,}|~{3,})')
 
-# An inline code span. The issue that DEFINES the collocation family as data
-# would otherwise trip its own detector — this exclusion is load-bearing.
+# Inline code is data, so a backticked collocation phrase is not flagged.
 _INLINE_CODE_RE = re.compile(r'`[^`\n]+`')
 
-# A blockquote-prefixed `Verified:` line, which no `_MARKER` arm recognizes (the
-# leading `>` breaks arms B/C's line anchor). `[ \t>]*` does not match `*`, so a
-# bolded `> **Verified:**` stays with arm A and is not double-counted (#1866).
+# A blockquoted `Verified:` line, which no `_MARKER` arm grades. `[ \t>]*`
+# excludes `*`, so `> **Verified:**` stays with arm A (#1866).
 _BLOCKQUOTE_VERIFIED = re.compile(r'(?m)^[ \t]*>[ \t>]*Verified\b[ \t]*:')
 
 
 def normalize(text: str) -> str:
-    """Collapse a fragment to the form both sides of a quote match compare in.
+    """Collapse text to the form both sides of a quote match compare in.
 
-    Three normalizations, each closing a way a TRUE premise would otherwise
-    read as refuted:
-
-    * whitespace runs collapse to a single space, so a sentence the source file
-      wraps across lines still matches the issue's single-line quotation;
-    * typographic quotes and dashes fold to ASCII, because GitHub's editor and
-      most authoring tools substitute them silently;
-    * markdown emphasis (`*` and backticks) is stripped, because a quotation
-      lifted out of a prose file keeps the emphasis the source rendered with,
-      which the plain source text does not contain.
+    Folds whitespace runs, typographic quotes and dashes, and strips markdown
+    emphasis (`*`, backticks), so wrapping or editor substitution never
+    refutes a true premise.
     """
     folded = (text.replace('“', '"').replace('”', '"')
                   .replace('‘', "'").replace('’', "'")
@@ -312,10 +188,8 @@ _TERMINAL_PUNCT = '.:;,!?'
 def _find_fragment(haystack: str, fragment: str, cursor: int, last: bool) -> int:
     """Index of `fragment` in `haystack` from `cursor`, or -1.
 
-    The quotation's final fragment matches regardless of its terminal
-    punctuation (a quoted `authorization.` holds against `authorization:`), but
-    the stripped core must end at a word boundary, or a quoted `authorization.`
-    would hold against a file's longer `authorizations:`.
+    The final fragment ignores terminal punctuation, but its core must end at a
+    word boundary (`authorization.` never matches `authorizations:`).
     """
     core = fragment.rstrip(_TERMINAL_PUNCT) if last else fragment
     if not core or core == fragment:
@@ -330,14 +204,7 @@ def _find_fragment(haystack: str, fragment: str, cursor: int, last: bool) -> int
 
 
 def _split_locator(span: str) -> tuple:
-    """Split a cited span into `(path_part, suffix)`.
-
-    A path cited with a pytest node id, an anchor, or a line number names a
-    file plus a location *inside* it. The file part is adjudicable by an
-    existence check; the location is not — so the suffix is stripped here and
-    its presence is carried into the verdict, because a present file whose
-    cited symbol may have moved is not evidence the premise drifted.
-    """
+    """Split a cited span into `(path_part, suffix)`; only the file part is checkable."""
     match = _LOCATOR_SUFFIX.search(span)
     if not match or match.start() == 0:
         return span, ''
@@ -347,40 +214,11 @@ def _split_locator(span: str) -> tuple:
 def _path_strength(span: str) -> str:
     """Classify a backticked span as a `strong` path, a `weak` one, or `no`.
 
-    The distinction is what stops a *guess* from becoming a *refutation*. A
-    span carrying a directory separator is a **strong** path claim: little else
-    in an issue body looks like `lib/test/run.sh`. A span that merely ends in a
-    dotted tail is **weak**, because so do the identifiers this repo's own
-    issues are full of — `spec.loader`, `p.name`, `config.json`. Reporting "no
-    such file" about one of those as `refuted` would tell the run to discard a
-    true premise and record false issue-accuracy feedback against the issue, so
-    a missing *weak* path resolves to `unestablished` instead (see `recheck`).
-
-    Three prefixes are rejected outright rather than adjudicated. An
-    **absolute** path (`/`) is the load-bearing one: the span is third-party
-    text, and `Path(root) / "/etc/passwd"` discards `root` entirely under
-    pathlib's join semantics, so an absolute span would silently point the read
-    outside the tree (`_resolves_inside` closes the traversal half of the same
-    hole). A `-` prefix is flag-shaped and a `~` prefix is home-relative;
-    neither is a repository path. A **glob** span names a set rather than a
-    path and so is not adjudicable by an existence check at all. A span
-    carrying a **URL scheme** (`https://…`) is likewise not a repository path,
-    and its slashes would otherwise read as the strongest possible path claim.
-
-    A slash alone is not enough for `strong`. Issue bodies carry slash-bearing
-    NON-path tokens routinely — a git ref (`origin/main`, `feature/x`) most of
-    all — and adjudicating one as a strong path sends a premise that still
-    holds to the missing-strong-path arm, which **refutes**: the run discards a
-    true premise and files inaccuracy feedback against the issue, the exact
-    harm this whole asymmetry exists to prevent. So `strong` additionally
-    requires the span to look like a path at its tail: a filename-shaped final
-    segment (a dotted extension) or an explicit trailing `/` marking a
-    directory. Everything else slash-bearing degrades to `weak`, which can
-    still be read and adjudicated but can never refute. The cost is that a
-    genuinely-deleted extensionless directory cited without a trailing slash
-    now resolves `unestablished` rather than `refuted` — the deliberate
-    direction of this module's asymmetry, where an unrefuted true premise is
-    always preferred to a refuted one that holds.
+    Only a strong path can refute. Strong needs a `/` plus a path-shaped tail
+    (a dotted final segment or a trailing `/`), so git refs like `origin/main`
+    stay weak; a dotted identifier like `spec.loader` is weak. Rejected
+    outright: an absolute path (pathlib's join would discard the root), a `-`
+    or `~` prefix, a glob, and a URL.
     """
     if not span or any(c.isspace() for c in span):
         return 'no'
@@ -397,13 +235,7 @@ def _path_strength(span: str) -> str:
 
 
 def _resolves_inside(root: Path, rel: str) -> bool:
-    """True when `rel` stays inside `root` once `..` segments are resolved.
-
-    The cited path comes from the issue body, so `../../../etc/passwd` is an
-    input this helper must expect rather than trust. Escaping reads are
-    refused outright: a premise about a file outside the repository is not a
-    premise about the tree this run builds on.
-    """
+    """True when `rel` stays inside `root` once `..` is resolved (body text is untrusted)."""
     try:
         candidate = (root / rel).resolve()
     except (OSError, RuntimeError, ValueError):
@@ -412,27 +244,16 @@ def _resolves_inside(root: Path, rel: str) -> bool:
 
 
 def _is_command(span: str) -> bool:
-    """True when a backticked span is a command rather than a path.
-
-    Structural, not a name allowlist. An earlier draft matched the span's first
-    word against a hardcoded set of tool names, which rotted in two directions
-    at once: a consumer repo's own toolchain (`npm test`, `cargo test`,
-    `pytest -k x`) fell outside the set and its best-grounded bullets were
-    reported as carrying no handle at all, while a bare tool name sitting in
-    ordinary prose was reported as a command handle — laundering exactly the
-    handle-less shape #857's three false premises took. Multi-token *is* the
-    discriminator: a repository path never contains whitespace, and a command
-    almost always does.
-    """
+    """True for a multi-token span: a path never holds whitespace, a command
+    almost always does. Structural, so a consumer repo's own tools count."""
     return bool(span.strip()) and any(c.isspace() for c in span.strip())
 
 
 def _bullet_bound(rest: str) -> int:
-    """Offset within `rest` where a bullet's span ends.
+    """Offset where a bullet's span ends: the next marker, list item or blank line.
 
-    The earliest of the next marker, the next list item, or a blank line — the
-    three bounds `parse_bullets` documents. Shared with `_graded_spans` so the
-    ungraded pass subtracts exactly the span the adjudication mined.
+    Shared with `_graded_spans` so the ungraded pass subtracts exactly the
+    adjudicated span.
     """
     limit = len(rest)
     for bound in (_MARKER.search(rest), _NEXT_ITEM.search(rest)):
@@ -447,32 +268,9 @@ def _bullet_bound(rest: str) -> int:
 def parse_bullets(body: str) -> list:
     """Return one text span per `Verified:` bullet, in document order.
 
-    A bullet's span runs from its marker to whichever comes first: the next
-    marker, a blank line, or the start of the next list item. All three bounds
-    are load-bearing, and each closes the same failure — a span that runs past
-    its own bullet mines the *following* text's backticked paths as if this
-    bullet had cited them, and then refutes this bullet's quotation against a
-    file it never named. Several filed issues place the marker mid-sentence
-    inside a longer paragraph (the blank-line bound), and place consecutive
-    bullets on adjacent list-item lines with no blank line between them (the
-    list-item bound, observed on issue #857).
-
-    DISCLOSED RESIDUAL, the converse of those three bounds: a plain
-    continuation line — non-blank, not a list item, carrying no marker — is
-    absorbed into the span, so its backticked paths and quotations are
-    adjudicated as this bullet's. That is deliberate for the shape it was
-    chosen for (a soft-wrapped bullet, which markdown itself treats as one
-    item, and whose citations therefore genuinely are the bullet's), and it is
-    why the bound is not a hard newline: bounding at `\\n` would sever every
-    wrapped bullet from its own citation and refute a TRUE premise against a
-    file it did cite — a miss in the dangerous direction, which this module
-    trades away everywhere else. The cost of the trade is the other shape:
-    where a following line is a genuinely separate claim that markdown still
-    reads as a continuation, a strong path cited *there* can drive `refuted`
-    on a bullet that did not cite it. Bounded — the neighbouring cases
-    (adjacent bullets, separated paragraphs, a following marker) each have
-    their own bound above — but real, and unpinned by construction: it is not
-    decidable from the text which of the two shapes an author meant.
+    A soft-wrapped continuation line is absorbed (bounding at `\\n` would sever
+    a wrapped bullet from its own citation), so a strong path on a following
+    line markdown reads as a continuation can drive this bullet's verdict.
     """
     return [rest[:_bullet_bound(rest)]
             for rest in (body[m.end():] for m in _MARKER.finditer(body))]
@@ -481,29 +279,20 @@ def parse_bullets(body: str) -> list:
 def classify(span: str) -> tuple:
     """Return `(handle, paths, quotes, code_literals)` for one bullet span.
 
-    `paths` carries each cited path as a `CitedPath`, so `recheck` can tell a
-    confident path claim from a guess and can tell a whole-file citation from
-    one naming a location inside the file. `code_literals` carries each backticked
-    span of at least `_MIN_CODE_LITERAL` characters that is not path-shaped
-    (whitespace-bearing spans included) — the shape the templates push authors to
-    write in place of a double-quoted sentence. It is kept beside `quotes`, never
-    folded into it: `recheck` grades it only when the bullet cites a path and
-    quotes nothing, so the truncated-quotation guard keeps counting sentences
-    alone.
+    `paths` holds `CitedPath`s. `code_literals` holds non-path backticked spans
+    of at least `_MIN_CODE_LITERAL` chars; kept apart from `quotes` because
+    `recheck` grades them only when the bullet quotes no sentence.
     """
-    # Mask each backtick span with a SAME-LENGTH filler before the quotation scan
-    # (a length-changing filler would misalign the match offsets), then slice each
-    # match from the original span, so a span inside a quotation stays quoted (#326).
+    # Same-length mask keeps match offsets aligned, so a backtick span inside a
+    # quotation stays quoted (#326).
     masked = _BACKTICKED.sub(lambda m: '\x00' * (m.end() - m.start()), span)
     quotes, quote_ranges = [], []
     for m in _QUOTED.finditer(masked):
         raw = span[m.start(1):m.end(1)]
-        # A double-quoted span that is exactly one backtick span (whitespace
-        # ignored) opens no quotation: leave its span to the handle loop below.
+        # A quotation that is exactly one backtick span opens no quotation.
         if _BACKTICKED.fullmatch(raw.strip()):
             continue
-        # A quotation carrying a backtick span beside other text but under the
-        # normalized floor is dropped, so its span falls to the handle loop below.
+        # A backtick-bearing quotation under the normalized floor is dropped.
         if '`' in raw and len(normalize(raw)) < _MIN_CODE_LITERAL:
             continue
         quotes.append(raw)
@@ -511,8 +300,7 @@ def classify(span: str) -> tuple:
 
     paths, commands, code_literals = [], [], []
     for m in _BACKTICKED.finditer(span):
-        # A backtick span inside a matched quotation is quoted text, never a
-        # cited path, command, or code literal.
+        # A backtick span inside a quotation is quoted text.
         if any(lo <= m.start() and m.end() <= hi for lo, hi in quote_ranges):
             continue
         backticked = m.group(1)
@@ -521,10 +309,7 @@ def classify(span: str) -> tuple:
             bare, suffix = _split_locator(backticked)
             paths.append(CitedPath(strength, bare, suffix))
             continue
-        # A non-path span may be a command (multi-token) and, if long enough, a
-        # code-literal candidate — a whitespace-bearing span is both. A command
-        # is never mined for a path even though it usually contains one; the
-        # premise is the command's *result*, which this helper will not execute.
+        # A command is never mined for a path: its premise is its result.
         if _is_command(backticked):
             commands.append(backticked)
         if len(backticked) >= _MIN_CODE_LITERAL:
@@ -543,12 +328,7 @@ def classify(span: str) -> tuple:
 
 
 def _with_absent(detail: str, absent: list) -> str:
-    """Append an absent-weak-span disclosure to a verdict detail.
-
-    An absent weak span is disclosed as not-adjudicated rather than deciding the
-    verdict, so a reader sees the guess the helper set aside instead of it
-    silently short-circuiting a co-cited present path.
-    """
+    """Append the absent weak spans set aside rather than adjudicated."""
     if absent:
         detail += '; not adjudicated (absent weak span): ' + ','.join(absent)
     return detail
@@ -557,10 +337,8 @@ def _with_absent(detail: str, absent: list) -> str:
 def _read_cited(paths: list, root: Path) -> tuple:
     """Read each cited path's normalized text. Returns `(readable, skipped, unread)`.
 
-    Shared by the code-literal arm and the quotation arm so both adjudicate over
-    the same read of the tree. A directory is collected in `skipped` rather than
-    returned early — an early return abandoned every co-cited path after it, so
-    the verdict silently depended on citation ORDER within the bullet.
+    A directory is collected, not returned early, so the verdict never depends
+    on citation order.
     """
     readable, skipped, unread = {}, [], []
     for cited in paths:
@@ -580,13 +358,8 @@ def _read_cited(paths: list, root: Path) -> tuple:
 def _literal_resolves(literal: str, readable: dict) -> bool:
     """True when a normalized code literal occurs in any readable cited file.
 
-    A literal is searched after `normalize` (which strips backticks and `*` and
-    collapses whitespace), so a whitespace-bearing literal still matches a source
-    line the author re-spaced. The `_MIN_CODE_LITERAL` floor is re-applied to the
-    NORMALIZED form, not just the raw span `classify` measured: a span that clears
-    eight raw characters but normalizes shorter (`a * b * c` → `a b c`) would
-    otherwise substring-match almost any file — a false `holds`, the same harm the
-    quotation arm's per-fragment floor and empty-quotation guard prevent.
+    The floor is re-applied after `normalize`, so `a * b * c` cannot shrink to
+    a substring of almost any file.
     """
     norm = normalize(literal)
     return (len(norm) >= _MIN_CODE_LITERAL
@@ -597,57 +370,36 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
             root: Path, span: str) -> tuple:
     """Adjudicate one bullet against the tree. Returns `(state, detail)`."""
     if handle in _UNDECIDABLE_REASONS:
-        # No domain to read, or a handle this helper declines to execute. The
-        # premise is not refuted — it is simply undecided, which routes the
-        # caller to ordinary investigation.
         return 'unestablished', _UNDECIDABLE_REASONS[handle]
 
     escaping = [p.bare for p in paths if not _resolves_inside(root, p.bare)]
     if escaping:
-        # Not refuted — refused. A premise pointing outside the repository is
-        # not a premise about the tree this run builds on, and the helper
-        # declines to read it rather than answering about a file it should
-        # never have opened.
+        # Refused, not refuted: a path outside the repository is never read.
         return 'unestablished', ('cited path resolves outside the repository, '
                                  'refused: ' + ','.join(escaping))
 
-    # Presence, not file-ness. A directory citation (`skills/review/phases/`) is
-    # a strong span that exists, and testing `is_file()` reported it absent —
-    # a false refutation against a shape this repo's own issue bodies use
-    # constantly.
+    # Presence, not file-ness: a cited directory exists.
     missing = [p for p in paths if not (root / p.bare).exists()]
     disclosed_absent = []
     if missing:
-        # Only a STRONG path claim earns a refutation. A weak one — a dotted
-        # identifier that merely looks filename-shaped — is a guess, and
-        # refuting a premise on a guess is worse than declining to decide it:
-        # the run would discard a true premise and record false issue-accuracy
-        # feedback against the issue.
+        # Only a strong path claim earns a refutation; a weak one is a guess.
         strong = [p.bare for p in missing if p.strength == 'strong']
         if strong:
             return 'refuted', 'cited path absent from the tree: ' + ','.join(strong)
         present = [p for p in paths if p not in missing]
         if not present:
-            # Every cited span is an absent weak one, so nothing is left to
-            # adjudicate against — the historical early return.
             return 'unestablished', (
                 'no cited span is a strong path claim (each is filename-shaped '
                 'without a directory, or slash-bearing without a path-shaped '
                 'tail), so its absence is not evidence of a stale premise: '
                 + ','.join(p.bare for p in missing))
-        # An absent weak span no longer short-circuits a bullet that also cites a
-        # present path: adjudication continues over the present paths, and the
-        # absent weak span is disclosed in the detail rather than deciding it.
+        # Adjudicate the present paths; disclose the absent weak spans.
         disclosed_absent = [p.bare for p in missing]
         paths = present
 
     located = [p.bare for p in paths if p.suffix]
     if handle == 'path':
-        # No quotation and no code literal to grade. Presence is NOT the premise:
-        # a bullet citing `lib/scan.sh` asserts something about that file's
-        # contents, and confirming it still exists re-derives none of it, so
-        # `holds` would reproduce the "this was already checked" reading the pass
-        # exists to withdraw. `unestablished` costs only the ordinary investigation.
+        # Presence is not the premise, so a bare path never `holds`.
         return 'unestablished', _with_absent(
             'cited path present but the bullet carries no quotation to '
             're-derive the premise from (' + _QUOTE_RULE + '): '
@@ -656,14 +408,7 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
     readable, skipped, unread = _read_cited(paths, root)
 
     if unread:
-        # A cited file the helper could not OPEN is an unestablished
-        # measurement, not evidence the premise drifted. Refuting here would
-        # assert the one verdict that makes the run discard the premise and
-        # file issue-accuracy feedback, over a citation never adjudicated —
-        # the same guess-becomes-refutation class the weak-path and elision
-        # arms exist to prevent. (A co-cited DIRECTORY is different and stays
-        # benign: a quotation cannot live in one, so it is disclosed rather
-        # than fatal.)
+        # An unopenable citation was never adjudicated, so it cannot refute.
         return 'unestablished', (
             'a cited path could not be read, so the citation set was not fully '
             'adjudicated: ' + ','.join(unread))
@@ -674,15 +419,9 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
             + ','.join(skipped))
 
     if not quotes:
-        # The bullet cites a path and quotes no double-quoted sentence, so it is
-        # graded on its backticked code literal(s): a hit anywhere in the cited
-        # files reports `holds`. A MISS reports `unestablished`, never `refuted` —
-        # a code literal is re-spaced and paraphrased far more often than quoted
-        # prose, so a miss on one is a guess, not evidence of a stale premise.
-        # A literal that misses verbatim is retried with `\"` unescaped (#1194):
-        # an author backslash-escaping a quoted code line's double quotes is an
-        # authoring artifact, not drift. Verbatim is tried first, so a source
-        # that really contains `\"` still matches as written.
+        # Graded on code literals. A miss is `unestablished`, never `refuted`:
+        # code is re-spaced and paraphrased too often. A miss is retried with
+        # `\"` unescaped (#1194), verbatim first.
         missed, unescaped = [], []
         for lit in code_literals:
             if _literal_resolves(lit, readable):
@@ -697,9 +436,6 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
                           + ' | '.join(unescaped))
         if not missed:
             if located:
-                # The literal resolves, but the bullet also cites a location
-                # inside the file (a node id, anchor, or line number) this helper
-                # cannot adjudicate — the same downgrade the quotation arm applies.
                 return 'unestablished', _with_absent(
                     'a backticked literal resolves, but the bullet cites a '
                     'location inside the file that was not adjudicated: '
@@ -719,28 +455,15 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
         fragments = [f for f in (normalize(part)
                                  for part in _ELISION.split(quote)) if f]
         if not fragments:
-            # A quotation long enough to clear `_QUOTED`'s floor but composed
-            # ONLY of markdown emphasis and whitespace (`"********"`) normalizes
-            # to nothing, so there is no text to search for. Skipping it would
-            # drop the quote dimension silently and — when it is the bullet's
-            # only quotation — let a present path alone mint `holds`: a FALSE
-            # CLEAN from a quotation carrying no adjudicable content, the same
-            # harm the short-fragment floor below is guarded against. It
-            # adjudicates nothing, so it decides nothing.
+            # Only emphasis and whitespace: nothing to search, so it decides
+            # nothing (else a present path alone would mint `holds`).
             unadjudicable.append(quote)
             continue
         if elided and any(len(f) < _MIN_FRAGMENT for f in fragments):
-            # An elided quotation is adjudicated fragment by fragment, and a
-            # SHORT fragment matches almost any file — `"the … premise"` would
-            # otherwise report `holds` on the evidence that the words "the" and
-            # "premise" each occur somewhere in it. `holds` is the one verdict
-            # this helper can mint, so weak evidence here is a FALSE CLEAN, not
-            # a fail-safe. Below the floor it decides nothing.
+            # A short elided fragment matches almost any file: a false `holds`.
             elided_unresolved.append(quote)
             continue
-        # Fragments must occur IN ORDER and non-overlapping in one file: an
-        # elision means "this text, then later that text", not "these words
-        # appear somewhere".
+        # Fragments must occur in order, non-overlapping, in one file.
         resolved = False
         for haystack in readable.values():
             cursor, ok = 0, True
@@ -756,26 +479,16 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
                 break
         if resolved:
             continue
-        # An ELIDED quotation is not verbatim — the author cut text out of it
-        # with an ellipsis — so a miss is not evidence the premise drifted, and
-        # refuting on one is the same guess-becomes-refutation defect the weak
-        # path arm exists to prevent. (Both remaining false refutations against
-        # issue #857's real body were exactly this: every fragment resolved,
-        # only the elided whole did not.)
+        # An elided quotation is not verbatim, so its miss never refutes.
         (elided_unresolved if elided else unresolved).append(quote)
 
     if not unresolved and not elided_unresolved and not unadjudicable:
         if located:
-            # The file is present and every quotation resolves, but the bullet
-            # also cited a location inside the file (a node id, an anchor, a
-            # line number) that this helper cannot adjudicate.
             return 'unestablished', (
                 'quoted sentence(s) resolve, but the bullet cites a location '
                 'inside the file that was not adjudicated: ' + ','.join(located))
         detail = 'every quoted sentence resolves in ' + ','.join(readable)
         if skipped:
-            # A `holds` built from only some of the cited paths discloses which
-            # ones went unread, rather than reading as a complete adjudication.
             detail += '; not adjudicated: ' + ','.join(skipped)
         return 'holds', _with_absent(detail, disclosed_absent)
 
@@ -793,28 +506,16 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
                 'never searched for: ' + ' | '.join(unadjudicable))
         return 'unestablished', '; '.join(reasons)
 
-    # Same asymmetry as the missing-path arm: a quotation that fails to resolve
-    # in a STRONG path is a refutation, but in a weak one it is only evidence
-    # that the guess was wrong about which file was meant.
-    #
-    # Refute-eligibility is narrowed to strong paths that were actually READ,
-    # exactly as the missing-path arm narrows to the specific missing strong
-    # entries. A strong citation the loop above SKIPPED adjudicated nothing —
-    # a directory holds no searchable text, so the quotation was only ever
-    # searched against the co-cited files — and letting it license a refutation
-    # over a miss in a co-cited WEAK file refutes on a guess, the harm the
-    # weak-path, unread-file and elision arms all exist to close.
+    # Only a strong path that was actually read can license a refutation; a
+    # skipped directory adjudicated nothing.
     adjudicated_strong = [p.bare for p in paths
                           if p.strength == 'strong' and p.bare in readable]
-    # Extra double-quote delimiters beyond the matched pair(s) (backtick spans
-    # excluded) mean a quotation could not be delimited whole (a truncation, or a
-    # stray quote), so a miss must refuse rather than refute — AC3 (#1866).
+    # Extra double-quote delimiters (outside backtick spans) mean a quotation
+    # could not be delimited whole, so a miss refuses rather than refutes (#1866).
     stripped = _BACKTICKED.sub(' ', span)
     quote_delims = sum(stripped.count(ch) for ch in ('"', '“', '”'))
     truncated_quote = quote_delims > 2 * len(quotes)
     if adjudicated_strong and truncated_quote:
-        # The matched quotation is a truncated fragment, not the premise, so a
-        # miss on it must not assert a stale-premise verdict — refuse (#1866).
         return 'unestablished', (
             'a quoted premise could not be delimited whole — the span carries a '
             'double-quote character inside the quotation, so the match is a '
@@ -824,21 +525,13 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
         detail = ('quoted sentence no longer occurs in ' + ','.join(readable)
                   + ': ' + ' | '.join(unresolved))
         if unadjudicable:
-            # The refutation rests on the quotation that MISSED, not on the one
-            # that carried no adjudicable text — disclose the latter rather
-            # than letting the verdict read as a complete adjudication.
             detail += ('; not adjudicated (no searchable text): '
                        + ' | '.join(unadjudicable))
         if skipped:
-            # Symmetric with the `holds` arm: a verdict reached over only part
-            # of the citation set says so, rather than reading as a complete
-            # adjudication of everything the bullet cited.
             detail += '; not adjudicated: ' + ','.join(skipped)
         return 'refuted', _with_absent(detail, disclosed_absent)
     if any(p.strength == 'strong' for p in paths):
-        # A strong path WAS cited, but none of them reached `readable`, so the
-        # miss says nothing about it. Reusing the weak-span wording below would
-        # be a documented falsehood here: a directory-bearing span was cited.
+        # A strong path was cited but none was searchable.
         detail = ('quoted sentence does not occur in ' + ','.join(readable)
                   + ', and no strong cited path was searchable, so the miss is '
                     'not evidence of a stale premise: ' + ' | '.join(unresolved))
@@ -851,12 +544,7 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
 
 
 def _graded_spans(body: str) -> list:
-    """Offset ranges the `_MARKER` recogniser already covers.
-
-    A collocation inside a recognised `Verified:` bullet is already graded, so
-    it is not an ungraded claim. Each span runs from the marker to the same
-    bound `parse_bullets` uses, via the shared `_bullet_bound`.
-    """
+    """Offset ranges the `_MARKER` recogniser already grades."""
     spans = []
     for match in _MARKER.finditer(body):
         rest = body[match.end():]
@@ -865,13 +553,8 @@ def _graded_spans(body: str) -> list:
 
 
 def _fenced_line_set(content_lines: list) -> set:
-    """Indices of lines inside a fenced code block, delimiters included.
-
-    A fence opens on a line matching `_FENCE_RE` and closes on the next such
-    line (the whole `[open, close]` range is fenced); an unclosed fence runs to
-    end-of-input. Both consumers share this so heading detection and collocation
-    exclusion agree on which lines are code.
-    """
+    """Indices of lines inside a fenced block, delimiters included; an unclosed
+    fence runs to end of input."""
     fenced = set()
     open_index = None
     for index, line in enumerate(content_lines):
@@ -888,11 +571,7 @@ def _fenced_line_set(content_lines: list) -> set:
 
 
 def _code_spans(content_lines: list, line_offset: list, fenced_lines: set) -> list:
-    """Offset ranges inside fenced code blocks or inline code spans.
-
-    A collocation inside either is data, not a premise. A fenced line's whole
-    span is excluded; on every other line, inline backtick runs are excluded.
-    """
+    """Offset ranges of fenced lines and inline code spans."""
     spans = []
     for index, line in enumerate(content_lines):
         base = line_offset[index]
@@ -907,15 +586,8 @@ def _code_spans(content_lines: list, line_offset: list, fenced_lines: set) -> li
 def _premise_regions(body: str, content_lines: list, fenced_lines: set) -> dict:
     """Map each premise-bearing line index to its region label.
 
-    Regions are the three named sections — resolved through `section_parse`'s
-    extractor, so an absent section contributes nothing and an issue on a
-    consumer's own template is scanned by its heading lines alone — plus every
-    heading line, labelled `heading`. The section walk mirrors the extractor's
-    own first-match-only, level-2/3 open/close rules; it additionally skips
-    fenced lines (below), so where a `##`-shaped line sits inside a fence this
-    walk keeps the real section open while the fence-blind `extract_section`
-    used only for the `present` gate would not — a divergence in the safe
-    direction, since `present` gates eligibility and never mints a detection.
+    Mirrors `extract_section`'s first-match, level-2/3 rules but skips fenced
+    lines; `extract_section` only gates which sections are present.
     """
     present = {name for name in _PREMISE_SECTIONS if extract_section(body, name)}
     region = {}
@@ -949,9 +621,9 @@ def _premise_regions(body: str, content_lines: list, fenced_lines: set) -> dict:
 def find_ungraded_claims(body: str) -> list:
     """Return one report line per ungraded verification claim, document order.
 
-    An ungraded claim is a collocation-family phrase in a premise-bearing region
-    that no recognised marker span already covers and that is not inside code.
-    Non-adjudicating by construction: it mints no verdict and moves no exit code.
+    A collocation-family phrase in a premise region, outside graded spans and
+    code; plus each blockquoted `Verified:` line outside graded spans and code.
+    Mints no verdict.
     """
     content_lines = body.splitlines()
     line_offset = []
@@ -962,8 +634,6 @@ def find_ungraded_claims(body: str) -> list:
 
     fenced_lines = _fenced_line_set(content_lines)
     region = _premise_regions(body, content_lines, fenced_lines)
-    # A collocation is excluded when it falls inside a graded marker span or inside
-    # code; both suppress a detection identically, so they are one exclusion set.
     excluded = _graded_spans(body) + _code_spans(content_lines, line_offset, fenced_lines)
 
     detections = []
@@ -978,8 +648,7 @@ def find_ungraded_claims(body: str) -> list:
                            content_lines[index].strip()))
     for match in _BLOCKQUOTE_VERIFIED.finditer(body):
         start = match.start()
-        # A blockquoted `Verified:` already inside a graded span or code is not
-        # ungraded; every other is reported regardless of section (#1866).
+        # Reported regardless of section, unless graded or in code (#1866).
         if any(low <= start < high for low, high in excluded):
             continue
         index = bisect.bisect_right(line_offset, start) - 1
@@ -992,22 +661,10 @@ def find_ungraded_claims(body: str) -> list:
 
 
 class _ArgParser(argparse.ArgumentParser):
-    """An argument parser that fails as UNESTABLISHED, not as a refutation.
+    """Remaps argparse's status 2 (this helper's REFUTED code) to 3.
 
-    `argparse` exits **2** on a bad invocation, and 2 is this helper's
-    "a premise was REFUTED" code — so a caller that mistypes a flag would be
-    told the issue contains a stale premise it never looked at. A bad
-    invocation is a measurement that never happened, which is exactly what
-    exit 3 means here.
-
-    The remap lives in `exit`, not only in `error`, because `error` is not
-    argparse's only route to status 2: an argument *action* may call
-    `parser.exit(2)` directly, and future arguments (a `type=` callable, a
-    mutually-exclusive group) can reach it without passing through `error` at
-    all. Overriding only `error` would leave those routes emitting the
-    refutation code, which is the one exit this module may never assert without
-    having adjudicated a premise. Status 0 (`--help`, `--version`) is left
-    alone: it is a successful invocation, not a measurement.
+    Overrides `exit`, not only `error`, because an action can call
+    `parser.exit(2)` directly. Status 0 (`--help`) is left alone.
     """
 
     def exit(self, status=0, message=None):
@@ -1021,9 +678,8 @@ class _ArgParser(argparse.ArgumentParser):
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
-    streams of any process that imports this module for tests. Tolerates a stream that
-    has no usable `reconfigure` (issue #1762)."""
+    """Force stdout/stderr to UTF-8. Never call at import (it would mutate an
+    importing test's streams); tolerates a stream without `reconfigure` (#1762)."""
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
@@ -1037,22 +693,18 @@ def main(argv=None) -> int:
         description='Re-check an issue body\'s Verified: premises against the tree.')
     parser.add_argument('--body-file', required=True,
                         help='path to the issue body (the Phase 1.1 cache)')
-    parser.add_argument('--repo-root', default=None,
-                        help='tree to adjudicate against (default: the enclosing '
-                             'git working tree; unestablished (exit 3) if none '
-                             'is found)')
+    parser.add_argument('--repo-root', required=True,
+                        help='tree to adjudicate against')
     args = parser.parse_args(argv)
+    if not args.repo_root:
+        # An empty root would resolve to the cwd, a tree nobody named.
+        parser.error('--repo-root must not be empty')
 
     try:
         return _run(args)
     except Exception as exc:
-        # Any unexpected failure is an unestablished measurement, not a
-        # refutation. Without this the traceback would exit 1 — a code neither
-        # consumer routes — after an arbitrary number of per-bullet lines had
-        # already been printed, which reads as a partial clean pass.
-        # The traceback goes to STDERR so the stdout contract stays
-        # machine-clean while a real defect remains diagnosable — a guard whose
-        # own failures are the quietest thing it emits is not a guard.
+        # Unestablished, never exit 1 after partial per-bullet output; the
+        # traceback goes to stderr so stdout stays machine-clean.
         traceback.print_exc(file=sys.stderr)
         print(f'VERIFIED_PREMISES unavailable reason=internal-error detail={exc!r}')
         return EXIT_UNESTABLISHED
@@ -1062,35 +714,18 @@ def _run(args) -> int:
     try:
         body = Path(args.body_file).read_text(encoding='utf-8')
     except (OSError, UnicodeDecodeError, ValueError) as exc:
-        # Unestablished, never a clean pass: a body that could not be read is
-        # not a body with no stale premises in it.
         print(f'VERIFIED_PREMISES unavailable reason=body-unreadable detail={exc}')
         return EXIT_UNESTABLISHED
 
     if not body.strip():
-        # An empty body and a body carrying no bullets are NOT the same
-        # measurement, and collapsing them is the fail-open this guard exists
-        # to stop: `total=0` would read as "this issue asserts no premises"
-        # when in fact nothing was ever read.
+        # Not `total=0`: nothing was read, which is not "no premises".
         print('VERIFIED_PREMISES unavailable reason=body-empty '
               'detail=the body file is empty or whitespace-only')
         return EXIT_UNESTABLISHED
 
-    root = Path(args.repo_root).resolve() if args.repo_root else _default_root()
-    if root is None:
-        # The default root could not be ESTABLISHED (no `.git` above the cwd).
-        # Adjudicating against an arbitrary cwd made every cited path miss and
-        # rendered the whole body as a mass REFUTATION — the same unestablished-
-        # measurement-dressed-as-a-verdict the explicit --repo-root arm below
-        # refuses, reached through the sibling path.
-        print('VERIFIED_PREMISES unavailable reason=repo-root-unestablished '
-              'detail=no .git was found above the current directory and no '
-              '--repo-root was given')
-        return EXIT_UNESTABLISHED
+    root = Path(args.repo_root).resolve()
     if not root.is_dir():
-        # An unusable root makes every cited path miss, which would render as a
-        # whole-body mass REFUTATION — an unestablished measurement dressed as
-        # a hard verdict, and the mirror image of "unknown is not zero".
+        # Else every cited path misses and the body reads as a mass refutation.
         print('VERIFIED_PREMISES unavailable reason=repo-root-unusable '
               f'detail={root} is not an existing directory')
         return EXIT_UNESTABLISHED
@@ -1106,49 +741,22 @@ def _run(args) -> int:
         sum(tally.values()), tally['holds'], tally['refuted'],
         tally['unestablished']))
 
-    # Do not let this advisory pass reach main's catch-all (issue #1634): an
-    # exception escaping here would turn the clean/refuted adjudication already
-    # printed above into an internal-error exit.
-    # Emission is inside the fence, not just detection: an error raised while
-    # printing would otherwise reach main's catch-all and print a second
-    # `VERIFIED_PREMISES unavailable` after a valid adjudicated block.
+    # Detection and emission stay fenced, so an advisory-pass exception is
+    # reported here rather than by main's catch-all, which would override the
+    # adjudication printed above.
     try:
         ungraded = find_ungraded_claims(body)
         for line in ungraded:
             print(line)
         print(f'UNGRADED_CLAIMS total={len(ungraded)}')
     except Exception as exc:
-        # Never print `total=0` here: that is byte-identical to "ran, found
-        # none", which is the fail-open this pass exists to close.
+        # Never `total=0`: that reads as "ran, found none".
         traceback.print_exc(file=sys.stderr)
         print(f'check-verified-premises: ungraded-claim pass failed, reported '
               f'none: {exc!r}', file=sys.stderr)
         print('UNGRADED_CLAIMS unavailable reason=internal-error '
               f'detail={exc!r}')
     return EXIT_REFUTED if tally['refuted'] else EXIT_CLEAN
-
-
-def _default_root():
-    """Nearest enclosing git working tree, or `None` when there is none.
-
-    Resolved by walking for a `.git` entry rather than by shelling out to `git
-    rev-parse`, so this module keeps its no-subprocess property. `.exists()` is
-    deliberate rather than `.is_dir()`: in a linked worktree — this repo's own
-    working mode — `.git` is a regular *file* holding a gitdir pointer.
-
-    Returning `None` rather than falling back to the current directory is the
-    fail-closed direction: an arbitrary cwd is not the repository, and
-    adjudicating against it turns every cited path into a miss and the whole
-    body into a mass refutation. A breadcrumb is a diagnostic, not a verdict.
-    """
-    here = Path.cwd().resolve()
-    for candidate in (here, *here.parents):
-        if (candidate / '.git').exists():
-            return candidate
-    print('check-verified-premises: no .git found above the current directory; '
-          'pass --repo-root to name the tree to adjudicate against',
-          file=sys.stderr)
-    return None
 
 
 if __name__ == '__main__':

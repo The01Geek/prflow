@@ -251,10 +251,6 @@ def _slug_escapes_review_root(review_root, slug):
     rejected. Git will not create a branch named `..`, so this is defence in depth over a
     `_resolve_current_branch` return value nothing else in this file constrains — not a
     shape reachable from an ordinary checkout.
-
-    `scripts/issue-audit-state.py` guards the same hazard for its own slugs with a
-    `[A-Za-z0-9][A-Za-z0-9._-]*` full-match; the two are separate stdlib-only CLIs with no
-    shared module, so this is a sibling to find when hardening, not a call to make.
     """
     base = os.path.normpath(review_root)
     candidate = os.path.normpath(os.path.join(base, slug))

@@ -54,7 +54,7 @@ Read down the "Your goal" column until you find your case.
 | Get the problems found and corrected | [Review and Fix](/docs/workflows/review-and-fix) | Commits on the active branch |
 | Make a pull request body match the code | [Pull Request Description](/docs/workflows/pr-description) | The pull request body only |
 | Catch documentation up with a change | [Documentation](/docs/workflows/documentation) | The documentation files you select |
-| Find recurring delivery problems | [Weekly Retrospective](/docs/workflows/retrospective-weekly) | Learning records, one state pull request, new issues |
+| Find recurring delivery problems | [Weekly Retrospective](/docs/workflows/retrospective-weekly) | Learning records on the telemetry branch, new issues |
 
 <Note>
   `review` and `review-and-fix` share the same review engine and produce the same findings. The difference is authority: `review` reports, `review-and-fix` edits. Use `review-and-fix` only when you want PRFlow to change your branch.

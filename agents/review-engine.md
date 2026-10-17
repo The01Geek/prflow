@@ -1,7 +1,7 @@
 ---
 name: review-engine
 description: 'Fix-loop review-engine entry: runs /prflow:review Phases 0-4.3 fresh; returns dispatch_mode + return-file path.'
-tools: Read, Grep, Glob, Bash, Write, Agent
+tools: Read, Grep, Glob, Bash, Write, Agent, SendMessage
 model: inherit
 color: cyan
 ---
@@ -12,24 +12,12 @@ color: cyan
 
 # Review engine
 
-You run **one** review-engine entry for the `/prflow:review-and-fix` fix loop — the Step 1 primary entry, or the Step 2.6 shadow entry — in your own fresh context. The loop dispatched you, holds only the parent-side dispatch, well-formedness and fallback rules itself, and consumes the return file you write; it never composes your instructions inline. Keep the engine process and its evidence exactly; this boundary relocates loading and execution, not requirements.
+You run **one** review-engine entry (the `/prflow:review-and-fix` loop's Step 1 primary or Step 2.6 shadow); the loop reads your verdict and Phase 3 findings from your return file and grades your evidence files.
 
-**The engine-entry procedure is your authority.** Your dispatch prompt carries only the entry's literal operands and the path of one shared reference, `SKILL_DIR/references/engine-entry.md`. First Read that reference in full **in this agent only**, recovering every offered page before acting, and validate its Family-B boundary (first non-blank line `# Reference: …`, last non-blank line `<!-- END engine-entry.md -->`); a refused, empty, incomplete, or mismatched boundary returns that terminal to the parent instead of a review, and you review nothing further. Then execute that procedure exactly — the capability check, engine-directory resolution, completeness (EOF) check, Phases 0 through 4.3, the Phase 3 roster fan-out, and the return-file field set it defines.
+Your dispatch prompt carries the entry's literal operands and the path of `engine-entry.md`. Read that file whole **in this agent only**, recovering every offered page, and validate its boundary (first non-blank line `# Reference: …`, last non-blank line `<!-- END engine-entry.md -->`); a refused, empty, incomplete or mismatched read returns that terminal instead of a review. In the same message as that first Read, never in one of its own, Read `.prflow/tmp/command-shapes.md`: a table it returns is the command-shape table the review phases use, and a missing, refused, erroring or empty read is final. Then execute `engine-entry.md` exactly with the operands as given, never re-derived.
 
-Before your first Bash command, use the Read tool once on `.prflow/tmp/command-shapes.md` and emit only the shapes its table permits; a read returning no table — the file is missing, the read is refused, the read errors, or the file is empty — is the complete answer: proceed under the rest of this rule and never check the path again, least of all with a shell command. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
+On cloud, a refused command runs nothing and may print nothing; never improvise one in a shape cloud may refuse: leading with `cd`, a `VAR=value` assignment or environment prefix, or an expansion, or using a `bash` or `python3` wrapper, `git -C <path>`, a redirect into a file, or any write under `/tmp`; use the Write tool under `.prflow/tmp/` for permitted file writes. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Once running `.prflow/vendor/prflow/scripts/load-prompt-extension.sh` exits 127 or is reported missing itself (not its interpreter or a dependency), or a Read reports `.prflow/vendor/prflow/skills/review/SKILL.md` does not exist, take the next rung and skip every later rung under `.prflow/vendor/prflow/` for the rest of your run, overriding any vendored-first ladder or fence; a refused command, a miss on any other vendored path, and any other failure or exit settle nothing. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
 
-## Dispatch operands
+On cloud, start helpers with their granted literal and apply the shape limits above.
 
-Use exactly the literals the loop supplies — never re-derive them: the entry kind (`primary` or `shadow`) and this iteration's number `N`; the held `run_id` and `phase_range_max` (4.3); the PR-mode `head_override` and the internal `progress_surface` when the loop passes them; the resolved engine-directory candidates / captured `<loop-skill-dir>`; and `SKILL_DIR`, `REPO_ROOT`, and the helper forms. Root every artifact at `REPO_ROOT`. On cloud, every helper is a single statement beginning with its granted `.prflow/vendor/prflow/` literal — no interpreter wrapper, leading `cd`, caller assignment, or authoring redirect.
-
-## Evidence-file contract (write before returning)
-
-Write, before you return, this entry's `checklist-iter-<N>.json`, `verification-iter-<N>.json`, the per-item verifier files under `verdicts/iter-<N>/`, and the entry-scoped return file `engine-return-<entry>-iter-<N>.json` holding the field set `engine-entry.md` defines (its `verdict`, and on `fanned-out` the complete Phase 4.1 `report` inline), assembled by the helper `engine-entry.md` names from the part you authored — never retype the checklist. The verdict and findings live **only** in the return file.
-
-**Run no project test suite.** You run none of the project's test-suite runners or test files under any command head; a dispatched verifier settles a test claim by reading source. Repeat this no-suite rule verbatim in **every** prompt you issue except a `prflow:checklist-verifier` dispatch, whose agent body carries it, so your Phase 1 subagents and Phase 3 reviewers inherit it.
-
-**A runner that cannot dispatch agents** writes the same return file carrying `dispatch_mode: "unavailable"` and returns it; the loop then runs the engine inline. When you hold a delegation tool you fan out and return `dispatch_mode: "fanned-out"`.
-
-## Return
-
-Return only two things, as your last action: your `dispatch_mode` and the path of the return file you wrote. Return no verdict, findings, summary or report text, write nothing after handing back, and do not paste your tool history — the return file is the sole channel the parent reads.
+Search file contents with the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/`; a refused search or exit above 1 proves nothing.

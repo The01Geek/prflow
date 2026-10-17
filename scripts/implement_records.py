@@ -27,13 +27,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from context_eval_shared import UNESTABLISHED, _median
 
 STORE_RELPATH = ".prflow/learnings/experiment-records.jsonl"
+# The store lives on the telemetry branch; this path is only the copy a hydrate leaves, so
+# its absence says nothing about how many runs exist.
+ABSENT_STORE = ("No experiment-record store at this path. The store lives on the telemetry "
+                "branch: run `retro-helper.sh learnings-hydrate` from the repository root to "
+                "copy it here, or pass --records.")
 
 
 def default_store():
     """The store, anchored on the git repo root like every other `.prflow` reader.
 
-    A cwd-relative default reports an empty store from any subdirectory, which these
-    tools would then render as "no runs yet" rather than as a path they could not find.
+    A cwd-relative default misses the store from any subdirectory, so these tools would
+    exit 1 with ABSENT_STORE although the store exists.
     """
     try:
         root = subprocess.run(["git", "rev-parse", "--show-toplevel"],
@@ -100,11 +105,9 @@ def load_runs_with_status(path=None):
     """`(runs, status)` — every implement run in the store, newest last, plus how the
     read went.
 
-    `status` is `absent` when the store does not exist (the normal state of a repository
-    that has persisted no implement run), `unreadable` when it exists but could not be
-    opened, else `read`, with `:<n>-unparseable` appended when lines were skipped.
-    Swallowing the difference reports an unreadable file as "no runs yet", and every
-    aggregate then shrinks invisibly.
+    `status` is `absent` when the file does not exist (never hydrated, or no store yet:
+    unknown, not zero), `unreadable` when it exists but could not be opened, else `read`,
+    with `:<n>-unparseable` appended when lines were skipped.
 
     One experiment-record line joins one merged PR to the efficiency runs behind it, and
     a line can carry runs from more than one command class, so the class is read from each
@@ -114,10 +117,6 @@ def load_runs_with_status(path=None):
     runs = []
     skipped = 0
     if not store.exists():
-        # A store that is simply not there yet is the normal state of a repository that
-        # has persisted no implement run — distinct from one that exists and cannot be
-        # read, which is a real failure. Collapsing the two makes every fresh install
-        # report the reader as broken.
         return runs, "absent"
     try:
         handle = store.open(encoding="utf-8")

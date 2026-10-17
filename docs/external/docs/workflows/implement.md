@@ -87,8 +87,8 @@ The branch is named `issue-<number>-<title-slug>`, with a date suffix added when
 The run has four phases:
 
 1. Fetch the issue, parse its acceptance criteria and create or resume its workpad.
-2. Create or adopt the issue branch, explore the affected code, plan the change, write it and test it.
-3. Open a draft pull request, run the code-reviewer cleanup pass and the review-and-fix loop.
+2. Create or adopt the issue branch, explore the affected code, plan the change, write it, run the code-reviewer cleanup pass and test it.
+3. Open a draft pull request and run the review-and-fix loop.
 4. File any required follow-up issues, update documentation, refresh the pull request description and finish.
 
 The issue defines the intended outcome. Before implementation starts, PRFlow checks the issue's own claims about the repository against the current tree rather than trusting them, and it checks that the acceptance criteria cover every independently testable outcome the issue's Desired Behavior section states. An outcome no criterion covers stops the run for issue refinement. PRFlow never invents a criterion to fill the gap.
@@ -125,7 +125,7 @@ Ordinary branch and working-tree problems no longer stop the run. When the featu
 
 It stops early when the issue declares an open `Blocked by #N` dependency, or when it cannot establish whether that dependency is still open.
 
-Later stopping points include a bug it could not reproduce, an acceptance criterion that fails or cannot be established, a verification command the run is not permitted to execute and an unresolved Critical review finding. Before publishing, PRFlow also confirms the branch tip reached the remote; if a commit was made but never landed there, the run stops rather than publish a pull request whose description cites a commit the remote does not have.
+Later stopping points include a bug it could not reproduce, an acceptance criterion that fails or cannot be established, a verification command the run is not permitted to execute, an instruction change with three failing versions of the case it was written for, and an unresolved Critical review finding. Before publishing, PRFlow also confirms the branch tip reached the remote; if a commit was made but never landed there, the run stops rather than publish a pull request whose description cites a commit the remote does not have.
 
 <Accordion title="What to do about a Blocked run">
   Read the reason on the workpad first — it names the specific obstacle.
@@ -134,6 +134,7 @@ Later stopping points include a bug it could not reproduce, an acceptance criter
   - **An uncovered outcome in Desired Behavior.** The workpad quotes the exact sentence no criterion covers. Add a criterion for it, or narrow the Desired Behavior section.
   - **An open dependency.** Close or unblock the prerequisite issue, then run again.
   - **A verification command that is not permitted.** Grant it in your tool-permission settings. See [Tool Permissions](/docs/configuration/tool-permissions).
+  - **A motivating case that failed three versions.** The workpad's verification notes hold each version's results. Change the design the issue prescribes for that case, then run the command again.
 
   Running the command again after the fix resumes the same workpad and the same branch. It does not start over.
 </Accordion>
@@ -142,11 +143,11 @@ Continuous integration is a post-pull-request merge gate. It never stands in for
 
 ## Draft Pull Request and Review
 
-The pull request is opened as a draft, titled with the issue title, before the review phase begins. PRFlow runs a cleanup pass and then the review-and-fix loop while the pull request is still a draft, so your reviewers see the converged state rather than every intermediate one.
+The pull request is opened as a draft, titled with the issue title, before the review phase begins. PRFlow runs the review-and-fix loop while the pull request is still a draft, so your reviewers see the converged state rather than every intermediate one.
 
 Non-Critical findings that survive bounded re-review are surfaced for human judgment. A genuine unresolved Critical finding blocks the run.
 
-When the fix loop disputes an acceptance criterion — for example, a reviewer asks for a change the criterion rules out — PRFlow can record each dispute as a `Disputed criterion <N>:` line in the pull request body, naming the declined findings. A dispute does not decide publication: a run that reaches publication publishes the pull request, or leaves it a draft, as `implement_pr_state` decides, and some findings still stop the run first — for example, an unresolved Critical one. When the criterion is wrong, the maintainer amends it on the issue.
+When the fix loop disputes an acceptance criterion — for example, a reviewer asks for a change the criterion rules out — PRFlow can record each dispute as a `Disputed criterion "<criterion>": <declined findings, summarized> — amend the issue or accept the criterion.` line in the pull request body, quoting the criterion. The line is a note for the maintainer and changes no review outcome; a fix stricter than a criterion is disclosed as a `Stricter than criterion "<criterion>": <case> — <why>` line, which the review ignores once that criterion is reworded or removed until a fix pass discloses it again, and ignores in its older numbered form written before the upgrade. A dispute does not decide publication: a run that reaches publication publishes the pull request, or leaves it a draft, as `implement_pr_state` decides, and some findings still stop the run first — for example, an unresolved Critical one. When the criterion is wrong, the maintainer amends it on the issue.
 
 ## Ready or Draft
 

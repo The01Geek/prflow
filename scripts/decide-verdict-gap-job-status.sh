@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# decide-verdict-gap-job-status.sh ARM REVIEW_CLASS CANCELLED — decide whether the
+# decide-verdict-gap-job-status.sh ARM REVIEW_CLASS CANCELLED [LINE] — decide whether the
 # Phase 4.4 verdict-emitter reach-record step should FAIL its job or leave the job
 # status unchanged (issue #1271).
 #
@@ -21,9 +21,13 @@
 #
 # CONTRACT — exactly one stdout line, always exit 0:
 #
-#   FAIL <reason>   the job should conclude `failure`: the emitter was not reached AND
-#                   the head-scoped oracle POSITIVELY established that no verdict exists
-#                   for the reviewed head.
+#   FAIL failed-post          the run was not cancelled and the reach line (LINE) starts
+#                             `REACHED FAILED no-durable-channel`: the emitter ran, but its
+#                             verdict reached neither the review nor the comment channel
+#                             (issue #1965).
+#   FAIL established-absence  the run was not cancelled, the emitter was not reached, AND
+#                             the head-scoped oracle POSITIVELY established that no verdict
+#                             exists for the reviewed head.
 #   PASS <reason>   the job status is left unchanged (the step then ends in `exit 0`).
 #
 # Always exit 0 — the decision is the STDOUT TOKEN, never this helper's own exit code.
@@ -32,7 +36,7 @@
 # is what lets the suite drive every arm without the step's own control flow leaking the
 # verdict.
 #
-# THE GATE IS CONJUNCTIVE, and the second conjunct must be POSITIVELY-ESTABLISHED
+# THE NOT-REACHED GATE IS CONJUNCTIVE, and the second conjunct must be POSITIVELY-ESTABLISHED
 # ABSENCE — never a "could not tell". `classify-head-reviews.sh` reports established
 # absence (`none`) and inability-to-establish (`unestablished <reason>`) as DISTINCT
 # answers; only `none` fires the gate. This honours CLAUDE.md's "unknown is not zero":
@@ -82,45 +86,46 @@
 #     retries the run), and neither suppresses the other. If a future change wants to
 #     de-duplicate, it belongs in the workflow's step gating, not in this helper's contract.
 #
-#   * Phase 4.4's sanctioned "no output at all" fallback arm. phase-4-4-github-post.md
-#     instructs the agent to read the emitter producing no output as a harness refusal,
-#     route to the fallback arm, and post the full report with `gh pr comment` — FORBIDDEN
-#     from composing a verdict marker. On that path no receipt is written (ARM not-reached)
-#     and nothing marks the comment (the oracle answers `none` when no reviews-API review
-#     exists). So the gate FIRES on a run that followed the documented procedure exactly.
-#     DISPOSITION: the gate is ALLOWED to fire. The verdict really is unreadable by every
-#     merge-gate consumer on that path, which is the exact condition this gate exists to make
-#     loud; that the agent reached it by a sanctioned route does not make the verdict
-#     readable. Failing loud is the correct, recorded answer.
+#   * Phase 4.4's "no output at all" arm. phase-4-4-github-post.md has the agent read the
+#     emitter producing no output as "the verdict was not posted" and report it in chat; it
+#     composes no verdict marker. On that path no receipt is written (ARM not-reached) and
+#     no review exists (the oracle answers `none`), so the gate FIRES on a run that
+#     followed the documented procedure exactly. DISPOSITION: the gate is ALLOWED to fire.
+#     The verdict really is unreadable by every merge-gate consumer on that path, which is
+#     the exact condition this gate exists to make loud. Failing loud is the correct,
+#     recorded answer.
 #
 # EVERY "COULD NOT TELL" ARM KEEPS TODAY'S WARNING AND LEAVES THE JOB STATUS UNCHANGED.
 # The reach-record arm vocabulary is closed (describe-verdict-post-gap.sh): reached,
 # not-reached, unestablished, no-line, unrecognized-line. Only `not-reached` can reach the
-# second conjunct; `reached` is a discharged emitter, and `unestablished`/`no-line`/
-# `unrecognized-line` each mean the reach question itself could not be settled — every one
-# of them is PASS. The "check-helpers-absent" path (an older vendored tree) never reaches
-# this helper: the workflow's own guard exits 0 before invoking it. And when THIS helper is
-# itself absent from an older vendored tree, the workflow warns and leaves the job unchanged
-# (a separate DECIDE-absent guard in the step). So no arm meaning "could not tell" fires the
-# gate.
+# second conjunct; `reached` is a discharged emitter unless LINE names a failed post, and
+# `unestablished`/`no-line`/`unrecognized-line` each mean the reach question itself could
+# not be settled — every one of them is PASS. The "check-helpers-absent" path (an older
+# vendored tree) never reaches this helper: the workflow's own guard exits 0 before
+# invoking it. And when THIS helper is itself absent from an older vendored tree, the
+# workflow warns and leaves the job unchanged (a separate DECIDE-absent guard in the step).
+# So no arm meaning "could not tell" fires the gate.
 #
 # Selection values are derived with bash builtins only (`case`, `[`, parameter expansion) —
 # never `tr`/`sed`/`cut`/`wc`, which lib/preflight.sh does not guarantee and whose absence
 # would empty a value and select the wrong arm (CLAUDE.md guard-class 2).
 #
-# Usage: decide-verdict-gap-job-status.sh ARM REVIEW_CLASS CANCELLED
-#   ARM           the reach-record arm token WITHOUT the "ARM " prefix, i.e. one of
+# Usage: decide-verdict-gap-job-status.sh ARM REVIEW_CLASS CANCELLED [LINE]
+#   ARM          the reach-record arm token WITHOUT the "ARM " prefix, i.e. one of
 #                 reached | not-reached | unestablished | no-line | unrecognized-line.
 #                 Any other value is treated as a could-not-tell arm and passes.
 #   REVIEW_CLASS  classify-head-reviews.sh's single line: none | marked | unmarked <id>… |
 #                 unestablished <reason> | (empty on an older deployment / no classify).
 #   CANCELLED     the job's cancelled() state as the literal `true` or `false`; anything
 #                 other than exactly `true` is treated as not-cancelled.
+#   LINE          check-verdict-post-reached.sh's line; absent (an older workflow) decides
+#                 as an empty line.
 set -u
 
 ARM="${1:-}"
 REVIEW_CLASS="${2:-}"
 CANCELLED="${3:-}"
+LINE="${4:-}"
 
 # The oracle's KIND is its first whitespace-delimited token, so `unestablished <reason>`
 # and `unmarked <id>…` reduce to `unestablished` / `unmarked`. Only the bare `none`
@@ -134,7 +139,14 @@ if [ "$CANCELLED" = "true" ]; then
   exit 0
 fi
 
-# (2) First conjunct: only a not-reached emitter can fire the gate. Every other arm —
+# (1b) A reached emitter whose post failed on both channels delivered no verdict (issue #1965).
+case "$LINE" in
+  'REACHED FAILED no-durable-channel'*)
+    echo "FAIL failed-post"
+    exit 0 ;;
+esac
+
+# (2) First conjunct of the not-reached gate: every other arm —
 #     reached, unestablished, no-line, unrecognized-line, or any unrecognized token — is a
 #     discharged or could-not-tell arm and passes.
 if [ "$ARM" != "not-reached" ]; then

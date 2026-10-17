@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "review-and-fix iteration record (iter-<N>.json)",
+  "description": "The run-scoped record .prflow/tmp/review/<slug>/<run-id>/iter-<N>.json. Only the top level is closed: pushback rows belong in fix_decisions with \"decision\": \"pushed_back\", and consumer-added data in verification_evidence. A key marked conditional appears only when its writer ran. Checked keywords: type, properties, required, additionalProperties, items, pattern.",
+  "type": "object",
+  "required": ["iter", "fix_decisions"],
+  "additionalProperties": false,
+  "properties": {
+    "iter": {"type": "integer", "description": "N, equal to the filename's number."},
+    "fix_commit_sha": {"type": ["string", "null"], "pattern": "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$", "description": "40- or 64-hex sha of the fix commit; null with no fix commit. Continuation accepts only 40-hex heads."},
+    "fix_files": {"type": ["array", "null"], "items": {"type": "string"}},
+    "diff_produced_at_head": {"type": ["string", "null"], "description": "Conditional: the sha the engine entry diffed at."},
+    "iteration_head": {"type": "string", "pattern": "^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$", "description": "Conditional: HEAD after Step 3.5's last commit. Admits 40 or 64 hex characters; continuation accepts only 40-hex heads."},
+    "restored_from": {"type": ["string", "null"], "description": "Conditional: the killed attempt's run id, on a continuation's copy."},
+    "loop_role": {"type": ["string", "null"], "description": "fix | promoted."},
+    "promotion_provenance": {"type": ["string", "null"], "description": "Conditional, promoted iterations: shadow | park-calibration-post-shadow | park-calibration-pre-shadow."},
+    "synthesized": {"type": ["boolean", "null"], "description": "Written by the --persist synthesis floor, never by the loop."},
+    "checklist": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": ["string", "null"]},
+          "verification_mode": {"type": ["string", "null"]},
+          "claim_signature": {"type": ["string", "null"]},
+          "verdict": {"type": ["string", "null"]},
+          "severity": {"type": ["string", "null"]},
+          "reused_from_iter_prev": {"type": ["boolean", "null"]},
+          "reused_from_iter": {"type": ["integer", "null"]}
+        }
+      }
+    },
+    "dispatch_mode": {"type": ["string", "null"], "description": "Conditional: set only by loop-control.md's engine-entry routing."},
+    "dispatch_disposition": {"type": ["string", "null"], "description": "Conditional: null | refused | dead | malformed."},
+    "phase3_dispatched": {"type": ["array", "null"], "items": {"type": "string"}},
+    "expected_reviewers": {"type": ["array", "null"], "items": {"type": "string"}},
+    "phase3_failed_agents": {"type": ["array", "null"], "items": {"type": "string"}},
+    "diff_profile": {
+      "type": ["object", "null"],
+      "properties": {
+        "small_diff": {"type": ["boolean", "null"]},
+        "config_only": {"type": ["boolean", "null"]},
+        "has_new_types": {"type": ["boolean", "null"]},
+        "checklist_skipped": {"type": ["string", "null"], "description": "intentional | failure | null."}
+      }
+    },
+    "phase3_findings": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": {"type": ["string", "null"]},
+          "agent": {"type": ["string", "null"]},
+          "severity": {"type": ["string", "null"]},
+          "description": {"type": ["string", "null"]},
+          "defect_signature": {
+            "type": ["object", "string", "null"],
+            "description": "Folded unchanged from the reviewer's finding.",
+            "properties": {
+              "file": {"type": ["string", "null"]},
+              "line_range": {"type": ["array", "string", "null"], "items": {"type": ["integer", "null"]}},
+              "kind": {"type": ["string", "null"]}
+            }
+          },
+          "corroboration_count": {"type": ["integer", "null"]},
+          "shadow_finding_id": {"type": ["string", "null"], "description": "Conditional, shadow-promoted iterations: the shadow return's F-<k> this row came from."},
+          "step25_classification": {"type": ["string", "null"], "description": "codebase | web_confirmed | web_refuted | web_inconclusive | over_budget | tools_unavailable."},
+          "fix_decision": {"type": ["string", "object", "null"], "description": "applied | pushed_back | deferred | advisory | severity-calibrated."}
+        }
+      }
+    },
+    "fix_decisions": {
+      "type": "array",
+      "description": "One row per finding; every pushback row goes here with \"decision\": \"pushed_back\".",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": {"type": ["string", "null"]},
+          "decision": {"type": ["string", "null"]},
+          "commit": {"type": ["string", "null"]},
+          "source_file": {"type": ["string", "null"]},
+          "claim_text": {"type": ["string", "null"]},
+          "skip_category": {"type": ["string", "null"]},
+          "evidence": {"type": ["string", "null"]},
+          "parking_evidence": {
+            "type": ["object", "null"],
+            "properties": {
+              "basis": {"type": ["string", "null"]},
+              "failing_input": {"type": ["string", "null"]},
+              "source": {
+                "type": ["string", "object", "null"],
+                "description": "A citation; a settled-by-disclosure row's {path, phrase}.",
+                "properties": {"path": {"type": ["string", "null"]}, "phrase": {"type": ["string", "null"]}}
+              },
+              "finding_ref": {
+                "type": ["object", "null"],
+                "properties": {"iter": {"type": ["integer", "null"]}, "index": {"type": ["integer", "null"]}}
+              }
+            }
+          },
+          "original_severity": {"type": ["string", "null"]},
+          "calibrated_severity": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "cap_drops": {
+      "type": ["object", "null"],
+      "properties": {"count": {"type": ["integer", "null"]}, "by_category": {"type": ["object", "null"]}}
+    },
+    "parked_class_sweep": {
+      "type": ["object", "null"],
+      "description": "Conditional: convergence entries with parked findings.",
+      "properties": {
+        "classes": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "properties": {
+              "source_finding_ids": {"type": ["array", "null"], "items": {"type": "string"}},
+              "kind_literal": {"type": ["string", "null"]},
+              "new_siblings": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "finding_id": {"type": ["string", "null"]},
+                    "site": {"type": ["string", "null"]},
+                    "severity": {"type": ["string", "null"]},
+                    "disposition": {"type": ["string", "null"]},
+                    "marker": {"type": ["string", "null"], "description": "parked-sibling: class-sweep."}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "not_completed": {"type": ["string", "null"]}
+      }
+    },
+    "reference_reads": {
+      "type": ["object", "null"],
+      "description": "Conditional: Step 3.5 ran.",
+      "properties": {
+        "fix_delta": {
+          "type": ["object", "null"],
+          "properties": {
+            "status": {"type": ["string", "null"], "description": "verified | not_verified (unrecoverable on a synthesized record)."},
+            "outcome": {"type": ["string", "null"], "description": "clean | refixed | pushed_back | promoted."},
+            "reason": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "shadow_skipped": {
+      "type": ["object", "null"],
+      "description": "Conditional: the Clean-iteration-1 exit.",
+      "properties": {"reason": {"type": ["string", "null"]}, "head": {"type": ["string", "null"]}}
+    },
+    "shadow": {
+      "type": ["object", "null"],
+      "description": "Conditional: Step 2.6 ran (or the synthesis floor's marker).",
+      "properties": {
+        "dispatch_mode": {"type": ["string", "null"]},
+        "dispatch_disposition": {"type": ["string", "null"]},
+        "ran_at": {"type": ["string", "null"]},
+        "reviewed_sha": {"type": ["string", "null"]},
+        "verdict": {"type": ["string", "null"]},
+        "coverage": {"type": ["string", "null"], "description": "full | not_verified."},
+        "reviewers_dispatched": {"type": ["array", "null"], "items": {"type": "string"}},
+        "expected_reviewers": {"type": ["array", "null"], "items": {"type": "string"}},
+        "per_reviewer_assessment": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "properties": {"agent": {"type": ["string", "null"]}, "returned": {"type": ["boolean", "null"]}}
+          }
+        },
+        "reason": {"type": ["string", "null"]},
+        "checklist_skipped": {"type": ["string", "null"]},
+        "phase3_findings": {"type": ["array", "null"], "items": {"type": "object"}},
+        "phase2_fails": {"type": ["array", "null"]},
+        "comparison": {
+          "type": ["object", "null"],
+          "properties": {
+            "shadow_total": {"type": ["integer", "null"]},
+            "overlap_with_iter_N": {"type": ["integer", "null"]},
+            "new": {"type": ["integer", "null"]},
+            "new_critical": {"type": ["integer", "null"]},
+            "new_important": {"type": ["integer", "null"]}
+          }
+        },
+        "promoted_to_iter_next": {"type": ["boolean", "null"]},
+        "shadow_synthesized": {"type": ["boolean", "null"]},
+        "provenance_unestablished": {"type": ["boolean", "null"]}
+      }
+    },
+    "park_calibration": {
+      "type": ["object", "null"],
+      "description": "Conditional: the Park-calibration gate ran.",
+      "properties": {
+        "evidence_comparisons": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "properties": {
+              "parked_finding_ref": {
+                "type": ["object", "null"],
+                "properties": {"iter": {"type": ["integer", "null"]}, "index": {"type": ["integer", "null"]}}
+              },
+              "parked_finding_id": {"type": ["string", "null"]},
+              "shadow_finding_index": {"type": ["integer", "null"]},
+              "relation": {"type": ["string", "null"]},
+              "rationale": {"type": ["string", "null"]},
+              "operands_present": {"type": ["boolean", "null"]},
+              "disposition": {"type": ["string", "null"]}
+            }
+          }
+        }
+      }
+    },
+    "verification_evidence": {"type": ["object", "null"], "description": "Admits any object; the home for consumer-added data."},
+    "telemetry": {
+      "type": ["object", "string", "null"],
+      "description": "Per-phase {calls, tokens, wall_clock_s}, or the string \"unavailable\".",
+      "properties": {
+        "phase_1": {
+          "type": ["object", "string", "null"],
+          "properties": {
+            "calls": {"type": ["number", "string", "null"]},
+            "tokens": {"type": ["number", "string", "null"]},
+            "wall_clock_s": {"type": ["number", "string", "null"]}
+          }
+        },
+        "step_2_6": {
+          "type": ["object", "string", "null"],
+          "properties": {
+            "calls": {"type": ["number", "string", "null"]},
+            "tokens": {"type": ["number", "string", "null"]},
+            "wall_clock_s": {"type": ["number", "string", "null"]}
+          }
+        }
+      }
+    }
+  }
+}

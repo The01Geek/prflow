@@ -20,7 +20,7 @@ implement → review pipeline, not landed as an autonomous PR.
 
 Subagent dispatch is user-requested here (injection-condition clause). Invoking `/prflow:retrospective-weekly` is the user's request for subagent dispatch at this loop's two judgment points — the Stage A per-PR retrospective subagents (Step 4) and the Stage B per-pattern issue-spec subagents (Step 8b) — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else; every other step stays the deterministic scripts the conductor runs directly.
 
-Helper-path form (textual). Every bundled-helper command in this skill is written inline with the full portable anchor — `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/<name>` for a `scripts/` helper and `.../../lib/<name>` for a `lib/` helper — resolved per the *Portable helper anchor* note below. Never capture the anchor into a shell variable that a later statement reads: each Bash call is a fresh shell. The five retrospective libraries are no longer sourced into this skill's shell; their thirteen cloud-used functions are reached through the `retro-helper.sh <subcommand>` dispatcher, invoked as a bare granted path (vendored literal first, portable-anchor fallback for the local tier), which reads its inputs from and writes its outputs to fixed `.prflow/tmp/retro-helper/…` files. `retro-outcome-record.py` calls are vendored-literal only, `|| true`: only the workflow creates the record they write, and it guarantees that path.
+Helper-path form (textual). Every bundled-helper command in this skill is written inline with the full portable anchor — `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/<name>` for a `scripts/` helper and `.../../lib/<name>` for a `lib/` helper — resolved per the *Portable helper anchor* note below. Never capture the anchor into a shell variable that a later statement reads: each Bash call is a fresh shell. The retrospective libraries are not sourced into this skill's shell; their cloud-used functions are reached through the `retro-helper.sh <subcommand>` dispatcher, invoked as a bare granted path (vendored literal first, portable-anchor fallback for the local tier), which reads its inputs from and writes its outputs to fixed `.prflow/tmp/retro-helper/…` files. `retro-outcome-record.py` calls are vendored-literal only, `|| true`: only the workflow creates the record they write, and it guarantees that path.
 
 Working-directory contract. This skill's `lib/`/`scripts/` helper paths are repo-relative literals resolving against the repository root; no fence emits a leading `cd`.
 
@@ -30,12 +30,13 @@ Every `jq` in this skill is invoked through the execution-verified wrapper
 unrunnable jq. `DEVFLOW_JQ` is not exported to agent shells, so invoke the wrapper by
 path.
 
-All scratch files live under `.prflow/tmp/` (gitignored). Learnings files
-(`.prflow/learnings/`) are tracked and committed via the state PR.
+All scratch files live under `.prflow/tmp/` (gitignored). The learnings store lives on the
+telemetry branch; a run works on an untracked copy under `.prflow/learnings/`, loaded in
+Step 1 and saved in Steps 7 and 9. No run opens a pull request.
 
-Writing standard (any text you compose that lands on a GitHub surface — issue/PR titles, the state-PR report comment, body content you assemble). Before composing such text, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
+Writing standard (any text you compose that lands on a GitHub surface — issue titles, the report, body content you assemble). Before composing such text, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
 
-GitHub autolink hygiene (any text you compose that lands on a GitHub surface — issue/PR titles, the state-PR report comment, body content you assemble): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
+GitHub autolink hygiene (any text you compose that lands on a GitHub surface — issue titles, the report, body content you assemble): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
 
 ---
 
@@ -47,16 +48,16 @@ Consumer prompt extension (load first). Before doing this skill's work, load any
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh retrospective-weekly
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/skill-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor failure above: fix the anchor; do not report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. No `PROMPT-EXTENSION-STATUS:` line on stderr, as after a refusal, is an unestablished extension to report, never an empty one. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run. If it exits 0 and prints nothing, proceed unchanged.
 
 ## Procedure
 
 ### Step 1 — Preflight
 
-Confirm the working tree is clean:
+Confirm the working tree is clean outside the learnings working copy:
 
 ```bash
-git status --porcelain
+git status --porcelain -- . ':(exclude).prflow/learnings'
 ```
 
 If the output is non-empty, **stop** and tell the user to stash or commit
@@ -93,6 +94,16 @@ find .prflow/tmp -maxdepth 1 -type f \( -name 'result-*.json' -o -name 'pr-*.con
 rm -rf .prflow/tmp/retro-helper 2>/dev/null || true
 # Never wipe .prflow/tmp/retro-outcome/ or scan.json: the workflow's finalizer reads them.
 ```
+
+Load the learnings store from a fresh fetch of the telemetry branch into `.prflow/learnings/`:
+
+```bash
+.prflow/vendor/prflow/scripts/retro-helper.sh learnings-hydrate || { ! test -x .prflow/vendor/prflow/scripts/retro-helper.sh && "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/retro-helper.sh learnings-hydrate; }
+```
+
+On a non-zero exit the store could not be loaded safely: **stop** and report its `::error::`
+line. Its outcome is in `.prflow/tmp/retro-helper/learnings-hydrate-out.txt`; a `first-run:`
+line is a normal start.
 
 ---
 
@@ -330,16 +341,13 @@ operate on the file. For each result:
 
 ### Step 5 — Materialize
 
-Merge all new entries into the retrospectives file (idempotent — existing
-entries for the same `pr`+`kind` are replaced):
+Merge the new entries into the store; one with the same `repo`, `pr` and `kind` replaces its record:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/materialize-retrospectives.sh \
   .prflow/tmp/new-entries.jsonl \
-  .prflow/learnings/retrospectives.jsonl
+  .prflow/learnings/retrospectives.jsonl || { echo "::error::retrospective Step 5: merge failed; store unchanged" >&2; exit 1; }
 ```
-
-The script prints `"materialized: appended N, replaced M"` to stdout.
 
 ---
 
@@ -352,20 +360,16 @@ place (stamping each record's `category` field) and refreshes each
 wholesale reconcile failure exits non-zero and aborts the derivation, fail-closed.
 
 ```bash
-# Guard this call: an unguarded non-zero exit derives patterns from stale,
-# unreconciled state and the loop files nothing.
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/pattern-state.sh run .prflow/learnings/overrides.json || {
-  echo "::error::retrospective Step 6: the lifecycle reconcile failed — aborting BEFORE pattern derivation (deriving from unreconciled state is the defect this step exists to prevent)" >&2
+  echo "::error::retrospective Step 6: the lifecycle reconcile failed — aborting before pattern derivation" >&2
   exit 1
 }
-# Capture stderr to a file, not a pipe (which would replace the script's own exit
-# status): the report renders actionable-patterns.sh's `liveness:` line from it.
+# stderr goes to a file (a pipe masks the exit status); the report reads its `liveness:` and `Pattern ` lines.
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/actionable-patterns.sh \
   .prflow/learnings/retrospectives.jsonl \
   .prflow/learnings/overrides.json \
+  --scan .prflow/tmp/scan.json \
   > .prflow/tmp/patterns.json 2> .prflow/tmp/patterns.stderr || {
-  # Guard it: `>` truncates before the script runs, so an unguarded non-zero exit
-  # leaves an empty patterns.json and Step 8 files nothing.
   echo "::error::retrospective Step 6: actionable-pattern derivation failed — aborting rather than proceeding with an empty pattern set (which would report a quiet week)" >&2
   cat .prflow/tmp/patterns.stderr >&2 || true
   exit 1
@@ -373,16 +377,14 @@ wholesale reconcile failure exits non-zero and aborts the derivation, fail-close
 cat .prflow/tmp/patterns.stderr >&2 || true
 # Snapshot the post-reconcile, PRE-FILING overrides file for Step 9's won't-fix
 # re-raise read — AFTER the reconcile and BEFORE any filing. Take it here, not in
-# Step 8c, which is skipped when nothing is actionable. Remove the destination first
-# and guard the copy: a stale surviving file renders the section from state this run
-# never took.
+# Step 8c, which is skipped when nothing is actionable. Remove the destination first:
+# a stale surviving file renders the section from state this run never took.
 rm -f .prflow/tmp/overrides-prefiling.json
 cp .prflow/learnings/overrides.json .prflow/tmp/overrides-prefiling.json || {
   echo "::error::retrospective Step 6: could not snapshot the pre-filing overrides file — aborting rather than letting Step 9 render its won't-fix re-raise section from a stale or absent snapshot" >&2
   exit 1
 }
-# The unfiltered whole-pattern view for the run report; --full drops the actionable
-# filters (every lifecycle state, below-threshold and suppressed included).
+# --full: the unfiltered view (every state, below-threshold and suppressed) the report renders.
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/actionable-patterns.sh \
   .prflow/learnings/retrospectives.jsonl \
   .prflow/learnings/overrides.json \
@@ -399,10 +401,10 @@ Print a summary line to the console, for example:
 5 PRs: 3 clean, 2 analyzed; 2 actionable patterns: incomplete-edit (x5), lenient-verdict (x3)
 ```
 
-Partition `patterns.json` into two lists:
+From `patterns.json`, build `to_act` and `cooldown_skipped`:
 
 ```bash
-to_act=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh '[.[] | select(.cooldown_active == false)]' .prflow/tmp/patterns.json)
+to_act=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh '[.[] | select(.cooldown_active == false and .scan_window.held != true)]' .prflow/tmp/patterns.json)
 cooldown_skipped=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh '[.[] | select(.cooldown_active == true) | .tag]' .prflow/tmp/patterns.json)
 ```
 
@@ -413,7 +415,7 @@ Record `cooldown_skipped` tags for the final report.
 ### Step 6.5 — Build experiment records (best-effort)
 
 After Step 5 materialized this week's retrospective entries (and before the Step 7
-state PR commits the learnings files), assemble the unified experiment record —
+save), assemble the unified experiment record —
 joining each merged PR's per-run cost to its review outcome (verdict, Important-finding
 count, denial count, config fingerprint). Anchored here so this week's PRs join
 against this week's freshly-materialized retrospective entries.
@@ -459,52 +461,28 @@ shape is documented in `scripts/build-experiment-records.py`'s module docstring.
 
 ---
 
-### Step 7 — State PR
+### Step 7 — Save the learnings store
 
-Open the state PR now, before Stage B, so that the learnings files are
-committed onto their own branch. This captures the unstaged changes Steps 5–6
-wrote to `.prflow/learnings/` before any issue is filed, so this run's
-retrospective data survives even if Stage B or the filing step fails partway.
-
-Ensure you are on `main`:
+Save the working copy now, before Stage B, so this run's data survives a Stage B failure.
+Never check out another branch: later steps read this working copy.
 
 ```bash
-git checkout main
-```
-
-The working tree now has the updated
-`.prflow/learnings/retrospectives.jsonl` and, normally, a modified
-`.prflow/learnings/overrides.json`. That overrides diff is this run's output, not
-carry-over — Step 6's reconcile rewrites the file unconditionally. Review it as fresh
-reconcile output; do not discard it as stale. These changes are in-place on `main`'s
-working tree and have never been committed to `main` — `open-state-pr.sh` handles
-committing them onto a separate branch.
-
-```bash
-if STATE_PR=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/open-state-pr.sh); then
-    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id state_persistence --status success --diagnostic "PR ${STATE_PR}" || true
+if .prflow/vendor/prflow/scripts/retro-helper.sh learnings-persist \
+    || { ! test -x .prflow/vendor/prflow/scripts/retro-helper.sh && "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/retro-helper.sh learnings-persist; }; then
+  SAVE_STATUS=success
 else
-    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id state_persistence --status failure --diagnostic "open-state-pr.sh failed (non-zero exit)" || true
+  SAVE_STATUS=failure
 fi
+SAVE_DIAG=$(cat .prflow/tmp/retro-helper/learnings-persist-out.txt 2>/dev/null || true)
+SAVE_DIAG="${SAVE_DIAG:-learnings-persist printed no diagnostic}"
+.prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id state_persistence --status "$SAVE_STATUS" --diagnostic "$SAVE_DIAG" || true
+[ "$SAVE_STATUS" = success ] || printf 'Learnings store not saved: %s\n' "$SAVE_DIAG" > .prflow/tmp/retro-helper/save-blocker.txt
+printf '%s\n' "$SAVE_DIAG"
 ```
 
-`open-state-pr.sh` (no required args; optional `--branch <name>`,
-`--base <ref>` — defaults to `main` —, and `--dry-run`):
-
-- Creates/reuses branch `prflow/learnings-<YYYY-MM-DD>` from `--base`
-  (`main` by default), so the PR diff is just the learnings files.
-- Stages any learnings files that exist (`.prflow/learnings/retrospectives.jsonl`
-  and, if present, `.prflow/learnings/overrides.json`).
-- Commits and pushes (force-with-lease if the remote branch exists).
-- Opens or updates the PR against `main`.
-- Prints the PR number to stdout.
-
-After it returns, go back to `main` so the working tree is clean and
-Stage B starts from a known-good HEAD:
-
-```bash
-git checkout main
-```
+When `.prflow/tmp/retro-helper/save-blocker.txt` is non-empty (refused or failed save),
+**skip Step 8** — file no issue from an unsaved store — and go to Step 9, whose report
+names it.
 
 Initialize Stage B counters:
 
@@ -535,8 +513,8 @@ the legacy `{title, body}` shape never reaches it and derives its own cap verdic
 blocks it unconditionally and loudly — intended, because the shipped Stage B
 composer returns only the findings-array shape, and a stale composer that still
 returns `{title, body}` has had no projection audit to file on. No worktrees, no commits, no PRs — the loop proposes; a human triages each issue and runs it through the normal
-`/prflow:implement` → review pipeline. Your main checkout stays on `main` and is
-never edited. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
+`/prflow:implement` → review pipeline. Your checkout stays on `main`; only the
+learnings working copy changes. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
 serially.
 
 #### 8a — Gather occurrence bundles (bounded by `audit_bundle_cap`)
@@ -1053,10 +1031,8 @@ continues to the next pattern; the pattern is absent from `intervention_issues`.
 Do not post `/prflow:implement` (or any auto-trigger comment) on a filed
 issue — filed issues await human triage.
 
-(`meta-issue.sh` mutates `.prflow/learnings/overrides.json` in your `main`
-checkout's working tree. That happens after the Step 7 state PR was opened,
-so the new lifecycle record lands in next week's state PR — see § Notes for the optional
-follow-up commit if you want it in this run's PR.)
+(`meta-issue.sh` records each filing in the working copy's `overrides.json`; the Step 9
+save carries it to the store.)
 
 ---
 
@@ -1148,10 +1124,9 @@ printf '%s' "$PATTERNS_JSON"                > "$_SUMMARY_TMP/patterns.json"
 printf '%s' "$RECURRING_TARGETS_JSON"       > "$_SUMMARY_TMP/recurring_targets.json"
 printf '%s\n' "${intervention_issues[@]:-}" | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -sc '.' > "$_SUMMARY_TMP/intervention_issues.json"
 printf '%s\n' "${cooldown_skipped[@]:-}"    | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -sc '.' > "$_SUMMARY_TMP/cooldown_skipped.json"
-# blockers carry RAW PROSE, so slurp them with the raw `-sRc split` shape (like
-# `skips`), NOT the JSON `-sc '.'` slurp — under which a prose element is a jq parse
-# error that empties blockers.json, trips the empty-file guard, and aborts the run,
-# losing every blocker.
+# blockers are raw prose: slurp with `-sRc split`, never `-sc '.'` (a jq parse error that
+# empties blockers.json and aborts the run).
+if [ -s .prflow/tmp/retro-helper/save-blocker.txt ]; then blockers+=("$(cat .prflow/tmp/retro-helper/save-blocker.txt)"); fi
 printf '%s\n' "${blockers[@]:-}"            | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -sRc 'split("\n") | map(select(. != ""))' > "$_SUMMARY_TMP/blockers.json"
 # withheld_patterns: each {tag, cap} the Step-8 caps held back, and
 # declined_refiled: the slugs whose meta-issue was previously closed NOT_PLANNED.
@@ -1159,19 +1134,17 @@ printf '%s\n' "${blockers[@]:-}"            | "${CLAUDE_SKILL_DIR:-<absolute ski
 printf '%s' "$WITHHELD_JSON"                > "$_SUMMARY_TMP/withheld_patterns.json"
 printf '%s' "$DECLINED_REFILED_JSON"        > "$_SUMMARY_TMP/declined_refiled.json"
 printf '%s' "$TRUNCATIONS_JSON"             > "$_SUMMARY_TMP/truncations.json"
-# Same fail-loud property for the four INLINE producers above: their `> file` redirect
-# truncates before the pipeline runs, so a failing jq leaves the file EMPTY, while on
-# success each writes at minimum `[]` — so an empty file is unambiguously producer
-# failure. Guard by file, not by variable, because these operands never pass through a
-# shell variable.
+# Same fail-loud property for the four inline producers above: each writes at least `[]`
+# on success, so an empty file means its jq failed. Guard by file: these never pass
+# through a shell variable.
 for _op in skips intervention_issues cooldown_skipped blockers; do
   [ -s "$_SUMMARY_TMP/$_op.json" ] || {
     echo "PRFlow retrospective Step 9: $_op.json is empty — its inline jq producer failed" >&2
     rm -rf "$_SUMMARY_TMP"; exit 1
   }
 done
-# argjson-ok: prs_scanned, clean_count, analyzed_count, skipped_count, state_pr --
-# bounded scalars (counts and one PR number) — safe as argv.
+# argjson-ok: prs_scanned, clean_count, analyzed_count, skipped_count --
+# bounded scalar counts — safe as argv.
 SUMMARY_JSON=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -nc \
   --argjson prs_scanned           "$prs_scanned" \
   --argjson clean_count           "$clean_count" \
@@ -1187,10 +1160,10 @@ SUMMARY_JSON=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner r
   --slurpfile withheld_patterns   "$_SUMMARY_TMP/withheld_patterns.json" \
   --slurpfile declined_refiled    "$_SUMMARY_TMP/declined_refiled.json" \
   --slurpfile truncations         "$_SUMMARY_TMP/truncations.json" \
+  --rawfile   patterns_stderr     .prflow/tmp/patterns.stderr \
   --arg       liveness_warning    "$LIVENESS_WARNING" \
   --arg       filing_queue_open   "$FILING_QUEUE_OPEN" \
   --arg       filing_queue_max    "$FILING_QUEUE_MAX" \
-  --argjson state_pr              "$STATE_PR" \
   '{prs_scanned:$prs_scanned,clean_count:$clean_count,analyzed_count:$analyzed_count,
     skipped_count:$skipped_count,skips:$skips[0],
     analyzed:$analyzed[0],patterns:$patterns[0],recurring_targets:$recurring_targets[0],
@@ -1198,102 +1171,79 @@ SUMMARY_JSON=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner r
     cooldown_skipped:$cooldown_skipped[0],blockers:$blockers[0],
     withheld_patterns:$withheld_patterns[0],declined_refiled:$declined_refiled[0],
     truncations:$truncations[0],
+    scan_window:($patterns_stderr | split("\n") | map(rtrimstr("\r") | select(startswith("Pattern ")))),
     liveness_warning:$liveness_warning,
-    filing_queue_open:$filing_queue_open,filing_queue_max:$filing_queue_max,
-    state_pr:$state_pr}')
+    filing_queue_open:$filing_queue_open,filing_queue_max:$filing_queue_max}')
 rm -rf "$_SUMMARY_TMP"
 ```
 
 (The `"${array[@]:-}"` form handles an empty bash array safely under `set -u`.)
 
-Render the report markdown and post it as a comment on the state PR:
+Render the report, then save it with the learnings store, which carries Stage B's
+`overrides.json` changes:
 
 ```bash
 # Render the report through retro-helper.sh's `render-report` (wrapping devflow_render_report):
 # it reads the summary JSON from render-report-in.json and writes the markdown to the fixed
 # .prflow/tmp/report.md path this step reads back.
 printf '%s' "$SUMMARY_JSON" > .prflow/tmp/retro-helper/render-report-in.json
-# Gate the post on render success: render-report writes an EMPTY report.md and exits non-zero
-# on failure, so posting it would fail open. Emit a loud breadcrumb and skip the post instead.
+# A failed render leaves an EMPTY report.md; without a report, still save the store so
+# Stage B's changes land.
+SAVE_OK=0 RENDER_DIAG=
 if { .prflow/vendor/prflow/scripts/retro-helper.sh render-report \
       || "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/retro-helper.sh render-report; } \
       && [ -s .prflow/tmp/report.md ]; then
-  # Buffer the implement-runtime section, append it before the report is posted, and gate that
-  # append on content rather than exit status: --retro exits 1 on an unreadable store while
-  # still writing the section that says so.
+  # Gate the append on content, not exit status: --retro exits 1 on a missing or unreadable
+  # store yet writes the section that says so.
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/implement-run-report.py --retro > .prflow/tmp/implement-runtime.md || true
   if [ -s .prflow/tmp/implement-runtime.md ]; then
     cat .prflow/tmp/implement-runtime.md >> .prflow/tmp/report.md
   else
     printf '## Implement runtime trends\n\n_(section omitted — implement-run-report.py --retro produced no output)_\n' >> .prflow/tmp/report.md
   fi
-  if "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/post-status.sh --pr "$STATE_PR" --report-file .prflow/tmp/report.md; then
-    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status success --diagnostic "posted to PR ${STATE_PR}" || true
-  else
-    .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status failure --diagnostic "post-status.sh failed (non-zero exit)" || true
-  fi
+  .prflow/vendor/prflow/scripts/retro-helper.sh learnings-persist --report \
+    || { ! test -x .prflow/vendor/prflow/scripts/retro-helper.sh && "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/retro-helper.sh learnings-persist --report; } && SAVE_OK=1
 else
-  echo "::error::retrospective Step 9: render-report failed or produced an empty report.md — weekly report NOT posted; investigate the summary JSON before re-running" >&2
-  .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status failure --diagnostic "render-report failed; report not posted" || true
+  echo "::error::retrospective Step 9: render-report failed or produced an empty report.md — weekly report NOT saved; investigate the summary JSON before re-running" >&2
+  RENDER_DIAG='render-report failed; report not saved; store save: '
+  .prflow/vendor/prflow/scripts/retro-helper.sh learnings-persist \
+    || { ! test -x .prflow/vendor/prflow/scripts/retro-helper.sh && "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/retro-helper.sh learnings-persist; } && SAVE_OK=1
 fi
+SAVE_DIAG=$(cat .prflow/tmp/retro-helper/learnings-persist-out.txt 2>/dev/null || true)
+SAVE_DIAG="${SAVE_DIAG:-learnings-persist printed no diagnostic}"
+if [ "$SAVE_OK" = 1 ] && [ -z "$RENDER_DIAG" ]; then
+  .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status success --diagnostic "$SAVE_DIAG" || true
+else
+  .prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id report_post --status failure --diagnostic "$RENDER_DIAG$SAVE_DIAG" || true
+fi
+# This save carries the whole store, so its confirmed success clears a Step 7 failure.
+SAVE_STATUS=failure; [ "$SAVE_OK" = 1 ] && SAVE_STATUS=success
+.prflow/vendor/prflow/scripts/retro-outcome-record.py set-op --op-id state_persistence --status "$SAVE_STATUS" --clear-failure --diagnostic "$SAVE_DIAG" || true
 ```
 
 ---
 
 ### Step 10 — Report to the user
 
-Print the rendered report (`cat .prflow/tmp/report.md`) to the console.
+Read `.prflow/tmp/report.md` and reproduce the full report in your reply — it is the run's
+record of what happened; the cloud workflow also appends that file to the job summary.
 
-Then list each item that needs human action:
-
-- State PR (contains the updated retrospectives): `https://github.com/<repo>/pull/<state_pr>`
-- Filed issues (one per actionable pattern, awaiting human triage): list
-  each as `<tag>: <url>`
-
-If there are any blockers, list them explicitly.
+Then list each filed issue (one per actionable pattern, awaiting human triage) as
+`<tag>: <url>`, and list any blockers explicitly.
 
 Tell the user:
 
-> Review and merge the state PR once CI passes. Each filed issue awaits human
-> triage — pick the ones worth acting on and run them through the normal
-> implement → review pipeline; the loop never starts that for you. The loop is
-> idempotent — re-running next week will only process new PRs not yet in
-> `retrospectives.jsonl` on `main`, and a pattern already filed this cycle is
-> not re-filed.
+> Each filed issue awaits human triage — pick the ones worth acting on and run them
+> through the normal implement → review pipeline; the loop never starts that for you.
+> The loop is idempotent — re-running next week will only process new PRs not yet in
+> the learnings store, and a pattern already filed this cycle is not re-filed.
 
-Do not run `gh pr merge --auto` on anything, and do not auto-start
-implementation on a filed issue. The maintainer triages and merges manually
-after reviewing.
+Do not auto-start implementation on a filed issue.
 
 ---
 
 ## § Notes
 
-- Overrides after Stage B. `meta-issue.sh` records each filed pattern's
-  lifecycle entry in `.prflow/learnings/overrides.json` after the Step 7 state PR
-  was opened, so by default the change lands in next week's state PR. To include it
-  in *this* run's PR, run the helper's follow-up mode once with the Step 7 state
-  pull-request number: it reads that PR's own head branch, commits
-  `.prflow/learnings/overrides.json` onto it, pushes, and returns you to the branch
-  you started on — composing no branch name itself, so a run crossing UTC midnight
-  cannot target a branch that never existed, and refusing any head outside the two
-  state-branch prefixes. Its outcome is not recorded: a failure only defers the
-  overrides to next week's state PR. Substitute the state PR number as a literal:
-
-  ```bash
-  .prflow/vendor/prflow/lib/open-state-pr.sh --follow-up <state-pr-number>
-  ```
-
-  On a checkout without the vendored tree, fall back to the portable anchor form:
-
-  ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/open-state-pr.sh --follow-up <state-pr-number>
-  ```
-- Never auto-merge, never auto-implement. The maintainer merges the state PR
-  manually after CI, and triages each filed issue manually — the loop never
-  starts an implement run for you.
-- `actionable-patterns.sh` signature: takes two required positional args
-  — `<retrospectives.jsonl>` and `<overrides.json>` — plus an optional third,
-  `--full`, which emits the unfiltered whole-pattern view the run report
-  renders. Always pass both required args; pass `--full` only for
-  the report view. An unrecognized third argument is rejected with rc 2.
+- Never auto-implement. The maintainer triages each filed issue manually — the loop
+  never starts an implement run for you.
+- `actionable-patterns.sh` arguments: see its usage header.

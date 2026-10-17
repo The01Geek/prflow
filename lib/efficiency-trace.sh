@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# efficiency-trace.sh — render the /devflow:review-and-fix per-run subagent
-# effectiveness trace (Markdown) or the per-run JSON record from a run's
-# per-iteration workpads, AND deterministically persist those artifacts. All
-# derivation lives in lib/efficiency-trace.jq; this wrapper validates inputs,
-# reads the gating config, and dispatches jq.
+# efficiency-trace.sh — derive the per-run subagent effectiveness record (JSON)
+# from a run's per-iteration workpads, AND deterministically persist it with the
+# run's workpads. All derivation lives in lib/efficiency-trace.jq; this wrapper
+# validates inputs, reads the gating config, and dispatches jq.
 #
 # Usage:
-#   bash lib/efficiency-trace.sh --workpad-dir DIR --slug SLUG --mode {trace|record}
 #   bash lib/efficiency-trace.sh --self-check --workpad-dir DIR --slug SLUG
 #   bash lib/efficiency-trace.sh --persist [--workpad-dir DIR --slug SLUG]
 #
@@ -16,15 +14,13 @@
 #   --workpad-dir DIR   directory holding the run's iter-<N>.json workpads
 #                       (e.g. .prflow/tmp/review/<slug>/<run-id>/).
 #   --slug SLUG         the run slug (pr-<N> or sanitized branch name).
-#   --mode trace        emit the rendered Markdown trace to stdout.
-#   --mode record       emit the per-run JSON record to stdout.
 #   --self-check        Layer 2 backstop: warn (never write, never fail) when a
 #                       converged writable run left no iter-*.json workpad or no
 #                       persisted effectiveness record. Run-id is the basename of
 #                       --workpad-dir. Silent when telemetry is disabled.
-#   --persist           Layer 3 backstop: derive the per-run record + the durable
-#                       workpad copy from whatever iter-*.json workpads exist on
-#                       disk, and persist them to the dedicated telemetry branch
+#   --persist           Layer 3 backstop: derive the per-run record from whatever
+#                       iter-*.json workpads exist on disk, copy every run dir's
+#                       *.json, and persist both to the dedicated telemetry branch
 #                       (`telemetry.branch`, default prflow-telemetry) via git
 #                       plumbing — it does NOT commit to the current branch and
 #                       never touches HEAD or the tracked working tree (#441).
@@ -57,20 +53,22 @@
 #                      safely on the branch (any failed write latches `lost`)
 #     search-failed    the fix-commit search was unable to run, returned an unmapped code, or
 #                      reported success yet left no iteration file
-#     skipped          the call was declined — telemetry is disabled (the
+#     skipped          no record was derived — telemetry is disabled (the
 #                      efficiency-record feature gate or the telemetry.enabled master
-#                      switch), or persist_one declined a placeholder-identity /
-#                      non-synthesis-target run dir (chiefly discovery mode; a targeted
-#                      call passes allow_synth=1 and its argv is placeholder-guarded).
-# The DISCOVERY form (no --workpad-dir), the --mode/--self-check modes, and the argv
+#                      switch), or persist_one refused a placeholder-identity run dir
+#                      (a targeted call's argv is placeholder-guarded). Under the feature
+#                      gate alone the run dir's JSON is still copied.
+# The DISCOVERY form (no --workpad-dir), --self-check, and the argv
 # unsubstituted-<placeholder> guard each print no `persist-outcome:` line.
 #
 # Gating: when prflow_review_and_fix.efficiency_telemetry_enabled is false,
-# --mode and --self-check emit NOTHING and exit 0, and --persist derives no
-# record AND synthesizes no workpad (a synthesized workpad exists only to feed
-# the record — issue #381); the durable copy of REAL workpads is not
-# telemetry-gated — it runs on every writable run, mirroring the review-and-fix
-# Loop Exit (references/loop-exit.md) split.
+# --self-check emits NOTHING and exits 0, and --persist derives no
+# record AND synthesizes no workpad (one exists only to feed the record — issue
+# #381) or shadow marker, and the denial floor attaches nothing: denial records
+# can carry command text. The telemetry.enabled master switch alone gates the rest
+# of --persist: the durable copy of every run dir's JSON and the cost, run-profile
+# and PR-less floors. A false master also silences --self-check, so no `ok skipped`
+# cause leaves a self-check warning behind.
 #
 # Best-effort: a missing dir, zero readable workpads, or an unreadable workpad
 # never aborts — every mode degrades gracefully and --persist/--self-check
@@ -127,28 +125,14 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 WORKPAD_DIR=""
 SLUG=""
-MODE=""
-ACTION=""   # "" → use --mode (trace|record); "persist"; "self-check"; "correct-iter"
-# --correct-iter operands (issue #520): a same-run correction of a malformed-first
-# durable iter record. RUN_ID/ITER identify the record; CORRECTED_FILE holds the
-# validated replacement; EXPECTED_DIGEST is the malformed durable blob's git object id.
-RUN_ID=""
-ITER=""
-CORRECTED_FILE=""
-EXPECTED_DIGEST=""
+ACTION=""   # "persist" or "self-check"; required
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --workpad-dir)    WORKPAD_DIR="$2";    shift 2 ;;
     --slug)           SLUG="$2";           shift 2 ;;
-    --mode)           MODE="$2";           shift 2 ;;
-    --persist)        ACTION="persist";      shift ;;
-    --self-check)     ACTION="self-check";   shift ;;
-    --correct-iter)   ACTION="correct-iter"; shift ;;
-    --run-id)         RUN_ID="$2";         shift 2 ;;
-    --iter)           ITER="$2";           shift 2 ;;
-    --corrected-file) CORRECTED_FILE="$2"; shift 2 ;;
-    --expected-digest) EXPECTED_DIGEST="$2"; shift 2 ;;
+    --persist)        ACTION="persist";    shift ;;
+    --self-check)     ACTION="self-check"; shift ;;
     *) echo "efficiency-trace.sh: unknown argument '$1'" >&2; exit 2 ;;
   esac
 done
@@ -166,19 +150,14 @@ done
 # Accepted limitation: a repo checked out under a path that itself contains
 # `<`/`>` refuses every targeted invocation here (and discovery refuses each
 # dir via persist_one's twin guard) — loudly, exit 0; fail-closed in the safe
-# direction for a vanishingly rare layout. Accepted residual: a
-# CALLER-side shell redirect (e.g. a verbatim Loop Exit `--mode record >
-# "$RECORD"` fence) touches its placeholder-NAMED file before this script
-# runs — the guard keeps the file EMPTY (no fabricated content), but cannot
-# undo the caller's touch.
+# direction for a vanishingly rare layout.
 case "${WORKPAD_DIR}${SLUG}" in
   *'<'*|*'>'*)
     echo "::warning::efficiency-trace.sh: --workpad-dir/--slug contains an unsubstituted '<placeholder>' (got --workpad-dir '${WORKPAD_DIR}' --slug '${SLUG}'); refusing to run under a placeholder identity — substitute the run's real slug/run-id and rerun" >&2
     exit 0 ;;
 esac
 
-# ── Gating flag (on by default). ─────────────────────────────────────────────
-ENABLED="$(devflow_conf '.prflow_review_and_fix.efficiency_telemetry_enabled' 'true')"
+ENABLED="$(devflow_conf '.prflow_review_and_fix.efficiency_telemetry_enabled' 'false')"
 
 THRESHOLD="$(devflow_conf '.prflow_review_and_fix.efficiency_cut_candidate_min_dispatch' 3)"
 # Guard: a non-numeric / empty operator-supplied value must not make --argjson
@@ -190,7 +169,7 @@ case "$THRESHOLD" in
 esac
 [ "$THRESHOLD" -lt 1 ] && THRESHOLD=3
 
-# ── Derivation helpers (shared by --mode and --persist) ──────────────────────
+# ── Derivation helpers (used by --persist) ───────────────────────────────────
 
 # Populate the VALID_FILES global with the readable iter-*.json OBJECTS in $1.
 # Skips unreadable / non-object files (best-effort), logging a ::warning:: each
@@ -216,21 +195,6 @@ collect_valid_files() {
         echo "::warning::efficiency-trace.sh: skipping unreadable/malformed workpad '${shown}/${f##*/}'" >&2
       fi
     done
-  fi
-}
-
-# Warn (don't fail) if the collected workpads carry mixed run-level `source`
-# values — a run should be single-source (see the long rationale this mirrors).
-warn_on_mixed_source() {
-  [ "${#VALID_FILES[@]}" -gt 1 ] || return 0
-  # No `2>/dev/null`: VALID_FILES already passed the `type == "object"` gate, so
-  # this jq cannot fail on malformed input — suppressing its stderr would only hide
-  # a genuine jq malfunction. Only a STRING `.source` is a real label; a non-string
-  # (array/number/bool from a malformed write) is bucketed as the default, mirroring
-  # verdict_for's `== "review"` gate — otherwise its JSON rendering would inflate the
-  # distinct count into a false-positive "mixed source" warning.
-  if [ "$("$DEVFLOW_JQ" -r 'if (.source | type) == "string" then .source else "review-and-fix" end' "${VALID_FILES[@]}" | sort -u | wc -l)" -gt 1 ]; then
-    echo "::warning::efficiency-trace.sh: workpads carry mixed 'source' values; record collapses to the first non-null (a run should be single-source)" >&2
   fi
 }
 
@@ -381,10 +345,8 @@ commit_files() {
 # file. Returns 2, after warning, when the eligibility jq or the fill's jq fails on a
 # parseable file; otherwise returns 1, printing nothing, unless the file holds exactly
 # one JSON object that is neither synthesized nor a standalone review record.
-# Warnings name FILL_WHO's flag.
 # A jq capture this function compares or prints drops CR: a native Windows jq.exe
 # ends each line with one (#1050).
-FILL_WHO="--persist"
 fill_iter_record() {
   local iter="$1" dir="$2" root="$3" n ret ret_label rf state eligible reads shape sha_kind sha files err ff="null" trc=0
   "$DEVFLOW_JQ" -s -e 'length == 1 and (.[0] | type == "object" and .synthesized != true and .source != "review")' "$iter" >/dev/null 2>&1 || trc=$?
@@ -392,7 +354,7 @@ fill_iter_record() {
     0) ;;
     1) return 1 ;;
     *) "$DEVFLOW_JQ" empty "$iter" >/dev/null 2>&1 || return 1
-       echo "::warning::efficiency-trace.sh ${FILL_WHO}: could not fill '${iter##*/}' (jq failed, rc=${trc}); left unfilled" >&2
+       echo "::warning::efficiency-trace.sh --persist: could not fill '${iter##*/}' (jq failed, rc=${trc}); left unfilled" >&2
        return 2 ;;
   esac
   n="${iter##*/iter-}"; n="${n%.json}"
@@ -427,7 +389,7 @@ fill_iter_record() {
       reads="${reads//$'\r'/}"
       shape="${shape} but the record reads ${reads:-unreadable dispatch fields}"
     fi
-    echo "::warning::efficiency-trace.sh ${FILL_WHO}: no engine key filled for '${iter##*/}': ${ret_label} is ${shape}" >&2
+    echo "::warning::efficiency-trace.sh --persist: no engine key filled for '${iter##*/}': ${ret_label} is ${shape}" >&2
   fi
   # Same derivation as synthesize_iter_workpads: commit-anchored, so a later merge
   # moving HEAD cannot change it.
@@ -453,7 +415,7 @@ fill_iter_record() {
       fi ;;
     *) err="fix_commit_sha is ${sha_kind:-unreadable}" ;;
   esac
-  [ -z "$err" ] || echo "::warning::efficiency-trace.sh ${FILL_WHO}: could not derive fix_files for '${iter##*/}': ${err//$'\r'/}; fix_files left absent" >&2
+  [ -z "$err" ] || echo "::warning::efficiency-trace.sh --persist: could not derive fix_files for '${iter##*/}': ${err//$'\r'/}; fix_files left absent" >&2
   # --slurpfile, not --argjson, for the return: one past the per-argument limit (128
   # KiB on Linux) would fail exec. Any other state binds $e to [].
   local ret_arg=(--argjson e '[]')
@@ -469,14 +431,14 @@ fill_iter_record() {
           | with_entries(select(.key | IN("id", "verification_mode", "verdict", "severity", "claim_signature", "reused_from_iter_prev", "reused_from_iter")))])
       else . end
     | if $ff != null then fill("fix_files"; $ff) else . end' "$iter")" || {
-    echo "::warning::efficiency-trace.sh ${FILL_WHO}: could not fill '${iter##*/}' (jq failed); left unfilled" >&2
+    echo "::warning::efficiency-trace.sh --persist: could not fill '${iter##*/}' (jq failed); left unfilled" >&2
     return 2
   }
   filled="${filled%$'\r'}"
   if [ "$state" = "fanned-out" ]; then
     missing="$(printf '%s' "$filled" | "$DEVFLOW_JQ" -r '[("diff_profile", "phase3_dispatched", "expected_reviewers", "cap_drops", "checklist") as $k | select(has($k) | not) | $k] | join(", ")' 2>/dev/null)"
     missing="${missing//$'\r'/}"
-    [ -n "$missing" ] && echo "::warning::efficiency-trace.sh ${FILL_WHO}: '${iter##*/}' still lacks ${missing}: ${ret_label} carries no usable value" >&2
+    [ -n "$missing" ] && echo "::warning::efficiency-trace.sh --persist: '${iter##*/}' still lacks ${missing}: ${ret_label} carries no usable value" >&2
   fi
   printf '%s\n' "$filled"
 }
@@ -499,10 +461,10 @@ fill_run_copy() {
   return "$rc"
 }
 
-# Run the jq derivation over VALID_FILES for $1 mode ("trace"|"record") and the
-# slug $2, to stdout. A fresh GENERATED_AT is stamped per call.
+# Run the jq derivation over VALID_FILES for the slug $1, to stdout. A fresh
+# GENERATED_AT is stamped per call.
 emit_jq() {
-  local mode="$1" slug="$2" generated_at config_fingerprint return_files dir
+  local slug="$1" generated_at config_fingerprint return_files dir
   generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   # Fingerprint the config that produced this run (issue #431). Guard the empty
   # case to a JSON null so --argjson never aborts jq (and the wrapper under set -e).
@@ -520,17 +482,17 @@ emit_jq() {
   fi
   [ -n "$return_files" ] || return_files="{}"
   # jq -s over zero files yields null, not []; feed an explicit empty array so the
-  # filter (which expects an array) degrades to an empty trace / empty record.
+  # filter (which expects an array) degrades to an empty record.
   if [ "${#VALID_FILES[@]}" -eq 0 ]; then
-    printf '[]\n' | "$DEVFLOW_JQ" --raw-output -f "$HERE/efficiency-trace.jq" \
-      --arg mode "$mode" --arg slug "$slug" \
+    printf '[]\n' | "$DEVFLOW_JQ" -f "$HERE/efficiency-trace.jq" \
+      --arg slug "$slug" \
       --arg generated_at "$generated_at" \
       --argjson cut_candidate_min_dispatch "$THRESHOLD" \
       --argjson config_fingerprint "$config_fingerprint" \
       --argjson return_files "$return_files"
   else
-    "$DEVFLOW_JQ" --raw-output --slurp -f "$HERE/efficiency-trace.jq" \
-      --arg mode "$mode" --arg slug "$slug" \
+    "$DEVFLOW_JQ" --slurp -f "$HERE/efficiency-trace.jq" \
+      --arg slug "$slug" \
       --arg generated_at "$generated_at" \
       --argjson cut_candidate_min_dispatch "$THRESHOLD" \
       --argjson config_fingerprint "$config_fingerprint" \
@@ -545,40 +507,29 @@ emit_jq() {
 # cwd and a non-repo commit simply fails best-effort with a breadcrumb.
 
 # Single source of truth for the iter-<N>.json expected field set (issue #170).
-# Kept in sync with the iter-<N>.json schema block in skills/review-and-fix/SKILL.md;
-# a lib/test/modules/efficiency-trace-telemetry.sh assertion FAILs if the two diverge. The CONDITIONAL schema
-# fields are intentionally excluded — `shadow` (Step 2.6 appends it later, so it is
+# Kept equal to the top-level properties of lib/iter-record.schema.json minus the
+# LR_CONDITIONAL_FIELDS list in lib/test/modules/efficiency-trace-telemetry.sh, whose
+# assertion FAILs if the two diverge. Those fields are intentionally excluded — e.g. `shadow` (Step 2.6 appends it later, so it is
 # legitimately absent on iters that ran no shadow pass) and `reference_reads` (issue
 # #541: Step 3.5's fix-delta gate appends it, so it is legitimately absent on iters
-# where that gate did not run). `sweep_defs_read`/`sweep_evidence` are NOT conditional:
-# fixing.md item 7 mandates them on every iteration (a no-fix iteration writes the
-# explicit `[]` / `not-run` pair rather than omitting them), which is why they belong
-# in this unconditional set. `dispatched_effort` (issue #609) is expected except on a record
-# whose `dispatch_mode` is exactly "fanned-out" (issue #1166: the engine subagent does not
-# return it); do_self_check applies that exemption. `expected_reviewers`
+# where that gate did not run). `expected_reviewers`
 # (issue #1904) is unconditional: the engine records its own Phase 3.1 gate
 # decisions on every iteration alongside `phase3_dispatched`, and the Step 1
 # roster-coverage check reads it. `phase3_failed_agents` (issue #1849) is likewise
 # unconditional: the engine records the dispatched agents that returned no usable result
-# on every iteration (explicit `[]` when none failed), and the trace reads it to assign a
+# on every iteration (explicit `[]` when none failed), and the record derivation reads it to assign a
 # `failed` per-agent disposition. --self-check warns
 # (best-effort) when any of these is missing from a persisted iter workpad. Plain
 # (non-readonly) single-line assignment so that divergence guard can grep
 # `^ITER_EXPECTED_FIELDS=` to extract it.
-ITER_EXPECTED_FIELDS="iter fix_commit_sha fix_files loop_role sweep_defs_read sweep_evidence checklist phase3_dispatched phase3_failed_agents expected_reviewers dispatched_effort diff_profile phase3_findings fix_decisions convergence_inputs cap_drops telemetry"
+ITER_EXPECTED_FIELDS="iter fix_commit_sha fix_files loop_role checklist phase3_dispatched phase3_failed_agents expected_reviewers diff_profile phase3_findings fix_decisions cap_drops telemetry"
 # The synthesized-record minimal field set (issue #381): what synthesize_iter_workpads
 # writes, and what --self-check validates a synthesized:true record against (a
 # synthesized record is a recognized degraded class, exempt from the full set above
 # but NOT from its own — a truncated synthesized record must still warn).
-# The run-scoped evidence fields (issue #541) are members because the synthesizer writes an
-# explicit unrecoverable-provenance object for each: absent evidence is recorded AS
-# absent, never serialized as a real `[]` / `not-run` / omitted value. Their presence
-# here is the producer<->consumer coupling — this set catches a DROPPED field, while
-# the evidence-provenance shape check in do_self_check catches the sibling regression
-# this set structurally cannot see: a field still present but carrying a real-looking
-# `[]` / `not-run` value. Both are warn-only (do_self_check never fails); the
-# lib/test/run.sh #541 assertions are what turn either regression RED at the desk.
-ITER_SYNTH_EXPECTED_FIELDS="iter fix_commit_sha fix_files loop_role synthesized sweep_defs_read sweep_evidence reference_reads"
+# reference_reads retains explicit unrecoverable provenance (issue #541): this list
+# catches its absence, and do_self_check validates its fix_delta stamp's shape.
+ITER_SYNTH_EXPECTED_FIELDS="iter fix_commit_sha fix_files loop_role synthesized reference_reads"
 # The synthesized SHADOW-marker minimal field set (issue #426): what
 # synthesize_shadow_markers writes into an iter's `shadow` block when provenance
 # establishes that a shadow ran (or leaves that fact unestablished for a legacy
@@ -905,16 +856,8 @@ synthesize_iter_workpads() {
     # stdout goes to the record file, so stderr is free to capture — unlike the
     # git log/diff-tree data streams above, keeping the failure CAUSE
     # (ENOENT/EACCES/ENOSPC/argjson rejection) costs no data purity here.
-    # Run-scoped evidence provenance (issue #541). `sweep_defs_read: []` and
-    # `sweep_evidence: {"status":"not-run",...}` are the LEGITIMATE values of a real
-    # no-fix iteration, so emitting either here would be a positive claim about an
-    # iteration this fix-commit-only floor never observed. The `unrec` emitter below
-    # single-sources the shared framing so the three stamps cannot drift apart; each
-    # call supplies only what it specifically could not establish. See the
-    # ITER_SYNTH_EXPECTED_FIELDS comment for why --self-check enforces their presence.
-    #
     # `reference_reads` is stamped INSIDE its `fix_delta` member, not at the top level:
-    # the field is a registry keyed by the producing reference (fixing.md item 7), so a
+    # the field is a registry keyed by the producing reference (fix-delta-gate.md writes `fix_delta`), so a
     # top-level stamp would leave the documented `.reference_reads.fix_delta` read
     # returning null — indistinguishable from the legitimate "Step 3.5 did not run"
     # absence, collapsing the very distinction this provenance exists to preserve.
@@ -931,8 +874,6 @@ synthesize_iter_workpads() {
           {iter: $iter, fix_commit_sha: $sha,
            fix_files: (if $files_ok == "1" then ($files | split("\n") | map(select(length > 0))) else null end),
            loop_role: "fix", synthesized: true,
-           sweep_defs_read: unrec("which sweep definitions were read"),
-           sweep_evidence: unrec("the sweep outcomes"),
            reference_reads: {fix_delta: unrec("whether the Step 3.5 fix-delta gate ran")}}' 2>&1 > "$dir/iter-$n.json")"; then
       wrote=$((wrote + 1))
     else
@@ -1094,12 +1035,48 @@ synthesize_shadow_markers() {
   return 0
 }
 
+# Telemetry master switch (issue #2035): sets the caller's _tel_rc to 0 (off), 1 (on),
+# 2 (config unreadable), another predicate exit, or -1 (no python3). The decision
+# and the {0,1,2} exit contract are scripts/telemetry-master-off.py's. Inline
+# python3 -c, NEVER an exec of it: a new exec edge here breaks the issue-#458
+# Stop-hook drift guard.
+telemetry_master_rc() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    _tel_rc=-1
+    return 0
+  fi
+  # `|| _tel_rc=$?`, never a bare invocation then `$?`: this file runs under
+  # `set -e`, which kills the whole run on the predicate's non-zero exit.
+  _tel_rc=0
+  DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
+import json, os, sys
+try:
+    with open(os.environ["DEVFLOW_TEL_CFG"], encoding="utf-8") as fh:
+        data = json.load(fh)
+except FileNotFoundError:
+    sys.exit(1)
+except Exception:
+    sys.exit(2)
+if not isinstance(data, dict):
+    sys.exit(2)
+tel = data.get("telemetry")
+# `is False`, never ==: in Python 0 == False, so == would disable telemetry on a
+# config carrying the number 0, which the seven-shape matrix requires to stay ON.
+sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
+' >/dev/null 2>&1 || _tel_rc=$?
+  return 0
+}
+
 # ── --self-check (Layer 2): warn-only, never writes, never fails ─────────────
 do_self_check() {
   # Silent when telemetry is disabled — there is no record to expect, so a
-  # missing one is correct, not a gap. (Read-only runs are silent by caller
-  # construction: references/loop-exit.md only invokes the self-check on writable runs.)
+  # missing one is correct, not a gap. The master switch counts too: --persist
+  # then skips the branch write even with the feature gate on, so every
+  # `persist-outcome: ok skipped` cause leaves this silent.
   [ "$ENABLED" = "true" ] || return 0
+  local _tel_rc
+  telemetry_master_rc
+  [ "$_tel_rc" -ne 0 ] || return 0
   if [ -z "$WORKPAD_DIR" ] || [ -z "$SLUG" ]; then
     echo "::warning::efficiency-trace.sh --self-check requires --workpad-dir and --slug" >&2
     # Enabled, so emit the summary here too — a caller keys "no summary line" to a
@@ -1141,7 +1118,7 @@ do_self_check() {
   #
   # Two wrong-shape cases that must NOT pass silently (this is the exact corruption
   # the self-check exists to surface, and in a STANDALONE --self-check run the
-  # --persist/--mode parse paths have not run to breadcrumb the bad file first):
+  # --persist parse path has not run to breadcrumb the bad file first):
   #   (a) jq fails to *parse* or *open* the file (malformed/unreadable) → non-zero
   #       exit → the `if !` arm WARNS and skips the file (no field validation).
   #   (b) the file is valid JSON but NOT an object (e.g. [], null, "x") → jq emits
@@ -1165,7 +1142,7 @@ do_self_check() {
     input=("$iter"); filled=""
     if filled="$(fill_iter_record "$iter" "$WORKPAD_DIR" "$root" 2>/dev/null)"; then input=(); fi
     if ! missing="$("$DEVFLOW_JQ" -r --arg fields "$ITER_EXPECTED_FIELDS" --arg synth_fields "$ITER_SYNTH_EXPECTED_FIELDS" \
-                      'if type == "object" then (if (.synthesized == true) then (($synth_fields | split(" ")) - keys)[] else (($fields | split(" ")) - keys - (if .dispatch_mode == "fanned-out" then ["dispatched_effort"] else [] end))[] end) else "__non_object__" end' \
+                      'if type == "object" then (if (.synthesized == true) then (($synth_fields | split(" ")) - keys)[] else (($fields | split(" ")) - keys)[] end) else "__non_object__" end' \
                       ${input[@]+"${input[@]}"} <<<"$filled" 2>/dev/null)"; then
       echo "::warning::devflow review-and-fix self-check: iter workpad '$(basename "$iter")' is unreadable or not valid JSON — cannot validate its fields" >&2
       continue
@@ -1178,40 +1155,13 @@ do_self_check() {
     for field in $missing; do
       echo "::warning::devflow review-and-fix self-check: iter workpad '$(basename "$iter")' is missing expected field '${field}'" >&2
     done
-    # Evidence-provenance SHAPE validation (issue #541). ITER_SYNTH_EXPECTED_FIELDS
-    # membership above proves only that the KEY is present, while the invariant this
-    # issue exists to protect is about the VALUE: a synthesizer that regressed to
-    # stamping `[]` / `{"status":"not-run"}` — the LEGITIMATE values of a real no-fix
-    # iteration — keeps every key present and so passes a presence-only check in
-    # silence, which is the unknown-collapsed-onto-a-real-value defect itself. Scoped
-    # to keys that ARE present, so a dropped field warns once (above) rather than
-    # twice, and the two conditions stay separately attributable.
-    # Every deref is TYPE-GUARDED before it is taken — the same discipline the
-    # promotion_provenance arm below applies, whose first predicate is likewise a type
-    # check — and the `reason` is required non-empty so the validator demands exactly the
-    # shape the producer is tested to write (a one-sided invariant would accept
-    # `{"status":"unrecoverable"}` with no reason — "unknown" without saying what is
-    # unknown, the same information loss one level down). An untyped `.reference_reads.fix_delta` deref made jq ABORT (rc 5) on
-    # an agent-mutable workpad whose `reference_reads` was a string/array, and because
-    # the emit is gated on this `if`, the abort discarded the sweep violations jq had
-    # ALREADY printed on the same run — the guard failing open on exactly the record it
-    # exists to catch. The `else` arm is a DEFENSIVE BACKSTOP, not a reachable path on
-    # today's inputs: an unreadable/non-object record is already caught by the missing-
-    # field block above (which `continue`s before reaching here), and with every deref
-    # type-guarded the filter cannot abort on any valid-JSON object — probing malformed
-    # JSON, `[]`, `null`, `"x"`, and an empty file fires it zero times. It is kept so a
-    # FUTURE predicate added here that can abort degrades loudly instead of silently
-    # reading as clean, which is the failure this arm's absence originally produced.
-    # `2>&1` keeps jq's own diagnostic as the breadcrumb text.
+    # Presence cannot establish provenance: a present reference_reads.fix_delta
+    # must name its unrecoverable status and reason. Type-guard each dereference;
+    # malformed evidence must warn rather than abort jq and hide the violation.
+    # An absent reference_reads already warned above. Keep jq errors visible.
     if evidence_bad="$("$DEVFLOW_JQ" -r '
       if (.synthesized != true) then empty
       else
-        (["sweep_defs_read", "sweep_evidence"][] as $f
-          | select(has($f))
-          | select(((.[$f] | type) != "object")
-                   or ((.[$f].status // "") != "unrecoverable")
-                   or (((.[$f].reason // "") | tostring | length) == 0))
-          | $f),
         (select(has("reference_reads"))
           | select(((.reference_reads | type) != "object")
                    or ((.reference_reads.fix_delta | type) != "object")
@@ -1315,7 +1265,7 @@ do_self_check() {
       # corroboration() — so an out-of-enum value still falls through to the filestate check.
       case "$dc_disp" in refused|dead|malformed) continue ;; esac
       dc_file="$WORKPAD_DIR/engine-return-${dc_entry}-iter-${dc_n}.json"
-      # Classify the return file through the SAME helper the record/trace side uses,
+      # Classify the return file through the SAME helper the record side uses,
       # so the warn-only self-check and the persisted dispatch_corroboration can never
       # disagree about the same file.
       dc_filestate="$(classify_return_file "$dc_file")"
@@ -1340,6 +1290,43 @@ do_self_check() {
 
 # ── --persist (Layer 3): derive + durable-copy → telemetry-branch write ──────
 
+# Read blob $3 of telemetry ref $2 into DURABLE_BLOB. rc 0 read, 1 absent (or no ref),
+# 2 present but unreadable — unknown, so a caller never overwrites it.
+read_durable_blob() {
+  DURABLE_BLOB=""
+  devflow_telemetry_blob_exists "$1" "$2" "$3" || return 1
+  DURABLE_BLOB="$(devflow_telemetry_show_blob "$1" "$2" "$3")" || return 2
+}
+
+# Set UNPERSISTED_JSONS to the files among $4.. whose bytes commit-ish $2 does not
+# already hold under dir $3, from one ls-tree and one hash-object call, so a leftover
+# run dir is not re-staged on every discovery pass. An empty $2 or a failed read keeps
+# every file: staging unchanged bytes is a tree no-op, skipping changed ones loses them.
+unpersisted_jsons() {
+  local root="$1" ref="$2" rel="$3" commit listing hashes sha i=0 nl=$'\n' tab=$'\t'
+  shift 3
+  local files=("$@")
+  UNPERSISTED_JSONS=("$@")
+  [ -n "$ref" ] || return 0
+  commit="$(git -C "$root" rev-parse --verify --quiet "${ref}^{commit}" 2>/dev/null)" || return 0
+  listing="$(git -c core.quotePath=false -C "$root" ls-tree "$commit" -- "${rel}/" 2>/dev/null)" || return 0
+  [ -n "$listing" ] || return 0
+  hashes="$(git -C "$root" hash-object -- "${files[@]}" 2>/dev/null)" || return 0
+  listing="${nl}${listing//$'\r'/}${nl}"
+  local todo=()
+  while IFS= read -r sha; do
+    sha="${sha%$'\r'}"
+    [ "$i" -lt "${#files[@]}" ] || return 0
+    case "$listing" in
+      *" blob ${sha}${tab}${rel}/${files[$i]##*/}${nl}"*) ;;
+      *) todo+=("${files[$i]}") ;;
+    esac
+    i=$((i + 1))
+  done <<< "$hashes"
+  [ "$i" -eq "${#files[@]}" ] || return 0
+  UNPERSISTED_JSONS=(${todo[@]+"${todo[@]}"})
+}
+
 # Persist one run dir's artifacts (best-effort). Returns 0 always.
 persist_one() {
   local dir="$1" slug="$2" run_id="$3" root="$4" allow_synth="${5:-1}"
@@ -1357,14 +1344,16 @@ persist_one() {
       echo "::warning::efficiency-trace.sh --persist: run dir '${dir}' carries an unsubstituted '<placeholder>' identity (a verbatim '<slug>/<run-id>' directory left by a non-substituting run?); refusing to persist or synthesize under it — remove or rename the directory to recover" >&2
       return 0 ;;  # ok skipped (baseline)
   esac
-  local durable record out jq_rc cp_err ref rel_iter staged_iter stamp_tmp stamp_err existing_class
+  local durable record out jq_rc cp_err ref rel_iter staged_iter stamp_tmp stamp_err dur_rc carried
   # po_reason defaults to `skipped`; the record-staged branch alone sets `persisted`/`synthesized`,
   # so an all-malformed-iters run (empty derived record, nothing staged) does not over-claim
-  # `ok persisted` (issue #344 review).
+  # `ok persisted` (issue #344 review); po_partial folds it to `lost partial-iterations`.
   # po_partial (issue #520 AC1): a record was derived but at least one iter file's bytes
   # were stored while being omitted from that derivation — an incomplete effectiveness
   # derivation, folded to `lost partial-iterations` below (write-failed still takes precedence).
-  local po_lost=0 po_synth=0 po_partial=0 po_reason=skipped
+  # no_iter_class/no_iter_reason: the outcome of a run dir with no iteration record. It is
+  # held, not returned, so the durable copy below still stages the dir's other JSON.
+  local po_lost=0 po_synth=0 po_partial=0 po_reason=skipped no_iter_class="" no_iter_reason=""
   local iters=("$dir"/iter-*.json)
   if [ ! -e "${iters[0]}" ]; then
     # No per-iteration workpad. Layer-3+ synthesis floor (issue #381): reconstruct
@@ -1387,58 +1376,49 @@ persist_one() {
     # happen.
     if [ "$ENABLED" != "true" ]; then
       # Telemetry off: synthesized workpads exist ONLY to feed the (disabled)
-      # effectiveness record — unlike REAL workpads, whose flag-off durable copy
-      # is a deliberate carve-out — so fabricating them here would commit
-      # telemetry artifacts to a repo that switched telemetry off. One gate
-      # covers both the targeted and discovery paths.
-      echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json and efficiency telemetry is disabled; skipping synthesis (a disabled record has no consumer for a synthesized workpad)" >&2
-      return 0  # ok skipped (baseline)
-    fi
-    if [ "$allow_synth" = "2" ]; then
+      # effectiveness record, so fabricating them here would commit telemetry
+      # artifacts to a repo that switched it off. One gate covers both the
+      # targeted and discovery paths.
+      echo "prflow: efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json and efficiency telemetry is disabled; skipping synthesis (a disabled record has no consumer for a synthesized workpad)" >&2
+    elif [ "$allow_synth" = "2" ]; then
       echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json, but workpad-less run dirs span multiple slugs in this discovery pass — the branch's fix commits cannot be attributed to a slug offline, so synthesis is skipped for all of them; to synthesize this run explicitly, rerun with --persist --workpad-dir <dir> --slug ${slug}" >&2
-      return 0  # ok skipped (baseline)
-    fi
-    if [ "$allow_synth" != "1" ]; then
+    elif [ "$allow_synth" != "1" ]; then
       echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} has no iter-*.json and is not the synthesis target for slug '${slug}' (a later run-id holds it); skipping synthesis so fix commits are not double-counted" >&2
-      return 0  # ok skipped (baseline)
-    fi
-    # Three-way outcome (unknown is never collapsed onto "found none" — the
-    # repo's describe-denial-count.sh gotcha): rc 2 = selection ran, nothing
-    # unrecorded to synthesize; rc 3 = the search could not run (unresolvable
-    # base ref OR a failed git log — whether commits exist was never
-    # established); rc 4 = commits were selected but every record write failed.
-    local synth_rc=0
-    synthesize_iter_workpads "$dir" "$root" || synth_rc=$?
-    case "$synth_rc" in
-      0) po_synth=1 ;;
-      3)
-        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and the fix-commit search could not run (an uncreatable target dir, an unresolvable base ref, a base ref left unestablished by a failed origin refresh, a telemetry-branch fetch left unestablished by a failed/unattempted fetch, or a failed git log enumeration — the warning above names which) — whether matching fix commits exist was never established; telemetry not synthesized" >&2
-        _PERSIST_ONE_CLASS=unestablished; _PERSIST_ONE_REASON=search-failed; _PERSIST_ONE_STAGED=0
-        return 0 ;;
-      4)
-        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json; matching fix commits were selected but every synthesized record write failed (see the per-commit warnings above, which carry the actual jq error text — disk/permissions, a malformed jq program, or on the cloud tier the sandbox's redirect-write denial into .prflow/tmp) — telemetry not synthesized" >&2
-        _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=write-failed; _PERSIST_ONE_STAGED=0
-        return 0 ;;
-      2)
-        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and no unrecorded review-fix commit of any recovered family (numbered 'fix: address review findings (iteration N)', or unnumbered 'fix: address review findings' / 'fix: address shadow review findings') was found — per-iteration effectiveness telemetry was not captured this run; nothing to synthesize" >&2
-        _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=no-inputs; _PERSIST_ONE_STAGED=0
-        return 0 ;;
-      *)
-        # Unknown is not zero: an rc outside the 0/2/3/4 contract (a signal, a
-        # future drift) must not be reported as "no commits were found".
-        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and synthesis exited with unexpected rc=${synth_rc} — whether matching fix commits exist was never established; telemetry not synthesized" >&2
-        _PERSIST_ONE_CLASS=unestablished; _PERSIST_ONE_REASON=search-failed; _PERSIST_ONE_STAGED=0
-        return 0 ;;
-    esac
-    iters=("$dir"/iter-*.json)
-    if [ ! -e "${iters[0]}" ]; then
-      # Defensive: unreachable while synthesize_iter_workpads' rc-0 contract
-      # guarantees >=1 surviving write into $dir — but if a future edit
-      # desynchronizes that contract, dropping the record with zero signal is
-      # exactly the silent hole this file exists to close.
-      echo "::warning::efficiency-trace.sh --persist: synthesis reported success but no iter-*.json exists in ${dir}; record not derived for ${slug}/${run_id}" >&2
-      _PERSIST_ONE_CLASS=unestablished; _PERSIST_ONE_REASON=search-failed; _PERSIST_ONE_STAGED=0
-      return 0
+    else
+      # Three-way outcome (unknown is never collapsed onto "found none" — the
+      # repo's describe-denial-count.sh gotcha): rc 2 = selection ran, nothing
+      # unrecorded to synthesize; rc 3 = the search could not run (unresolvable
+      # base ref OR a failed git log — whether commits exist was never
+      # established); rc 4 = commits were selected but every record write failed.
+      local synth_rc=0
+      synthesize_iter_workpads "$dir" "$root" || synth_rc=$?
+      case "$synth_rc" in
+        0)
+          po_synth=1
+          iters=("$dir"/iter-*.json)
+          if [ ! -e "${iters[0]}" ]; then
+            # Defensive: unreachable while synthesize_iter_workpads' rc-0 contract
+            # guarantees >=1 surviving write into $dir — but if a future edit
+            # desynchronizes that contract, dropping the record with zero signal is
+            # exactly the silent hole this file exists to close.
+            echo "::warning::efficiency-trace.sh --persist: synthesis reported success but no iter-*.json exists in ${dir}; record not derived for ${slug}/${run_id}" >&2
+            no_iter_class=unestablished; no_iter_reason=search-failed
+          fi ;;
+        3)
+          echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and the fix-commit search could not run (an uncreatable target dir, an unresolvable base ref, a base ref left unestablished by a failed origin refresh, a telemetry-branch fetch left unestablished by a failed/unattempted fetch, or a failed git log enumeration — the warning above names which) — whether matching fix commits exist was never established; telemetry not synthesized" >&2
+          no_iter_class=unestablished; no_iter_reason=search-failed ;;
+        4)
+          echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json; matching fix commits were selected but every synthesized record write failed (see the per-commit warnings above, which carry the actual jq error text — disk/permissions, a malformed jq program, or on the cloud tier the sandbox's redirect-write denial into .prflow/tmp) — telemetry not synthesized" >&2
+          no_iter_class=lost; no_iter_reason=write-failed ;;
+        2)
+          echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and no unrecorded review-fix commit of any recovered family (numbered 'fix: address review findings (iteration N)', or unnumbered 'fix: address review findings' / 'fix: address shadow review findings') was found — per-iteration effectiveness telemetry was not captured this run; nothing to synthesize" >&2
+          no_iter_class=lost; no_iter_reason=no-inputs ;;
+        *)
+          # Unknown is not zero: an rc outside the 0/2/3/4 contract (a signal, a
+          # future drift) must not be reported as "no commits were found".
+          echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} left no iter-*.json and synthesis exited with unexpected rc=${synth_rc} — whether matching fix commits exist was never established; telemetry not synthesized" >&2
+          no_iter_class=unestablished; no_iter_reason=search-failed ;;
+      esac
     fi
   fi
   # NOTE (issue #441): the historical `source == "review"` skip is GONE. Both
@@ -1465,24 +1445,31 @@ persist_one() {
   # is the shared staging root do_persist created; its subtree mirrors the exact
   # .prflow/logs/… layout the branch commit will carry. ────────────────────────
 
-  # Durable workpad copy — NOT telemetry-gated (runs on every writable run).
-  # Copies every *.json (iter-*.json, deferrals.json and the rest) from the filled
-  # copy of the run dir, or the run dir itself when staging fails, mirroring the review-and-fix
-  # Loop Exit durable-copy (references/loop-exit.md). Content-idempotent: the branch
-  # write's tree-equality no-op guard emits no commit when the bytes are unchanged.
-  # Never fill the run dir in place. A record whose fill fails, or a run dir that
-  # cannot be staged, sets po_partial (an incomplete derivation).
-  local fill_root="${root}/.prflow/tmp/efficiency-fill-$$-${RANDOM}" fill_rc=0
-  local src="${fill_root}/${slug}/${run_id}"
-  fill_run_copy "$dir" "$src" "$root" || fill_rc=$?
-  case "$fill_rc" in
-    0) ;;
-    2) po_partial=1 ;;
-    *) echo "::warning::efficiency-trace.sh --persist: could not stage the filled copy of ${dir}; persisting the run dir unfilled" >&2
-       src="$dir"; po_partial=1 ;;
-  esac
+  # Durable copy of every run dir's *.json, gated by telemetry.enabled alone: a
+  # standalone review's evidence has no iter file. Iter records come from a filled copy
+  # (never the run dir in place; a failed fill sets po_partial); a dir without them is
+  # copied verbatim, staging only the files _PERSISTED_TIP does not hold.
+  local fill_root="" fill_rc=0 src="$dir" run_jsons=("$dir"/*.json) to_copy=()
+  ref="$(devflow_telemetry_ref)"
+  if [ -e "${iters[0]}" ]; then
+    fill_root="${root}/.prflow/tmp/efficiency-fill-$$-${RANDOM}"
+    src="${fill_root}/${slug}/${run_id}"
+    fill_run_copy "$dir" "$src" "$root" || fill_rc=$?
+    case "$fill_rc" in
+      0) ;;
+      2) po_partial=1 ;;
+      *) echo "::warning::efficiency-trace.sh --persist: could not stage the filled copy of ${dir}; persisting the run dir unfilled" >&2
+         src="$dir"; po_partial=1 ;;
+    esac
+    to_copy=("$src"/*.json)
+  elif [ -e "${run_jsons[0]}" ]; then
+    unpersisted_jsons "$root" "${_PERSISTED_TIP:-}" ".prflow/logs/review/${slug}/${run_id}" "${run_jsons[@]}"
+    to_copy=(${UNPERSISTED_JSONS[@]+"${UNPERSISTED_JSONS[@]}"})
+  fi
   durable="${_TELEMETRY_STAGE}/.prflow/logs/review/${slug}/${run_id}"
-  if ! cp_err="$( { mkdir -p "$durable" && cp -p "$src"/*.json "$durable"/; } 2>&1 )"; then
+  if [ "${#to_copy[@]}" -eq 0 ]; then
+    :   # nothing to stage
+  elif ! cp_err="$( { mkdir -p "$durable" && cp -p "${to_copy[@]}" "$durable"/; } 2>&1 )"; then
     echo "::warning::efficiency-trace.sh --persist: durable workpad copy failed (${dir} -> ${durable}): ${cp_err:-unknown}; best-effort, continuing" >&2
     po_lost=1   # a durable-copy write failed → class lost (issue #344)
   else
@@ -1497,62 +1484,51 @@ persist_one() {
     # second --persist (the key is present). Placed before the telemetry-stamp loop
     # so the durable bytes carry provenance before that loop's idempotency read.
     stamp_emitted_provenance "$durable"
-    ref="$(devflow_telemetry_ref)"
     for staged_iter in "$durable"/iter-*.json; do
       [ -e "$staged_iter" ] || continue
-      existing_class=""
       rel_iter="${staged_iter#"${_TELEMETRY_STAGE}/"}"
-      if devflow_telemetry_blob_exists "$root" "$ref" "$rel_iter"; then
-        # Existing legacy absent/null blobs are exclusively backfill territory.
-        # Classify the durable value before deciding whether this staged copy may
-        # overlay it. Legacy/non-object history stays backfill-owned; marker and
-        # established values may accept information-preserving source updates.
-        existing_class="$(devflow_telemetry_show_blob "$root" "$ref" "$rel_iter" \
-          | "$DEVFLOW_JQ" -r 'if type != "object" then "other" elif .telemetry == "unavailable" then "marker" elif ((has("telemetry") | not) or .telemetry == null) then "legacy" else "established" end' 2>/dev/null)" || existing_class="other"
-        if [ "$existing_class" = legacy ]; then
-          # Do not carry an existing legacy blob in this run's overlay at all.
-          # Besides keeping history in the backfill's ownership, this prevents a
-          # local CAS retry from reapplying stale bytes after a concurrent
-          # backfill advanced the telemetry ref with the normalized marker.
-          echo "::warning::efficiency-trace.sh --persist: existing durable iter '${rel_iter}' still has unestablished telemetry; leaving the backfill-owned historical blob untouched" >&2
-          rm -f "$staged_iter" 2>/dev/null || true
-          continue
-        fi
-        if [ "$existing_class" = other ]; then
-          echo "::warning::efficiency-trace.sh --persist: existing durable iter '${rel_iter}' could not be safely classified; leaving the historical blob untouched" >&2
-          rm -f "$staged_iter" 2>/dev/null || true
-          continue
-        fi
-      fi
+      # The newest bytes land, except that a malformed copy never replaces a durable
+      # object, a copy without telemetry figures keeps the durable copy's, and a durable
+      # copy that exists but cannot be read is left untouched.
       if ! "$DEVFLOW_JQ" -e 'type == "object"' "$staged_iter" >/dev/null 2>&1; then
-        if [ "${existing_class:-}" = established ]; then
-          echo "::warning::efficiency-trace.sh --persist: staged iter workpad '${rel_iter}' is malformed JSON or a valid non-object; leaving the established durable blob untouched" >&2
+        dur_rc=0; read_durable_blob "$root" "$ref" "$rel_iter" || dur_rc=$?
+        if [ "$dur_rc" = 2 ]; then
+          echo "::warning::efficiency-trace.sh --persist: staged iter workpad '${rel_iter}' is malformed JSON or a valid non-object and its durable copy on the telemetry branch could not be read; leaving the durable copy untouched" >&2
+          rm -f "$staged_iter" 2>/dev/null || true
+          continue
+        fi
+        if [ "$dur_rc" = 0 ] && printf '%s' "$DURABLE_BLOB" | "$DEVFLOW_JQ" -e 'type == "object"' >/dev/null 2>&1; then
+          echo "::warning::efficiency-trace.sh --persist: staged iter workpad '${rel_iter}' is malformed JSON or a valid non-object; leaving the durable object on the telemetry branch untouched" >&2
           rm -f "$staged_iter" 2>/dev/null || true
           continue
         fi
         echo "::warning::efficiency-trace.sh --persist: staged iter workpad '${rel_iter}' is malformed JSON or a valid non-object; copied byte-verbatim and telemetry was not fabricated" >&2
         continue
       fi
-      if [ "${existing_class:-}" = established ] \
-        && ! "$DEVFLOW_JQ" -e 'has("telemetry") and (.telemetry != null)' "$staged_iter" >/dev/null 2>&1; then
-        # A retained or rolled-back source must not downgrade established durable
-        # telemetry to the unavailable marker. Leave the whole historical blob
-        # untouched; a later source carrying established telemetry may still
-        # update this path normally.
-        echo "::warning::efficiency-trace.sh --persist: staged iter workpad '${rel_iter}' has unestablished telemetry; leaving the established durable blob untouched" >&2
+      if "$DEVFLOW_JQ" -e '.telemetry != null and .telemetry != "unavailable"' "$staged_iter" >/dev/null 2>&1; then
+        continue
+      fi
+      dur_rc=0; read_durable_blob "$root" "$ref" "$rel_iter" || dur_rc=$?
+      if [ "$dur_rc" = 2 ]; then
+        echo "::warning::efficiency-trace.sh --persist: staged iter workpad '${rel_iter}' carries no telemetry figures and its durable copy on the telemetry branch could not be read; leaving the durable copy untouched" >&2
         rm -f "$staged_iter" 2>/dev/null || true
         continue
       fi
-      if "$DEVFLOW_JQ" -e 'has("telemetry") and (.telemetry != null)' "$staged_iter" >/dev/null 2>&1; then
-        continue
+      carried=""
+      if [ "$dur_rc" = 0 ]; then
+        carried="$(printf '%s' "$DURABLE_BLOB" | "$DEVFLOW_JQ" -c 'if type == "object" and .telemetry != null and .telemetry != "unavailable" then .telemetry else empty end' 2>/dev/null)" || carried=""
+      fi
+      if [ -z "$carried" ]; then
+        "$DEVFLOW_JQ" -e '.telemetry == "unavailable"' "$staged_iter" >/dev/null 2>&1 && continue
+        carried='"unavailable"'
       fi
       stamp_tmp="${staged_iter}.telemetry-tmp"
       stamp_err=""
-      if stamp_err="$("$DEVFLOW_JQ" '.telemetry = "unavailable"' "$staged_iter" 2>&1 > "$stamp_tmp")" && mv "$stamp_tmp" "$staged_iter"; then
+      if stamp_err="$("$DEVFLOW_JQ" --argjson t "$carried" '. + {telemetry: $t}' "$staged_iter" 2>&1 > "$stamp_tmp")" && mv "$stamp_tmp" "$staged_iter"; then
         :
       else
         rm -f "$stamp_tmp" 2>/dev/null || true
-        echo "::warning::efficiency-trace.sh --persist: could not stamp unestablished telemetry in staged iter workpad '${rel_iter}' (${stamp_err:-write/move failed}); staged copy retained best-effort" >&2
+        echo "::warning::efficiency-trace.sh --persist: could not stamp telemetry in staged iter workpad '${rel_iter}' (${stamp_err:-write/move failed}); staged copy retained best-effort" >&2
       fi
     done
   fi
@@ -1570,21 +1546,24 @@ persist_one() {
   # field. A record already carrying harness_cost is still left untouched, so the
   # backstop re-run remains a tree-equality no-op. This loop's derivation path is
   # unchanged; only the floor mutates an existing path, and it never re-derives.)
-  if [ "$ENABLED" = "true" ]; then
+  if [ ! -e "${iters[0]}" ]; then
+    :   # no iteration record: nothing to derive
+  elif [ "$ENABLED" = "true" ]; then
     local rel_record
     [ -n "${ref:-}" ] || ref="$(devflow_telemetry_ref)"
     rel_record=".prflow/logs/efficiency/${slug}-${run_id}.json"
     if ! devflow_telemetry_blob_exists "$root" "$ref" "$rel_record"; then
       record="${_TELEMETRY_STAGE}/${rel_record}"
       collect_valid_files "$src" "$dir"
-      if [ "${VALID_FILES_SKIPPED:-0}" -gt 0 ] && [ "${#VALID_FILES[@]}" -gt 0 ]; then
+      if [ "${VALID_FILES_SKIPPED:-0}" -gt 0 ]; then
         # Issue #520 AC1: at least one iter file's bytes were stored (the durable copy
         # above) yet omitted from this effectiveness derivation — an INCOMPLETE
         # derivation, observable in discovery mode (this ::warning::) and targeted mode
         # (the `lost partial-iterations` outcome). Storage success must not read as
-        # complete effectiveness; a same-run --correct-iter can repair the malformed record.
+        # complete effectiveness. All iters malformed is the zero-derived extreme:
+        # `ok skipped` would claim telemetry declined the call.
         po_partial=1
-        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} derived effectiveness from ${#VALID_FILES[@]} iteration(s) but OMITTED ${VALID_FILES_SKIPPED} malformed/non-object iter workpad(s) stored byte-verbatim — effectiveness derivation is INCOMPLETE for this run (repair with --correct-iter)" >&2
+        echo "::warning::efficiency-trace.sh --persist: run ${slug}/${run_id} derived effectiveness from ${#VALID_FILES[@]} iteration(s) but OMITTED ${VALID_FILES_SKIPPED} malformed/non-object iter workpad(s) stored byte-verbatim — effectiveness derivation is INCOMPLETE for this run" >&2
       fi
       # `if !` guards `set -e` on a failing command-substitution assignment, and
       # captures emit_jq's rc so a jq DERIVATION FAILURE (broken filter, jq missing,
@@ -1594,7 +1573,7 @@ persist_one() {
       # recoverable record with no signal — exactly the silent hole this issue
       # closes — so warn.
       jq_rc=0
-      out="$(emit_jq record "$slug")" || jq_rc=$?
+      out="$(emit_jq "$slug")" || jq_rc=$?
       if [ "$jq_rc" -ne 0 ]; then
         echo "::warning::efficiency-trace.sh --persist: record derivation (jq) failed (rc=${jq_rc}) for ${slug}/${run_id}; record not written" >&2
         po_lost=1   # a record-derivation write failed → class lost (issue #344)
@@ -1626,13 +1605,15 @@ persist_one() {
     fi
   else
     # Real iteration files but the efficiency-record feature is disabled: only the
-    # (ungated) durable workpad copy was staged, no effectiveness record (issue #344).
+    # durable workpad copy was staged, no effectiveness record (issue #344).
     po_reason=skipped
   fi
   # Compose the targeted-form outcome the caller (do_persist) folds the
   # telemetry-branch write rc into. po_lost latches over any ok reason (issue #344).
   if [ "$po_lost" = 1 ]; then
     _PERSIST_ONE_CLASS=lost; _PERSIST_ONE_REASON=write-failed
+  elif [ -n "$no_iter_class" ]; then
+    _PERSIST_ONE_CLASS="$no_iter_class"; _PERSIST_ONE_REASON="$no_iter_reason"
   elif [ "$po_partial" = 1 ]; then
     # Incomplete derivation (issue #520 AC1). Under the `lost` class per the issue's
     # Implementation Notes; write-failed above still wins when both apply.
@@ -1640,7 +1621,7 @@ persist_one() {
   else
     _PERSIST_ONE_CLASS=ok; _PERSIST_ONE_REASON="$po_reason"
   fi
-  rm -rf "$fill_root" 2>/dev/null || true
+  [ -z "$fill_root" ] || rm -rf "$fill_root" 2>/dev/null || true
   return 0
 }
 
@@ -1671,9 +1652,11 @@ persist_one() {
 #                           engine's scratch key.
 #   GITHUB_WORKFLOW_REF     the path-pinned workflow identity (harness_cost.workflow).
 #
-# Telemetry-gated exactly as record derivation is (AC8); best-effort/exit-0 like every
-# other --persist arm. Per-phase aggregates never see floor data — harness_cost is a
-# distinct TOP-LEVEL key, invisible to _run_cost/_telemetry_complete (AC9).
+# Gated by telemetry.enabled alone, like every floor but the denial one, so a repo that
+# turns the effectiveness record off still records cost; best-effort/exit-0 like every other
+# --persist arm. Per-phase aggregates never see floor data — harness_cost is a distinct
+# TOP-LEVEL key, invisible to _run_cost/_telemetry_complete (AC9). A skeleton carries no
+# `iterations`: a count there would read as loop coverage.
 
 # Add harness_cost (add-if-absent) to an in-STAGING record file $1, via temp+mv so a
 # failed jq leaves the file untouched. $2 is the harness_cost JSON, $3 a display label.
@@ -1703,13 +1686,8 @@ apply_harness_floor() {
   # Unset/empty cost → INERT and SILENT: --persist behaves byte-for-byte as before.
   # This guard MUST stay first so the agent-side persist paths emit no breadcrumb (AC3).
   [ -n "${DEVFLOW_EXECUTION_COST:-}" ] || return 0
-  # Gated (AC8): sits under efficiency_telemetry_enabled exactly as record derivation
-  # does. Set-but-gated-off draws one breadcrumb (the operand WAS supplied) and writes
-  # nothing.
-  if [ "$ENABLED" != "true" ]; then
-    echo "::warning::efficiency-trace.sh --persist: harness cost floor: efficiency telemetry is disabled; DEVFLOW_EXECUTION_COST supplied but not attached this run" >&2
-    return 0
-  fi
+  # Not gated by efficiency_telemetry_enabled: a cost record is not an effectiveness
+  # record, and telemetry.enabled already gated the whole of do_persist.
   # Validate the operand is a JSON OBJECT — a malformed value draws one breadcrumb and
   # no floor write (AC3). Never feed an unvalidated env value into a jq --argjson, which
   # would abort the helper under set -e.
@@ -1841,7 +1819,7 @@ apply_harness_floor() {
   # skeleton would OVERWRITE it (the union applies a staged path local-wins). So re-check the
   # blob explicitly and decline rather than resting on the empty-list signal: a missed merge
   # (record kept intact, gains harness_cost on a later working re-run) is strictly safer than
-  # replacing a real record with an iterations:0 skeleton.
+  # replacing a real record with a contentless skeleton.
   if [ -n "$ref" ] && devflow_telemetry_blob_exists "$root" "$ref" ".prflow/logs/efficiency/${slug}-${ident}.json" 2>/dev/null; then
     echo "::warning::efficiency-trace.sh --persist: harness cost floor: a record already exists on the telemetry branch at .prflow/logs/efficiency/${slug}-${ident}.json (merge-arm-b's branch listing may have failed silently); declining to overwrite it with a cost skeleton" >&2
     return 0
@@ -1849,11 +1827,11 @@ apply_harness_floor() {
   generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   mkdir -p "$eff_dir" 2>/dev/null || true
   # source:null (no mode's derivation ran — outside both mode segments); synthesized:true
-  # + iterations:0 + source:null + harness_cost.cost_source is what distinguishes a
-  # cost-only skeleton from a #381 commit-reconstructed record (AC6).
+  # + source:null + harness_cost.cost_source is what distinguishes a cost-only skeleton
+  # from a #381 commit-reconstructed record (AC6).
   if skel="$("$DEVFLOW_JQ" -n --arg slug "$slug" --arg ga "$generated_at" --argjson hc "$harness_cost" \
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
-          synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
+          synthesized: true, per_iteration: [], telemetry: [],
           harness_cost: $hc}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
     echo "prflow: efficiency-trace.sh --persist: harness cost floor: no record for run-id ${ident}; wrote a minimal cost skeleton ${slug}-${ident}.json (source:null, synthesized:true)" >&2
   else
@@ -1920,7 +1898,8 @@ apply_denial_floor() {
   local root="$1" stage="$2"
   # Unset/empty → INERT and SILENT (byte-identical to before). MUST stay first.
   [ -n "${DEVFLOW_DENIAL_RECORD:-}" ] || return 0
-  # Gated exactly as record derivation is: set-but-gated-off draws one breadcrumb.
+  # Gated like record derivation, unlike the other floors: a denial record can carry
+  # command text. Set-but-gated-off draws one breadcrumb.
   if [ "$ENABLED" != "true" ]; then
     echo "::warning::efficiency-trace.sh --persist: denial floor: efficiency telemetry is disabled; DEVFLOW_DENIAL_RECORD supplied but not attached this run" >&2
     return 0
@@ -2005,11 +1984,11 @@ apply_denial_floor() {
   generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   mkdir -p "$eff_dir" 2>/dev/null || true
   # Same distinguishing marks as the cost skeleton — source:null (no mode's derivation
-  # ran), synthesized:true, iterations:0 — so a reader tells a floor skeleton from a #381
+  # ran), synthesized:true — so a reader tells a floor skeleton from a #381
   # commit-reconstructed record; here the carried key is permission_denials, not harness_cost.
   if skel="$("$DEVFLOW_JQ" -n --arg slug "$slug" --arg ga "$generated_at" --argjson dr "$dr" \
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
-          synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
+          synthesized: true, per_iteration: [], telemetry: [],
           permission_denials: $dr}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
     echo "prflow: efficiency-trace.sh --persist: denial floor: no record for run-id ${ident}; wrote a minimal denial skeleton ${slug}-${ident}.json (source:null, synthesized:true) so the denial record is durable even without cost figures" >&2
   else
@@ -2140,10 +2119,6 @@ apply_run_profile_floor() {
   if [ -z "${DEVFLOW_RUN_PROFILE:-}" ] && [ -z "${DEVFLOW_ENGINE_OUTCOME:-}" ]; then
     return 0
   fi
-  if [ "$ENABLED" != "true" ]; then
-    echo "::warning::efficiency-trace.sh --persist: run-profile floor: efficiency telemetry is disabled; DEVFLOW_RUN_PROFILE supplied but not attached this run" >&2
-    return 0
-  fi
   local profile="${DEVFLOW_RUN_PROFILE:-}"
   if [ -z "$profile" ]; then
     echo "::warning::efficiency-trace.sh --persist: run-profile floor: no DEVFLOW_RUN_PROFILE this run; the workpad-sourced fields are recorded as unestablished and the rest of run_profile still lands" >&2
@@ -2243,7 +2218,7 @@ apply_run_profile_floor() {
   mkdir -p "$eff_dir" 2>/dev/null || true
   if skel="$("$DEVFLOW_JQ" -n --arg slug "$slug" --arg ga "$generated_at" --argjson rp "$run_profile" \
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
-          synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
+          synthesized: true, per_iteration: [], telemetry: [],
           run_profile: $rp}' 2>/dev/null)" && printf '%s\n' "$skel" > "${eff_dir}/${slug}-${ident}.json"; then
     echo "prflow: efficiency-trace.sh --persist: run-profile floor: no record for run-id ${ident}; wrote a minimal run-profile skeleton ${slug}-${ident}.json" >&2
   else
@@ -2277,10 +2252,6 @@ apply_pr_less_issue_floor() {
       echo "::warning::efficiency-trace.sh --persist: PR-less floor: no PR resolved AND DEVFLOW_ISSUE_NUMBER is '${issue:-<unset>}', so this run cannot be keyed by issue either; no record written" >&2
       return 0 ;;
   esac
-  if [ "$ENABLED" != "true" ]; then
-    echo "::warning::efficiency-trace.sh --persist: PR-less floor: efficiency telemetry is disabled; no PR-less record written this run" >&2
-    return 0
-  fi
   if [ -z "${GITHUB_RUN_ID:-}" ]; then
     echo "::warning::efficiency-trace.sh --persist: PR-less floor: GITHUB_RUN_ID is unset, so this run's record cannot be identified; no record written" >&2
     return 0
@@ -2306,7 +2277,7 @@ apply_pr_less_issue_floor() {
   if rec="$("$DEVFLOW_JQ" -n --arg slug "$slug" --arg ga "$generated_at" \
         --argjson issue "$issue" --arg reason "${DEVFLOW_NO_PR_REASON:-}" \
         '{schema_version: 1, slug: $slug, generated_at: $ga, source: null,
-          synthesized: true, iterations: 0, per_iteration: [], telemetry: [],
+          synthesized: true, per_iteration: [], telemetry: [],
           issue_number: $issue,
           no_pr_reason: (if $reason == "" then "unestablished" else $reason end)}' 2>/dev/null)" \
      && printf '%s\n' "$rec" > "${eff_dir}/${slug}-${ident}.json"; then
@@ -2324,45 +2295,22 @@ do_persist() {
   # dynamic scope; the targeted branch below folds the telemetry-branch write rc in
   # and prints the single `persist-outcome:` stdout line.
   local _PERSIST_ONE_CLASS="" _PERSIST_ONE_REASON="" _PERSIST_ONE_STAGED=0
-  # Telemetry master switch (issue #2035); the decision and the {0,1,2} exit
-  # contract are scripts/telemetry-master-off.py's. Inline python3 -c, NEVER an
-  # exec of it: a new exec edge here breaks the issue-#458 Stop-hook drift guard.
   local _tel_rc
-  if ! command -v python3 >/dev/null 2>&1; then
+  telemetry_master_rc
+  if [ "$_tel_rc" -eq -1 ]; then
     echo "prflow: efficiency-trace.sh --persist: python3 not on PATH — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
-  else
-    # `|| _tel_rc=$?`, never a bare invocation then `$?`: this file runs under
-    # `set -e`, which kills the whole --persist on the predicate's non-zero exit.
-    _tel_rc=0
-    DEVFLOW_TEL_CFG="$_DEVFLOW_CONFIG" python3 -c '
-import json, os, sys
-try:
-    with open(os.environ["DEVFLOW_TEL_CFG"], encoding="utf-8") as fh:
-        data = json.load(fh)
-except FileNotFoundError:
-    sys.exit(1)
-except Exception:
-    sys.exit(2)
-if not isinstance(data, dict):
-    sys.exit(2)
-tel = data.get("telemetry")
-# `is False`, never ==: in Python 0 == False, so == would disable telemetry on a
-# config carrying the number 0, which the seven-shape matrix requires to stay ON.
-sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
-' >/dev/null 2>&1 || _tel_rc=$?
-    if [ "$_tel_rc" -eq 0 ]; then
-      echo "prflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
-      # Targeted form: the master switch declined the whole call → ok skipped (issue #344).
-      [ -n "$WORKPAD_DIR" ] && printf 'persist-outcome: ok skipped\n'
-      return 0
-    elif [ "$_tel_rc" -eq 2 ]; then
-      echo "prflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
-    elif [ "$_tel_rc" -ne 1 ]; then
-      # Catch-all: an exit outside the predicate's {0,1,2} contract means the
-      # interpreter itself broke. Announcing it is what stops this gate failing
-      # open in silence.
-      echo "prflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
-    fi
+  elif [ "$_tel_rc" -eq 0 ]; then
+    echo "prflow: efficiency-trace.sh --persist: telemetry.enabled is false — skipping telemetry-branch persistence and the durable workpad copy this run (issue #2035)" >&2
+    # Targeted form: the master switch declined the whole call → ok skipped (issue #344).
+    [ -n "$WORKPAD_DIR" ] && printf 'persist-outcome: ok skipped\n'
+    return 0
+  elif [ "$_tel_rc" -eq 2 ]; then
+    echo "prflow: efficiency-trace.sh --persist: config '$_DEVFLOW_CONFIG' exists but could not be read or parsed — the telemetry.enabled master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
+  elif [ "$_tel_rc" -ne 1 ]; then
+    # Catch-all: an exit outside the predicate's {0,1,2} contract means the
+    # interpreter itself broke. Announcing it is what stops this gate failing
+    # open in silence.
+    echo "prflow: efficiency-trace.sh --persist: the telemetry.enabled predicate exited $_tel_rc, outside its {0,1,2} contract — the master switch was NOT consulted; persisting as if telemetry were on (issue #2035)" >&2
   fi
   root="$(devflow_repo_root)"
   # Resolve the telemetry branch ONCE, here in the parent, before anything forks. The
@@ -2390,6 +2338,10 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
   # UNESTABLISHED one (fetch failed/unattempted) — AC7, the "unknown is not zero"
   # rule. dynamic-scope-visible to recorded_fix_shas/list_blobs below; not exported.
   local _DEVFLOW_TELEMETRY_FETCH_STATUS=unattempted _tb_branch _tb_ref _remote_line _rtip _ltip
+  # _PERSISTED_TIP: the copy persist_one's unpersisted_jsons treats as already persisted —
+  # origin's fetched tip, never the local ref, which can hold a commit a failed push left
+  # for the next persist to push; the local ref only with no origin. Empty keeps every file.
+  local _PERSISTED_TIP=""
   _tb_branch="$(devflow_telemetry_branch)"
   _tb_ref="$(devflow_telemetry_ref)"
   if git -C "$root" remote get-url origin >/dev/null 2>&1; then
@@ -2414,6 +2366,7 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
         _DEVFLOW_TELEMETRY_FETCH_STATUS=ok           # established: remote has no such branch yet
       elif GIT_TERMINAL_PROMPT=0 git -C "$root" fetch -q --no-tags origin "+${_tb_branch}:refs/remotes/origin/${_tb_branch}" 2>/dev/null; then
         _rtip="$(git -C "$root" rev-parse --verify --quiet "refs/remotes/origin/${_tb_branch}" 2>/dev/null || true)"
+        _PERSISTED_TIP="$_rtip"
         if [ -n "$_rtip" ] && devflow_telemetry_verify_store "$root" "refs/remotes/origin/${_tb_branch}"; then
           # A readable telemetry store was fetched. Fast-forward the LOCAL ref onto the
           # verified tip (created when absent; a diverged local ref is never overwritten).
@@ -2461,6 +2414,7 @@ sys.exit(0 if isinstance(tel, dict) and tel.get("enabled") is False else 1)
     # unestablished one — mark ok so list_blobs does not emit a misleading "synthesis may
     # re-attribute" warning on a local-only repo's first --persist (#469 review).
     _DEVFLOW_TELEMETRY_FETCH_STATUS=ok
+    _PERSISTED_TIP="$_tb_ref"
   fi
 
   # Pre-rename telemetry-branch migration backstop (issue #336): before this run's first
@@ -2705,6 +2659,7 @@ except Exception:
       dir="${dir%/}"                                # strip trailing slash
       run_id="${dir##*/}"                           # builtins only (guard-class 2:
       slug="${dir%/*}"; slug="${slug##*/}"          # identity-deciding, no PATH tools)
+      case "$run_id" in *-shadow) continue ;; esac
       d_iters=("$dir"/iter-*.json)
       if [ -e "${d_iters[0]}" ]; then
         persist_one "$dir" "$slug" "$run_id" "$root" 1
@@ -2822,28 +2777,19 @@ except Exception:
       echo "::warning::efficiency-trace.sh --persist: the telemetry-branch write DEGRADED — RETAINING the staged records at '${_TELEMETRY_STAGE}' so they are recoverable (delete once recovered; a bounded newest-${_keep} prune runs each --persist). On an ephemeral CI runner the filesystem does not survive teardown, so recovery there is not on-disk, and the trusted telemetry-push relay that formerly pushed the uploaded workflow artifact has been removed." >&2 ;;
   esac
   # Targeted-form outcome line (issue #344; the discovery form prints nothing). Fold the
-  # telemetry-branch write rc into persist_one's staging outcome — any failed write (rc 1/other,
-  # or the helper unsourced so staging was discarded) makes the class `lost`, rc 2 is staged-only.
+  # telemetry-branch write rc into persist_one's staging outcome whenever anything was
+  # staged — any failed write (rc 1/other, or the helper unsourced so staging was discarded)
+  # makes the class `lost` whatever the staging outcome was; rc 2 turns only an `ok` into
+  # staged-only, so a non-ok primary signal (partial-iterations, no-inputs, search-failed) stays.
   if [ -n "$WORKPAD_DIR" ]; then
     local _oc="${_PERSIST_ONE_CLASS:-unestablished}" _or="${_PERSIST_ONE_REASON:-search-failed}"
-    if [ "$_oc" = ok ] && [ "${_PERSIST_ONE_STAGED:-0}" = 1 ]; then
+    if [ "${_PERSIST_ONE_STAGED:-0}" = 1 ]; then
       if [ -z "${_DEVFLOW_TELEMETRY_BRANCH_SOURCED:-}" ]; then
         _oc=lost; _or=write-failed
       else
         case "$persist_rc" in
           0) : ;;
-          2) _oc=ok; _or=staged-only ;;
-          *) _oc=lost; _or=write-failed ;;
-        esac
-      fi
-    elif [ "$_or" = partial-iterations ] && [ "${_PERSIST_ONE_STAGED:-0}" = 1 ]; then
-      # Issue #520 AC1: partial derivation is a `lost` outcome, so the ok-branch above skips
-      # it — but a telemetry-branch write failure still takes write-failed precedence over it.
-      if [ -z "${_DEVFLOW_TELEMETRY_BRANCH_SOURCED:-}" ]; then
-        _oc=lost; _or=write-failed
-      else
-        case "$persist_rc" in
-          0|2) : ;;                       # pushed or staged-only: the primary signal stays partial-iterations
+          2) [ "$_oc" != ok ] || _or=staged-only ;;
           *) _oc=lost; _or=write-failed ;;
         esac
       fi
@@ -2853,219 +2799,8 @@ except Exception:
   return 0
 }
 
-# ── Same-run malformed-first correction (issue #520) ──────────────────────────
-# A NARROW extension of the persistence owner: repair a durable iter record whose
-# FIRST persist stored malformed (non-object) bytes, without losing the original.
-# It archives the original bytes under the telemetry store, republishes the
-# corrected iter + a recomputed effectiveness record atomically, preserves
-# established floor (harness/cost/run_profile) metadata, and REFUSES — retaining
-# recoverable evidence and leaving durable history unchanged — on any
-# invalid/unrelated/concurrent correction. Best-effort exit 0, telemetry-gated like --persist (AC6): it changes no
-# code-delivery, review-verdict, or completion decision. Every observable outcome is
-# the single `correct-outcome: <class> <reason>` stdout line.
-do_correct_iter() {
-  local root ref rel_iter rel_record rel_archive slug run_id iter corrected expected
-  slug="$SLUG"; run_id="$RUN_ID"; iter="$ITER"; corrected="$CORRECTED_FILE"; expected="$EXPECTED_DIGEST"
-
-  # Missing identity → refuse (AC4). iter must be a bare integer.
-  case "$iter" in ''|*[!0-9]*) iter="" ;; esac
-  if [ -z "$slug" ] || [ -z "$run_id" ] || [ -z "$iter" ] || [ -z "$corrected" ] || [ -z "$expected" ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: missing identity/operand — need --slug --run-id --iter <N> --corrected-file --expected-digest; refusing without touching history" >&2
-    printf 'correct-outcome: lost missing-identity\n'; return 0
-  fi
-  # Unsubstituted-placeholder guard (twin of the argv/basename guards above): a
-  # literal <slug>/<run-id> would fabricate an identity, so refuse it as bad identity.
-  case "${slug}${run_id}" in
-    *'<'*|*'>'*)
-      echo "::warning::efficiency-trace.sh --correct-iter: --slug/--run-id carries an unsubstituted '<placeholder>' — refusing to correct under a placeholder identity" >&2
-      printf 'correct-outcome: lost missing-identity\n'; return 0 ;;
-  esac
-
-  # Telemetry-gated (AC6): the correction is an efficiency-telemetry operation, so a
-  # disabled feature has nothing to correct — best-effort skip, never a failure.
-  if [ "$ENABLED" != "true" ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: efficiency telemetry is disabled — no correction performed" >&2
-    printf 'correct-outcome: ok skipped\n'; return 0
-  fi
-  # Without a real telemetry-branch.sh the store helpers are no-op stubs, so the
-  # branch cannot be read or written — fail closed to a recoverable outcome.
-  if [ -z "${_DEVFLOW_TELEMETRY_BRANCH_SOURCED:-}" ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: telemetry-branch.sh was not sourced; cannot read or write the telemetry store this run — no correction performed, correction input retained" >&2
-    printf 'correct-outcome: lost write-failed\n'; return 0
-  fi
-
-  root="$(devflow_repo_root)"
-  devflow_telemetry_branch >/dev/null || true   # seed the branch-name cache once
-  ref="$(devflow_telemetry_ref)"
-  rel_iter=".prflow/logs/review/${slug}/${run_id}/iter-${iter}.json"
-  rel_record=".prflow/logs/efficiency/${slug}-${run_id}.json"
-  rel_archive=".prflow/logs/review/${slug}/${run_id}/.corrections/iter-${iter}.${expected}.json"
-
-  # Resolve a relative --corrected-file against the repo root, never the process CWD.
-  local corr_abs="$corrected"
-  case "$corrected" in /*) : ;; *) corr_abs="${root%/}/${corrected}" ;; esac
-
-  # The correction must itself be a readable JSON OBJECT (AC4; the mutable-JSON matrix
-  # — array/scalar/valid-falsy/missing/wrong-type — all land here).
-  if [ ! -f "$corr_abs" ] || ! "$DEVFLOW_JQ" -e 'type == "object"' "$corr_abs" >/dev/null 2>&1; then
-    echo "::warning::efficiency-trace.sh --correct-iter: corrected file '${corrected}' is missing/unreadable or not a JSON object; refusing" >&2
-    printf 'correct-outcome: lost non-object\n'; return 0
-  fi
-  # The correction must be bound to the same iteration identity (AC2/AC4).
-  local corr_iter
-  corr_iter="$("$DEVFLOW_JQ" -r '.iter // empty' "$corr_abs" 2>/dev/null || true)"
-  if [ "$corr_iter" != "$iter" ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: corrected object .iter='${corr_iter:-<absent>}' does not match target iteration ${iter}; refusing (wrong run/iteration)" >&2
-    printf 'correct-outcome: lost identity-mismatch\n'; return 0
-  fi
-
-  # The durable record must exist on the branch (AC4).
-  if ! devflow_telemetry_blob_exists "$root" "$ref" "$rel_iter"; then
-    echo "::warning::efficiency-trace.sh --correct-iter: no durable iter record at ${rel_iter} on '${ref}'; refusing (nothing to correct)" >&2
-    printf 'correct-outcome: lost missing-record\n'; return 0
-  fi
-
-  local cur_sha corrected_sha tip
-  # A commit ID left of the colon, never "${ref}:": Git Bash rewrites a `refs/…:<path>`
-  # argument, so on Windows every correction read as a digest mismatch (issue #578).
-  tip="$(devflow_telemetry_commit_id "$root" "$ref")"
-  cur_sha=""
-  [ -z "$tip" ] || cur_sha="$(git -C "$root" rev-parse --verify --quiet "${tip}:${rel_iter}" 2>/dev/null || true)"
-  corrected_sha="$(git -C "$root" hash-object "$corr_abs" 2>/dev/null || true)"
-
-  # Idempotency (AC5): the durable bytes already equal this correction AND its archive
-  # for the expected digest is already published → a no-op replay. Checked BEFORE the
-  # digest guard, because a published correction has changed the durable digest away
-  # from `expected` by design.
-  if [ -n "$cur_sha" ] && [ "$cur_sha" = "$corrected_sha" ] && devflow_telemetry_blob_exists "$root" "$ref" "$rel_archive"; then
-    printf 'correct-outcome: ok already-corrected\n'; return 0
-  fi
-
-  # Changed source digest / unrelated record (AC4): the current durable blob must be
-  # exactly the malformed record the caller expected. A mismatch means it changed
-  # underneath (or the caller named an unrelated record) — refuse, retaining evidence.
-  if [ "$cur_sha" != "$expected" ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: expected malformed durable digest '${expected}' but '${ref}:${rel_iter}' carries '${cur_sha:-<none>}' — refusing (changed source digest or unrelated record)" >&2
-    printf 'correct-outcome: lost digest-mismatch\n'; return 0
-  fi
-  # Only a MALFORMED-FIRST (non-object) durable record is correctable this way — an
-  # established, valid record is not this arm's territory (AC4).
-  local cur_class
-  cur_class="$(devflow_telemetry_show_blob "$root" "$ref" "$rel_iter" | "$DEVFLOW_JQ" -r 'if type != "object" then "other" else "established" end' 2>/dev/null)" || cur_class="other"
-  if [ "$cur_class" != other ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: durable iter '${rel_iter}' is an established (valid) record, not a malformed-first one; refusing (unrelated/established record)" >&2
-    printf 'correct-outcome: lost not-malformed\n'; return 0
-  fi
-
-  # ── Build the correction: a staging tree carrying ONLY the three conforming paths
-  # (corrected iter, archive, recomputed record), and a SEPARATE work dir for the
-  # recompute materialization so persist_tree's staged-path walk never sees it.
-  local _stamp stage work
-  _stamp="$(date -u +%Y%m%d%H%M%S 2>/dev/null || printf '00000000000000')-$$-${RANDOM}-${SECONDS}"
-  stage="${root}/.prflow/tmp/telemetry-correct-${_stamp}"
-  work="${root}/.prflow/tmp/telemetry-correct-${_stamp}-work"
-  rm -rf "$stage" "$work" 2>/dev/null || true
-  if ! mkdir -p "${stage}/.prflow/logs/review/${slug}/${run_id}/.corrections" "${stage}/.prflow/logs/efficiency" "${work}" 2>/dev/null; then
-    echo "::warning::efficiency-trace.sh --correct-iter: could not create the correction staging root under .prflow/tmp (read-only fs, permissions, or a sandbox write denial); refusing, correction input retained" >&2
-    rm -rf "$stage" "$work" 2>/dev/null || true
-    printf 'correct-outcome: lost write-failed\n'; return 0
-  fi
-
-  # Archive the ORIGINAL malformed bytes at the digest-named path (AC2) and stage the
-  # corrected replacement.
-  if ! devflow_telemetry_show_blob "$root" "$ref" "$rel_iter" > "${stage}/${rel_archive}" 2>/dev/null \
-    || ! cp -p "$corr_abs" "${stage}/${rel_iter}" 2>/dev/null; then
-    echo "::warning::efficiency-trace.sh --correct-iter: could not stage the archive/replacement bytes; refusing, correction input retained" >&2
-    rm -rf "$stage" "$work" 2>/dev/null || true
-    printf 'correct-outcome: lost write-failed\n'; return 0
-  fi
-
-  # Recompute effectiveness (AC3): materialize the run's durable iters, substitute the
-  # corrected one, and re-derive from the full set — reusing collect_valid_files + emit_jq.
-  # Capture the ls-tree rc (do NOT swallow it in a process substitution): a WHOLESALE
-  # enumeration failure yields zero siblings, which collect_valid_files cannot tell from
-  # a genuinely single-iter run — refuse with write-failed rather than publishing that
-  # understated set as ok corrected (issue #520 recompute-completeness).
-  local run_prefix=".prflow/logs/review/${slug}/${run_id}/" relpath base ls_out ls_rc=0
-  ls_out="$(git -C "$root" ls-tree -r --name-only "$ref" "$run_prefix" 2>/dev/null)" || ls_rc=$?
-  if [ "$ls_rc" -ne 0 ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: could not enumerate the run's durable iters (git ls-tree failed, rc=${ls_rc}) for ${slug}/${run_id} — refusing rather than publishing an understated effectiveness record" >&2
-    rm -rf "$work" 2>/dev/null || true
-    printf 'correct-outcome: lost write-failed\n'
-    return 0
-  fi
-  while IFS= read -r relpath; do
-    [ -n "$relpath" ] || continue
-    case "$relpath" in "${run_prefix}iter-"*.json) ;; *) continue ;; esac
-    base="${relpath##*/}"
-    devflow_telemetry_show_blob "$root" "$ref" "$relpath" > "${work}/${base}" 2>/dev/null || true
-  done <<<"$ls_out"
-  cp -p "$corr_abs" "${work}/iter-${iter}.json" 2>/dev/null || true
-
-  collect_valid_files "$work"
-  # Incomplete-derivation guard (issue #520 AC1), same as --persist: a malformed sibling
-  # iter skipped by collect_valid_files would silently understate the recomputed
-  # effectiveness while the corrected iter still publishes ok — warn so storage success
-  # is not read as complete effectiveness.
-  if [ "${VALID_FILES_SKIPPED:-0}" -gt 0 ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: recompute for ${slug}/${run_id} OMITTED ${VALID_FILES_SKIPPED} malformed/non-object sibling iter workpad(s) from the materialized set — iter ${iter} is corrected, but the recomputed effectiveness is INCOMPLETE for this run (repair the remaining malformed iter(s) with --correct-iter)" >&2
-  fi
-  local jq_rc=0 out
-  out="$(emit_jq record "$slug")" || jq_rc=$?
-  if [ "$jq_rc" -ne 0 ] || [ -z "$out" ]; then
-    echo "::warning::efficiency-trace.sh --correct-iter: recompute derivation (jq) failed (rc=${jq_rc}); refusing, correction input retained" >&2
-    rm -rf "$stage" "$work" 2>/dev/null || true
-    printf 'correct-outcome: lost write-failed\n'; return 0
-  fi
-  # Preserve established floor (harness/cost/run_profile/…) metadata the fresh
-  # derivation does not reproduce (AC3), reusing the persist union's floor-key set.
-  local existing_record merged
-  existing_record="$(devflow_telemetry_show_blob "$root" "$ref" "$rel_record" 2>/dev/null || true)"
-  if [ -n "$existing_record" ]; then
-    printf '%s' "$existing_record" > "${work}/.oldrecord.json"
-    merged="$(printf '%s' "$out" | "$DEVFLOW_JQ" --argjson floor "$_DEVFLOW_TELEMETRY_FLOOR_KEYS_JSON" --slurpfile ex "${work}/.oldrecord.json" '
-      . as $new | (($ex[0]) // {}) as $old
-      | reduce ($floor[]) as $k ($new;
-          if ($old | type == "object") and ($old | has($k)) then .[$k] = $old[$k] else . end)
-    ' 2>/dev/null || true)"
-    # A prior record existed but the merge failed → warn (issue #520 AC3): silently
-    # falling back to the un-merged `out` would drop the established harness/cost floor
-    # metadata while still reporting ok corrected — the silent loss AC3 forbids.
-    if [ -n "$merged" ]; then
-      out="$merged"
-    else
-      echo "::warning::efficiency-trace.sh --correct-iter: a prior effectiveness record exists but the floor-metadata merge (jq) failed or produced no output — publishing the recomputed record WITHOUT the established harness/cost/run_profile metadata (it is NOT carried forward this correction)" >&2
-    fi
-  fi
-  if ! printf '%s\n' "$out" > "${stage}/${rel_record}" 2>/dev/null; then
-    echo "::warning::efficiency-trace.sh --correct-iter: could not stage the recomputed effectiveness record; refusing, correction input retained" >&2
-    rm -rf "$stage" "$work" 2>/dev/null || true
-    printf 'correct-outcome: lost write-failed\n'; return 0
-  fi
-
-  # Publish atomically (AC2/AC3/AC4/AC5). STRICT-NO-UNION: a correction must NOT be
-  # union-merged onto a concurrently-advanced tip — persist_tree then refuses (exit 5)
-  # a concurrent incompatible durable update rather than reconciling the correction
-  # against a changed durable state. CAS build_tree replaces the staged paths and
-  # preserves every other record = atomic replace-one-record.
-  local prc=0
-  # Export (not a command-prefix assignment) so the flag reaches persist_tree's
-  # push subshell; unset immediately after so no later call inherits it.
-  export _DEVFLOW_TELEMETRY_STRICT_NO_UNION=1
-  devflow_telemetry_persist_tree "$root" "$stage" || prc=$?
-  unset _DEVFLOW_TELEMETRY_STRICT_NO_UNION
-  rm -rf "$work" 2>/dev/null || true
-  case "$prc" in
-    0) rm -rf "$stage" 2>/dev/null || true; printf 'correct-outcome: ok corrected\n' ;;
-    2) printf 'correct-outcome: ok staged-only\n' ;;                 # CI without push operand: staged for recovery
-    5) printf 'correct-outcome: lost concurrent-update\n' ;;         # strict gate refused; staged evidence retained
-    *) printf 'correct-outcome: lost write-failed\n' ;;             # degraded write; staged evidence retained
-  esac
-  return 0
-}
-
 # ── Dispatch ─────────────────────────────────────────────────────────────────
-# --persist and --correct-iter reach origin where nobody can answer a prompt (issue #997).
+# --persist reaches origin where nobody can answer a prompt (issue #997).
 # GIT_TERMINAL_PROMPT=0 alone still lets GCM or git's SSH_ASKPASS fallback (Git for Windows
 # exports a GUI one) open a window. A deliberate GIT_ASKPASS/core.askPass is kept.
 unattended_origin_calls() {
@@ -3075,41 +2810,9 @@ unattended_origin_calls() {
     GIT_HTTP_LOW_SPEED_LIMIT=1 GIT_HTTP_LOW_SPEED_TIME=30
 }
 case "$ACTION" in
-  self-check)   do_self_check;   exit 0 ;;
-  persist)      unattended_origin_calls; do_persist;      exit 0 ;;
-  correct-iter) unattended_origin_calls; do_correct_iter; exit 0 ;;
+  self-check) do_self_check; exit 0 ;;
+  persist)    unattended_origin_calls; do_persist; exit 0 ;;
 esac
 
-# Default action: --mode trace|record (unchanged contract).
-if [ "$MODE" != "trace" ] && [ "$MODE" != "record" ]; then
-  echo "efficiency-trace.sh: --mode must be 'trace' or 'record' (or pass --persist / --self-check)" >&2
-  exit 2
-fi
-
-# Flag off → emit nothing, exit 0 (so a caller writing the record to a file
-# produces no file under .prflow/logs/).
-if [ "$ENABLED" != "true" ]; then
-  exit 0
-fi
-
-# Render a filled copy of the run dir, staged under an existing .prflow/tmp; never
-# fill the run dir. When no copy can be staged, render the run dir unfilled.
-TRACE_SRC="$WORKPAD_DIR"
-if [ -n "$WORKPAD_DIR" ] && compgen -G "$WORKPAD_DIR"/iter-*.json >/dev/null 2>&1; then
-  TRACE_ROOT="$(devflow_repo_root)"
-  if [ -d "${TRACE_ROOT}/.prflow/tmp" ]; then
-    TRACE_FILL="${TRACE_ROOT}/.prflow/tmp/efficiency-fill-$$-${RANDOM}"
-    trap 'rm -rf "$TRACE_FILL"' EXIT
-    FILL_WHO="--mode ${MODE}"; TRACE_RC=0
-    fill_run_copy "$WORKPAD_DIR" "$TRACE_FILL/run" "$TRACE_ROOT" || TRACE_RC=$?
-    case "$TRACE_RC" in
-      1) echo "::warning::efficiency-trace.sh: could not stage the filled copy of ${WORKPAD_DIR}; rendering it unfilled" >&2 ;;
-      *) TRACE_SRC="$TRACE_FILL/run" ;;
-    esac
-  else
-    echo "::warning::efficiency-trace.sh: no ${TRACE_ROOT}/.prflow/tmp to stage a filled copy in; rendering ${WORKPAD_DIR} unfilled" >&2
-  fi
-fi
-collect_valid_files "$TRACE_SRC" "$WORKPAD_DIR"
-warn_on_mixed_source
-emit_jq "$MODE" "$SLUG"
+echo "efficiency-trace.sh: usage: efficiency-trace.sh --persist [--workpad-dir DIR --slug SLUG] | --self-check --workpad-dir DIR --slug SLUG" >&2
+exit 2

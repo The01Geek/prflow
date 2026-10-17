@@ -8,13 +8,13 @@ It prints one machine-readable outcome so the Phase 1 procedure can decide
 before any branch setup begins.
 
 The ignore-precondition subcommand (issue #693) reports whether a path is
-covered by a gitignore rule, resolved through `git check-ignore` in-process (the
-scripts/reception-record.py shape). It is the precondition of the §1.1 issue-body
-cache write: the cache lives in-tree under .prflow/tmp/, so it must already be
-ignored before it is written. Shipping it as a subcommand of this already-granted
-helper — rather than a new bundled helper — keeps the precondition free of any
-new matcher command head or vendored-literal token, so no install.sh-versus-
-vendor-fetch skew window opens. It reuses the three-class one-token contract:
+covered by a gitignore rule, resolved through `git check-ignore` in-process. It
+is the precondition of the §1.1 issue-body cache write: the cache lives in-tree
+under .prflow/tmp/, so it must already be ignored before it is written.
+Shipping it as a subcommand of this already-granted helper — rather than a new
+bundled helper — keeps the precondition free of any new matcher command head or
+vendored-literal token, so no install.sh-versus-vendor-fetch skew window opens.
+It reuses the three-class one-token contract:
 IGNORED / PROCEED_EXIT, NOT_IGNORED / BLOCKED_EXIT (a resolved 'not ignored' — the
 degraded arm), UNAVAILABLE / UNAVAILABLE_EXIT (git could not answer). Both RESOLVED
 arms carry the resolved ABSOLUTE target after the token, so a caller that passed
@@ -58,7 +58,9 @@ from typing import NoReturn
 # lib/test/test_python_scripts.py loads this module) does not — so the
 # sibling imports would fail without this.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 from gh_fresh_env import fresh_gh_env
+from path_forms import posix_path
 from tree_removal import describe, remove_tree
 
 
@@ -1587,12 +1589,11 @@ def branch_state(args: argparse.Namespace) -> int:
 # .prflow/tmp/, so an ignore rule covering it must already be in effect before it
 # is written (the run never creates one — a new dotfile would itself be an
 # untracked file an unscoped stage would sweep in). Resolving ignore state
-# through git itself — the scripts/reception-record.py `_check_ignored` shape —
-# means the precondition introduces NO new matcher command head and NO new
-# vendored-literal token: the `git check-ignore` call is an in-process subprocess
-# of the already-granted preflight.py, not a command the phase fence invokes. The
-# one-token stdout reuses the three-class exit contract shared with the other
-# subcommands, so the §1.1 fence reads one exit vocabulary:
+# through git itself means the precondition introduces NO new matcher command
+# head and NO new vendored-literal token: the `git check-ignore` call is an
+# in-process subprocess of the already-granted preflight.py, not a command the
+# phase fence invokes. The one-token stdout reuses the three-class exit contract
+# shared with the other subcommands, so the §1.1 fence reads one exit vocabulary:
 #   IGNORED            exit 0  precondition satisfied — the caller may write
 #   NOT_IGNORED        exit 2  a RESOLVED 'not ignored' answer — the degraded arm
 #   UNAVAILABLE <why>  exit 3  git could not answer — an unestablished measurement
@@ -1638,10 +1639,10 @@ def _anchor_repo_relative(path: str) -> "str | None":
 def _path_is_ignored(path: str) -> "bool | None":
     """True if `path` is gitignored, False if not, None if git could not answer.
 
-    Mirrors scripts/reception-record.py's _check_ignored: git's own ignore
-    resolution via `git check-ignore -q`, which answers for a path that need not
-    yet exist. returncode 0 → ignored, 1 → not ignored; anything else (128
-    not-a-repo / error, or an OSError launching git) is undecidable → None.
+    Uses git's own ignore resolution via `git check-ignore -q`, which answers for
+    a path that need not yet exist. returncode 0 → ignored, 1 → not ignored;
+    anything else (128 not-a-repo / error, or an OSError launching git) is
+    undecidable → None.
     """
     try:
         proc = _run_git(["check-ignore", "-q", path])
@@ -1686,7 +1687,7 @@ def ignore_precondition(args: argparse.Namespace) -> int:
         # to the path that was checked. The enrolled §1.1 fences cannot capture it in a
         # shell variable (a worktree-isolated session refuses that shape, issue #1633),
         # so the agent substitutes this literal into the guarded write.
-        print(f"IGNORED {os.path.abspath(path)}", flush=True)
+        print(f"IGNORED {posix_path(os.path.abspath(path))}", flush=True)
         return PROCEED_EXIT
     print(
         f"preflight.py: {args.path} is not covered by a gitignore rule; the "
@@ -1696,7 +1697,7 @@ def ignore_precondition(args: argparse.Namespace) -> int:
     # Both RESOLVED arms carry the absolute target, so a caller on either arm names
     # the same in-tree location this subcommand answered about rather than a
     # cwd-relative one a subdirectory-launched run would resolve elsewhere.
-    print(f"NOT_IGNORED {os.path.abspath(path)}", flush=True)
+    print(f"NOT_IGNORED {posix_path(os.path.abspath(path))}", flush=True)
     return BLOCKED_EXIT
 
 
@@ -1957,7 +1958,7 @@ def scratch_issue(args: argparse.Namespace) -> int:
         # Sweep runs after the folder exists: a per-file sweep failure is cosmetic
         # and never turns a created folder into an UNAVAILABLE create.
         _sweep_flat_leftovers(_scratch_dir(top), issue)
-        print(f"PREPARED {folder}", flush=True)
+        print(f"PREPARED {posix_path(folder)}", flush=True)
         return PROCEED_EXIT
     # args.action == "remove": idempotent — remove_tree returns [] for a folder os.lstat reports missing.
     if not _scratch_remove_folder(folder):

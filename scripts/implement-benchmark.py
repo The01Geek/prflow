@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from context_eval_shared import UNESTABLISHED
 from implement_records import (
+    ABSENT_STORE,
     fmt,
     is_reject,
     load_runs_with_status,
@@ -169,10 +170,8 @@ def main(argv=None):
               "anything", file=sys.stderr)
         return 1
     if status == "absent":
-        print("No experiment-record store yet — no implement run has been persisted, so "
-              "neither cohort can be formed. (A store that exists but cannot be read is a "
-              "different, non-zero-exit case.)")
-        return 0
+        print(f"prflow: implement-benchmark: {ABSENT_STORE}", file=sys.stderr)
+        return 1
     if status.startswith("read:"):
         print(f"NOTE: {status.split(':', 1)[1]} store line(s) could not be parsed and are "
               f"excluded from both cohorts.")

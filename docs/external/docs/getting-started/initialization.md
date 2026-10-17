@@ -27,7 +27,7 @@ The skill runs a scaffolder and then a dependency preflight, and relays their ou
 
 ```
 devflow-scaffold: scaffolded /path/to/repo/.prflow/config.json — every value has a working default; edit it only to customize
-devflow-scaffold: wrote /path/to/repo/.prflow/.gitignore (ignores ephemeral .prflow/tmp/ scratch)
+devflow-scaffold: wrote /path/to/repo/.prflow/.gitignore (ignores ephemeral .prflow/tmp/ scratch and the .prflow/learnings/ working copy)
 devflow-scaffold: created/backfilled 18 prompt-extension example(s) in /path/to/repo/.prflow/skill-extensions/ (rename <skill>.md.example to <skill>.md to activate)
 devflow preflight: all dependencies present.
 ```

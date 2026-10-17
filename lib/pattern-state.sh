@@ -289,8 +289,8 @@ _stamp_v3() {  # $1 = overrides path (v2-shaped)
 # Runs over a v3-shaped file. A meta-issue entry stores a bare issue NUMBER, which
 # names different work in different repositories; the entry's `repo` is what
 # reconcile resolves it against. An entry that names none is bound to the legacy
-# record repository through devflow_apply_legacy_record_repo — the explicit
-# one-time compatibility rule, never the repository the run happens to be in.
+# record repository (devflow_legacy_record_repo), never the repository the run
+# happens to be in.
 # Numbers, urls, state, closedAt, state_reason and dismissed{} are left unchanged.
 _stamp_v4() {  # $1 = overrides path (v3-shaped)
     local ov="$1" legacy tmp

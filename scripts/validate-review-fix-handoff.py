@@ -21,14 +21,16 @@ Four schemas share this reader, selected by `--schema
   unless `completed_steps` marks the owning step `complete`; a rejected stop record's
   `blocked_reason` is echoed on stderr (issue #983).
 - `issue-claim-audit` (issue #700): Phase 1.6 dispatches a `issue-claim-auditor` worker whose
-  durable handoff the parent validates here; the reader takes `record_validation`/
-  `projection_validation` as the worker's attestations and runs no audit gate itself. Needs
-  `--run-scratch`, `--base` and `--freshness`.
+  durable handoff the parent validates here, checking each chartered pass's disposition and the
+  projection fields itself (issue #1775). Needs `--run-scratch`, `--base` and `--freshness`.
 
-The `intake` and `issue-claim-audit` schemas — and only they — print one compact JSON line of
-carry-forward fields to stdout on exit 0, so the parent keeps those fields resident instead of the
-whole handoff; the intake line reports the `prior_decisions`/`corrections`/`blockers` counts, `prior_decisions`
-excluding `authorized-workpad-decision` items (the audit line carries the actionable arrays in full).
+Every schema prints one compact JSON line to stdout on exit 0, so a silent reader always means a
+refused command. The `review-fix` line carries only `outcome`; the `finalization` line
+carries `outcome` and `review_waived_by`. The `intake` and
+`issue-claim-audit` line carries carry-forward fields, so the parent keeps those fields resident
+instead of the whole handoff; the intake line reports the `prior_decisions`/`corrections`/
+`blockers` counts, `prior_decisions` excluding `authorized-workpad-decision` items (the audit line
+carries the actionable arrays in full).
 
 Both accept evidence only from the current dispatch and reject an unusable return — absent,
 malformed, incomplete, stale-dispatch, or mismatched-identity — so a rejected boundary records an
@@ -66,16 +68,17 @@ the worker in `agents/implement-finalization.md`:
   (issue #596).
 - Evidence, each required non-null when `outcome` is `proceed` and nullable on a stop record:
   `branch` (string); `final_head` (40-char lowercase-hex sha, and 40-hex-or-null on any outcome);
-  `checkpoint4`, `review_coverage`, `tip_landed` (objects); `verification` (object whose
-  `candidate_sha` is a 40-hex sha on `proceed` and on `needs-repair` — the failed candidate the
+  `checkpoint4`, `review_coverage`, `tip_landed` (objects; `review_coverage.waived_by`, when
+  present, is the object's only key: the non-empty single-line source of a human review
+  waiver, projected as `review_waived_by` — null when absent, issue #2026); `verification`
+  (object whose `candidate_sha` is a 40-hex sha on `proceed` and on `needs-repair` — the failed candidate the
   parent repairs (issue #562) — and 40-hex-or-null on any outcome); `steps` (an
   object carrying each owned step `§4.0`, `§4.0.5`, `§4.0.6`, `§4.1`, `§4.2`, `§4.3` with a
   non-empty string `disposition` — presence and type only, not the disposition vocabulary).
 
 Exit codes (all schemas):
     0 — conforming: shape and identity hold (and, for review-fix/intake/issue-claim-audit, checkout
-        containment); the intake and issue-claim-audit schemas additionally print one compact JSON
-        line of carry-forward fields to stdout (no other schema writes to stdout on success)
+        containment); prints one compact JSON line to stdout (see above)
     2 — non-conforming: a shape/enum/type fault, an identity mismatch (stale or duplicate
         dispatch), or an artifact path resolving outside the checkout (review-fix, intake,
         issue-claim-audit) — offenders on stderr, nothing on stdout
@@ -95,6 +98,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 
 #: The one schema version this reader understands.
@@ -128,7 +132,15 @@ _COMPLETED_STEP_IDS = ("1.0", "1.1", "1.1.5", "1.2", "1.3", "1.3.5")
 _AUDIT_OUTCOMES = ("proceed", "blocked-specification", "blocked-policy", "blocked-capability",
                    "error")
 _AUDIT_STOP_OUTCOMES = ("blocked-specification", "blocked-policy", "blocked-capability", "error")
-_RECORD_PROJ_VALIDATION = ("passed", "failed", "not-applicable")
+#: Coupled to the Named-passes table in agents/issue-claim-auditor.md — a pass in one and not the
+#: other refuses every `proceed` audit. (The former Pass 4 runs at §1.3.5.)
+CHARTERED_PASSES = (0, 1, 2, 3, 5, 6, 7)
+# `ran`/`skipped`, then end-of-value or a boundary char, then the reason. Do not widen the
+# lookahead to admit `-`, nor narrow it to whitespace-and-paren — both directions matter (mirrors
+# scripts/reconcile-ac-verifiers.py's _DISPOSITION_RE, whose verdict vocabulary is yes/no).
+_DISPOSITION_RE = re.compile(r"^(ran|skipped)(?=$|[\s(,;:.])(.*)$", re.IGNORECASE | re.DOTALL)
+# A reason needs an alphanumeric character, so a mechanical `ran .` cannot discharge a pass.
+_REASON_SUBSTANTIVE_RE = re.compile(r"[^\W_]")
 _AUDIT_ARRAYS = ("unmatched_desired_behavior", "pass5_workflow_resident_acs",
                  "pass2_wrongly_excluded_surfaces", "superseding_assumptions", "external_facts",
                  "prior_decisions", "prior_corrections", "unresolved_blockers")
@@ -396,7 +408,7 @@ def validate_handoff(data, *, checkout_root, dispatch_id, issue_number):
         else:
             _within_checkout(iter_dir, checkout_real, offending, "loop_run.iter_dir")
 
-    return not offending, {"offending": offending}
+    return not offending, {"offending": offending, "projection": {"outcome": data.get("outcome")}}
 
 
 def _validate_finalization(data, *, checkout_root, dispatch_id, issue_number):
@@ -482,6 +494,18 @@ def _validate_finalization(data, *, checkout_root, dispatch_id, issue_number):
         elif _value is not None and not isinstance(_value, dict):
             offending.append(f"{_name}: must be an object or null")
 
+    review_waived_by = None
+    review_coverage = data.get("review_coverage")
+    if isinstance(review_coverage, dict) and "waived_by" in review_coverage:
+        review_waived_by = review_coverage["waived_by"]
+        # workpad.py's --review-waived-by single-line rule: no str.splitlines() boundary.
+        if not (_is_str(review_waived_by) and review_waived_by.strip()
+                and "".join(review_waived_by.splitlines()) == review_waived_by):
+            offending.append(
+                "review_coverage.waived_by: must be a non-empty single-line string when present")
+        if set(review_coverage) != {"waived_by"}:
+            offending.append("review_coverage: waived_by admits no other key")
+
     steps = data.get("steps")
     if proceed:
         if not isinstance(steps, dict):
@@ -497,7 +521,8 @@ def _validate_finalization(data, *, checkout_root, dispatch_id, issue_number):
     elif not (steps is None or isinstance(steps, dict)):
         offending.append("steps: must be an object or null")
 
-    return not offending, {"offending": offending}
+    return not offending, {"offending": offending, "projection": {
+        "outcome": outcome, "review_waived_by": review_waived_by}}
 
 
 def _canon_str_eq(v, operand):
@@ -602,7 +627,7 @@ def _intake_projection(data):
             "resume_kind": workpad.get("resume_kind")},
         "phase2_resume": data.get("phase2_resume"),
         "dependency": None if not isinstance(dependency, dict) else {
-            "result": dependency.get("result"), "held_note": dependency.get("held_note")},
+            "result": dependency.get("result")},
         "extension": data.get("extension"),
         "actionable_counts": {
             "prior_decisions": _count_prior_decisions(data.get("prior_decisions")),
@@ -618,8 +643,73 @@ def _intake_projection(data):
 def _audit_projection(data):
     """The carry-forward fields the orchestrator keeps resident from an audit handoff (issue #700):
     the actionable arrays in full, minus the validation metadata the reader consumed."""
-    keys = ("outcome", "blocked_reason", "record_path", "projection_path") + _AUDIT_ARRAYS
+    keys = ("outcome", "blocked_reason") + _AUDIT_ARRAYS
     return {k: data.get(k) for k in keys}
+
+
+class _DuplicateKeyDict(dict):
+    """A JSON object that named a key more than once; `duplicates` lists those keys."""
+    duplicates = ()
+
+
+def _pairs_keeping_duplicates(pairs):
+    """`json.loads` object_pairs_hook: keeps the last value, as `json.loads` does, but records
+    each repeated key so a pass named twice is refused rather than silently collapsed."""
+    seen = {}
+    dups = []
+    for key, value in pairs:
+        if key in seen and key not in dups:
+            dups.append(key)
+        seen[key] = value
+    if not dups:
+        return seen
+    obj = _DuplicateKeyDict(seen)
+    obj.duplicates = tuple(dups)
+    return obj
+
+
+def parse_disposition(value):
+    """Parse one disposition value into `(verdict, reason)`, or `(None, "")` when it is not a
+    string, does not parse, or carries no substantive reason. `skipped` parses — the caller
+    treats it as blocking."""
+    if not isinstance(value, str):
+        return None, ""
+    match = _DISPOSITION_RE.match(value.strip())
+    if not match:
+        return None, ""
+    reason = match.group(2).strip()
+    # Unwrap only a clause the outer parens actually enclose — stripping each end independently
+    # would reshape a malformed `((a))` into a well-formed `a`.
+    if (reason.startswith("(") and reason.endswith(")")
+            and "(" not in reason[1:-1] and ")" not in reason[1:-1]):
+        reason = reason[1:-1].strip()
+    if not _REASON_SUBSTANTIVE_RE.search(reason):
+        return None, ""
+    return match.group(1).lower(), reason
+
+
+def _check_pass_dispositions(value, offending):
+    """Refuse a `proceed` handoff unless `pass_dispositions` gives every chartered pass, once,
+    `ran (<reason>)` and names no other key."""
+    if not isinstance(value, dict):
+        offending.append("pass_dispositions: must be an object when outcome is proceed")
+        return
+    for key in getattr(value, "duplicates", ()):
+        offending.append(f"pass {key}: disposition stated more than once (ambiguous, not run)")
+    chartered = {str(n) for n in CHARTERED_PASSES}
+    for n in CHARTERED_PASSES:
+        key = str(n)
+        if key not in value:
+            offending.append(f"pass {key}: disposition absent (treated as not run)")
+            continue
+        verdict, _reason = parse_disposition(value[key])
+        if verdict is None:
+            offending.append(f"pass {key}: disposition not a parseable 'ran|skipped (<reason>)'")
+        elif verdict == "skipped":
+            offending.append(f"pass {key}: skipped")
+    for key in value:
+        if key not in chartered:
+            offending.append(f"pass {key}: not a chartered pass")
 
 
 def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, run_attempt,
@@ -834,9 +924,6 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
             offending.append("dependency.result: must be 'PROCEED' when outcome is proceed")
         elif stop and not (result is None or _is_str(result)):
             offending.append("dependency.result: must be a string or null")
-        held_note = dependency.get("held_note")
-        if not (held_note is None or _is_str(held_note)):
-            offending.append("dependency.held_note: must be a string or null")
 
     ext = data.get("extension")
     _check_extension(ext, offending)
@@ -875,8 +962,8 @@ def _validate_intake(data, *, checkout_root, dispatch_id, issue_number, run_id, 
 def _validate_issue_claim_audit(data, *, checkout_root, dispatch_id, issue_number, base, freshness,
                                 run_scratch, handoff_file):
     """Classify a Phase 1.6 issue-claim-audit handoff (issue #700). `result["projection"]` is the
-    carry-forward dict `main` prints on exit 0. The reader takes `record_validation`/
-    `projection_validation` as the worker's attestations and runs no audit gate itself."""
+    carry-forward dict `main` prints on exit 0. On `proceed` it checks `pass_dispositions` and the
+    projection fields itself (issue #1775)."""
     if not isinstance(data, dict):
         return False, {"offending": [f"handoff must be a JSON object, not {type(data).__name__}"],
                        "projection": None}
@@ -897,12 +984,7 @@ def _validate_issue_claim_audit(data, *, checkout_root, dispatch_id, issue_numbe
     _check_repo_root_identity(data, checkout_root, offending)
     req("outcome", lambda v: v in _AUDIT_OUTCOMES, f"must be one of {_AUDIT_OUTCOMES}")
 
-    _before_rs = len(offending)
     run_scratch_real = _resolves_within(run_scratch, checkout_real, offending, "run-scratch")
-    # run_scratch is contained only when it resolved AND appended no containment offender —
-    # _resolves_within returns the resolved path even for a resolvable escape, so a bare non-None
-    # check would let an escaping-yet-resolvable run_scratch anchor the record_path read below.
-    run_scratch_contained = run_scratch_real is not None and len(offending) == _before_rs
     if run_scratch_real is not None:
         expected_hf = os.path.join(run_scratch_real, f"issue-claim-audit-handoff-{issue_number}.json")
         _handoff_resolves_to(
@@ -914,27 +996,6 @@ def _validate_issue_claim_audit(data, *, checkout_root, dispatch_id, issue_numbe
             and not (_is_str(data.get("blocked_reason")) and data["blocked_reason"].strip()):
         offending.append("blocked_reason: must be a non-empty string on this stop record (incomplete)")
 
-    path_contained = {}
-    for key in ("record_path", "projection_path"):
-        v = data.get(key)
-        if v is not None and not _is_str(v):
-            offending.append(f"{key}: must be a string or null")
-        elif _is_str(v) and run_scratch_real is not None:
-            # Track whether containment passed (no offender appended) so the proceed read below
-            # never opens a containment-refused path — symmetric with the intake side, where a
-            # read of an escaping /dev/zero or FIFO would hang the validator instead of failing
-            # closed. An unresolvable run-scratch leaves the key absent → the read is skipped.
-            _before = len(offending)
-            _resolves_within(v, run_scratch_real, offending, key)
-            path_contained[key] = len(offending) == _before
-
-    for key in ("record_validation", "projection_validation"):
-        v = data.get(key)
-        if v is not None and v not in _RECORD_PROJ_VALIDATION:
-            offending.append(f"{key}: must be one of {_RECORD_PROJ_VALIDATION} or null")
-        if proceed and v != "passed":
-            offending.append(f"{key}: must be 'passed' when outcome is proceed")
-
     disp = data.get("projection_disposition")
     if disp is not None and not _is_str(disp):
         offending.append("projection_disposition: must be a string or null")
@@ -942,7 +1003,9 @@ def _validate_issue_claim_audit(data, *, checkout_root, dispatch_id, issue_numbe
         offending.append("projection_disposition: must be 'represented' when outcome is proceed")
 
     pass_dispositions = data.get("pass_dispositions")
-    if pass_dispositions is not None and not (
+    if proceed:
+        _check_pass_dispositions(pass_dispositions, offending)
+    elif pass_dispositions is not None and not (
             isinstance(pass_dispositions, dict)
             and all(_is_str(x) for x in pass_dispositions.values())):
         offending.append("pass_dispositions: must be an object of string values or null")
@@ -980,13 +1043,6 @@ def _validate_issue_claim_audit(data, *, checkout_root, dispatch_id, issue_numbe
             v = data.get(key)
             if not isinstance(v, list) or v:
                 offending.append(f"{key}: must be an empty array when outcome is proceed")
-        record_path = data.get("record_path")
-        if not _is_str(record_path):
-            offending.append("record_path: must be a non-null path when outcome is proceed")
-        elif run_scratch_contained and path_contained.get("record_path"):
-            text = _read_secondary(record_path, "record_path", offending)
-            if text is not None and not text.strip():
-                offending.append("record_path: the record file is empty when outcome is proceed")
 
     return not offending, {"offending": offending, "projection": _audit_projection(data)}
 
@@ -1039,7 +1095,8 @@ def main(argv=None):
               file=sys.stderr)
         return 3
     try:
-        data = json.loads(raw)
+        data = json.loads(raw, object_pairs_hook=_pairs_keeping_duplicates
+                          if args.schema == "issue-claim-audit" else None)
     except json.JSONDecodeError as exc:
         print(f"validate-review-fix-handoff: the handoff is not valid JSON: {exc}", file=sys.stderr)
         return 3
@@ -1072,10 +1129,8 @@ def main(argv=None):
             data, checkout_root=args.checkout_root,
             dispatch_id=args.dispatch_id, issue_number=args.issue_number)
     if conforming:
-        # The intake and issue-claim-audit schemas print one compact JSON line of carry-forward
-        # fields on exit 0; the other two print nothing on success (issue #700).
-        if args.schema in ("intake", "issue-claim-audit"):
-            print(json.dumps(result["projection"], separators=(",", ":")))
+        # Every schema prints one line on exit 0, so silence always means a refusal (issue #1699).
+        print(json.dumps(result["projection"], separators=(",", ":")))
         return 0
     print("validate-review-fix-handoff: the worker handoff is unusable — "
           + "; ".join(result["offending"]), file=sys.stderr)

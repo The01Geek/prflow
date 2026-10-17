@@ -8,13 +8,13 @@ Follow a PRFlow request through seven stages, from issue preparation to human me
 ```mermaid
 flowchart TD
     accTitle: Seven stages in the PRFlow lifecycle
-    accDescr: An issue starts a PRFlow run. PRFlow prepares a branch and workpad, clears its setup gates, implements the change, runs the repository's checks and opens a draft pull request. It then runs a cleanup pass over the change, reviews it, applies fixes and updates documentation. A person reviews and merges the finished pull request.
+    accDescr: An issue starts a PRFlow run. PRFlow prepares a branch and workpad, clears its setup gates, implements the change, runs a cleanup pass over it, runs the repository's checks and opens a draft pull request. It then reviews the change, applies fixes and updates documentation. A person reviews and merges the finished pull request.
     issue["1. Issue<br/>Define the change"] --> run["2. Run<br/>Load guidance, start or resume"]
 
     subgraph prflow["PRFlow prepares the change"]
         run --> branch["3. Branch and setup gates<br/>Record progress, check dependencies and claims"]
-        branch --> draft["4. Implement and verify<br/>Run the checks, then open the draft pull request"]
-        draft --> review["5. Cleanup, review and fix<br/>Route findings, apply authorized fixes"]
+        branch --> draft["4. Implement and verify<br/>Clean up, run the checks, then open the draft pull request"]
+        draft --> review["5. Review and fix<br/>Route findings, apply authorized fixes"]
         review --> docs["6. Documentation<br/>Explain the finished change"]
     end
 
@@ -25,7 +25,7 @@ flowchart TD
   <Step title="Issue">
     The GitHub issue is the contract for the change. PRFlow reads its description and its acceptance criteria.
 
-    The optional [spec workflow](/docs/workflows/spec) clarifies unresolved decisions and waits for explicit approval before it creates the issue.
+    The optional [spec workflow](/docs/workflows/spec) clarifies unresolved decisions and presents the draft. Interactive runs wait for explicit approval; [non-interactive filing](/docs/workflows/spec#non-interactive-filing) has separate conditions.
   </Step>
 
   <Step title="Run">
@@ -55,15 +55,15 @@ flowchart TD
 
     For an issue classified as a bug report, reproduction is a hard gate. PRFlow captures a reproduction signal, such as a failing test or an error log, **before** it plans the fix. If it cannot reproduce the defect, the run stops as `Blocked` and records why. It does not proceed on an unreproduced bug.
 
-    PRFlow then runs the repository's own checks in the run environment, commits and pushes the work and opens a draft pull request that closes the issue. The checks run before the draft pull request is opened, not after it. See [How PRFlow Verifies a Change](/docs/concepts/verification).
+    Once the change is written, PRFlow runs a **cleanup pass** over the branch's changes. Its charter is quality only: reuse, simplification, efficiency and altitude. It does not hunt for bugs and it never owns correctness. Before a cleanup edit deletes, merges or rewords text, PRFlow reads that text and any text the finding says covers it, and makes the edit only when every outcome of that text that an acceptance criterion, a scope decision of the run, a plan step serving one or a remaining rule still needs survives it. A finding applies only on lines the change touched, unless the change made that line wrong, and never against an acceptance criterion or scope decision. A finding it cannot confirm stays unapplied and is recorded on the workpad.
+
+    PRFlow then runs the repository's own checks in the run environment, so they cover the cleanup's edits too, commits and pushes the work and opens a draft pull request that closes the issue. The checks run before the draft pull request is opened, not after it. See [How PRFlow Verifies a Change](/docs/concepts/verification).
 
     The pull request stays a draft while the remaining review and documentation work happens.
   </Step>
 
-  <Step title="Cleanup, Review and Fix">
-    First PRFlow runs a **cleanup pass** over the code the change added or modified. Its charter is quality only: reuse, simplification, efficiency and altitude. It does not hunt for bugs and it never owns correctness. Every finding it produces is checked against the issue's acceptance criteria before it is applied, so a cleanup cannot quietly undo something the issue required.
-
-    Then the review-and-fix loop runs. The review engine builds a verification checklist, checks it against evidence and dispatches specialized reviewers. Findings can trigger corrections and another review iteration. See [The Review System](/docs/concepts/review-system).
+  <Step title="Review and Fix">
+    The review-and-fix loop runs. The review engine builds a verification checklist, checks it against evidence and dispatches specialized reviewers. Findings can trigger corrections and another review iteration. See [The Review System](/docs/concepts/review-system).
 
     Before the run can finish, every in-scope acceptance criterion must be verified, or explicitly routed to a follow-up issue or to post-merge verification.
 

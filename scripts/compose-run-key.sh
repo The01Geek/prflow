@@ -7,11 +7,10 @@
 # derived in agent prose from a leading `VAR=` shell assignment carrying a command
 # substitution — a shape the cloud command matcher refuses before it runs, printing
 # nothing, so the agent held no computed key and scoped its scratch under a guess. This
-# helper is the SINGLE place the scratch run key is composed; its consumers
-# (skills/review-and-fix/references/loop-control.md, skills/review/phases/phase-0-setup.md)
-# observe THIS helper's stdout instead of composing their own, so there is nothing left
-# for the agent to invent. The progress-comment marker keeps its own derivation in
-# scripts/seed-review-progress.sh; this helper owns only the scratch run key.
+# helper is the SINGLE place the scratch run key is composed; its callers observe THIS
+# helper's stdout instead of composing their own, so there is nothing left for the agent
+# to invent. A local review seeds its progress-comment marker from this key; a
+# cloud seed derives its own in scripts/seed-review-progress.sh.
 #
 # CONTRACT — one line on stdout:
 #   <GITHUB_RUN_ID>-<GITHUB_RUN_ATTEMPT>   exit 0, when GITHUB_RUN_ID has a non-whitespace

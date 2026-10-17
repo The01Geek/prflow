@@ -14,7 +14,7 @@ A fresh installation answers four commands. Each one works on one surface only.
 | `/prflow:implement 123` | A comment on the issue itself. | An authorized collaborator or an allowed bot. | Creates a branch and opens a pull request for that issue. |
 | `/prflow:review` | A comment on the pull request's **Conversation** tab. | An authorized collaborator or an allowed bot. | Reviews the pull request and reports a verdict. It changes no code. |
 | `/prflow:review-and-fix` | A comment on the pull request's **Conversation** tab. | An authorized collaborator or an allowed bot. | Reviews the pull request, applies fixes and pushes them to its branch. |
-| `/prflow:pr-description` | A comment on the pull request's **Conversation** tab. | An authorized collaborator or an allowed bot. | Writes or updates the pull-request description. |
+| `/prflow:pr-description` | A comment on the pull request's **Conversation** tab. | An authorized collaborator or an allowed bot. | Starts on the default branch, so it does not update the pull-request description yet. |
 
 ### Implement an Issue
 
@@ -46,7 +46,7 @@ Add one of these as a comment on the pull request's **Conversation** tab:
 /prflow:pr-description
 ```
 
-`/prflow:review` and `/prflow:review-and-fix` post a single progress comment that PRFlow rewrites as it works; the finished comment holds the full report, which opens with the verdict. `/prflow:review-and-fix` also pushes its fixes to the pull-request branch. `/prflow:pr-description` updates the description in place and keeps content a person added.
+`/prflow:review` and `/prflow:review-and-fix` post a single progress comment that PRFlow rewrites as it works; the finished comment holds the full report, which opens with the verdict. `/prflow:review-and-fix` also pushes its fixes to the pull-request branch. `/prflow:pr-description` runs on the default branch, not the pull request's branch, so it does not update the description; run it locally on that branch instead.
 
 <Warning>
   The shipped workflows listen to issue comments only. Text typed into GitHub's review-submission box, or into an inline comment on a diff, does not start a run. Post on the **Conversation** tab.
@@ -97,7 +97,7 @@ An authorized command receives a best-effort 🚀 reaction. An unauthorized or u
     The oldest visible active run proceeds. The duplicate posts a notice and starts no second agent job. The check fails open on a query error, so a rare duplicate can get past it. Such a duplicate, or an automatic stall-recovery resume, then waits in a per-issue queue: the agent job runs for only one run per issue at a time, and the next waiting job starts only after the current one finishes. Nothing in the queue cancels a running agent job.
   </Accordion>
   <Accordion title="Overlapping Review Requests Are Deduplicated per Commit">
-    A second `/prflow:review` for the same pull-request head is suppressed while a fresh progress comment shows a review in flight. A request after the head changes proceeds for the new commit. That progress comment is the only in-flight signal, and it does not appear until the agent job begins, so a request in that short window is not deduplicated and a rare duplicate review is possible.
+    A second `/prflow:review` for the same pull-request head is suppressed while a fresh progress comment shows a review in flight. A request after the head changes proceeds for the new commit. That progress comment is the only in-flight signal, and it does not appear until the agent job begins, so a request in that short window is not deduplicated and a rare duplicate review is possible. The review request PRFlow posts when CI passes is never suppressed by that progress comment, so it runs even alongside a review the comment shows in flight.
   </Accordion>
   <Accordion title="The Other Two Commands Are Not Deduplicated">
     Only `/prflow:review` is deduplicated. `/prflow:review-and-fix` and `/prflow:pr-description` are not, so overlapping requests each start a run. Wait for one to finish before you post another.

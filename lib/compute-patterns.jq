@@ -232,10 +232,13 @@ def entry_of($entries; $dismissed; $cost_by_pr; $cat; $rec):
 # type-guarded so a hand-edited or agent-authored record — a non-object row, a non-number
 # `pr`, a non-array `efficiency_runs`, a non-number `iterations` — is skipped rather than
 # aborting the whole weekly derivation. A record with no numeric iterations yields no map
-# entry, so its PR reads as uncovered (never a cost of 0).
+# entry, so its PR reads as uncovered (never a cost of 0). Only fix-loop runs with a
+# positive count are samples: a review run (`source: "review"`) always counts one, and a
+# zero counts no iteration the run itself ran.
 | ([ $experiments[]? | objects
      | (.pr | numbers) as $pr
-     | ([ (((.efficiency_runs // []) | arrays) // [])[] | objects | (.iterations | numbers) ]) as $iters
+     | ([ (((.efficiency_runs // []) | arrays) // [])[] | objects | select(.source != "review")
+          | (.iterations | numbers | select(. > 0)) ]) as $iters
      | select(($iters | length) > 0)
      | {key: ($pr | tostring), value: (($iters | add) / ($iters | length))} ]
    | from_entries ) as $cost_by_pr

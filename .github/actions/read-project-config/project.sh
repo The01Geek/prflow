@@ -7,8 +7,8 @@
 # config keys in bracket notation and match superseded top-level families by shape.
 set -euo pipefail
 case "${CONFIG_COMMAND:-}" in
-  command) REQUIRED_FAMILIES="prflow prflow_version" ;;
-  implement) REQUIRED_FAMILIES="prflow prflow_implement prflow_version" ;;
+  command) REQUIRED_FAMILIES="prflow prflow_version"; TOOLS_FAMILY=prflow ;;
+  implement) REQUIRED_FAMILIES="prflow prflow_implement prflow_version"; TOOLS_FAMILY=prflow_implement ;;
   *) echo "::error::read-project-config command must be command or implement"; exit 1 ;;
 esac
 ENABLED=$(echo "$CONFIG_JSON" | jq -r '.workflows.prflow // false')
@@ -47,6 +47,11 @@ if [ "$ENABLED" = "true" ]; then
     exit 1
   fi
 fi
+# allowed_tools keeps only non-empty strings with no LF/CR; anything else is skipped with this warning.
+ALLOWED_TOOLS_WARNING=$(echo "$CONFIG_JSON" | jq -r --arg fam "$TOOLS_FAMILY" '.[$fam] as $f | ($f | type) as $ft | if $f == null then empty elif $ft != "object" then "\($fam) in .prflow/config.json has JSON type \($ft), not object; no extra tool is granted from \($fam).allowed_tools" else $f.allowed_tools as $v | ($v | type) as $vt | if $v == null then empty elif $vt != "array" then "\($fam).allowed_tools in .prflow/config.json has JSON type \($vt), not array; no extra tool is granted from it" else [range($v | length) as $i | $v[$i] | select(type != "string" or . == "" or test("[\n\r]")) | "\($i) (\(type))"] | if length > 0 then "\($fam).allowed_tools in .prflow/config.json: skipped index \(join(", ")) (each entry must be a non-empty single-line string); the other entries are still granted" else empty end end end')
+if [ -n "$ALLOWED_TOOLS_WARNING" ]; then
+  echo "::warning::$ALLOWED_TOOLS_WARNING"
+fi
 {
   echo "enabled=$ENABLED"
   echo "base_branch=$(echo "$CONFIG_JSON" | jq -r '.base_branch')"
@@ -59,9 +64,9 @@ fi
     echo "effort=$(echo "$CONFIG_JSON" | jq -r '.prflow.effort // "high"')"
   fi
   if [ "$CONFIG_COMMAND" = "implement" ]; then
-    echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r --arg ws "$GITHUB_WORKSPACE" '.prflow_implement.allowed_tools // [] | (if $ws == "" then . else map(if type == "string" then sub("^Bash\\(/home/runner/work/[^/]+/[^/]+/"; "Bash(" + $ws + "/") else . end) end) | if length > 0 then "," + join(",") else "" end')"
+    echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r --arg ws "$GITHUB_WORKSPACE" '[.prflow_implement | objects | .allowed_tools | arrays[] | strings | select(. != "" and (test("[\n\r]") | not))] | (if $ws == "" then . else map(sub("^Bash\\(/home/runner/work/[^/]+/[^/]+/"; "Bash(" + $ws + "/")) end) | if length > 0 then "," + join(",") else "" end')"
   else
-    echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_tools // [] | if length > 0 then "," + join(",") else "" end')"
+    echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r '[.prflow | objects | .allowed_tools | arrays[] | strings | select(. != "" and (test("[\n\r]") | not))] | if length > 0 then "," + join(",") else "" end')"
   fi
   echo "prflow_version=$(echo "$CONFIG_JSON" | jq -r '.prflow_version // empty')"
   echo "prflow_repo=$(echo "$CONFIG_JSON" | jq -r 'try (.prflow_repo | strings | select(. != "")) catch empty')"
