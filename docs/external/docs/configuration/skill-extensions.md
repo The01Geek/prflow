@@ -48,13 +48,13 @@ Every PRFlow command reads its own file. These are the commands documented on th
 | [`/prflow:retrospective-weekly`](/docs/workflows/retrospective-weekly) | `.prflow/skill-extensions/retrospective-weekly.md` |
 | [`/prflow:init`](/docs/getting-started/initialization) | `.prflow/skill-extensions/init.md` |
 
-`/prflow:review-and-fix` reads two files because its fix loop applies the code-review reception rules without running that command, so a rule you write once in `fix.md` reaches every fix pass. It also passes `review-and-fix.md` to the reviewer that checks each fix iteration's changes; that reviewer sometimes runs without it — for example when the pull request changes the file, or when the file sits behind a symbolic link.
+`/prflow:review-and-fix` reads two files because its fix loop applies the code-review reception rules without running that command, so a rule you write once in `fix.md` reaches every fix pass. When the loop loaded `review-and-fix.md` with content and a fingerprint, the reviewer that checks each fix iteration's changes loads the file itself and applies it only when it loads a copy matching the loop's; otherwise it reports that check as not verified. Without that load the reviewer gets no extension, for example when the file is empty or [cannot be read](#when-the-file-cannot-be-read), or when your vendored PRFlow is too old to report the fingerprint, which the loop notes in its reflections.
 
 <Note>
   The `fix` extension was renamed from an earlier name in a recent release. If you customized the extension under its previous name, it keeps applying across the upgrade: when `fix.md` is absent the loader reads your old file and prints a breadcrumb naming the exact file to rename to `fix.md`. Running [`/prflow:init`](/docs/getting-started/initialization) (and re-running the installer, which runs the same scaffolder) renames the file to `fix.md` for you. On a cloud run the base-branch materialization still finds the old file and warns. Renaming it yourself, or letting `init` do it, ends the transitional read-through. The [release notes](/release-notes) name the previous file.
 </Note>
 
-The focused documentation commands read their own files under the same rule: `docs-sync-internal.md`, `docs-sync-external.md`, `docs-release-notes.md`, `docs-verify.md`, `docs-bootstrap-internal.md` and `docs-bootstrap-external.md`. The final-pass reviewer inside the review engine reads `requesting-code-review.md`.
+The focused documentation commands read their own files under the same rule: `docs-sync-internal.md`, `docs-sync-external.md`, `docs-release-notes.md`, `docs-verify.md`, `docs-bootstrap-internal.md` and `docs-bootstrap-external.md`. The review engine reads `requesting-code-review.md` for its final-pass reviewer.
 
 ## How the Text Reaches the Run
 
@@ -96,12 +96,12 @@ For a cloud run, also grant the command you named. Installing a tool or naming i
 }
 ```
 
-Expected result on the next `/prflow:implement` run: the run reports that the extension loaded, uses `make verify` as its verification command, opens the pull request with a "Rollback" section and refuses to edit a shipped migration, proposing a new migration file instead. See [Tool Permissions](/docs/configuration/tool-permissions) for the grant format.
+Expected result on the next `/prflow:implement` run: the workpad's `Skill extension resolved` line shows the extension loaded (see [Check That It Was Applied](#check-that-it-was-applied)), the run uses `make verify` as its verification command, opens the pull request with a "Rollback" section and refuses to edit a shipped migration, proposing a new migration file instead. See [Tool Permissions](/docs/configuration/tool-permissions) for the grant format.
 
 <Accordion title="Two headings the spec extension treats specially">
   `/prflow:spec` reads two headings in `.prflow/skill-extensions/spec.md` by name, in addition to using the whole file as instructions.
 
-  A section headed exactly `## Audit dimensions` is passed to the pass that audits the draft issue, added to its standard checklist. Use it to teach the auditor the assumptions your issues must respect.
+  A section headed exactly `## Audit dimensions` is passed to the audit round you can choose to run on the draft issue, added to its standard checklist. Use it to teach the auditor the assumptions your issues must respect. A run with no audit round has no step that runs that checklist; the file as a whole still applies as instructions.
 
   A section headed exactly `## Evidence axes` is passed to the pass that gathers evidence before the draft is written. Use it to name the kinds of evidence a draft must cover for your repository.
 
@@ -113,10 +113,10 @@ Expected result on the next `/prflow:implement` run: the run reports that the ex
 Do not assume the extension was used. Confirm it:
 
 1. Run the command.
-2. Read the command's own output. It reports the extension's resolved status: content was loaded, the file was absent or empty, or the status could not be established.
-3. For `/prflow:implement`, open the workpad comment on the issue. Its progress list carries a `Skill extension resolved` line for each extension the run loaded. The run cannot report itself complete while such a line is unresolved and unexplained.
+2. For `/prflow:review`, `/prflow:review-and-fix`, `/prflow:pr-description` and `/prflow:fix`, read the command's output: it names the extension's resolved status — content was loaded, the file was absent or empty, or the status could not be established. Other commands do not report the status themselves when the extension loads or its file is absent or empty; `/prflow:implement` records it in its workpad (step 3). For what a failed load reports, see [When the File Cannot Be Read](#when-the-file-cannot-be-read).
+3. For `/prflow:implement`, open the workpad comment on the issue. Its progress list carries a `Skill extension resolved` line for the `implement`, `review-and-fix` and `fix` extensions. The run cannot report itself complete while such a line is unresolved and unexplained. The `review` extension, and each reviewer's extension, is loaded by the review itself and has no line: when the review reports that one of them failed to load, was refused or could not be established, the run records that in the workpad's reflections; if that write fails, no workpad or pull request records the failed load.
 
-On a cloud run — whether `/prflow:implement` or a `/prflow:review` command — the workflow also checks arrival on its own, separately from what the run says about itself. If the repository has an extension whose text never reached the run, the job fails with an error rather than finishing quietly. On the local tier and on a run with no workpad, the same check is made from the command's own reported status: a run that cannot establish that the extension arrived records that fact in a durable place (the workpad, the pull-request description, or the command's own output) rather than passing silently.
+On a cloud run the workflow also checks some extensions on its own, separately from what the run says about itself: `implement` for `/prflow:implement`, and for `/prflow:review`, `/prflow:review-and-fix` or `/prflow:pr-description` that command's extension plus `requesting-code-review` (for `/prflow:review`) or `fix` (for `/prflow:review-and-fix`). A review command's job fails with an error when one of those files is present but cannot be delivered; an implement job fails when the run finishes Complete, or successfully with no workpad, and the `implement` extension's arrival cannot be established. Everything else, on either tier, rests on the command's own reported status: a run that cannot establish that an extension arrived records that fact in a durable place (the workpad, the pull-request description, or the command's own output) rather than passing silently — except a failed `review` or reviewer extension load in an implement run, which reaches the workpad only when its reflection write lands (step 3).
 
 ## When the File Cannot Be Read
 

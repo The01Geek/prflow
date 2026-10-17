@@ -72,7 +72,7 @@ Any single pass from a language model is variable. PRFlow is built around not tr
     PRFlow builds a checklist of the specific claims a change makes and checks them against the code. A check that fails, or that cannot be settled, blocks a clean approval.
   </Card>
   <Card title="A review of the review" icon="eye">
-    Before an approval stands, a separate pass re-examines the change without the first review's conclusions, looking for what it missed.
+    A shadow pass re-examines the change with prior findings withheld from its prompts. Its separate write directory reduces accidental discovery; it does not isolate reads.
   </Card>
   <Card title="It improves itself" icon="arrows-rotate">
     A weekly retrospective reads PRFlow's own track record and proposes the smallest change that would prevent a repeating mistake. A person approves or rejects each one.

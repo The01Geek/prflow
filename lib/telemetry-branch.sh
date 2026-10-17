@@ -309,7 +309,12 @@ devflow_telemetry_show_blob() {
 }
 
 # ── The write ────────────────────────────────────────────────────────────────
-# devflow_telemetry_persist_tree <root> <staging_root>
+# devflow_telemetry_persist_tree <root> <staging_root> [<guard_fn>]
+#
+# <guard_fn>, when given, names a function the push-retry loop calls as
+# `<guard_fn> <root> <fetched-remote-tip>` before re-parenting onto a remote that
+# advanced; a non-zero return refuses the write (return 6 below). A caller whose
+# paths must not be union-merged over a concurrent change passes one.
 #
 # Persist every regular file under <staging_root> onto the telemetry branch at
 # its <staging_root>-relative path (the paths ARE `.prflow/logs/…` — the caller
@@ -336,13 +341,15 @@ devflow_telemetry_show_blob() {
 # staged / no staging root); 1 = a DEGRADED arm that produced a staging root
 # (non-conforming store, branch checked out in a worktree, unwritable temp index,
 # object-store/commit-build failure, CAS exhausted, or a push/re-parent failure);
-# 2 = STAGING-ONLY (CI without an affirmative DEVFLOW_TELEMETRY_PUSH — AC5). It
-# NEVER aborts its caller on any arm (best-effort); the return VALUE reports the
-# outcome so do_persist retains the staged records on 1/2 and deletes only on 0.
+# 2 = STAGING-ONLY (CI without an affirmative DEVFLOW_TELEMETRY_PUSH — AC5);
+# 6 = <guard_fn> refused the advanced remote tip. On 6 the local ref is rolled back
+# to its pre-write tip, or a ::warning:: names the failed rollback.
+# It NEVER aborts its caller on any arm (best-effort); the return VALUE reports the
+# outcome so do_persist retains the staged records on any non-zero and deletes only on 0.
 # The temp index is uniquely named with bash builtins (not mktemp, which the cloud
 # sandbox blocks — AC9) and removed on every exit path via the subshell's EXIT trap.
 devflow_telemetry_persist_tree() {
-  local root="$1" staging_root="$2"
+  local root="$1" staging_root="$2" guard_fn="${3:-}"
   [ -n "$root" ] && [ -n "$staging_root" ] || return 0
   # An ABSENT staging root is not the same as an EMPTY one: the caller creates it
   # with `mkdir -p … || true`, so "it does not exist" means that mkdir was DENIED
@@ -377,7 +384,7 @@ devflow_telemetry_persist_tree() {
   local staged_rel=()
   _devflow_telemetry_walk() {
     local d="$1" e
-    for e in "$d"/* "$d"/.[!.]*; do
+    for e in "$d"/* "$d"/.[!.]* "$d"/..?*; do
       [ -e "$e" ] || continue
       if [ -d "$e" ]; then
         _devflow_telemetry_walk "$e"
@@ -540,8 +547,9 @@ devflow_telemetry_persist_tree() {
     #     only change is the add-if-absent `harness_cost`: re-apply THAT merge onto the
     #     fetched base-side version so a concurrent base-side change is preserved (AC5a).
     # For the pre-#475 append-only case this is behavior-identical (a shared path is
-    # byte-equal, so base-wins == the old local-wins). Marker migrations add one more
-    # constraint: a staged legacy blob may not overwrite a normalized remote blob.
+    # byte-equal, so base-wins == the old local-wins). Two more constraints: a staged legacy
+    # run record may not overwrite a normalized remote one, and a staged iter copy without
+    # telemetry figures keeps the figures of the remote copy.
     # Echoes the new commit sha, `NOOP`
     # when the union tree equals the remote tip's tree, or empty on failure.
     commit_union_on() {  # $1 = remote tip (parent), $2 = local tip to overlay
@@ -573,6 +581,20 @@ devflow_telemetry_persist_tree() {
           rc=$?
           case "$rc" in (0) printf 'yes\n' ;; (1) printf 'no\n' ;; (*) return 2 ;; esac
         }
+        carry_iter_telemetry() { # $1=local sha $2=remote sha; prints keep-base, the merged iter, or nothing
+          local l r
+          l="$(git -C "$root" cat-file blob "$1" 2>/dev/null)" || return 2
+          r="$(git -C "$root" cat-file blob "$2" 2>/dev/null)" || return 2
+          # Both blobs reach jq on stdin as JSON strings: an argv operand has a size limit.
+          { printf '%s' "$l" | "$jq_bin" -R -s . && printf '%s' "$r" | "$jq_bin" -R -s .; } 2>/dev/null \
+            | "$jq_bin" -n -r -c '
+            (input | try fromjson catch null) as $l | (input | try fromjson catch null) as $b
+            | if ($l | type) != "object" and ($b | type) == "object" then "keep-base"
+              elif ($l | type) == "object" and ($b | type) == "object"
+                 and ($l.telemetry == null or $l.telemetry == "unavailable")
+                 and $b.telemetry != null and $b.telemetry != $l.telemetry
+              then $l + {telemetry: $b.telemetry} else empty end' 2>/dev/null || return 2
+        }
         # One row per path whose base and overlay blob or mode differ, as
         # :BASE_MODE OVERLAY_MODE BASE_SHA OVERLAY_SHA STATUS, a tab, then the path.
         # Do not add a pass over paths absent from this listing: read-tree already placed
@@ -588,13 +610,13 @@ devflow_telemetry_persist_tree() {
             (A) remote_sha="" ;;
           esac
           # Was this path STAGED by THIS run? Only staged paths overwrite the base side.
-          # staged_rel (the conforming set) is in the scope of the enclosing function. The set
-          # is small (a run stages a few files), so a linear membership test is fine — and
-          # it stays a bash builtin (no non-preflight PATH tool decides this selection).
+          # staged_rel is every regular file under staging_root whose path is under
+          # .prflow/logs/, so a builtin file test answers membership in constant time and the
+          # union stays linear however many files a discovery pass stages.
           _u_staged=0
-          for _u_s in ${staged_rel[@]+"${staged_rel[@]}"}; do
-            [ "$_u_s" = "$path" ] && { _u_staged=1; break; }
-          done
+          case "$path" in
+            (.prflow/logs/*) [ -f "${staging_root}/${path}" ] && _u_staged=1 ;;
+          esac
            if [ "$_u_staged" -eq 0 ]; then
             # Not staged this run: base-wins. If base already has it, read-tree already
             # placed it, so do nothing. If base LACKS it, add the local copy (offline-
@@ -607,12 +629,19 @@ devflow_telemetry_persist_tree() {
            if [ -n "$remote_sha" ]; then
              local_selected=no; remote_selected=no
              case "$path" in
-               (.prflow/logs/review/*/iter-*.json)
-                 local_selected="$(classify_migration_blob "$sha" 'type == "object" and ((has("telemetry") | not) or .telemetry == null)')" || exit 2
-                 remote_selected="$(classify_migration_blob "$remote_sha" 'type == "object" and ((has("telemetry") | not) or .telemetry == null)')" || exit 2 ;;
                (.prflow/logs/efficiency/*.json)
                  local_selected="$(classify_migration_blob "$sha" 'type == "object" and (.telemetry | type) == "array" and all(.telemetry[]; type == "object") and any(.telemetry[]; has("phases") and .phases == null)')" || exit 2
                  remote_selected="$(classify_migration_blob "$remote_sha" 'type == "object" and (.telemetry | type) == "array" and all(.telemetry[]; type == "object") and any(.telemetry[]; has("phases") and .phases == null)')" || exit 2 ;;
+               (.prflow/logs/review/*/iter-*.json)
+                 # A staged iter copy lands, but one without telemetry figures keeps the
+                 # remote copy figures or marker, and a malformed one never replaces a remote object.
+                 _u_iter="$(carry_iter_telemetry "$sha" "$remote_sha")" || exit 2
+                 [ "$_u_iter" = keep-base ] && continue
+                 if [ -n "$_u_iter" ]; then
+                   _u_blob="$(printf '%s\n' "$_u_iter" | git -C "$root" hash-object -w --stdin 2>/dev/null)" || exit 1
+                   git -C "$root" update-index --add --cacheinfo "${mode},${_u_blob},${path}" 2>/dev/null || exit 1
+                   continue
+                 fi ;;
              esac
              [ "$local_selected" = yes ] && [ "$remote_selected" != yes ] && continue
            fi
@@ -810,7 +839,22 @@ devflow_telemetry_persist_tree() {
       esac
     fi
 
-    local ptry push_err remote_tip local_cur
+    # Undo this run's local advance before a guard refusal (6): left on the local ref, the
+    # refused commit would be union-published by a later --persist. Sets
+    # rolled_back to the refusal breadcrumb's clause.
+    rollback_local_ref() {  # $1 = what was refused, for the breadcrumb
+      rolled_back="the local ref was rolled back to its pre-write tip"
+      if [ -n "${old:-}" ]; then
+        upd_err="$(git -C "$root" update-ref "$ref" "$old" "$committed" 2>&1)" && return 0
+        echo "::warning::telemetry-branch: $1 refused, but could not roll the local ref '${branch}' back to its pre-write tip (git update-ref failed: ${upd_err}) — the staged records are retained, but the local ref may still carry the refused commit; a later --persist could republish it" >&2
+      else
+        upd_err="$(git -C "$root" update-ref -d "$ref" "$committed" 2>&1)" && return 0
+        echo "::warning::telemetry-branch: $1 refused, but could not delete the freshly-created local ref '${branch}' (git update-ref -d failed: ${upd_err}) — the staged records are retained, but the local ref may still carry the refused commit; a later --persist could republish it" >&2
+      fi
+      rolled_back="the local ref was NOT rolled back (see the warning above)"
+    }
+
+    local ptry push_err remote_tip local_cur rolled_back
     for ((ptry = 0; ptry < _DEVFLOW_TELEMETRY_PUSH_TRIES; ptry++)); do
       # LC_ALL=C: the rejection classification below reads git's message, so pin
       # the locale (a translated "fetch first" would skip the retry loop entirely).
@@ -819,37 +863,6 @@ devflow_telemetry_persist_tree() {
       fi
       case "$push_err" in
         *"fetch first"*|*"non-fast-forward"*|*"[rejected]"*|*"Updates were rejected"*)
-          # STRICT-NO-UNION gate (issue #520): a same-run correction is a NARROW
-          # replace-one-record write, not an append. Union-merging it onto a
-          # concurrently-advanced remote tip would silently reconcile a correction
-          # against a durable state that changed under it — a concurrent incompatible
-          # durable update. Refuse instead: exit 5 so the caller reports
-          # `lost concurrent-update` and RETAINS the staged evidence. Exit 5 (not the
-          # ordinary degraded 1) so a correction can distinguish this from a write
-          # fault; the ordinary --persist path never sets this gate, so its rc contract
-          # (0/1/2) is unchanged.
-          if [ -n "${_DEVFLOW_TELEMETRY_STRICT_NO_UNION:-}" ]; then
-            # Roll the LOCAL ref back to its pre-correction tip before refusing
-            # (issue #520 durability): this function CAS-advanced the local ref to
-            # `$new` at the top of the CAS loop, BEFORE this push loop. Leaving the
-            # corrected commit on the local ref would let a later ordinary --persist
-            # (no strict gate) union-publish it onto the concurrently-advanced remote,
-            # deferring rather than refusing the reconciliation this gate exists to
-            # prevent — so the refusal would not actually "retain that history". Undo
-            # the local advance so the durable local ref matches its pre-correction
-            # state; the staged records remain the sole recovery copy. `old` is the
-            # pre-advance tip (empty when this run created the ref) and `committed`
-            # (== `$new`) is the expected-current for the compare-and-swap back.
-            if [ -n "${old:-}" ]; then
-              git -C "$root" update-ref "$ref" "$old" "$committed" 2>/dev/null \
-                || echo "::warning::telemetry-branch: strict (no-union) correction refused, but could not roll the local ref '${branch}' back to its pre-correction tip (git update-ref failed) — the staged records are retained, but the local ref may still carry the un-pushed correction; a later --persist could republish it" >&2
-            else
-              git -C "$root" update-ref -d "$ref" "$committed" 2>/dev/null \
-                || echo "::warning::telemetry-branch: strict (no-union) correction refused, but could not delete the freshly-created local ref '${branch}' (git update-ref -d failed) — the staged records are retained, but the local ref may still carry the un-pushed correction; a later --persist could republish it" >&2
-            fi
-            echo "::warning::telemetry-branch: '${branch}' advanced concurrently while a strict (no-union) correction was in flight — refusing to union-merge a correction onto the changed tip (concurrent incompatible durable update); the local ref was rolled back to its pre-correction tip and the staged records are retained for recovery$(_devflow_telemetry_retention_note)" >&2
-            exit 5
-          fi
           # The remote advanced (another writer, or the branch was created
           # remotely first). Fetch its tip, re-parent the UNION of the remote tip
           # and our whole local tip on it (preserving offline-accumulated local
@@ -880,6 +893,11 @@ devflow_telemetry_persist_tree() {
             echo "::warning::telemetry-branch: the remote '${branch}' is not a DevFlow telemetry store — refusing to re-parent onto or push over it; telemetry retained on the local ref only (rename it or set telemetry.branch to a different name)$(_devflow_telemetry_retention_note)" >&2
             exit 1
           fi
+          if [ -n "$guard_fn" ] && ! "$guard_fn" "$root" "$remote_tip"; then
+            rollback_local_ref "a guarded write"
+            echo "::warning::telemetry-branch: '${branch}' advanced concurrently and the caller's guard refused the new tip — nothing pushed; ${rolled_back}" >&2
+            exit 6
+          fi
           local_cur="$(git -C "$root" rev-parse --verify --quiet "$ref" 2>/dev/null || true)"
           new="$(commit_union_on "$remote_tip" "$local_cur")" || new=""
           if [ -z "$new" ]; then
@@ -902,6 +920,7 @@ devflow_telemetry_persist_tree() {
             echo "::warning::telemetry-branch: could not advance the local ref for '${branch}' onto the re-parented commit (git update-ref failed: ${upd_err}) — a held ref .lock, a read-only .git, or a full disk; '${branch}' not pushed this run, telemetry retained on the local ref$(_devflow_telemetry_retention_note)" >&2
             exit 1
           fi
+          committed="$new"   # the local ref's current value, rollback_local_ref's CAS operand
           ;;
         *)
           # Non-rejection failure: no remote reachable, auth denied, read-only

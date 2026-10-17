@@ -8,13 +8,12 @@
 # every meta-issue entry in overrides.json stores a bare GitHub number. A number
 # is only meaningful beside the repository it was issued in: once PRFlow
 # development moves to a second repository, that repository's #7 and the previous
-# one's #7 are different work. This helper owns the three answers that keeps
-# them apart:
+# one's #7 are different work. This helper owns the answers that keep them
+# apart:
 #
-#   devflow_resolve_repo             the repository the current run acts on
-#   devflow_record_repo              a record's OWN repository (strict)
-#   devflow_apply_legacy_record_repo the one-time compatibility rule
-#   devflow_pr_key                   the canonical "<owner>/<name>#<number>" key
+#   devflow_resolve_repo        the repository the current run acts on
+#   devflow_legacy_record_repo  the repository pre-qualification records belong to
+#   devflow_pr_key              the canonical "<owner>/<name>#<number>" key
 #
 # The canonical record shape is the `repo` field beside the existing bare number,
 # with `pr_key` as the derived comparison key. Numbers are kept for compatibility;
@@ -100,38 +99,6 @@ devflow_resolve_repo() {
         return 1
     fi
     printf '%s\n' "$v"
-}
-
-# devflow_record_repo <stored-repo> — print a record's OWN repository.
-#
-# STRICT by design: a record that names no repository is UNESTABLISHED, and this
-# function refuses rather than substituting the current repository. Binding a
-# repo-less record to whichever repository happens to be current is exactly the
-# cross-repository collision this shape exists to prevent. The one permitted
-# substitution is devflow_apply_legacy_record_repo below, which callers reach
-# deliberately.
-devflow_record_repo() {
-    local v="${1:-}"
-    [ "$v" = "null" ] && v=""
-    if ! devflow_repo_slug_ok "$v"; then
-        echo "::error::repo-identity: this record names no usable repository (got '${v}') — refusing to bind it to the current repository; run scripts/migrate-record-repo.py to stamp the legacy corpus" >&2
-        return 1
-    fi
-    printf '%s\n' "$v"
-}
-
-# devflow_apply_legacy_record_repo <stored-repo> — the ONE-TIME compatibility rule.
-#
-# Prints <stored-repo> when the record names one, else the legacy record repository
-# from lib/repo-identity.json. This is the ONLY sanctioned way a repo-less record
-# acquires a repository, and it never consults the current repository.
-devflow_apply_legacy_record_repo() {
-    local v="${1:-}"
-    [ "$v" = "null" ] && v=""
-    if devflow_repo_slug_ok "$v"; then
-        printf '%s\n' "$v"; return 0
-    fi
-    devflow_legacy_record_repo
 }
 
 # devflow_pr_key <repo> <number> — the canonical comparison key.

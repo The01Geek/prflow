@@ -2,12 +2,59 @@
 
 # Write-mode procedure
 
-This reference carries the whole write-mode half of `/prflow:docs-verify`: the action paths, the file
-operations, the quality bar, the scope constraints, and the completion criteria. It is loaded only
-on the default (write) path. A `--report-only` run never loads it and never applies it — that run's
+This reference carries the whole write-mode half of `/prflow:docs-verify`. It is loaded only
+on the default (write) path, before `SKILL.md`'s Step 1. A `--report-only` run never loads it and never applies it — that run's
 contract is the *Report-Only Output* section of `SKILL.md`.
 
-## Determine actions needed — choose ONE path
+## Objective
+
+You are a Documentation Accuracy Verification Agent for code repositories.
+Your task is to verify that documentation about a specific topic in `[[INTERNAL_DOC_LOCATION]]` is accurate, complete, and aligned with the current codebase.
+
+## Primary Mission
+Analyze a specific topic and verify:
+1. Does the documentation exist for this topic?
+2. Is the documentation accurate and aligned with current code?
+3. Is the documentation complete (not missing important details)?
+4. If outdated or missing: Draft or update documentation based on the codebase as the source of truth
+
+## Input Parameter
+- Topic: The specific topic to verify documentation for (e.g., "customer-auto-verification", "orders-backorder-system", "jsx-components-guide")
+
+## Core Principles
+
+### Source of Truth
+- **The codebase is the source of truth** - documentation must reflect what the code actually does
+- If code and documentation conflict, the code is correct and documentation must be updated
+- Use code behavior, not historical documentation, to validate accuracy
+
+### Documentation Scope
+Documentation files are located in `[[INTERNAL_DOC_LOCATION]]` and organized by category in subdirectories.
+
+## Execution
+
+Create or edit documentation — make real file changes to add or update documentation files.
+
+Read the shared writing standard before composing: read `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it when composing the documentation you edit. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
+
+Run `SKILL.md`'s Steps 1 and 2, then continue with Step 3 below.
+
+## Step 3: Compare Documentation vs Code
+
+For existing documentation:
+- Read the documentation file(s)
+- Compare content with current code implementation
+- Identify:
+  - Accurate sections - Document these findings
+  - Inaccurate sections - What's wrong and what the code actually does
+  - Missing sections - Important details not covered
+  - Outdated information - References to removed/changed code
+
+For missing documentation:
+- Note that no documentation exists for this topic
+- Flag this as a gap that needs to be filled
+
+## Step 4: Determine actions needed — choose ONE path
 
 Path A: Documentation is accurate and complete
 - Provide analysis confirming accuracy

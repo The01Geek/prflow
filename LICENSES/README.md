@@ -53,4 +53,4 @@ Copyright © 2025 Jesse Vincent. Licensed under the MIT License.
 |---|---|---|---|
 | `skills/fix/SKILL.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |
 | `skills/requesting-code-review/SKILL.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |
-| `skills/requesting-code-review/code-reviewer.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |
+| `agents/requesting-code-review.md` | [`superpowers`](https://github.com/obra/superpowers) | [`superpowers-LICENSE`](superpowers-LICENSE) | `superpowers 6.3.0` |

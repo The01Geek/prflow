@@ -11,10 +11,13 @@ implement runs to render, one row each — total duration, per-phase share, doll
 terminal status and review verdict — followed by an aggregate block holding the mean and
 median of duration and cost.
 
-`--retro` is the weekly-retrospective view: the trailing-four-week mean duration and cost,
-plus one regression line for each week whose mean duration exceeds the preceding
-four-week mean by more than REGRESSION_THRESHOLD_PCT. A week with fewer than four
-preceding weeks of data yields no line — it cannot exceed a mean that does not exist.
+`--retro` is the weekly-retrospective view: the mean duration and cost over the four ISO
+weeks ending this week, plus one regression line for each week whose mean duration
+exceeds the mean of the four calendar weeks before it by more than
+REGRESSION_THRESHOLD_PCT. A week whose four preceding calendar weeks do not all hold an
+established duration yields no line — it cannot exceed a mean that does not exist. A window holding no figure
+says when the last one was recorded rather than averaging older weeks as if they were
+current.
 
 Every aggregate excludes an unestablished operand rather than reading it as zero.
 """
@@ -30,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from context_eval_shared import UNESTABLISHED
 from implement_records import (
+    ABSENT_STORE,
     fmt,
     load_runs_with_status,
     max_or_unestablished,
@@ -48,15 +52,53 @@ REGRESSION_THRESHOLD_PCT = 25
 TRAILING_WEEKS = 4
 
 
-def _iso_week(merged_at):
+def _merged(merged_at):
+    """The merge moment, UTC-aware; a date-only or offset-less value reads as UTC, so
+    every moment compares with every other."""
     if not isinstance(merged_at, str) or not merged_at:
         return None
     try:
         moment = dt.datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=dt.timezone.utc)
+
+
+def _week_of(moment):
     year, week, _day = moment.isocalendar()
     return f"{year}-W{week:02d}"
+
+
+def _iso_week(merged_at):
+    moment = _merged(merged_at)
+    return _week_of(moment) if moment else None
+
+
+def _weeks_ending(moment):
+    """The TRAILING_WEEKS ISO weeks ending with `moment`'s week, oldest first."""
+    return [_week_of(moment - dt.timedelta(weeks=back))
+            for back in range(TRAILING_WEEKS - 1, -1, -1)]
+
+
+def _weeks_before(week):
+    """The TRAILING_WEEKS calendar weeks before ISO week `week` ("YYYY-Www"), oldest first."""
+    year, number = week.split("-W")
+    monday = dt.date.fromisocalendar(int(year), int(number), 1)
+    return _weeks_ending(monday - dt.timedelta(weeks=1))
+
+
+def _window_mean_line(name, weekly_values, runs, key, render):
+    """The trailing-window mean of `name`. When the window holds no figure but an older
+    run does, name the date of the last one instead: averaging the last weeks that hold
+    data would present a stale figure as current."""
+    label = f"Trailing {TRAILING_WEEKS}-week mean {name}"
+    mean = mean_or_unestablished(weekly_values)
+    if mean == UNESTABLISHED:
+        dated = [_merged(r["merged_at"]) for r in runs if r[key] is not None]
+        dated = [moment for moment in dated if moment]
+        if dated:
+            return f"{label}: no {name} data since {max(dated).date().isoformat()}"
+    return f"{label}: {render(mean)}"
 
 
 def _top_phases(run, limit=3):
@@ -79,7 +121,7 @@ def render_runs(runs, n, status="read"):
                 "same as holding no runs — resolve it before reading anything as a "
                 "measurement.")
     if status == "absent":
-        return "No experiment-record store yet — no implement run has been persisted."
+        return ABSENT_STORE
     if status.startswith("read:"):
         lines.append(f"NOTE: {status.split(':', 1)[1]} store line(s) could not be parsed "
                      f"and are excluded from every figure below.")
@@ -136,21 +178,20 @@ def weekly_means(runs):
 
 
 def regressions(weeks):
-    """One entry per week whose mean duration exceeds the preceding four-week mean by
-    more than the threshold. A week without a full preceding window is skipped: with no
-    comparand there is nothing for it to exceed, and reporting one would be an assertion
-    about data that does not exist."""
-    ordered = list(weeks)
+    """One entry per week whose mean duration exceeds the mean of the four calendar weeks
+    before it by more than the threshold. A week whose four preceding calendar weeks do
+    not all hold an established duration is skipped: with no full comparand there is
+    nothing for it to exceed, and the last weeks that do hold one may be months old."""
     found = []
-    for idx, week in enumerate(ordered):
-        if idx < TRAILING_WEEKS:
-            continue
+    for week in weeks:
         this = weeks[week]["duration"]
         if this == UNESTABLISHED:
             continue
-        window = [weeks[w]["duration"] for w in ordered[idx - TRAILING_WEEKS:idx]]
-        baseline = mean_or_unestablished(window)
-        if baseline == UNESTABLISHED or baseline <= 0:
+        preceding = _weeks_before(week)
+        if any(w not in weeks or weeks[w]["duration"] == UNESTABLISHED for w in preceding):
+            continue
+        baseline = mean_or_unestablished([weeks[w]["duration"] for w in preceding])
+        if baseline <= 0:
             continue
         delta_pct = (this - baseline) / baseline * 100
         if delta_pct > REGRESSION_THRESHOLD_PCT:
@@ -159,14 +200,14 @@ def regressions(weeks):
     return found
 
 
-def render_retro(runs, status="read"):
+def render_retro(runs, status="read", now=None):
     lines = ["## Implement runtime trends", ""]
     if status == "unreadable":
         lines.append("_(the experiment-record store exists but could not be read — this is "
                      "not the same as holding no runs)_")
         return "\n".join(lines)
     if status == "absent":
-        lines.append("_(no implement run records yet)_")
+        lines.append(f"_({ABSENT_STORE})_")
         return "\n".join(lines)
     if status.startswith("read:"):
         lines.append(f"_({status.split(':', 1)[1]} store line(s) unparseable and excluded)_")
@@ -175,14 +216,11 @@ def render_retro(runs, status="read"):
         lines.append("_(no implement run records yet)_")
         return "\n".join(lines)
     weeks = weekly_means(runs)
-    ordered = list(weeks)
-    trailing = ordered[-TRAILING_WEEKS:]
-    window_durations = [weeks[w]["duration"] for w in trailing]
-    window_costs = [weeks[w]["cost"] for w in trailing]
-    mean_ms = mean_or_unestablished(window_durations)
-    lines.append(f"Trailing {len(trailing)}-week mean duration: {seconds(mean_ms)}")
-    lines.append(f"Trailing {len(trailing)}-week mean cost: "
-                 f"{fmt(mean_or_unestablished(window_costs))}")
+    trailing = [w for w in _weeks_ending(now or dt.datetime.now(dt.timezone.utc)) if w in weeks]
+    lines.append(_window_mean_line("duration", [weeks[w]["duration"] for w in trailing],
+                                   runs, "duration_ms", seconds))
+    lines.append(_window_mean_line("cost", [weeks[w]["cost"] for w in trailing],
+                                   runs, "cost_usd", fmt))
     # issue #120: cloud context cost over the trailing window — median AND max, so the tail
     # is visible, on the same footing as duration/cost above. Computed over the RUNS whose
     # ISO week falls in the trailing window, not over weekly means. `unestablished` (never
@@ -192,13 +230,13 @@ def render_retro(runs, status="read"):
     window_runs = [r for r in runs if _iso_week(r["merged_at"]) in trailing_set]
     window_peaks = [r["peak_main_thread_context"] for r in window_runs]
     window_phase_reads = [r["phase_file_reads_total"] for r in window_runs]
-    lines.append(f"Trailing {len(trailing)}-week median peak main-thread context: "
+    lines.append(f"Trailing {TRAILING_WEEKS}-week median peak main-thread context: "
                  f"{median_or_unestablished(window_peaks)}")
-    lines.append(f"Trailing {len(trailing)}-week max peak main-thread context: "
+    lines.append(f"Trailing {TRAILING_WEEKS}-week max peak main-thread context: "
                  f"{max_or_unestablished(window_peaks)}")
-    lines.append(f"Trailing {len(trailing)}-week median total phase-file reads: "
+    lines.append(f"Trailing {TRAILING_WEEKS}-week median total phase-file reads: "
                  f"{median_or_unestablished(window_phase_reads)}")
-    lines.append(f"Trailing {len(trailing)}-week max total phase-file reads: "
+    lines.append(f"Trailing {TRAILING_WEEKS}-week max total phase-file reads: "
                  f"{max_or_unestablished(window_phase_reads)}")
     lines.append("")
     found = regressions(weeks)
@@ -246,10 +284,7 @@ def main(argv=None):
     runs, status = load_runs_with_status(args.records)
     print(render_retro(runs, status) if args.retro
           else render_runs(runs, args.count, status))
-    # Only an UNREADABLE store is a failure. An absent one is the normal state of a
-    # repository that has persisted no run, and the retrospective gates its append on this
-    # status — returning non-zero there would make every fresh install report a broken tool.
-    return 1 if status == "unreadable" else 0
+    return 1 if status in ("unreadable", "absent") else 0
 
 
 if __name__ == "__main__":

@@ -19,16 +19,10 @@ It updates an existing pull request body and never edits branch files. When no p
 
     The issue number is optional. When you supply one, PRFlow adds `Resolves #123` and reads that issue for context.
 
-    On the cloud tier, comment on the pull request's Conversation tab with the bare command:
-
-    ```text
-    /prflow:pr-description
-    ```
-
-    This is one of the four commands a cloud install answers from a GitHub comment. A comment-triggered run describes the pull request it was posted on, so it takes no number.
+    A cloud install also answers a bare `/prflow:pr-description` comment on the pull request, but that run starts on the default branch, not the pull request's branch, so it does not update the body. Run the command locally on the branch instead.
   </Step>
   <Step title="Check the result">
-    If the branch already has a pull request, its body is updated in place. If it does not, the full description is printed for you to paste when you open one.
+    If the branch already has a pull request, its body is updated in place. If it does not, the full description is printed for you to paste when you open one. If PRFlow cannot tell whether the branch has a pull request, for example because `gh` is not signed in or HEAD is detached, it reports why and leaves the pull request body unchanged.
   </Step>
 </Steps>
 
@@ -71,10 +65,10 @@ Your own content survives:
 
 A scope-acknowledged finding is a real review finding the team decided not to fix in this pull request. It appears in the `## Deferred Findings` section as a table: the severity, the file, a one-line summary and the follow-up issue that now owns it.
 
-This is a disclosure, not a dismissal. It exists so a reviewer reading the pull request can see what was consciously left undone, and so a later [review](/docs/workflows/review) recognizes the finding instead of raising it again as new.
+This is a disclosure, not a dismissal. It exists so a reviewer reading the pull request can see what was consciously left undone, and so a later [review](/docs/workflows/review) can show which current finding each deferral covers. A deferral never lowers a finding's weight.
 
 <Warning>
-  A deferral holds only while its follow-up issue is open and linked to the finding in both directions. Close that issue, unlink it or delete the disclosure and the deferral stops applying — the next review raises the finding again and it blocks as it originally would have. A deferral parks a finding. It does not resolve it.
+  A deferral holds only while its follow-up issue is open and linked to the finding in both directions. Close or unlink that issue and the next review reports the deferral as not applied; delete the disclosure and the review no longer lists it. A deferral records a finding. It does not resolve it.
 </Warning>
 
 One kind of deferral has no follow-up issue: a finding settled by disclosure, where writing the caveat down *is* the deliverable. Those rows cite the document that carries the disclosure instead of an issue number, and a later review re-checks that the document still says it.
@@ -83,7 +77,7 @@ One kind of deferral has no follow-up issue: a finding settled by disclosure, wh
   Because a settled-by-disclosure entry has no follow-up issue, the pull request body is its only durable record. PRFlow therefore never wipes an existing Deferred Findings block when it regenerates a body — it merges rather than overwrites.
 </Note>
 
-A finding the run's own documentation pass discharges produces no row at all. When the issue's `**Documentation Needed**` list already names the file a finding was raised against, that run is already due to edit the file, so PRFlow files no follow-up issue and writes no Deferred Findings row or hidden payload entry for it — and removes one an earlier pass wrote. Every row you read in that table is work genuinely left undone.
+A finding the run's own documentation pass discharges produces no row at all. When the issue's `**Documentation Needed**` list already names the file a finding was raised against as a file to edit, that run is already due to edit the file, so PRFlow files no follow-up issue and writes no Deferred Findings row or hidden payload entry for it — and removes one an earlier pass wrote. Every row you read in that table is work genuinely left undone.
 
 ## When There Is No Pull Request
 

@@ -29,11 +29,11 @@ workflows. A few areas warrant care:
   out of it — it holds only non-secret environment configuration (project/board
   IDs, model names). Store credentials as encrypted GitHub Actions secrets, never
   in `config.json`.
-- **In a repository where PRFlow is installed, the `.prflow/learnings/` corpus is committed, not gitignored.** The
+- **In a repository where PRFlow is installed, the retrospective's learnings store is published on the telemetry branch.** The
   retrospective loop's records (`retrospectives.jsonl`, `experiment-records.jsonl`,
-  `overrides.json`) are tracked — re-included by the `!/.prflow/learnings/`
-  negation in `.gitignore` past the `/.prflow/*` ignore rule — and published to
-  the repository through a weekly state PR. Because they are committed, keep
+  `overrides.json`) and its weekly reports are pushed to `.prflow/logs/learnings/`
+  on the telemetry branch (default `prflow-telemetry`), readable by anyone who can
+  read the repository; the `.prflow/learnings/` working copy is gitignored. Keep
   host-local and owner-identifying data — operator home-directory paths, account
   names, machine layout — out of them. The corpus is meant to record the bot's
   unsanitized friction (CI-runner paths and repo-relative paths included), so
@@ -41,9 +41,11 @@ workflows. A few areas warrant care:
   `~` on the merge write path as a backstop; do not rely on it to catch secrets.
 - **Skills run shell commands.** PRFlow's skills execute `git`, `gh`, `jq`, and
   bundled Python helpers. Review the skills you install, as you would any plugin.
-- **The retrospective loop opens PRs/issues** on the configured repository. It
-  never auto-merges and never auto-edits the repo; each recurring pattern is filed
-  as an issue for human triage, and the weekly state PR awaits human review.
+- **The retrospective loop opens issues and pushes the telemetry branch** on the
+  configured repository: its steps save the learnings store to the telemetry branch and
+  file each recurring pattern as an issue for human triage. The one-time learnings
+  migration (`/prflow:init`, `install.sh --apply`) only stages a removal from the
+  default branch for a human to commit.
 
 ## Supported versions
 

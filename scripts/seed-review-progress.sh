@@ -144,6 +144,12 @@ RUN_ID_NONSPACE="${RUN_ID//[[:space:]]/}"
 if [ -n "$RUN_ID_NONSPACE" ]; then
   RUN_ATTEMPT="${GITHUB_RUN_ATTEMPT:-1}"
   MARKER="<!-- prflow:review-progress run=${RUN_ID}-${RUN_ATTEMPT} -->"
+else
+  case "$MARKER" in
+    '<!-- prflow:review-progress run='*'-shadow -->')
+      MARKER="${MARKER%-shadow -->} -->"
+      ;;
+  esac
 fi
 
 # The workpad.py this helper drives lives beside it in scripts/. S2 screens THIS path.

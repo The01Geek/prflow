@@ -50,9 +50,11 @@ release preparation still aborts with the same exit 2 as a real run rather than 
 successful preview.
 
 Fail-closed contract: a malformed changeset (no frontmatter, missing/invalid ``bump``, an
-unknown ``type``, or an empty prose body) aborts with exit 2 and a diagnostic naming the
-offending file. Everything is **validated before any file is modified** — all changesets are
-parsed *and* every output file (``plugin.json``, ``CHANGELOG.md``, plus ``CITATION.cff`` and
+unknown ``type``, an empty prose body, a body whose first non-blank line does not start with
+``- ``, or a body with no parenthesized ``(#N)`` or ``(#N, #M)`` citation, not counting one
+directly after ``]``) aborts with exit 2 and a diagnostic naming the offending file.
+Everything is **validated before any file is modified** — all changesets are parsed *and*
+every output file (``plugin.json``, ``CHANGELOG.md``, plus ``CITATION.cff`` and
 ``.claude-plugin/marketplace.json`` when present) is read and its new
 contents assembled in memory *before* the first write, so a malformed changeset or an
 output-side read/parse fault never causes a silent skip or a partial bump — it aborts before
@@ -101,6 +103,9 @@ _TYPE_BY_LOWER = {t.lower(): t for t in CANONICAL_TYPES}
 DEFAULT_TYPE = "Changed"
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+# Dropping the lookbehind accepts a body cited only as the markdown link "[x](#N)"; widening
+# the pattern to match "([#N](url))" accepts one cited only as that link.
+CITATION_RE = re.compile(r"(?<!\])\(#[0-9]+(?:,\s*#[0-9]+)*\)")
 
 
 class ChangesetError(Exception):
@@ -202,6 +207,20 @@ def _parse_changeset(path: str) -> Changeset:
         raise ChangesetError(
             f"{path}: empty prose body — a changeset must describe the change "
             "(one or more '-' bullets, issue- or PR-cited)"
+        )
+    # Test the body's own first non-blank line, not `prose`: strip() would hide an indented
+    # first bullet.
+    first_line = next(line for line in body.split("\n") if line.strip())
+    if not first_line.startswith("- "):
+        raise ChangesetError(
+            f"{path}: prose body does not open with a '- ' bullet — a changeset must "
+            "describe the change as one or more '-' bullets, issue- or PR-cited"
+        )
+    if not CITATION_RE.search(prose):
+        raise ChangesetError(
+            f"{path}: prose body carries no parenthesized issue or PR citation — cite the "
+            "number as '(#N)', or as '(#N, #M)' for several; one directly after ']', as in a "
+            "markdown link '[x](#N)', is not counted"
         )
 
     # customer-visible marker (issue #66): the key is REQUIRED and accepts exactly the two

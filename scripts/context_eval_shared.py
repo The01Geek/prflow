@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 """Shared transcript-walking helpers for the three context-cost instruments.
 
-scripts/spec_eval.py, scripts/implement-context-eval.py and
+tools/spec-eval/spec_eval.py, scripts/implement-context-eval.py and
 scripts/review-context-eval.py each measure the runtime main-thread context a run
 accumulates by walking a Claude Code transcript directory. This module is the single
 definition of the helpers they share, extracted (issue #1900) so a fix lands once.
@@ -62,6 +62,7 @@ REFERENCE_PHASE_FILES = {
     "phase-2-2-6-ac-plan-reconciliation.md": "phase2",
     "phase-2-5-workflow-edit-guard.md": "phase2",
     "phase-3-3-review-fix.md": "phase3",
+    "phase-3-3-review-fix-return.md": "phase3",
     "post-merge-tagging.md": "phase3",
 }
 PHASE_READ_LABELS = tuple(sorted(set(PHASE_FILES.values())))

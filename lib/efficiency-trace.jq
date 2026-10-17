@@ -4,22 +4,19 @@
 # This is the mechanical heart of the telemetry feature: it reads the
 # `iter-<N>.json` workpads (already on disk under .prflow/tmp/review/<slug>/<run-id>/),
 # assigns each dispatched Phase-3 subagent exactly one of four effectiveness
-# verdicts, and emits EITHER a rendered Markdown trace ($mode == "trace") OR a
-# single per-run JSON record ($mode == "record"). No LLM, no side effects —
+# verdicts, and emits a single per-run JSON record. No LLM, no side effects —
 # matching how the weekly retrospective does all mechanical work in lib/.
 #
 # Invocation (via lib/efficiency-trace.sh, which validates inputs first):
-#   jq --raw-output --slurp -f lib/efficiency-trace.jq \
-#      --arg mode {trace|record} --arg slug <slug> \
+#   jq --slurp -f lib/efficiency-trace.jq \
+#      --arg slug <slug> \
 #      --arg generated_at <iso8601> --argjson cut_candidate_min_dispatch <int> \
+#      --argjson config_fingerprint <object|null> --argjson return_files <object> \
 #      iter-1.json iter-2.json ...
-#   (--raw-output is load-bearing for trace mode: it renders the Markdown string
-#   instead of emitting it JSON-quoted with literal \n.)
 #
 # Inputs:
 #   stdin: array of per-iteration workpad objects (pass -s to slurp the
 #          separate iter-*.json files into one array). May be empty.
-#   $mode: "trace" → Markdown string; "record" → the JSON record object.
 #   $slug: the run slug (pr-<N> or sanitized branch name).
 #   $generated_at: ISO-8601 UTC timestamp for the record.
 #   $cut_candidate_min_dispatch: carried into the record for the cross-run
@@ -68,7 +65,7 @@
 # (run-level `source == "review"`), where there is no `fix_decision`: a finding's
 # `contributed_to_verdict` boolean replaces applied-fix as the effectiveness
 # signal — `noise` = the agent raised findings but none satisfied
-# `contributed_to_verdict == true` (deferral-demoted via explicit `false`, an omitted
+# `contributed_to_verdict == true` (demoted via explicit `false`, an omitted
 # field, OR a malformed value such as a stringified `"true"` — the strict `== true`
 # gate treats all three as non-contributing),
 # `null` = dispatched but raised nothing. Buckets and precedence are identical;
@@ -126,35 +123,6 @@ def agent_disposition($returned; $roster_established; $failed_established; $is_f
   else "silent"
   end;
 
-# Human-readable Phase 0.5 diff-profile label for the trace.
-def diff_profile_label($dp):
-  if $dp == null then "not recorded"
-  else
-    ([ (if ($dp.small_diff // false)            then "small_diff"            else empty end),
-       (if ($dp.config_only // false)           then "config_only"           else empty end),
-       (if ($dp.has_new_types // false)         then "has_new_types"         else empty end) ]) as $flags
-    | if ($flags | length) == 0 then "full engine (no flags)" else ($flags | join(" + ")) end
-  end;
-
-# Verification-posture line: makes the orchestrator's cost decision legible so a
-# low verifier count reads as a deliberate cheap-path choice, not "nothing ran".
-def posture_line($it):
-  $it.checklist_lite_count as $l | $it.checklist_agent_count as $a
-  | ($it.checklist_reused_count // 0) as $r
-  | if   $it.verification_posture == "skipped-intentional" then
-      "- Checklist: skipped by Phase 0.5 (\(diff_profile_label($it.diff_profile))) — verifier subagents intentionally not dispatched for a low-risk diff."
-    elif $it.verification_posture == "skipped-failure" then
-      "- Checklist: generation failed — proceeded with review agents only."
-    elif $it.verification_posture == "reused-only" then
-      "- Checklist verifiers: 0 lite, 0 agent, \($r) reused — every checklist item carried a PASS forward from a prior iteration; no verifier dispatched (cost-saving, by design)."
-    elif $it.verification_posture == "none-recorded" then
-      "- Checklist verifiers: none recorded for this iteration."
-    elif $it.verification_posture == "lite-only" then
-      "- Checklist verifiers: \($l) lite (orchestrator-direct), 0 agent — verifiable items resolved without dispatching verifier subagents (cost-saving, by design)."
-    else
-      "- Checklist verifiers: \($l) lite, \($a) agent." + (if $r > 0 then " (\($r) reused from a prior iteration)" else "" end)
-    end;
-
 # Classify one agent's findings (an array of phase3_findings rows for that
 # agent in one iteration) into a single verdict.
 #
@@ -172,7 +140,7 @@ def posture_line($it):
 # `$review_mode` is the run-level discriminator (`source == "review"`), NOT the
 # per-finding field shape. Keying on the run-level source — not on
 # `any(has("contributed_to_verdict"))` — is deliberate: a review-mode agent whose
-# only finding was deferral-demoted may carry `contributed_to_verdict: false` *or*
+# only finding was demoted to Informational may carry `contributed_to_verdict: false` *or*
 # omit it entirely, and a per-finding-presence test would mis-route that whole
 # agent into the fix-loop branch and silently downgrade a real-but-demoted finding
 # from `noise` to `null`. With the run-level key, review-mode `noise` is reached
@@ -206,7 +174,7 @@ def verdict_for($findings; $review_mode):
   end;
 
 # Dispatch corroboration state (issue #115), the mirror of do_self_check's
-# per-entry cross-check for the trace and the durable record. One of exactly
+# per-entry cross-check for the durable record. One of exactly
 # seven values, complete by construction: not-checked (entry outside the
 # population, or a shadow entry not checked), refused / fallback (a recorded
 # dispatch_disposition — refused stays refused, dead/malformed become fallback),
@@ -230,7 +198,10 @@ def iter_view:
   | (($it.phase3_findings) // []) as $findings
   | (($it.phase3_dispatched) // []) as $dispatched
   | (($it.checklist) // []) as $checklist
-  | (($it.convergence_inputs.fixes_applied) // 0) as $fixes_applied
+  | (if ($it.fix_decisions | type) != "array" then "unestablished"
+     elif any($it.fix_decisions[]; type != "object") then "unestablished"
+     else [$it.fix_decisions[] | select(.decision == "applied")] | length
+     end) as $fixes_applied
   | (($it.diff_profile) // null) as $diff_profile
   | ([$checklist[] | select(.verification_mode == "lite")]  | length) as $lite_count
   # An agent-mode item is a dispatched verification only when it did NOT carry a
@@ -300,19 +271,6 @@ def iter_view:
   # enumerated, so the iteration is roster-unestablished (AC3) — reused from the
   # existing phase3_dispatched_present idiom below.
   | ($it | has("phase3_dispatched")) as $roster_established
-  # dispatched_effort (issue #609): the iter-workpad field capturing every
-  # dispatch phase's roster with its per-agent effort decision — including the
-  # Phase-1/1.5/2 checklist agents that never appear in phase3_dispatched.
-  # Type-guarded: a non-array field (absent/null/scalar alike), or a
-  # non-object/agent-less entry, yields no usable entries (the filter never
-  # aborts on a malformed producer value).
-  | (if ($it.dispatched_effort | type) == "array"
-     then [$it.dispatched_effort[] | select(type == "object" and ((.agent) | type) == "string")]
-     else [] end) as $de
-  # The effort roster is the FULL dispatched set (phase3_dispatched ∪ the
-  # dispatched_effort agents), never the resolver map: an agent with no entry
-  # still gets an all-null session-inheritance block below.
-  | (($dispatched + ($de | map(.agent))) | unique) as $effort_roster
   # Defect-kind recurrence inputs (issue #1903). Only object findings are read:
   # `defect_signature_present` is whether ANY finding in this iteration carries
   # the `defect_signature` key at all — the run-level "unestablished" trigger
@@ -339,38 +297,13 @@ def iter_view:
       diff_profile: $diff_profile,
       verification_posture: $verification_posture,
       fixes_applied: $fixes_applied,
-      added_nothing: ($fixes_applied == 0),
+      added_nothing: (if $fixes_applied == "unestablished" then "unestablished"
+                      else $fixes_applied == 0 end),
       # The roster is "present" iff the field exists at all. A legitimately-empty
       # roster ("phase3_dispatched": []) is still present — only a genuinely
-      # absent field triggers the degradation warning in the trace. Reuses the
-      # $roster_established binding above (the same has() test) rather than
-      # re-evaluating it.
+      # absent field reads false. Reuses the $roster_established binding above
+      # (the same has() test) rather than re-evaluating it.
       phase3_dispatched_present: $roster_established,
-      # Presence mirror for the #609 roster field, same unknown-vs-zero honesty
-      # as phase3_dispatched_present: an empty array is present; only a
-      # genuinely absent field reads false (an older workpad).
-      dispatched_effort_present: ($it | has("dispatched_effort")),
-      # Per-agent effort observability (issue #609): agent id + exactly the five
-      # effort fields, complete by construction. An agent with no
-      # dispatched_effort entry records the all-null session-inheritance block —
-      # the degradation mirror of build_effort_observability's no-override arm
-      # in scripts/resolve-review-overrides.py (a coupled pair, edit together);
-      # `effective` is carried verbatim (null unless genuinely read back —
-      # unknown is not zero). With multiple entries for one agent the last wins.
-      agent_effort: [
-        $effort_roster[] as $agent
-        | ([$de[] | select(.agent == $agent)] | last) as $entry
-        | {
-            agent: $agent,
-            requested: $entry.requested,
-            resolved: $entry.resolved,
-            application_point:
-              (if $entry == null then "session-inheritance"
-               else $entry.application_point end),
-            effective: $entry.effective,
-            fallback_reason: $entry.fallback_reason
-          }
-      ],
       # Per-agent effectiveness view. Keep the `strings` type-guard on
       # `fix_decisions`: an agent-mutable non-string `fix_decision` would otherwise
       # reach `unique` and abort the whole filter.
@@ -409,7 +342,7 @@ def iter_view:
       synthesized: (($it.synthesized) == true),
       # The killed attempt's run id when the loop's continuation restored this record
       # (issue #893), else null. A restored iteration was already recorded — and its
-      # cost already summed — under that attempt's own run id, so the record-mode
+      # cost already summed — under that attempt's own run id, so the record's
       # `iterations` count and `telemetry` cost below exclude it; `per_iteration` keeps
       # it, annotated, so the resumed loop's full history stays legible. Presence of the
       # key is the exclusion — a present but malformed value reads "unestablished", never
@@ -447,7 +380,7 @@ def iter_view:
         | (($return_files[$ikey]) // {}) as $rf
         # Guard shadow to an object-or-null: `objects` emits EMPTY (not null) on a
         # non-object, and an empty-valued field collapses the whole record to
-        # nothing — so a shadowless iter would vanish from the trace and record.
+        # nothing — so a shadowless iter would vanish from the record.
         | (($it.shadow) | if type == "object" then . else null end) as $sh
         | ((($it.source) != "review") and (($it.synthesized) != true)) as $base_checked
         | ($base_checked and (($it.loop_role) != "promoted")) as $step1_checked
@@ -521,13 +454,11 @@ def iter_view:
        | sort_by(.kind) )
    end) as $recurring_defect_kinds
 
-# ── record mode: the single per-run JSON record ─────────────────────────────
+# ── The single per-run JSON record ──────────────────────────────────────────
 # With zero readable iterations (catastrophic early failure) emit nothing, not a
-# contentless skeleton — symmetric with the flag-off contract and the trace
-# mode's "unavailable" degradation, so the caller's `[ -s ]` guard removes the
-# 0-byte file and no empty record is committed.
-| if $mode == "record" then
-    if ($iters | length) == 0 then empty else
+# contentless skeleton — symmetric with the flag-off contract, so no empty
+# record is committed.
+| if ($iters | length) == 0 then empty else
     {
       # schema_version stays 1 across the issue #431 config_fingerprint addition:
       # the field is additive and OPTIONAL (nullable), no consumer gates on the
@@ -577,17 +508,12 @@ def iter_view:
         phase3_dispatched_count: .phase3_dispatched_count,
         # Carried into the durable record so the cross-run analyzer can tell a
         # genuinely zero-dispatch iteration from one degraded by an absent roster
-        # (both show count 0) — the chat-only trace warning does not survive teardown.
+        # (both show count 0).
         phase3_dispatched_present: .phase3_dispatched_present,
         # Issue #1849: whether the failed-set operand was established this
         # iteration, carried into the durable record so a reader can tell a
         # decomposed disposition from an unestablished (historical/malformed) one.
         phase3_failed_agents_present: .phase3_failed_agents_present,
-        # Issue #609: the per-agent effort observability block and its roster
-        # field's presence flag, carried into the durable record (additive and
-        # nullable — schema_version stays 1, mirroring config_fingerprint).
-        dispatched_effort_present: .dispatched_effort_present,
-        agent_effort: .agent_effort,
         # Phase 0.5 diff classification + the orchestrator's verification posture,
         # so the analyzer never penalizes an agent for being correctly silent on
         # an out-of-domain diff and can see when subagents were intentionally skipped.
@@ -614,56 +540,3 @@ def iter_view:
       telemetry: ([$iters[] | select(.restored_from == null)] | map({iter: .iter, phases: .telemetry}))
     }
     end
-
-# ── trace mode: the rendered Markdown effectiveness trace ───────────────────
-  elif $mode == "trace" then
-    (
-      ["## Subagent effectiveness trace", ""]
-      + (
-          if ($iters | length) == 0 then
-            ["_No iteration workpads were readable — effectiveness trace unavailable._"]
-          else
-            ($iters | map(
-              # Review mode (source == "review") never applies fixes — effectiveness is
-              # verdict contribution, not applied fixes. So the fixes-oriented summary and
-              # the "added nothing" warning are review-mode-adapted; otherwise a healthy
-              # review (agents contributed) would print a contradictory "0 fixes — added
-              # nothing" line right below its unique-effective verdicts.
-              (.source == "review") as $review_mode
-              | ([.agent_verdicts[] | select(.verdict == "unique-effective" or .verdict == "corroborating")] | length) as $contributed
-              | [ "### Iteration \(.iter)",
-                  "- Diff profile: \(diff_profile_label(.diff_profile))",
-                  "- Phase 3 agents dispatched: \(.phase3_dispatched_count)",
-                  posture_line(.),
-                  (if $review_mode
-                   then "- Effectiveness signal: verdict contribution (standalone review applies no fixes) — \($contributed) of \(.agent_verdicts | length) agent(s) contributed"
-                   else "- Fixes applied: \(.fixes_applied)" end),
-                  # Per-entry engine dispatch mode + corroboration (issue #115).
-                  "- Dispatch: step1 \(.dispatch.step1.dispatch_mode // "null")/\(.dispatch.step1.dispatch_corroboration), shadow \(.dispatch.shadow.dispatch_mode // "null")/\(.dispatch.shadow.dispatch_corroboration)"
-                ]
-              + (if .restored_from != null then ["- Restored from run \(.restored_from) (issue #893): counted and costed under that run's record"] else [] end)
-              + (.agent_verdicts | map("  - \(.agent) — \(.verdict)") | (if length == 0 then ["- Agent verdicts: (none dispatched)"] else ["- Agent verdicts:"] + . end))
-              + (if $review_mode
-                 then (if ($contributed == 0 and (.agent_verdicts | length) > 0) then ["- ⚠ Marginal yield: no dispatched agent contributed to the verdict this run."] else [] end)
-                 else (if .added_nothing then ["- ⚠ Marginal yield: this iteration applied 0 fixes — added nothing."] else [] end) end)
-              + (if (.phase3_dispatched_present | not) then ["- ⚠ `phase3_dispatched` absent — null agents (dispatched but silent) cannot be shown for this iteration."] else [] end)
-              + [""]
-            ) | add)
-          end
-        )
-      # Recurring defect kinds (issue #1903): a kind seen across 3+ iterations is
-      # the signal to model the artifact rather than extend an enumeration.
-      + (if $recurring_defect_kinds == "unestablished" then
-           ["### Recurring defect kinds", "- _Unestablished — no iteration record carried a defect_signature to read._", ""]
-         elif ($recurring_defect_kinds | length) == 0 then
-           []
-         else
-           ["### Recurring defect kinds (3+ iterations — model the artifact, do not extend an enumeration)"]
-           + ($recurring_defect_kinds | map("- \(.kind) - iterations \(.iterations | map(tostring) | join(", "))"))
-           + [""]
-         end)
-    ) | join("\n")
-
-  else
-    error("efficiency-trace.jq: unknown $mode '\($mode)' (expected 'trace' or 'record')")
-  end

@@ -60,7 +60,7 @@ Only two things clear it:
 - Correct the untrue line so it matches the code.
 - Correct the code so the line becomes true.
 
-One case is graded normally instead: **inert prose**, a code comment or internal-documentation line that no tool or agent reads to decide behavior and nobody outside the repository reads. An untrue line of it, whether a cosmetic slip or a false claim, is capped at Suggestion, so it rejects only at a `suggestion` threshold. Prose that a machine reads, that instructs an agent, or that ships outside the repository is never inert.
+One case is graded normally instead: **inert prose**, a code comment, docstring or documentation line that no tool or agent reads to decide behavior. An untrue line of it, whether a cosmetic slip or a false claim, is capped at Suggestion, or at Important when it ships outside the repository (a README, a published doc page, a release note), so it never rejects at the default threshold. Prose that a machine reads or that instructs an agent is never inert.
 
 </Accordion>
 
@@ -79,11 +79,10 @@ Both signals mean the same thing: the review found nothing that blocks the merge
 The common causes are:
 
 - The verification checklist could not be generated, so the phases that check each claim were skipped. That caps the verdict at `APPROVE WITH CAVEAT` and never lets it be a clean `APPROVE`.
-- The checklist holds at least one item and every item is inconclusive, or an item is inconclusive because verification itself failed, such as a verifier that timed out or returned no usable verdict. The report lists those items under `### Unverified`.
+- The checklist holds at least one item and every item is inconclusive, or an item is inconclusive because verification itself failed, such as a verifier that timed out or returned no usable verdict. The report lists those items under `### ℹ️ Informational — Deferred`.
 - The pull request's previous review could not be established, or the re-check items made from it did not all reach a written checklist. `Run details` then carries a `prior-report: unavailable (<cause>)` line or `seed shortfall: prior report not seeded`.
 - Every finding sat below the fix loop's severity threshold, so the findings were parked as advisory rather than fixed.
-- The second, independent pass did not record that it ran with full coverage. The summary then reads `shadow agreement not verified`, sometimes with the reason in parentheses.
-- In `/prflow:review-and-fix`, the second pass could not confirm that its `review-and-fix.md` extension came from outside the pull request. For example, the pull request edits that file under `.prflow/skill-extensions/`, `.prflow/prompt-extensions/` or `.devflow/`, the file is a gitignored local copy, or the file or one of those directories is a symlink. A symlinked extension blocks that confirmation on every run; replace the link with the real file or directory and commit it. A pull request whose commits change one of the `review-and-fix.md` extension files, for example by replacing a symlinked file with the real one, still cannot confirm because it changes that file; a later pull request whose branch already contains the fix and whose diff against its base changes none of them clears it, unless another cause, for example an uncommitted or gitignored copy of one of those files, still blocks the confirmation. A fix that changes none of them, such as deleting a `.devflow` link to `.prflow`, takes effect on its own pull request.
+- The shadow pass did not establish agreement, including when it ran inline in the informed loop context after an engine dispatch failed. The summary then reads `shadow agreement not verified`, sometimes with the reason in parentheses. Separate write directories do not isolate reads.
 
 Treat it as approved with unknown coverage. Read the report and decide as a human whether the gap matters. Requesting the review again is worth doing when the cause was transient. Nothing about this verdict means a defect was found and hidden.
 
@@ -101,10 +100,10 @@ jq '{verdict: .prflow_review.verdict_severity_threshold, fix: .prflow_review_and
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| `prflow_review.verdict_severity_threshold` | `critical` | A finding, or a failed checklist item, at or above this severity causes REJECT; at `critical` or `important`, a failed item about untrue inert prose counts as a note instead. Set it to `important` to make Important ones block the merge too. Both `/prflow:review` and the review pass inside `/prflow:review-and-fix` use it. |
+| `prflow_review.verdict_severity_threshold` | `critical` | A finding, or a failed checklist item, at or above this severity causes REJECT; a failed item about untrue inert prose counts at its capped grade, and at `important` or `suggestion` a finding below Critical that clearly does nothing but argue against a decided acceptance criterion does not, unless another rejection rule applies to it. Set it to `important` to make Important ones block the merge too. Both `/prflow:review` and the review pass inside `/prflow:review-and-fix` use it. |
 | `prflow_review_and_fix.fix_severity_threshold` | `important` | The fix loop sends every finding and failed checklist item at or above this severity to the fixer, subject to `fix_below_threshold_iterations`. Anything below it stays advisory, and an inconclusive checklist item is never sent. Set `suggestion` for a more aggressive fixer, or `critical` for a conservative one. |
 
-Severity runs `critical`, then `important`, then `suggestion`. An unknown or wrongly typed value falls back to the default with a note, and never stops the run. Any finding or failed checklist item that would cause REJECT is always fixable, whatever the fix threshold says.
+Severity runs `critical`, then `important`, then `suggestion`. An unknown or wrongly typed value falls back to the default with a note, and never stops the run. Whatever the fix threshold says, any finding or failed checklist item that would cause REJECT, and any finding exempt from REJECT because a decided acceptance criterion decides it, stays eligible for the fixer.
 
 Remember that the untrue-line rule above ignores both settings.
 
@@ -122,7 +121,7 @@ Post `/prflow:review` as a standalone comment on the pull request's **Conversati
 
 **Symptom:** you asked for a review and the run declined, saying one is already in flight for the same commit.
 
-PRFlow suppresses a second request while a fresh progress comment shows a review of the same head commit running. Wait for that run to finish. If the head has moved, push the new commit first and then ask again.
+PRFlow suppresses a second request while a fresh progress comment shows a review of the same head commit running. Wait for that run to finish. If the head has moved, push the new commit first and then ask again. The review request PRFlow posts when CI passes is never suppressed by that progress comment.
 
 Suppression depends on that progress comment already being published. A request sent in the short window before an in-flight review posts its comment is not suppressed, so two reviews of the same commit can occasionally run. That is harmless and clears itself once the comment appears.
 
@@ -132,11 +131,11 @@ Suppression depends on that progress comment already being published. A request 
 
 **Symptom:** the progress comment looks finished, but no verdict reached the pull request.
 
-Check the last item of the comment's checklist first: **Run complete — everything this run owed**. On a standalone `/prflow:review` that item is ticked only once the verdict has reached a durable channel — the formal GitHub review, or a marked comment when the review could not be posted. An unticked final item means the run ended without delivering, and the run states why. The comment's status field can read finished while that item is unticked. The item, not the status, is what tells you delivery happened.
+Check the last item of the comment's checklist first: **Run complete — everything this run owed**. On a standalone `/prflow:review` the posting step ticks that item only once the verdict has reached a durable channel — the formal GitHub review, or a marked comment when the review could not be posted. An unticked final item usually means the run ended without delivering, and the run states why: after a failed post the comment's status reads `❌ <verdict> not posted`, followed by the reason. The item also stays unticked when the verdict was posted but the one write that marks and ticks the comment failed; the run reports that in its output, and the review on the pull request is the record. Otherwise the status field can read finished while the item is unticked, so a ticked item, not the status, is what tells you delivery happened.
 
 A ticked item confirms a durable verdict exists. It does not confirm the pull request carries an approve or request-changes merge signal. When the verdict reached the comment channel instead of the reviews API, the run says so.
 
-Before it ends, a standalone review re-reads its own checklist and makes one bounded attempt to complete a missing delivery. It does not retry beyond that one attempt.
+Before it ends, a standalone review whose verdict failed to post on both channels makes one more attempt to deliver it. If that attempt also fails on a run that was not cancelled, the run's job fails. With a workflow-capable GitHub App configured, the review stall backstop may also request the review again, up to `prflow_review.stall_backstop.max_resume_attempts` times per head commit. Both the failed job and the renewed request need the installed workflow and the vendored PRFlow helpers to be current.
 
 On `/prflow:review-and-fix`, which posts no verdict to GitHub at all, the same item is ticked when the fix loop reaches its terminal work. When that skill is driven by another run, its closing bookkeeping can be skipped and the item is left unticked. On that path this is a bookkeeping gap, not a missing verdict.
 
@@ -165,7 +164,7 @@ Check these in order:
 - **The engine file cannot be read.** Confirm the run can read the engine's `SKILL.md` — `.prflow/vendor/prflow/skills/review/SKILL.md` when your repository has a vendored tree, otherwise the copy inside the installed plugin. Fix file permissions, or re-run the installer with your current tag if the vendored copy is missing or incomplete — see [Cloud Updates](/docs/runs/cloud/updates).
 - **Your client cannot read a file in parts.** PRFlow confirms it reached the end of the engine file by reading past what it already holds. A client whose file reader does not accept a starting position cannot answer that question, so the run stops even when the file is intact. Run the workflow from a client whose file reader accepts a starting position.
 
-The second, independent pass reads the engine the same way. When the condition occurs there, the run does not stop. It reports a coverage gap for that pass and continues.
+The shadow pass reads the engine the same way. When the condition occurs there, the run does not stop. It reports a coverage gap for that pass and continues.
 
 </Accordion>
 
@@ -181,7 +180,7 @@ Check these when a run appears to ignore your policy:
 
 - **The extension is reported as `unestablished`.** The run states this rather than staying silent. It means the extension's state could not be established — an unreadable file, a broken symlink, something that is not a regular file, or a trusted-extension directory that did not materialize. Treat it as *not applied*, never as an empty extension. Fix the file and run again.
 - **The file name does not match the skill.** The name is the skill's own directory name: `review.md`, `review-and-fix.md`, `implement.md`, `pr-description.md`. `/prflow:review-and-fix` additionally reads `fix.md`, because its fix loop applies that skill's principles without invoking it. The `fix` extension was renamed from an earlier name; if you customized it under that name the old file still applies until you rename it to `fix.md` (or let `/prflow:init` rename it), and the run prints a breadcrumb naming the exact file.
-- **An implement run left the row unticked.** An implement workpad's Progress checklist carries one `Skill extension resolved: …` row per extension the run consumes. The row is written whether or not the run cooperates, so an unticked row is that run's own record that it did not establish that extension's state. On a run that finished Complete that record is deliberate: the finalize step is refused while any such row is left both unticked and without an accompanying `state not established` note. It is still the run's report, not a verified fact — a ticked row is evidence the state was resolved, not proof the policy changed the outcome.
+- **An implement run left the row unticked.** An implement workpad's Progress checklist carries one `Skill extension resolved: …` row each for the `implement`, `review-and-fix` and `fix` extensions; a `review` or reviewer extension load that the review reports as failed, refused or unestablished is recorded as a workpad reflection instead; if that write fails, no workpad or pull request records the failed load. The row is written whether or not the run cooperates, so an unticked row is that run's own record that it did not establish that extension's state. On a run that finished Complete that record is deliberate: the finalize step is refused while any such row is left both unticked and without an accompanying `state not established` note. It is still the run's report, not a verified fact — a ticked row is evidence the state was resolved, not proof the policy changed the outcome. An older workpad may still hold an unticked `review.md` row; it no longer blocks Complete.
 - **A cloud installation is out of date.** The reader is invoked by the installed workflows' permission entries, while the skills themselves ship in the plugin. Updating only `prflow_version` can leave the two halves out of sync and the loader unpermitted. Re-run the installer with the new tag — see [Cloud Updates](/docs/runs/cloud/updates).
 
 A file that is absent or empty is not an error. The run proceeds with PRFlow's own defaults.

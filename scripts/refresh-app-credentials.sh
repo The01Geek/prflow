@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# refresh-app-credentials.sh — keep a writer job's push/gh credentials fresh
-# past the GitHub App installation token's 60-minute lifetime (issue #487).
+# refresh-app-credentials.sh — keep a writer job's push/gh credentials (a review
+# job's gh token) fresh past the GitHub App installation token's 60-minute lifetime
+# (issue #487).
 #
 # A GitHub App installation token expires exactly one hour after minting and
 # cannot be renewed — only replaced by a fresh mint. PRFlow's writer jobs mint
@@ -36,6 +37,15 @@
 #           after a failed cycle until one succeeds. Writes a pidfile, traps
 #           TERM to exit 0, and NEVER exits non-zero — the job's conclusion never
 #           rides on background-step failure semantics.
+#   cycle-token-file, loop-token-file
+#           the review-path variants (issue #1980): mint at exactly the permission
+#           set DEVFLOW_REFRESH_PERMISSIONS declares (a JSON object of permission
+#           names, `contents`, `pull-requests`, ..., to levels) and write ONLY
+#           surface 2, printing `cycle OK` when it is written; the extraheader stays
+#           the review checkout's GITHUB_TOKEN. A missing or malformed set mints
+#           nothing. Separate subcommands, not an env switch: an older refresher
+#           warns on an unknown subcommand, but would ignore an unknown env input
+#           and mint every installation permission into both surfaces.
 #
 # Key hygiene (AC "Key hygiene"): THIS SCRIPT reads the PEM private key from stdin
 # into shell memory only; it never re-exports that value into an environment
@@ -122,8 +132,47 @@ MAX_CYCLES="${DEVFLOW_REFRESH_MAX_CYCLES:-}"
 # The API host and the git server URL that keys the extraheader.
 API_URL="${GITHUB_API_URL:-https://api.github.com}"
 SERVER_URL="${GITHUB_SERVER_URL:-https://github.com}"
+PERMS_RAW="${DEVFLOW_REFRESH_PERMISSIONS:-}"
+# Set by read_permissions in token-file mode only, already in the REST spelling
+# (`pull-requests` -> `pull_requests`); real_mint adds it to the POST body.
+PERMS_JSON=""
 
 warn() { printf '::warning::refresh-app-credentials: %s\n' "$*" >&2; }
+
+# Validate the declared permission set. Anything but a non-empty object of non-empty
+# strings returns 1 naming the case: minting without it would carry every permission
+# the App's installation holds.
+read_permissions() {
+  local verdict what prog
+  PERMS_JSON=""
+  prog='if length != 1 then "not-object" else .[0] end | if type != "object" then "not-object" elif length == 0 then "empty" elif all(.[]; type == "string" and length > 0) then "ok " + (with_entries(.key |= gsub("-"; "_")) | tojson) else "bad-value" end'
+  if [ -z "$PERMS_RAW" ]; then
+    verdict=missing
+  else
+    # The verdict is jq's stdout alone; only a failed run reads jq's stderr, once a
+    # trivial program shows the resolved jq runs at all.
+    verdict="$(printf '%s' "$PERMS_RAW" | "$DEVFLOW_JQ" -s -r "$prog" 2>/dev/null)" || {
+      if "$DEVFLOW_JQ" -n 1 >/dev/null 2>&1; then
+        verdict="$(printf '%s' "$PERMS_RAW" | "$DEVFLOW_JQ" -s -r "$prog" 2>&1 >/dev/null)"
+        verdict="unparsed:${verdict#jq: }"
+      else
+        verdict=jq-not-run
+      fi
+    }
+    verdict="${verdict//$'\r'/}"   # a native-Windows jq.exe ends its lines with CR
+  fi
+  case "$verdict" in
+    "ok {"*"}") PERMS_JSON="${verdict#ok }"; return 0 ;;
+    missing) what="is missing" ;;
+    empty) what="is empty" ;;
+    bad-value) what="holds a non-string or empty value" ;;
+    unparsed:*) what="could not be parsed as JSON: ${verdict#unparsed:} (resolved jq: $DEVFLOW_JQ)" ;;
+    jq-not-run) what="could not be checked: the resolved jq ($DEVFLOW_JQ) does not run" ;;
+    *) what="is not a JSON object" ;;
+  esac
+  warn "cycle: the declared permission set DEVFLOW_REFRESH_PERMISSIONS $what — minted nothing; the gh token file is unchanged"
+  return 1
+}
 
 # Read the PEM private key from stdin into shell memory (used only by the real
 # mint path; the override path ignores it). Never persisted, never exported.
@@ -199,25 +248,18 @@ real_mint() {
   fi
   jwt="$DEVFLOW_SIGN_STDOUT"
 
-  # Disclosed residual (symmetric to the /proc/<pid>/environ PEM vector closed at
-  # launch): the two curl calls below pass the app JWT in argv (`-H "Authorization:
-  # Bearer $jwt"`), so it is briefly readable via /proc/<curl_pid>/cmdline by the
-  # same-uid agent step during the sub-second mint. Accepted, not closed: the JWT is
-  # short-lived (exp 9 min). Within that window it is an APP-level credential that can
-  # mint installation tokens at attacker-chosen scope, up to the FULL installation
-  # (the broad scope the POST below deliberately narrows to this repo) — so this is
-  # NOT bounded to what the agent's ambient (this-repo) GH_TOKEN already holds; it is
-  # bounded only by the 9-min exp, still a far smaller blast radius than the permanent
-  # raw PEM. Passing the header on argv is standard curl usage; if this ever needs
-  # hardening, move the header to a stdin curl-config (-K -).
+  # The JWT goes to curl as a `-K -` config on stdin, never as a `-H` argument: argv is
+  # readable via /proc/<curl_pid>/cmdline by the same-uid agent step, and the JWT can
+  # mint installation tokens at any scope until it expires (issue #1980).
   # Capture curl's own diagnostic (stderr merged via 2>&1) and exit code so a persistent
   # mint failure (wrong app id, revoked PEM, 404, rate-limit) surfaces an ACTIONABLE
   # ::warning::, not just a generic arm name. Under `-fsS`, a SUCCESS writes only the JSON
   # body to stdout (nothing to stderr); a FAILURE writes only curl's short diagnostic to
   # stderr and NO body (so the merged capture is the diagnostic, and no response body —
   # in particular no token, since `-f` suppresses the error body — is ever logged).
-  local inst_json inst_rc inst_id tok_json tok_rc token
-  inst_json="$(curl -fsS -H "Authorization: Bearer $jwt" \
+  local inst_json inst_rc inst_id tok_json tok_rc token body auth
+  auth="$(printf 'header = "Authorization: Bearer %s"' "$jwt")"
+  inst_json="$(printf '%s\n' "$auth" | curl -fsS -K - \
     -H "Accept: application/vnd.github+json" \
     "$API_URL/repos/$repo/installation" 2>&1)"; inst_rc=$?
   [ "$inst_rc" -eq 0 ] \
@@ -231,10 +273,13 @@ real_mint() {
   # installation token carrying ALL installation permissions across ALL repos the
   # App is installed on — a strictly larger blast radius for the credential we write
   # into the extraheader and the token file. Restrict it to the repo name.
+  # In token-file mode also restrict the permissions to the declared set.
   local repo_name="${repo##*/}"
-  tok_json="$(curl -fsS -X POST -H "Authorization: Bearer $jwt" \
+  body="{\"repositories\":[\"${repo_name}\"]}"
+  [ -z "$PERMS_JSON" ] || body="{\"repositories\":[\"${repo_name}\"],\"permissions\":${PERMS_JSON}}"
+  tok_json="$(printf '%s\n' "$auth" | curl -fsS -K - -X POST \
     -H "Accept: application/vnd.github+json" \
-    -d "{\"repositories\":[\"${repo_name}\"]}" \
+    -d "$body" \
     "$API_URL/app/installations/$inst_id/access_tokens" 2>&1)"; tok_rc=$?
   [ "$tok_rc" -eq 0 ] \
     || { warn "mint: access-token POST failed (curl exit $tok_rc: $tok_json)"; return 1; }
@@ -295,23 +340,31 @@ locate_extraheader_file() {
   printf '%s' "$first"
 }
 
-# ── One mint-and-rewrite cycle. Returns 0 only when BOTH surfaces refresh; 1 if the
-# mint or either surface fails (a mint failure leaves both on the previous credential;
-# a single-surface failure still writes the other surface — issue #332). ──
+# ── One mint-and-rewrite cycle. Returns 0 only when every surface its mode writes
+# refreshes (token-file mode writes surface 2 only); 1 if the permission check, the mint or
+# a written surface fails (a mint failure leaves both on the previous credential; a
+# single-surface failure still writes the other surface — issue #332). ──
 run_cycle() {
-  local token cfg header b64 s1_ok=yes s2_ok=yes
+  local mode="${1:-both}" token cfg header b64 s1_ok=yes s2_ok=yes
+  if [ "$mode" = token-file ]; then read_permissions || return 1; fi
   token="$(mint_token)" || { warn "cycle: mint arm failed — previous credential left in place"; return 1; }
   [ -n "$token" ] || { warn "cycle: mint returned an empty token — previous credential left in place"; return 1; }
 
   # Surfaces 1 and 2 are attempted as two INDEPENDENT steps (issue #332): a failure of one no
-  # longer returns early and starves the other, and `cycle OK` prints only when BOTH succeed.
+  # longer returns early and starves the other, and `cycle OK` prints only when each one the
+  # mode writes succeeds.
   # Track each surface's outcome and decide the warnings/exit at the end.
 
   # Surface 1: the checkout-persisted extraheader (the git-push credential).
   # locate_extraheader_file emits the specific failure reason itself (not-found vs.
   # multi-file), so do NOT add a second breadcrumb here — a generic "could not locate"
   # contradicts the callee's accurate multi-file warning (PR #491 review).
-  cfg="$(locate_extraheader_file)" || s1_ok=no
+  # Token-file mode never touches it: the review checkout must keep GITHUB_TOKEN.
+  if [ "$mode" = token-file ]; then
+    s1_ok=skip
+  else
+    cfg="$(locate_extraheader_file)" || s1_ok=no
+  fi
   if [ "$s1_ok" = yes ]; then
     b64="$(printf 'x-access-token:%s' "$token" | openssl base64 -A 2>/dev/null)" \
       || { warn "cycle: base64 encode of the token failed — push credential NOT rewritten"; s1_ok=no; }
@@ -343,17 +396,19 @@ run_cycle() {
   # The surface-2 failure warning is gated on surface 1's outcome (issue #332): emit the
   # divergence phrase (which asserts surface 1 is fresh) ONLY when surface 1 succeeded; when
   # surface 1 also failed, suppress it — the both-surfaces-stale line below is the last word.
-  local dir tmp; dir="$(dirname "$TOKEN_FILE")"; tmp="$TOKEN_FILE.tmp.$$"
+  local dir tmp stale; dir="$(dirname "$TOKEN_FILE")"; tmp="$TOKEN_FILE.tmp.$$"
+  stale="the gh token file is now stale"
+  [ "$s1_ok" = yes ] && stale="push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"
   mkdir -p "$dir" 2>/dev/null || true
   if ! ( umask 077; printf '%s' "$token" > "$tmp" ); then
     s2_ok=no
-    [ "$s1_ok" = yes ] && warn "cycle: writing the token temp file '$tmp' failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"
+    [ "$s1_ok" != no ] && warn "cycle: writing the token temp file '$tmp' failed — $stale"
     rm -f "$tmp" 2>/dev/null
   else
     chmod 600 "$tmp" 2>/dev/null || true
     if ! mv -f "$tmp" "$TOKEN_FILE"; then
       s2_ok=no
-      [ "$s1_ok" = yes ] && warn "cycle: renaming the token file into place ('$TOKEN_FILE') failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale"
+      [ "$s1_ok" != no ] && warn "cycle: renaming the token file into place ('$TOKEN_FILE') failed — $stale"
       rm -f "$tmp" 2>/dev/null
     fi
   fi
@@ -366,7 +421,7 @@ run_cycle() {
     warn "cycle: BOTH credential surfaces are stale this cycle — the push credential (surface 1) was not rewritten and the gh token file (surface 2) was not written"
   fi
 
-  if [ "$s1_ok" = yes ] && [ "$s2_ok" = yes ]; then
+  if [ "$s1_ok" != no ] && [ "$s2_ok" = yes ]; then
     # Positive success breadcrumb (stdout → the same log the workflow redirects). The
     # Stop step's scripts/stop-refresher.sh reads the LAST refresh-app-credentials:
     # line to tell a recovered transient (last line = this OK) from a sustained failure
@@ -380,7 +435,7 @@ run_cycle() {
 
 cmd_cycle() {
   read_key_from_stdin
-  run_cycle || true   # best-effort: always exit 0 (the warning already fired)
+  run_cycle "${1:-both}" || true   # best-effort: always exit 0 (the warning already fired)
   return 0
 }
 
@@ -403,6 +458,7 @@ job_superseded() {
 }
 
 cmd_loop() {
+  local mode="${1:-both}"
   read_key_from_stdin
   # Record our PID so the workflow's `if: always()` step can kill us by pidfile —
   # job completion never depends on background-step auto-cancel semantics.
@@ -430,7 +486,7 @@ cmd_loop() {
     # stop-refresher.sh's kill by up to 45 min (harmless on an ephemeral
     # ubuntu-latest runner torn down at job end, but a lingering minter on a
     # self-hosted one). The `|| true` keeps the loop's never-exit-nonzero contract.
-    if run_cycle; then
+    if run_cycle "$mode"; then
       "$SLEEP_CMD" "$INTERVAL" & wait $! || true
     else
       # Backoff retry: a single transient mint failure never produces a
@@ -448,7 +504,9 @@ main() {
   case "$sub" in
     cycle) cmd_cycle ;;
     loop)  cmd_loop ;;
-    *) warn "unknown subcommand '$sub' (expected: cycle | loop)"; return 0 ;;
+    cycle-token-file) cmd_cycle token-file ;;
+    loop-token-file)  cmd_loop token-file ;;
+    *) warn "unknown subcommand '$sub' (expected: cycle | loop | cycle-token-file | loop-token-file)"; return 0 ;;
   esac
 }
 

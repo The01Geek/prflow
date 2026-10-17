@@ -11,7 +11,7 @@
 # Usage:
 #   scan.sh                       weekly mode: PRs matching the predicate merged
 #                                 in the last 7 days, minus those already in
-#                                 retrospectives.jsonl on main. The DevFlow-label
+#                                 .prflow/learnings/retrospectives.jsonl. The DevFlow-label
 #                                 pass runs even with no watched authors configured.
 #   scan.sh --prs 774,786,772     ad-hoc mode: use exactly these PR numbers,
 #                                 skipping the GitHub search AND the
@@ -210,7 +210,7 @@ DEGRADED=0
 # the next call), removed just before the gate; collapse newlines and cap length
 # so a breadcrumb stays a single bounded line. Trap-cleaned at creation so a
 # `set -e` abort between here and the explicit `rm -f` below cannot orphan it;
-# the later `RESP`/`ERR` trap replaces this one only after FETCH_ERR is removed.
+# the later `ERR` trap replaces this one only after FETCH_ERR is removed.
 FETCH_ERR="$(mktemp)"
 trap 'rm -f "$FETCH_ERR"' EXIT
 
@@ -285,106 +285,58 @@ if [ "$DEGRADED" -ne 0 ]; then
 fi
 
 # ── _decode_existing <jsonl-text> <source-label> ─────────────────────────────
-# Parse decoded retrospectives.jsonl text into a JSON array of processed PR
-# numbers (sets the global EXISTING), failing loud (exit 1) on either silent-
-# collapse mode under HTTP 200:
-#   - a jq parse failure (unparseable content), or
-#   - a successful parse that yields zero pr records from non-empty content
-#     (pr-less / schema-drifted / truncated-but-still-parseable content).
-# This assumes the file's append-only schema, where every record carries a
-# {"pr":...} field: a populated file then holds >=1 such record, and an absent
-# file is the 404 path above (never an empty 200), so zero records from real
-# content is corruption, not an empty backlog. (If a record type WITHOUT a `.pr`
-# field is ever added to the file, revisit this guard — it would fire on a
-# legitimately pr-less record.) The #626 `skip` marker entry (kind: "skip") DOES
-# carry a `.pr` field, so it is compatible with this guard by construction — a
-# skip-marked PR is intentionally counted into the processed-PR set here (its
-# whole purpose is to mark that PR handled so it is not re-scanned), and it is the
-# one record type deliberately kept in the processed set rather than excluded.
-# Swallowing a collapse into an empty EXISTING
-# would re-queue the whole backlog and create duplicate retrospectives. BOTH call
-# sites (the inline <=1 MB content and the >1 MB download_url body) share this
-# guard, so neither transport can collapse silently. Called in the current shell
-# (never via $(...)), so its exit terminates scan, not just a subshell.
-_decode_existing() {  # $1 = decoded jsonl text, $2 = source label for breadcrumbs
+# Parse retrospectives.jsonl text into the processed-PR set (the global EXISTING),
+# exiting 1 on unparseable content or on zero pr records (empty, pr-less or
+# truncated-but-still-parseable content): every record carries `.pr`
+# (the #626 skip marker included — revisit if a pr-less record type is added), so a
+# present file holding none is corruption, and an empty set would re-queue the whole
+# backlog. Called in the current shell, so its exit terminates scan.
+_decode_existing() {  # $1 = jsonl text, $2 = source label for breadcrumbs
     # The processed set is keyed on REPOSITORY + NUMBER, never a number alone: a
     # record for the previous repository's #7 must not suppress this repository's
-    # #7. A record naming no repository binds to $LEGACY_RECORD_REPO under the
-    # one-time compatibility rule below — never to $REPO, which would re-create the
-    # collision this key exists to prevent.
+    # #7. A record naming no repository binds to $LEGACY_RECORD_REPO for this scan,
+    # never to $REPO: a reader does not attribute records. The store merge
+    # (materialize-retrospectives.sh) is the one writer that gives such a record
+    # the repository whose store holds it, and replaces it when that PR is analysed
+    # again.
     if ! EXISTING="$(printf '%s' "$1" | "$DEVFLOW_JQ" -s --arg legacy "$LEGACY_RECORD_REPO" '
             map(select(.pr != null)
                 | ((((.repo | strings) // "") | if . == "" then $legacy else . end) + "#" + (.pr|tostring)))' 2>"$ERR")"; then
-        echo "::error::scan: parsing retrospectives.jsonl ($2) failed — unparseable content under HTTP 200: $(cat "$ERR")" >&2
+        echo "::error::scan: parsing $2 failed — unparseable content: $(cat "$ERR")" >&2
         exit 1
     fi
     _LEGACY_DEFAULTED="$(printf '%s' "$1" | "$DEVFLOW_JQ" -s '[.[] | select(.pr != null) | select((((.repo | strings) // "")) == "")] | length' 2>/dev/null)" || _LEGACY_DEFAULTED=0
     if [ "${_LEGACY_DEFAULTED:-0}" -gt 0 ]; then
-        echo "::warning::scan: ${_LEGACY_DEFAULTED} retrospectives.jsonl record(s) name no repository; binding them to '${LEGACY_RECORD_REPO}' under the one-time compatibility rule. Run scripts/migrate-record-repo.py to stamp the corpus and retire this arm." >&2
+        echo "::warning::scan: ${_LEGACY_DEFAULTED} retrospectives.jsonl record(s) name no repository; binding them to '${LEGACY_RECORD_REPO}' for this scan; the next merge of new records gives them this run's repository." >&2
     fi
     if [ "$(printf '%s' "$EXISTING" | "$DEVFLOW_JQ" 'length')" -eq 0 ]; then
-        echo "::error::scan: retrospectives.jsonl ($2) yielded zero pr records from non-empty content under HTTP 200 (a decode/parse miss, or otherwise pr-less/schema-drifted content) — refusing to treat the backlog as unprocessed (would re-queue everything and create duplicate retrospectives)" >&2
+        echo "::error::scan: $2 yielded zero pr records (empty, truncated, pr-less or schema-drifted content) — refusing to treat the backlog as unprocessed (would re-queue everything and create duplicate retrospectives)" >&2
         exit 1
     fi
 }
 
 EXISTING='[]'
-RESP="$(mktemp)"; ERR="$(mktemp)"
-trap 'rm -f "$RESP" "$ERR"' EXIT
-"$DEVFLOW_GH" api -i "repos/${REPO}/contents/.prflow/learnings/retrospectives.jsonl?ref=main" > "$RESP" 2>"$ERR" || true
-HTTP="$(awk 'NR==1 {print $2; exit}' "$RESP")"
-case "$HTTP" in
-    200)
-        BODY_JSON="$(awk 'BEGIN{b=0} /^\r?$/{b=1; next} b' "$RESP")"
-        # Validate the Contents-API envelope parses as JSON once, up front, so an
-        # unparseable 200 body fails with an accurate breadcrumb HERE rather than
-        # being misattributed downstream to "neither content nor download_url"
-        # (jq on a non-JSON body yields empty stdout + nonzero, which downstream
-        # would otherwise read as an absent `.content` field). $ERR is single-use
-        # scratch: every `2>"$ERR"` truncates it and each reader cats it right
-        # after its own write, so breadcrumbs never cross streams.
-        if ! RAW="$(printf '%s' "$BODY_JSON" | "$DEVFLOW_JQ" -r '.content // ""' 2>"$ERR")"; then
-            echo "::error::scan: HTTP 200 for retrospectives.jsonl but the Contents API envelope was not parseable JSON: $(cat "$ERR")" >&2
-            exit 1
-        fi
-        if [ -n "$RAW" ]; then
-            # The Contents API base64-encodes `content` (with embedded newlines)
-            # for files <= 1 MB. Decode via python3 (already a hard dep — see the
-            # date math above; portable across macOS/BSD, unlike `base64 -d`) so a
-            # decode miss gets a specific breadcrumb instead of a bare set -e
-            # abort. Whitespace is stripped first (GitHub wraps the base64) and
-            # validate=True rejects genuinely-invalid input rather than silently
-            # discarding non-alphabet bytes the way a lenient decoder would.
-            if ! DECODED="$(printf '%s' "$RAW" | python3 -c 'import sys, base64; sys.stdout.buffer.write(base64.b64decode("".join(sys.stdin.read().split()), validate=True))' 2>"$ERR")"; then
-                echo "::error::scan: base64 decode of retrospectives.jsonl content failed under HTTP 200: $(cat "$ERR")" >&2
-                exit 1
-            fi
-            _decode_existing "$DECODED" "inline content"
-        else
-            # The Contents API base64-encodes `content` only for files <= 1 MB;
-            # for larger files it returns "" and a download_url. Fall back to it
-            # so the processed-PR set doesn't silently collapse to [] (which would
-            # re-queue the whole backlog and create duplicate retrospectives).
-            DL_URL="$(echo "$BODY_JSON" | "$DEVFLOW_JQ" -r '.download_url // ""')"
-            if [ -z "$DL_URL" ]; then
-                echo "::error::scan: HTTP 200 for retrospectives.jsonl but it carried neither inline content nor a download_url — cannot determine the processed-PR set; refusing to re-queue the whole backlog" >&2
-                exit 1
-            fi
-            if ! DL_BODY="$("$DEVFLOW_GH" api "$DL_URL" 2>"$ERR")"; then
-                echo "::error::scan: fetching retrospectives.jsonl via download_url failed: $(cat "$ERR")" >&2
-                exit 1
-            fi
-            _decode_existing "$DL_BODY" "download_url"
-        fi
-        ;;
-    404)
-        echo "retrospectives.jsonl not on main yet (first run)" >&2
-        ;;
-    *)
-        echo "::error::failed reading retrospectives.jsonl from main (HTTP ${HTTP:-?}): $(cat "$ERR")" >&2
-        exit 1
-        ;;
-esac
+ERR="$(mktemp)"
+trap 'rm -f "$ERR"' EXIT
+# Relative to the repository root, where the skill's fences run.
+PROCESSED_FILE=".prflow/learnings/retrospectives.jsonl"
+HYDRATE_OUT=".prflow/tmp/retro-helper/learnings-hydrate-out.txt"
+if [ ! -e "$PROCESSED_FILE" ]; then
+    # Absence means "nothing processed" only after a successful hydrate, which removes
+    # every store file the store lacks; otherwise it is unknown.
+    _HYDRATED=""
+    { IFS= read -r _HYDRATED < "$HYDRATE_OUT"; } 2>/dev/null || true
+    case "$_HYDRATED" in
+        hydrated:*|first-run:*) echo "scan: no ${PROCESSED_FILE}; the learnings store holds none (${_HYDRATED%%:*})" >&2 ;;
+        *) echo "::error::scan: no ${PROCESSED_FILE} and ${HYDRATE_OUT} reports no loaded store (${_HYDRATED:-missing or unreadable}) — run retro-helper.sh learnings-hydrate first" >&2
+           exit 1 ;;
+    esac
+elif ! PROCESSED_TEXT="$(cat "$PROCESSED_FILE" 2>"$ERR")"; then
+    echo "::error::scan: could not read ${PROCESSED_FILE}: $(cat "$ERR")" >&2
+    exit 1
+else
+    _decode_existing "$PROCESSED_TEXT" "$PROCESSED_FILE"
+fi
 
 # Route EXISTING (the full processed-PR set — genuinely monotonically corpus-growing)
 # through --slurpfile: as an --argjson argv slot it overflows the kernel arg limit at
@@ -395,7 +347,7 @@ printf '%s' "$EXISTING" > "$_e_file"
 # Clean up on the jq-abort path too: under `set -e` a nonzero jq (or the piped read)
 # would skip the trailing `rm -f` and orphan the temp. The localized `|| { rm; exit 1; }`
 # cleans then re-raises with the same rc the surrounding code uses on error (line above),
-# rather than a `trap` that would clobber the active RESP/ERR EXIT trap set earlier.
+# rather than a `trap` that would clobber the active ERR EXIT trap set earlier.
 UNPROC="$(echo "$CANDIDATES" | "$DEVFLOW_JQ" --slurpfile e "$_e_file" --arg repo "$REPO" '[.[] | select(($repo + "#" + (.number|tostring)) as $k | ($e[0] | index($k) | not))] | sort_by(.mergedAt)')" \
   || { rm -f "$_e_file"; exit 1; }
 rm -f "$_e_file"

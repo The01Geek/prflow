@@ -18,7 +18,7 @@ A fresh installation adds two workflow files, and they answer four comment comma
 | `/prflow:implement 123` | A comment on the issue. | A feature branch and a pull request that resolves the issue. |
 | `/prflow:review` | A comment on a pull request's **Conversation** tab. | A review verdict. It changes no code. |
 | `/prflow:review-and-fix` | A comment on a pull request's **Conversation** tab. | Review findings plus fixes pushed to the pull-request branch. |
-| `/prflow:pr-description` | A comment on a pull request's **Conversation** tab. | A written or updated pull-request description. |
+| `/prflow:pr-description` | A comment on a pull request's **Conversation** tab. | No description update yet: the run starts on the default branch, not the pull request's branch. |
 
 <Warning>
   No cloud run merges a pull request. Every command ends with work a person still has to read, approve and merge.

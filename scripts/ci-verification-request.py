@@ -13,6 +13,9 @@ command that owns that lifecycle:
                    context, tested checkout fingerprint), then dispatch `ci.yml` for the
                    pushed candidate, record the accepted dispatch as
                    dispatched-uncorrelated before correlating it to a run id.
+                   A `--head-sha` that is not this checkout's `git rev-parse HEAD`, or
+                   an unreadable HEAD, is refused before any record, check or dispatch
+                   (`head-mismatch` names the real HEAD; `head-unreadable`).
                    Repeated attachment reuses the run; an accepted dispatch whose
                    correlation is ambiguous, lost, or failed is reconciled by request
                    identity before another dispatch. A new dispatch first runs the
@@ -200,6 +203,8 @@ _REFUSAL_TOKENS = frozenset({
     "dispatch-failed",
     "duplicate-shard",
     "foreign-workflow",
+    "head-mismatch",
+    "head-unreadable",
     "no-artifacts",
     "no-attempt",
     "no-provenance",
@@ -792,6 +797,16 @@ def _decide_requested(record: dict, run: tuple) -> _Decision:
 
 
 # ── subcommand: request ──────────────────────────────────────────────────────────
+def _checkout_head() -> str:
+    rc, out, err = _git(["rev-parse", "HEAD"])
+    head = out.strip()
+    if rc != 0 or not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise _Refuse("head-unreadable",
+                      f"git rev-parse HEAD did not print a 40-hex SHA "
+                      f"(rc={rc}: {(err.strip() or head)[:200]!r})")
+    return head
+
+
 def cmd_request(args) -> int:
     if args.workflow != _CI_WORKFLOW:
         raise _Refuse("foreign-workflow",
@@ -799,6 +814,13 @@ def cmd_request(args) -> int:
                       f"{_CI_WORKFLOW!r}")
     if not re.fullmatch(r"[0-9a-f]{40}", args.head_sha):
         raise _Refuse("bad-head", "head-sha must be exactly 40 lowercase hex characters")
+    # Bind the typed SHA to the checkout before any record, check or dispatch acts on it.
+    head = _checkout_head()
+    if head != args.head_sha:
+        raise _Refuse("head-mismatch",
+                      f"head-sha {args.head_sha} is not the checked-out HEAD {head}; "
+                      f"push it if the branch lacks it, then request again with "
+                      f"--head-sha {head}")
 
     reuse = pending = None
     if not args.force_dispatch:

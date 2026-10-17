@@ -26,16 +26,29 @@ Malformed invocations (all arms explicit). A `--`-prefixed token in the leading 
 
 Grammar: `[--report-only] [--lead docs|code] <topic…>`.
 
-- Default (no flag) — write mode: verify docs and make file changes to bring them into line with the code (the behavior described throughout this skill).
-- `--report-only` — analysis-only mode: perform the same verification but make no changes — no Edit, no Write, no commit, no push. Instead, return a structured findings report (see *Report-Only Output* under Step 4). Used by `/prflow:spec` to inform a new issue without writing to a protected branch.
+- Default (no flag) — write mode: verify docs and edit them into line with the code, following the write-mode reference (below).
+- `--report-only` — report-only mode: perform the same verification and return the *Report-Only Output* as text. Make no Edit, Write, commit or push; the working tree must be unchanged when you finish. `/prflow:spec` uses this mode to inform a new issue without writing to a protected branch.
 - `--lead docs|code` — the search-lead operand (report-only mode): it orders the work over the whole tracked tree, which both steps search either way. `--lead docs` exhausts the internal documentation first, then other tracked documents within the duty floor, then code; `--lead code` starts from the code and treats documentation as supporting evidence; with no `--lead` the order is documentation first, then code. The documentation verdict is returned under `--lead docs` and with no `--lead`, never under `--lead code`.
+
+### Write mode: load the reference first
+
+Before Step 1, load `references/write-mode.md` and follow it; it carries write mode's objective,
+its comparison and action steps, and its completion criteria. Build its path from this
+skill's directory per the *Portable helper anchor* rules above and read it with the runner's
+file-read tool — never a new shell invocation. The load is accepted only when the file's **first
+line is its `start` boundary marker and its last line is the matching `end` marker**, each naming
+that file's own path, with exactly one of each. A file the reader returns only in pages — a partial-view notice with an `offset`/`limit` continuation — is not damaged: page it forward until no continuation is offered or a page adds nothing new, then apply that acceptance rule to the assembled whole document, and report the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice reaches the fail-closed stop below.
+
+This gate fails closed. If the reference cannot be read, or its boundary markers are absent or do
+not match, stop and report that — do not proceed to edit documentation from memory. Write mode
+creates and modifies files inside `[[INTERNAL_DOC_LOCATION]]`, and doing so without its scope
+constraints and file-operation rules is worse than not running at all.
 
 ### Who you are in report-only mode
 
 In report-only mode you are a codebase exploration agent. Your deliverable is a map of how this
 topic works in the code today. `[[INTERNAL_DOC_LOCATION]]` is your entry point and a source of
-provisional evidence — it is never your subject. The *Objective* and *Primary Mission* sections below
-describe the standalone write-mode run; they are not your goal here.
+provisional evidence — it is never your subject.
 
 Your caller is drafting work against this topic and needs to know what exists, how it behaves, and
 what will bite an implementer. Documentation accuracy is not what you were dispatched to produce —
@@ -70,48 +83,34 @@ skimming more of them.
 
 In report-only mode the **duty floor bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. The floor bounds how much you must read; the whole tracked tree states only where you may look.
 
-Return a status for every duty on the floor, never only for the duties you were assigned:
+Report every gap in the **Not established** field, with a one-clause reason each: a floor duty you did not carry out, and why; a floor duty you carried out but could not establish; and an internal-documentation page you located for this topic — through the index, a search or a size check — but did not read in full. A duty carried out with an empty result is established and not listed; a page you never located is not listed.
 
-- `discharged` — carried out on this run. A duty you carried out is `discharged` even when its result is empty — you looked and had nothing to report; the empty result is the answer you can state and cite.
-- `unestablished` — engaged but could not be discharged. Record it; never pass it silently.
-- `judged-not-engaged` — judged not to bear on this topic. Reserved for a duty you did not carry out — never one you carried out and found empty (that is `discharged`).
+The bar (apply it per carried-out duty). A duty is established only when **you can state its answer
+and cite the tool output you read it from.** Otherwise list it — a normal, expected outcome, not a
+failure to hide.
 
-The bar for `discharged` (apply it per duty, before you write the status). `discharged` does not
-mean "I did some work on this duty." It means: **you can state the duty's answer, and cite the tool
-output you read it from.** If you cannot do both, the status is `unestablished` — which is a normal,
-expected outcome, not a failure to hide.
-
-Record `unestablished` — do not round up to `discharged` — whenever any of these hold:
+List the duty whenever any of these hold:
 
 - You inferred the answer from naming, structure, or a document rather than reading the code.
 - Your evidence is a search hit you did not open. A grep match proves a string exists, not that
   the code does what you say.
-- A search was truncated or capped, so absence of further hits proves nothing.
+- A search was truncated, capped or refused, or exited above 1, so absence of further hits proves nothing.
 - A file you needed was unreadable, absent, or binary.
 - The answer depends on a runtime or config value you could not resolve.
 - For the enumeration duties (sibling consumers and outputs; coupled sites and guards):
   you found *some* members but have no method that would have found them all. A partial
   enumeration reported as complete is the failure mode these duties exist to catch.
 
-| Tempting reasoning | Why it is `unestablished` |
+| Tempting reasoning | Why the duty is listed |
 | --- | --- |
 | "I grepped and found the call sites" | A grep finds the spellings you guessed. State the pattern and its limits, or open the hits. |
 | "The docs describe this clearly" | A document is provisional evidence, not a code read. |
 | "It's obviously not used anywhere else" | Absence of evidence from a bounded search is not evidence of absence. |
 | "I understood it well enough to summarize" | Summarizing is not citing. If you cannot point at where you read it, you did not establish it. |
 
-There is no `discharged, with a caveat`. If you are about to qualify a `discharged` status, stop
-and read your own qualification — it is the test, not a footnote:
-
-- Does it name something you relied on but did not read — an invariant you took from a document
-  or a comment, a claim you assumed rather than checked, a file you did not open? Then the status is
-  `unestablished`. Keep the explanation; change the token.
-- Does it only bound the reach of a method whose every claim you did verify — "this grep would
-  miss a caller spelled differently", "I enumerated the callers of this helper, not every possible
-  path to the endpoint"? Then `discharged` is correct. State the bound; it is the useful part.
-
-The difference is whether the caveat undermines what you asserted, or merely describes where you
-stopped looking.
+A qualification on an established duty is the test, not a footnote: one naming something you
+relied on but did not read lists the duty; one that only bounds the reach of a method whose every
+claim you verified does not — state the bound.
 
 Unknown is not zero: report a duty you could not close, so the caller looks harder rather than
 planning against a gap they cannot see.
@@ -140,110 +139,31 @@ you measured and how you counted it, so the caller has a defined comparand to re
 to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
 the report.
 
-**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. This is a return-value contract: return your doc-reliability signal and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
-
-## Objective (write mode)
-
-> **In `--report-only` mode, skip to *Detailed Execution Steps*.** Your identity is the one stated
-> under *Who you are in report-only mode* above; this section and the *Primary Mission* below define
-> the standalone write-mode run only.
-
-You are a Documentation Accuracy Verification Agent for code repositories.
-Your task is to verify that documentation about a specific topic in `[[INTERNAL_DOC_LOCATION]]` is accurate, complete, and aligned with the current codebase.
-
-## Primary Mission (write mode)
-Analyze a specific topic and verify:
-1. Does the documentation exist for this topic?
-2. Is the documentation accurate and aligned with current code?
-3. Is the documentation complete (not missing important details)?
-4. If outdated or missing: Draft or update documentation based on the codebase as the source of truth
-
-## Input Parameter
-- Topic: The specific topic to verify documentation for (e.g., "customer-auto-verification", "orders-backorder-system", "jsx-components-guide")
-
-## Core Principles
-
-### Source of Truth
-- **The codebase is the source of truth** - documentation must reflect what the code actually does
-- If code and documentation conflict, the code is correct and documentation must be updated
-- Use code behavior, not historical documentation, to validate accuracy
-
-### Documentation Scope
-Documentation files are located in `[[INTERNAL_DOC_LOCATION]]` and organized by category in subdirectories.
-
----
-
-## Execution Model
-
-⚠️ **Your action depends on the mode (see *Mode* above):**
-- Write mode (default): Create or Edit Documentation — make real file changes to add/update documentation files.
-- Report-only mode (`--report-only`): Make no changes — return the findings report described in *Report-Only Output* (under Step 4).
-
-Read the shared writing standard before composing in either mode. Both modes compose prose: write mode composes the documentation it edits, and `--report-only` composes the findings report that `/prflow:spec` builds an issue body from. So read `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it when composing either. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
-
----
+**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. This is a return-value contract: return your doc-reliability signal and your **Not established** list, and the caller decides. Never branch into a deeper pass internally.
 
 ## Detailed Execution Steps
 
 ### Step 1: Locate Documentation Files
 Search for any existing documentation about the topic across the whole tracked tree, ordered by lead. Under `--lead docs`, exhaust the internal documentation first — starting from `[[INTERNAL_DOC_LOCATION]]`'s `index.md` routing when that file exists, read every page in that location bearing on the topic before reading any code, then other tracked documents within the six-duty floor. Under `--lead code`, start from the code and treat documentation as supporting evidence. With no `--lead`, read documentation first, then code, and return the documentation verdict:
 - When the internal-doc location carries an `index.md` routing map (and a `glossary.md`), read the index first and follow its routing to the page that owns the topic — the index locates the owning page faster than a raw search, and a routed page a name-match would miss is still in scope
-- Use the runner's Glob tool to find files matching the topic name
-- Search for files containing the topic with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
+- Use the runner's Glob tool for filename leads; it does not establish tracked-tree completeness
+- Search tracked files containing the topic with `git grep -nP -e '<pattern>' -- :/`, escaping a literal's regex metacharacters. This includes ignored tracked files. On refusal or exit above 1, use the runner's Grep tool for leads when available; report the failure and that ignored tracked files may be missed, leaving tracked-tree completeness unestablished
 - Document all files found (or note if no files exist)
 
 ### Step 2: Search Codebase for Topic
-Identify all code related to the topic across the whole tracked tree, in the lead order Step 1 states. In report-only mode the duty floor above bounds how far this search goes:
-- Search for classes, functions, and features mentioned in the topic, with the runner's Grep tool first, then `rg` where it resolves on the host, then `grep -rnE`
+Identify all code related to the topic across the whole tracked tree, in the lead order Step 1 states:
+- Use Step 1's search method for classes, functions, and features mentioned in the topic
 - Review all relevant source files
 - Document the key files and features involved
 
-### Step 3: Compare Documentation vs Code (write mode)
-
-> In `--report-only` mode, skip this comparison. Use the documentation you located as context
-> for reaching the right code, and establish every detail you report from the code itself; a
-> doc-derived claim takes one of the three fates stated under *Who you are in report-only mode*
-> above.
-
-For existing documentation:
-- Read the documentation file(s)
-- Compare content with current code implementation
-- Identify:
-  - Accurate sections - Document these findings
-  - Inaccurate sections - What's wrong and what the code actually does
-  - Missing sections - Important details not covered
-  - Outdated information - References to removed/changed code
-
-For missing documentation:
-- Note that no documentation exists for this topic
-- Flag this as a gap that needs to be filled
-
-### Step 4: Determine Actions Needed
-
-**Report-only mode (`--report-only`):** do not edit or create any files. Produce the *Report-Only Output* below, classifying the documentation's reliability per the rule stated there. **Do not load the write-mode reference** — none of it applies to you, and your contract is complete without it.
-
-Write mode (default): load `references/write-mode.md` now and follow it. Build its path from this
-skill's directory per the *Portable helper anchor* rules above and read it with the runner's
-file-read tool — never a new shell invocation. The load is accepted only when the file's **first
-line is its `start` boundary marker and its last line is the matching `end` marker**, each naming
-that file's own path, with exactly one of each. A file the reader returns only in pages — a partial-view notice with an `offset`/`limit` continuation — is not damaged: page it forward until no continuation is offered or a page adds nothing new, then apply that acceptance rule to the assembled whole document, and report the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice reaches the fail-closed stop below.
-
-That reference carries the action paths (accurate / outdated / missing), the file operations and
-naming rules, the quality standards, the scope constraints, and the completion criteria.
-
-This gate fails closed. If the reference cannot be read, or its boundary markers are absent or do
-not match, stop and report that — do not proceed to edit documentation from memory. Write mode
-creates and modifies files inside `[[INTERNAL_DOC_LOCATION]]`, and doing so without its scope
-constraints and file-operation rules is worse than not running at all.
-
 ### Report-Only Output (`--report-only` mode)
 
-Return findings as text — do not write them to a file. Structure:
+Return this structure as text:
 
 - **Doc verdict and location:** `RELIABLE` | `UNRELIABLE` | `ABSENT`, and the internal documentation location this run resolved. Returned under `--lead docs` and with no `--lead`; never under `--lead code`.
 - **Relevant files:** the files implementing the topic — mark the essential ones and cite `file:line` for entry points, guards, and writers.
 - **Current behavior:** what the code does today, including failure paths and non-obvious couplings.
-- **Duty statuses:** one status per floor duty, all six, with a one-clause reason for each `unestablished` duty.
+- **Not established:** each gap the *Breadth bound* rule lists, with its one-clause reason, or `none`.
 
 Keep the returned report under 1,000 words.
 
@@ -263,25 +183,19 @@ must return the same token; without a stated boundary they do not, and the calle
 decision turns on noise.
 
 If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is not `ABSENT` — an absence you
-could not establish is not an established absence. Report the *exact operand and population identity*
-duty as `unestablished` on the merged *Doc verdict and location* bullet and say which read failed.
+could not establish is not an established absence. Name the failed read on the *Doc verdict and
+location* bullet when you return one, and list the *exact operand and population identity* duty
+under **Not established** with the failed read as its reason.
 
-Make no Edit, Write, commit, or push in this mode, and dispatch no subagent. The working tree must be unchanged when you finish.
+## Success Criteria (report-only mode)
 
-
-
-## Success Criteria
-
-`--report-only` mode: success = a caller who can now plan work against this topic without
+Success = a caller who can now plan work against this topic without
 re-exploring it — the code map, the current behavior including its failure paths, and an honest
-account of what you could not establish — returned as text, with the working tree unchanged (no files
-created or edited). A report that is accurate about the documentation but thin about the code has
+account of what you could not establish. A report that is accurate about the documentation but thin about the code has
 failed, however clean its doc-reliability signal.
 
 This mode is typically a sub-step of another skill (e.g. `/prflow:spec`) — when you
 finish, hand the report back to the calling flow and let it continue. Do not announce overall task
 completion or stop the larger task.
-
-Write mode: the completion criteria live in `references/write-mode.md`, loaded at Step 4.
 
 Arguments (`[--report-only] [--lead docs|code] <topic…>` — leading flags, then the topic): $ARGUMENTS

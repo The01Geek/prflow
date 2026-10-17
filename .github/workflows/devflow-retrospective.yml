@@ -103,6 +103,11 @@ jobs:
               echo "::warning::.prflow/config.json carries the superseded top-level config key '$fam' beside a canonical prflow* family. Its keys are ignored — they resolve to their built-in defaults, so any tool grant, allowlist narrowing, or provider selection written under '$fam' silently does nothing. Run /prflow:init to migrate the Tier 1 config keys, then delete the stray '$fam' object."
             done
           fi
+          # allowed_tools keeps only non-empty strings with no LF/CR; anything else is skipped with this warning.
+          ALLOWED_TOOLS_WARNING=$(echo "$CONFIG_JSON" | jq -r --arg fam prflow '.[$fam] as $f | ($f | type) as $ft | if $f == null then empty elif $ft != "object" then "\($fam) in .prflow/config.json has JSON type \($ft), not object; no extra tool is granted from \($fam).allowed_tools" else $f.allowed_tools as $v | ($v | type) as $vt | if $v == null then empty elif $vt != "array" then "\($fam).allowed_tools in .prflow/config.json has JSON type \($vt), not array; no extra tool is granted from it" else [range($v | length) as $i | $v[$i] | select(type != "string" or . == "" or test("[\n\r]")) | "\($i) (\(type))"] | if length > 0 then "\($fam).allowed_tools in .prflow/config.json: skipped index \(join(", ")) (each entry must be a non-empty single-line string); the other entries are still granted" else empty end end end')
+          if [ -n "$ALLOWED_TOOLS_WARNING" ]; then
+            echo "::warning::$ALLOWED_TOOLS_WARNING"
+          fi
           {
             echo "enabled=$ENABLED"
             echo "base_branch=$(echo "$CONFIG_JSON" | jq -r '.base_branch')"
@@ -116,7 +121,7 @@ jobs:
             echo "effort=$(echo "$CONFIG_JSON" | jq -r '.prflow_retrospective.effort // .prflow.effort // "high"')"
             # Repo-specific extra allowlist, appended after the generated base list in the
             # claude job's claude_args. Emits a leading-comma string or "".
-            echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r '.prflow.allowed_tools // [] | if length > 0 then "," + join(",") else "" end')"
+            echo "allowed_tools_extra=$(echo "$CONFIG_JSON" | jq -r '[.prflow | objects | .allowed_tools | arrays[] | strings | select(. != "" and (test("[\n\r]") | not))] | if length > 0 then "," + join(",") else "" end')"
             echo "prflow_version=$(echo "$CONFIG_JSON" | jq -r '.prflow_version // empty')"
             # Repository the fetch branch clones (issue #228). A missing key, empty
             # string, null, boolean, number, array, or object all resolve to empty
@@ -138,54 +143,13 @@ jobs:
           fi
           echo "claude_code_executable=$CLAUDE_CODE_EXECUTABLE" >> "$GITHUB_OUTPUT"
 
-  # State-PR guard (issue #93): the retrospective's processed-PR record advances only
-  # when a run's state PR (prflow/learnings-<date>) is merged into the default branch
-  # by a human. When an unmerged state PR is open, running the loop again re-processes
-  # the same week, so this guard skips the retrospective and instead ensures exactly
-  # one open reminder issue exists (filed once, not weekly). With no open state PR the
-  # guard proceeds and the retrospective job runs.
-  guard:
+  retrospective:
     needs: config
     if: ${{ needs.config.outputs.enabled == 'true' }}
     runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
     permissions:
-      contents: read   # checkout the vendored guard helper
-      issues: write     # ensure the single reminder issue
-      pull-requests: read  # detect an open state PR (current or superseded state-branch prefix)
-    outputs:
-      proceed: ${{ steps.guard.outputs.proceed }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event_name == 'schedule' && github.ref_name || github.event.repository.default_branch }}
-      - uses: ./.github/actions/vendor-plugin
-        with:
-          ref: ${{ needs.config.outputs.prflow_version }}
-          repo: ${{ needs.config.outputs.prflow_repo }}
-          token: ${{ secrets.PRFLOW_REPO_TOKEN || github.token }}
-      - id: guard
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          GUARD=.prflow/vendor/prflow/scripts/retrospective-state-guard.sh
-          # Fail CLOSED (proceed=false) if the guard helper was not vendored: a run that
-          # cannot check for an open state PR must not re-process the week. An absent
-          # helper is a broken/old vendor tree, so it names prflow_version as the remedy.
-          if [ ! -f "$GUARD" ]; then
-            echo "::error::retrospective state guard not found at $GUARD — has install.sh vendored the plugin at the pinned prflow_version? Skipping the retrospective this run." >&2
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          bash "$GUARD" >> "$GITHUB_OUTPUT"
-
-  retrospective:
-    needs: [config, guard]
-    if: ${{ needs.config.outputs.enabled == 'true' && needs.guard.outputs.proceed == 'true' }}
-    runs-on: ${{ vars.DEVFLOW_RUNNER && (startsWith(vars.DEVFLOW_RUNNER, '[') && fromJSON(vars.DEVFLOW_RUNNER) || format(vars.DEVFLOW_RUNNER, github.run_id)) || 'ubuntu-latest' }}
-    permissions:
-      contents: write
-      pull-requests: write
+      contents: write # the learnings-store saves push the telemetry branch
+      pull-requests: read
       issues: write
       id-token: write
       actions: write # no step in this workflow is known to need the write scope
@@ -197,7 +161,7 @@ jobs:
       DEVFLOW_TELEMETRY_PUSH: '1'
     steps:
       # Mint a workflow-capable App installation token (Contents + Workflows write) so
-      # the loop's state-PR push and issue filing run under the App rather than
+      # the loop's learnings-store push and issue filing run under the App rather than
       # github-actions[bot]. Gated on the DEVFLOW_APP_ID variable; unset → skipped and
       # the checkout token + github_token fall back to GITHUB_TOKEN. MUST precede the
       # checkout, whose token: it feeds (issue #357). Kept in sync with the sibling jobs.
@@ -238,7 +202,7 @@ jobs:
           fi
 
       # Delivery-outcome record (issue #395). The retrospective's outward-facing
-      # delivery — the state-PR push, the Step 8c issue filing, and the report post —
+      # delivery — the learnings-store save, the Step 8c issue filing, and the report save —
       # happens LAST and can fail while the agent step still returns success. AC9:
       # refuse a vendored helper lacking the outcome-record capability BEFORE the
       # agent launches, so an old-helper/new-workflow pairing cannot run without the
@@ -248,7 +212,7 @@ jobs:
           set -euo pipefail
           ROR=.prflow/vendor/prflow/scripts/retro-outcome-record.py
           if [ ! -f "$ROR" ] || ! python3 "$ROR" capabilities >/dev/null 2>&1; then
-            echo "::error::incomplete vendor: retro-outcome-record.py is missing or lacks the outcome-record capability in .prflow/vendor/prflow/scripts/ — this run could not record or verify its delivery outcomes, so a failed state push or issue filing would conclude success. Deploy a matching prflow_version alongside this workflow. Failing BEFORE Run Claude Code rather than launching a run whose delivery cannot be verified." >&2
+            echo "::error::incomplete vendor: retro-outcome-record.py is missing or lacks the outcome-record capability in .prflow/vendor/prflow/scripts/ — this run could not record or verify its delivery outcomes, so a failed store save or issue filing would conclude success. Deploy a matching prflow_version alongside this workflow. Failing BEFORE Run Claude Code rather than launching a run whose delivery cannot be verified." >&2
             exit 1
           fi
 
@@ -267,7 +231,7 @@ jobs:
 
       # ── Long-run credential refresh (issue #487) ──────────────────────────
       # A weekly retrospective routinely outruns the 60-minute App installation
-      # token: its outward-facing work (the state-PR push and the Step 8c issue
+      # token: its outward-facing work (the learnings-store save and the Step 8c issue
       # filing) happens LAST, so without these steps the whole run analyses the
       # backlog and then 401s on every write while still reporting success.
       # Do NOT make these a `background:` step — actionlint rejects that key; the
@@ -282,6 +246,22 @@ jobs:
           DEVFLOW_APP_PRIVATE_KEY: ${{ secrets.DEVFLOW_APP_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+          SUB="${DEVFLOW_REFRESH_SUBCOMMAND:-loop}"
+          _sub_ok=yes
+          if [ "$SUB" != loop ]; then
+            _sub_ok=no
+            if [ -f .prflow/vendor/prflow/scripts/refresh-app-credentials.sh ]; then
+              while IFS= read -r _l || [ -n "$_l" ]; do
+                case "${_l#"${_l%%[![:space:]]*}"}" in "$SUB)"*) _sub_ok=yes; break ;; esac
+              done < .prflow/vendor/prflow/scripts/refresh-app-credentials.sh
+            fi
+          fi
+          if [ "$_sub_ok" = no ]; then
+            echo "launched=no" >> "${GITHUB_OUTPUT:-/dev/null}"
+            echo "::warning::credential refresher not started: the vendored refresh-app-credentials.sh is absent or predates its '$SUB' mode, so this run's gh token expires one hour after its mint. Bump prflow_version in .prflow/config.json to close it."
+            exit 0
+          fi
+          echo "launched=yes" >> "${GITHUB_OUTPUT:-/dev/null}"
           HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"
           PTR="$RUNNER_TEMP/devflow-refresh.current-job"
           PID="$RUNNER_TEMP/devflow-refresh-$HANDLE.pid"
@@ -307,7 +287,7 @@ jobs:
             | env -u DEVFLOW_APP_PRIVATE_KEY \
                 DEVFLOW_REFRESH_JOB_ID="$HANDLE" DEVFLOW_REFRESH_JOB_POINTER="$PTR" \
                 DEVFLOW_REFRESH_PIDFILE="$PID" DEVFLOW_REFRESH_TOKEN_FILE="$TOK" \
-                nohup bash .prflow/vendor/prflow/scripts/refresh-app-credentials.sh loop \
+                nohup bash .prflow/vendor/prflow/scripts/refresh-app-credentials.sh "$SUB" \
                 >"$LOG" 2>&1 &
           disown || true
           echo "credential refresher started (detached); log: $LOG"
@@ -429,13 +409,6 @@ jobs:
           if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
           edelim="ENV_EOF_$(date +%s%N)_$$"
           printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
-
-      - name: Export provider effort capability to job env
-        env:
-          EFFORT_SUPPORTED: ${{ steps.provider.outputs.effort_supported }}
-        run: |
-          set -euo pipefail
-          printf 'PRFLOW_EFFORT_SUPPORTED=%s\n' "$EFFORT_SUPPORTED" >> "$GITHUB_ENV"
 
       - name: Build claude_args head (model + conditional effort)
         id: cargs
@@ -560,8 +533,8 @@ jobs:
           EXTRA: ${{ needs.config.outputs.allowed_tools_extra }}
         run: |
           set -euo pipefail
-          # devflow-capability-manifest: region=retrospective manifest_version=42 sha256=c7c8c3865a686bfaa4d27f66cf9d8f812de93dbc8fb46e98af380f9e5baefbfc
-          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-helper.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-outcome-record.py:*), Bash(.prflow/vendor/prflow/lib/scan.sh:*), Bash(.prflow/vendor/prflow/lib/materialize-retrospectives.sh:*), Bash(.prflow/vendor/prflow/lib/pattern-state.sh:*), Bash(.prflow/vendor/prflow/lib/actionable-patterns.sh:*), Bash(.prflow/vendor/prflow/lib/open-state-pr.sh:*), Bash(.prflow/vendor/prflow/lib/recurring-targets.sh:*), Bash(.prflow/vendor/prflow/lib/post-status.sh:*), Bash(.prflow/vendor/prflow/lib/fetch-pr-context.sh:*), Bash(.prflow/vendor/prflow/lib/meta-issue.sh:*), Bash(.prflow/vendor/prflow/scripts/post-issue-comment.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/build-experiment-records.py:*), Bash(.prflow/vendor/prflow/scripts/implement-run-report.py:*), Bash(gh auth status:*), Bash(true:*), Bash(export:*), Bash(trap:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
+          # devflow-capability-manifest: region=retrospective manifest_version=46 sha256=9892ea5370d78957001cdcba322a5d5c3efb8d76bf08d344d40a230fe6430305
+          TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, SendMessage, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git grep:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/review-dirty-tree.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-url.sh:*), Bash(.prflow/vendor/prflow/scripts/compose-run-key.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/preflight.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-extension-arrival.py:*), Bash(.prflow/vendor/prflow/scripts/page-job-log.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-helper.sh:*), Bash(.prflow/vendor/prflow/scripts/retro-outcome-record.py:*), Bash(.prflow/vendor/prflow/lib/scan.sh:*), Bash(.prflow/vendor/prflow/lib/materialize-retrospectives.sh:*), Bash(.prflow/vendor/prflow/lib/pattern-state.sh:*), Bash(.prflow/vendor/prflow/lib/actionable-patterns.sh:*), Bash(.prflow/vendor/prflow/lib/recurring-targets.sh:*), Bash(.prflow/vendor/prflow/lib/fetch-pr-context.sh:*), Bash(.prflow/vendor/prflow/lib/meta-issue.sh:*), Bash(.prflow/vendor/prflow/scripts/post-issue-comment.sh:*), Bash(.prflow/vendor/prflow/scripts/apply-labels.sh:*), Bash(.prflow/vendor/prflow/scripts/build-experiment-records.py:*), Bash(.prflow/vendor/prflow/scripts/implement-run-report.py:*), Bash(gh auth status:*), Bash(true:*), Bash(export:*), Bash(trap:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
           # Union the vendored plugin's own helper grants into the baked list (issue #352).
           # Capture as RESOLVED, never a second TOOLS= (the generated-region --check refuses it);
           # baseline on STDIN and MANIFEST/PROFILE in env, never as args (MSYS rewrites path-shaped args).
@@ -594,7 +567,7 @@ jobs:
         id: compose
         env:
           ALLOWED_TOOLS: ${{ steps.tools.outputs.tools }}
-          # The renderer also writes its command-shapes section here for subagents.
+          # Preserve the shapes-file producer during the reader-only migration (#2147).
           SHAPES_FILE: .prflow/tmp/command-shapes.md
         run: |
           set -euo pipefail
@@ -648,7 +621,7 @@ jobs:
           # Per-command Bash ceiling + free allowance, mirroring the sibling claude jobs
           # (the mechanism is documented beside the settings: input in
           # devflow-implement.yml). The retrospective's Stage A/B subagent fan-out and
-          # state-PR push benefit from the same headroom.
+          # store saves benefit from the same headroom.
           settings: |
             {
               "env": {
@@ -718,42 +691,29 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      # Step 7 commits the learnings onto a local prflow/learnings-* branch, then returns
-      # to the default branch, so after a failed push this run's entries live only in that
-      # commit. Copy them back for the upload below unless the tree holds uncommitted ones.
-      - name: Restore committed learnings for upload
+      # The skill prints the report in chat but cannot write $GITHUB_STEP_SUMMARY under
+      # the cloud matcher, so the workflow appends the report file after the agent step.
+      - name: Append retrospective report to job summary
         if: always()
         run: |
-          if ! BRANCH="$(git for-each-ref --sort=-committerdate --count=1 --format='%(refname:short)' 'refs/heads/prflow/learnings-*')"; then
-            echo "::warning::could not list local state branches; uploading the working tree's learnings as-is"
-            exit 0
-          fi
-          if [ -z "$BRANCH" ]; then
-            echo "no local state branch; uploading the working tree's learnings as-is"
-            exit 0
-          fi
-          if ! DIRTY="$(git status --porcelain -- .prflow/learnings)"; then
-            echo "::warning::could not read the learnings' working-tree state; uploading them as-is"
-            exit 0
-          fi
-          if [ -n "$DIRTY" ]; then
-            echo "the working tree holds uncommitted learnings; uploading them as-is"
-            exit 0
-          fi
-          if git checkout "$BRANCH" -- .prflow/learnings; then
-            echo "restored .prflow/learnings from $BRANCH for upload"
+          if [ -s .prflow/tmp/report.md ]; then
+            cat .prflow/tmp/report.md >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::could not restore .prflow/learnings from $BRANCH; uploading the working tree's copy"
+            echo "no retrospective report at .prflow/tmp/report.md; nothing appended to the job summary"
           fi
 
       # A credential-independent copy of the run's materialized learnings, so a
-      # failed state-PR push or a cancelled run does not discard them (issue #396).
+      # failed store save or a cancelled run does not discard them (issue #396).
       - name: Upload retrospective learnings artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: retrospective-learnings-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .prflow/learnings/
+          # The path is under hidden .prflow/; the negation drops the store writers' .overrides* temp files.
+          path: |
+            .prflow/learnings/
+            !.prflow/learnings/.overrides*
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: ignore
 

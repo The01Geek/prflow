@@ -1,15 +1,86 @@
 <!-- prflow:spec-ref step=revision-delta file=skills/spec/references/revision-delta.md start -->
 
-### Revision-delta verification (shared procedure — referenced by every revise-and-re-gate site)
+### Revision-delta verification (shared procedure)
 
-Every revise-and-re-gate sentence in this skill (Step 3.5's items 5 and 6, the adjudication member's `revise-then-evaluate-offer` arm, and Step 4 sub-step 4) references this one procedure by name; it is stated here, once, and no site paraphrases it. It runs **at every revision event** — before any presentation of the revised draft. (A "revision event" is one revise-and-re-gate occurrence; a multi-finding `VERDICT: REVISE` is one event spanning several verify-and-edit batches.)
+This procedure runs **at every revision event** — before any presentation of the revised draft. (A
+"revision event" is one revise-and-re-gate occurrence; a multi-finding `VERDICT: REVISE` is one
+event spanning several edits.)
 
-1. **Bind and walk the delta per edit-batch.** An edit-batch is the set of draft edits you apply in one assistant turn, so each batch's walk (point 2) runs in that same turn. A revision event spanning several turns accumulates one walk per batch, and the event's closing evidence line (point 7) sums them, reading them from their own transcript records. The walk runs at edit time, never retroactively.
-2. Each batch walk covers all six delta classes, per class, recording what the batch introduces, changes, or removes in each — a removal counts: (a) mechanisms, (b) lifecycle rules (artifact and state lifecycles, ordering), (c) execution-tier assumptions, (d) dependencies (in-repo helper/resolver/gate/artifact reliances, and relied-on third-party behavior), (e) universal guarantees and quantifiers, and (f) the residual class — any other new load-bearing claim, file reference, value comparison, or delta content fitting none of (a)–(e). The walk record is transcript text: one compact entry per class — the class's enumerated items, else a stated falsifiable zero naming why the batch has none ("no new mechanism: the batch touches only the Testing Strategy's fixture names"), never a bare zero and never a single aggregate covering all six classes. Cite tool evidence inside a walk entry as a one-line summary, never pasted output.
-3. An all-zeros walk ends the batch's work at the walk record and point 4's draft-consistency check. Wording fixes, citation additions, and scope narrowing enumerate to nothing only when the edit introduces no fact; a replacement that introduces a fact about current behavior, a universal claim, or an environment-dependent claim enumerates in its delta class (the residual class (f), the quantifier class (e), or the execution-tier class (c) respectively), never as a wording fix. Enumerate those facts from the replacement text itself; a fact list supplied with the edit, the auditor's named facts included, is a starting point, never that set. Such an all-zeros batch costs the six one-clause zero entries, that check, and the summary line. There is no separate classify-then-skip gate: the per-class walk itself decides, and its stated zeros are the auditable record of that skip decision.
-4. An item that adds a mechanism, changes what an amended rule outputs, redefines a term, or defines a closed set first applies the *Bundle currency* update in `references/step-2-clarify.md` to the bundle entries it touches, or re-marks them `unestablished — superseded by <the item>`. For each enumerated item, and each criterion or Verified: bullet relying on an entry updated or re-marked, re-evaluate the premises and contracts triggers using Step 3.5 item 2's applicability rule; load a newly required group per *Reference routing* before re-applying its applicable rows. Verify each enumerated (non-empty-class) item with the delta-scoped reuse of the two existing Step 3.5 disciplines, referenced by discipline name, never copied as a list: the load-bearing-claim premise verification of Step 3.5's item 2 (value-comparison grounding in `references/quality-group-contracts.md`; conditional-path and value-semantics reading and the relied-on-third-party documentation ladder in `references/quality-group-premises.md` — these groups loaded and re-applied under item 2's routing; universal-quantifier and occurrence-count grounding in item 2 itself) and the unstated-mechanism-dependency sweep of Step 3.5's item 4 (with its existence-determination step and its stated-but-unbound-input binding clause) — each item verified per Step 3.5's definition of verified. Every batch, an all-zeros one included, also runs the draft-consistency check: Step 3.5 item 3's projection and missed-edge-case checks plus the template's AC mutual-consistency rule it points to on each sentence the batch adds, changes or removes — an auditor's recommended edit, must-revise or advisory, the same as your own — and on each limit the batch accepts (a case its own mechanism knowingly leaves uncovered; a narrowing the user chose is decided behavior, not a limit), against the rest of the draft. A passing sentence narrows, widens or contradicts no Desired Behavior sentence or criterion, drops no exclusion another criterion states, and adds no obligation without an end condition; a passing limit is stated by every Desired Behavior sentence and criterion covering its case, and a failing sentence or limit is a draft-consistency conflict. The walk record lists each limit the batch accepts, else states a falsifiable zero, and names each sentence or limit checked and the sentences it was checked against by draft locator, not quotation. Otherwise the omissions hunt (item 3) and the Step 3.6 dimension self-check (item 6) stay one-shot whole-draft passes; this procedure reuses checks, it does not re-run Step 3.5.
-5. Fix what it finds inline, re-run the Step 3 no-options gate, and walk the fix as its own edit-batch; a batch with an all-zeros walk and no draft-consistency conflict outside wording a `kept at fork:` line quotes ends the loop. This is the same inline-revise shape as Step 3.5's item 5, and each successive batch covers only its own edits. Edit the brief as a document, applying the replacement/consolidation/deletion revision discipline stated once in `skills/spec/references/issue-template.md`'s brief/investigation-record routing rule (pointed at, not restated here).
-6. Route a genuinely new unresolved decision fork (a fix changing approved or prescribed-verbatim wording is one) through the existing Step 2 machinery (the runner's user-question tool; `## 🚫 Blocked` on disengagement) — add no new decision-handling path. When the user keeps that wording, append `kept at fork: "<the wording>"` to the derivation artifact's `## Revision-delta record` (item 7); wording no such line quotes is not kept.
-7. Close every revision event with one standalone evidence line, at the per-site anchor below: `revision-delta check: <N> enumerated, <V> verified, <F> fixed` (summing the event's batch walks; `<V>` counts only items meeting Step 3.5's definition of verified, and the line then names each other enumerated item unverified by locator, or states `none unverified`) when any class in any batch was non-empty, or `revision-delta check: no verifiable delta` when every batch walked all-zeros. The line does not extend the Step 4 audit summary line. Persist it — in addition to reporting it in chat — by appending it to a `## Revision-delta record` section of this run's derivation artifact `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` (the same artifact Step 3.5's record lives in), creating the section on the first line written and leaving the artifact's `## Steelman record` section untouched; each evidence line names the anchor it came from (e.g. `revision-delta check: … [anchor: Step 3.5 item 5]`). On a read-only filesystem it degrades to a visible inline-in-chat block per `skills/spec/references/fallback-read-only-sandbox.md`'s per-artifact Revision-delta-record arm. No confirmation covers this record. The anchors, one per site: at Step 3.5's item 5, immediately after that item's gate re-run; at Step 3.5's item 6, immediately after that item's gate re-run; at the adjudication member's `revise-then-evaluate-offer` arm, immediately before its Ledger maintenance after a revision; at Step 4 sub-step 4, immediately before its Step 3.5 re-run.
+**Revision rule.** Before editing for a finding or user request, route a genuinely unresolved
+decision fork — including excluding a requested case or changing approved or prescribed-verbatim
+wording — through `references/step-2-clarify.md`'s **One decided behavior per fork** and
+clarification routes. Apply *Settled approach* in `references/step-2-clarify.md`, or its copy in
+`references/degradation-routing.md`'s clarification fallback if `step-2-clarify.md` did not load; a
+re-ask it requires goes through Step 2 before any edit for that finding. When the user keeps
+approved or prescribed-verbatim wording at a fork, append `kept at fork: "<the wording>"` to a
+`## Revision-delta record` section of this run's derivation artifact `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md`, creating the section on the first
+line written (on a filesystem that refuses the append, follow
+`references/fallback-read-only-sandbox.md`); wording no such line quotes is not kept. Apply the
+routing rule below to the settled change, then run the verification steps on the edits.
+
+Apply `references/issue-template.md`'s *Brief / investigation-record routing* to the attacked text
+before composing a repair, whether or not the finding supplies one. Delete an attacked criterion the
+template's omit/merge/add rule refuses, with its Desired Behavior sentence unless the request names
+it or another criterion projects it. Move other attacked text the routing rule sends to the record,
+or delete it if refuted. When that resolves the finding, leave no replacement in the brief; do not
+replace a false incidental statement with a true incidental statement. For content the brief needs,
+repair the remaining defect by changing the existing statement before adding explanation; add only
+obligations needed to close that defect. Check places sharing the defect and route additions by the
+same template rule. Replace prose the revision makes false or supersedes, and consolidate copies
+serving no distinct role while retaining required projections, machine-consumer copies and
+load-bearing findings.
+
+A finding that a heuristic lists, misses or wrongly decides a case is answered by restating its
+rule, failure direction or limit, never by adding the case, or refuted because the rule already
+decides the case correctly.
+
+The tests this rule applies, one line each, with `references/issue-template.md` their home:
+
+- Vanish test's question: *if this sentence vanished, would the implementer build the wrong thing?*
+- Never moved to the record: `## Dependencies`, `## Acceptance Criteria`, the `Documentation Needed`
+bullet and `## 🚫 Blocked`.
+- Reserved-surface check, which text moving to the record also passes: no consumer requires it in
+the body.
+- Admissibility test's two origins: the request named the guarantee, or a failure the change
+introduces requires it; an unestablished request refuses nothing.
+
+1. **Verify what the edit introduces.** Take the facts from the edit's own text, never from an
+auditor's list: each mechanism, lifecycle rule, execution-tier assumption, dependency, universal
+guarantee, file reference, value comparison and other load-bearing claim it introduces or changes, a
+removal included. A wording fix, citation or narrowing that introduces no fact has nothing to
+verify; a replacement stating current behavior, a universal or an environment-dependent claim does.
+An item that adds a mechanism, changes what an amended rule outputs, redefines a term, or defines a
+closed set first applies the *Bundle currency* update in `references/step-2-clarify.md` to the
+bundle entries it touches, or re-marks them `unestablished — superseded by <the item>`. For each
+introduced item, and each criterion or Verified: bullet relying on an entry updated or re-marked,
+re-evaluate the premises and contracts triggers using Step 3.5 item 2's applicability rule; load a
+newly required group per *Reference routing* before re-applying its applicable rules. Verify each
+item with the delta-scoped reuse of the two existing Step 3.5 disciplines, referenced by discipline
+name, never copied as a list: the load-bearing-claim premise verification of Step 3.5's item 2
+(value-comparison grounding in `references/quality-group-contracts.md`; conditional-path and
+value-semantics reading and the relied-on-third-party documentation ladder in
+`references/quality-group-premises.md` — these groups loaded and re-applied under item 2's
+routing; universal-quantifier grounding in item 2 itself; occurrence-count and recorded-input
+grounding in `references/issue-template.md`) and the unstated-mechanism-dependency sweep of
+Step 3.5's item 4 (with its existence-determination step and its stated-but-unbound-input binding
+clause) — each item verified per the *Definition of verified* in `references/step-3-5-self-audit.md`. An item left refuted or
+unverified does not land: its fact is removed from the edit or rewritten so the edit introduces
+nothing unverified.
+2. **Check the draft's consistency** on every revision, including one introducing no fact. Apply the
+template's **AC mutual consistency — reconcile shared cases** rule to each addition, change or
+removal and every statement whose meaning depends on it; a deletion an auditor proposes takes the
+same check as your own edit. When a condition, outcome or exception changes, reconcile its dependent
+statements together. Cover the finding's or request's triggering case and an existing case whose
+behavior must remain unchanged. Check error paths and empty or absent inputs; give each obligation
+an end condition. Apply Step 3.5 item 3's projection check: no Desired Behavior obligation remains
+`unmatched`. Every accepted limit (a case the mechanism knowingly leaves uncovered) is stated by
+each Desired Behavior sentence and criterion covering it; a user-decided narrowing is settled
+behavior, not a limit. A disagreement, missing end condition or unpropagated limit is a
+draft-consistency conflict. This reuses the existing checks on affected behavior; it does not re-run
+Step 3.5.
+3. Fix what point 2 finds inline under the revision rule, re-run the Step 3 no-options gate, and
+check the fix under points 1 and 2, covering only its own edits; the loop ends when no
+draft-consistency conflict remains outside wording a `kept at fork:` line quotes. This is the same
+inline-revise shape as Step 3.5's item 5.
 
 <!-- prflow:spec-ref step=revision-delta file=skills/spec/references/revision-delta.md end -->

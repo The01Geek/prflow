@@ -26,25 +26,7 @@
       "subagent_type": "unspecified"
     },
     {
-      "dispatcher": "skills/review/phases/phase-3-agents.md",
-      "skill": "requesting-code-review",
-      "handoff": "resolved-command",
-      "subagent_type": "general-purpose"
-    },
-    {
-      "dispatcher": "skills/review-and-fix/references/shadow-review.md",
-      "skill": "requesting-code-review",
-      "handoff": "inherited",
-      "subagent_type": "unspecified"
-    },
-    {
       "dispatcher": "skills/review-and-fix/references/loop-control.md",
-      "skill": "review",
-      "handoff": "by-path",
-      "subagent_type": "prflow:review-engine"
-    },
-    {
-      "dispatcher": "skills/review-and-fix/references/shadow-review.md",
       "skill": "review",
       "handoff": "by-path",
       "subagent_type": "prflow:review-engine"

@@ -5,9 +5,9 @@
 #
 # The WORKFLOW-SIDE stale-REJECT dismissal net (issue #1175).
 #
-# Stale-REJECT dismissal is normally the reviewing agent's Phase 4.4 step
-# (skills/review/phases/phase-4-4-github-post.md, which runs
-# scripts/dismiss-stale-rejections.sh). When the agent never reaches Phase 4.4
+# Stale-REJECT dismissal normally happens in Phase 4.4, whose verdict post
+# (scripts/post-review-verdict.sh) runs scripts/dismiss-stale-rejections.sh after an
+# APPROVE. When the agent never reaches Phase 4.4
 # — the exact clean-exit failure mode issue #1156 records — a subsequent APPROVE
 # leaves the pull request sitting behind a superseded CHANGES_REQUESTED, with
 # nothing else in the system able to clear it. This helper is the net devflow.yml's
@@ -18,7 +18,7 @@
 # longer matches; a review whose reviewed tree is still the current head is refused,
 # never dismissed). It reads the reviewed tree from the verdict marker's `head=` when
 # the review carries one and falls back to `commit_id` only for a markerless review
-# (issue #1247), so the agent's Phase 4.4 run and this workflow run never double-dismiss
+# (issue #1247), so Phase 4.4's run and this workflow run never double-dismiss
 # or fight — the second pass over an already-dismissed review is a genuine no-op.
 #
 # THE GATE (issue #1175, the load-bearing part). The dismissal fires ONLY when the

@@ -7,6 +7,10 @@
 # For each new entry: if an existing entry has the same .repo, .pr AND .kind,
 # REPLACE it in place; otherwise APPEND at the end. The key is repo-qualified so
 # a Radman-LLC#N record does not clobber a same-numbered The01Geek#N record.
+# When a new-entries file exists, every object record, stored or new, that names
+# no repository first gains the run's repository (devflow_resolve_repo, resolved only
+# when such a record exists); an unresolvable repository exits non-zero with the
+# store unchanged.
 # Writes to a temp file and only replaces $2 after validation passes.
 #
 # Output: "materialized: appended <N>, replaced <M>"
@@ -34,15 +38,11 @@ if [ ! -f "$NEW_FILE" ]; then
     exit 0
 fi
 
-# Ensure target file exists
-if [ ! -f "$JSONL_PATH" ]; then
-    touch "$JSONL_PATH"
-fi
-
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
-# Populate temp with existing content (empty if file is empty)
-cp "$JSONL_PATH" "$TMP"
+# Populate temp with existing content; an absent store starts empty and is only
+# created by the final mv, so a failed merge leaves no store behind.
+if [ -f "$JSONL_PATH" ]; then cp "$JSONL_PATH" "$TMP"; fi
 
 APP=0
 REP=0
@@ -70,10 +70,10 @@ REP=0
 # only gates JSON validity, never redaction, so it cannot backstop that leak. So
 # on a redaction failure whose input is itself VALID JSONL — the committable case
 # — abort rather than write the unredacted corpus (the guard is a privacy
-# boundary; guard-class 2). Only genuinely malformed input (which the post-merge
-# validation rejects anyway, so nothing unredacted is ever committed) takes the
-# raw path. The jq stderr is surfaced on both arms, never swallowed, so the
-# operator sees WHY redaction could not run.
+# boundary; guard-class 2). Malformed input exits here too, naming the malformed
+# file, because the repository check below would otherwise fail on it with a
+# misdirecting message. The jq stderr is surfaced on both arms, never swallowed,
+# so the operator sees WHY redaction could not run.
 REDACTED="$(mktemp)"
 trap 'rm -f "$TMP" "$REDACTED"' EXIT
 if ! REDACT_ERR="$("$DEVFLOW_JQ" -c '
@@ -86,8 +86,49 @@ if ! REDACT_ERR="$("$DEVFLOW_JQ" -c '
         echo "materialize: redaction pass failed on VALID JSONL (jq: ${REDACT_ERR}); refusing to commit an unredacted corpus" >&2
         exit 1
     fi
-    echo "materialize: new-entries file is not valid JSONL (jq: ${REDACT_ERR}); skipping redaction — the post-merge validation will reject it" >&2
-    cp "$NEW_FILE" "$REDACTED"
+    echo "materialize: new-entries file is not valid JSONL (jq: ${REDACT_ERR}); store unchanged" >&2
+    exit 1
+fi
+
+# Stamp the store copy BEFORE the match loop: the merge key includes .repo, so an
+# unstamped stored record would never match its re-analysed entry and the PR would
+# end up with two records. Unlike _stamped_record in scripts/migrate-record-repo.py, a record that names a
+# repository is left as it is (pr_key and schema_version included), and an
+# integral JSON number such as 76.0 counts as an integer pr.
+STAMP_FILTER='def needs: type == "object" and ((.repo | strings) // "") == "";'
+NEED_STORE="$("$DEVFLOW_JQ" -n "$STAMP_FILTER"' [inputs | select(needs)] | length' "$TMP")" \
+    || { echo "materialize: the store is not valid JSONL; store unchanged" >&2; exit 1; }
+NEED_NEW="$("$DEVFLOW_JQ" -n "$STAMP_FILTER"' [inputs | select(needs)] | length' "$REDACTED")" \
+    || { echo "materialize: the redacted new entries are not valid JSONL; store unchanged" >&2; exit 1; }
+NEED_STORE="${NEED_STORE//$'\r'/}"
+NEED_NEW="${NEED_NEW//$'\r'/}"
+if [ "$NEED_STORE" != "0" ] || [ "$NEED_NEW" != "0" ]; then
+    # shellcheck source=repo-identity.sh
+    . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/repo-identity.sh" \
+        || { echo "materialize: could not resolve the repository: repo-identity.sh could not be sourced; store unchanged" >&2; exit 1; }
+    REPO="$(devflow_resolve_repo)" \
+        || { echo "materialize: could not resolve the repository to give records that name none; store unchanged" >&2; exit 1; }
+    STAMPED="$(mktemp)"
+    trap 'rm -f "$TMP" "$REDACTED" "$STAMPED"' EXIT
+    for _f in "$TMP" "$REDACTED"; do
+        if [ "$_f" = "$TMP" ]; then _label="the store"; else _label="the new entries"; fi
+        _out="$("$DEVFLOW_JQ" -c --arg repo "$REPO" "$STAMP_FILTER"'
+            if needs
+            then .repo = $repo
+                 | (if (.pr | type) == "number" and .pr == (.pr | floor)
+                    then .pr_key = ($repo + "#" + (.pr | floor | tostring)) else del(.pr_key) end)
+                 | .schema_version = 4
+            else . end' "$_f")" \
+            || { echo "materialize: could not give records in ${_label} the repository '${REPO}'; store unchanged" >&2; exit 1; }
+        _out="${_out//$'\r'/}"
+        if [ -n "$_out" ]; then printf '%s\n' "$_out" > "$STAMPED"; else : > "$STAMPED"; fi
+        cp "$STAMPED" "$_f"
+    done
+    rm -f "$STAMPED"
+    trap 'rm -f "$TMP" "$REDACTED"' EXIT
+    if [ "$NEED_STORE" != "0" ]; then
+        echo "materialize: gave ${NEED_STORE} stored record(s) that named no repository the repository '${REPO}'" >&2
+    fi
 fi
 
 # A native Windows jq.exe writes CRLF; JSON escapes a real CR, so any raw CR is that
@@ -96,26 +137,32 @@ while IFS= read -r line; do
     line="${line%$'\r'}"
     [ -z "$line" ] && continue
 
-    pr="$("$DEVFLOW_JQ" -r '.pr' <<<"$line")"
+    # As JSON text, so a string pr reaches --argjson quoted rather than bare.
+    pr="$("$DEVFLOW_JQ" -c '.pr' <<<"$line")"
     kind="$("$DEVFLOW_JQ" -r '.kind' <<<"$line")"
-    # Repo-qualified match key (absent .repo is null on both sides, so it still
-    # matches): a bare pr+kind key lets a Radman-LLC#N record delete the
-    # same-numbered The01Geek#N record from another repo.
+    # Repo-qualified match key: a bare pr+kind key lets a Radman-LLC#N record
+    # delete the same-numbered The01Geek#N record from another repo.
     repo="$("$DEVFLOW_JQ" -c '.repo' <<<"$line")"
 
     # Check if an entry with same repo, pr and kind already exists
     # Do NOT suppress jq errors here: a malformed dataset should fail loudly
     # rather than producing a spurious empty $existing and appending a duplicate.
     existing="$("$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" \
-        'select(.repo==$repo and .pr==$pr and .kind==$kind)' "$TMP")"
+        'select(type=="object" and .repo==$repo and .pr==$pr and .kind==$kind)' "$TMP")"
 
     if [ -n "$existing" ]; then
         # Replace in place — run per-line through jq substituting the match
         NEW_TMP="$(mktemp)"
         # shellcheck disable=SC2064
         trap "rm -f '$NEW_TMP' '$TMP' '$REDACTED'" EXIT
-        _replaced="$("$DEVFLOW_JQ" -c --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" --argjson repl "$line" \
-            'if .repo==$repo and .pr==$pr and .kind==$kind then $repl else . end' "$TMP")"
+        # The first match takes the entry; later matches are dropped, so the PR
+        # ends with one record of this kind.
+        _replaced="$("$DEVFLOW_JQ" -nc --argjson pr "$pr" --arg kind "$kind" --argjson repo "$repo" --argjson repl "$line" \
+            'foreach inputs as $r ({seen: false};
+                if ($r|type)=="object" and $r.repo==$repo and $r.pr==$pr and $r.kind==$kind
+                then .emit = (.seen | not) | .val = $repl | .seen = true
+                else .emit = true | .val = $r end;
+                select(.emit) | .val)' "$TMP")"
         printf '%s\n' "${_replaced//$'\r'/}" > "$NEW_TMP"
         mv "$NEW_TMP" "$TMP"
         # Restore trap to only clean $TMP/$REDACTED now that $NEW_TMP is gone (renamed to $TMP)

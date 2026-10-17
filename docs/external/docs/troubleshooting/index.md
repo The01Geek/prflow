@@ -28,7 +28,7 @@ Start with the first symptom you can see, then open the page that covers it.
 
 ## Report a Problem
 
-When you report a problem, include the PRFlow version, the operating system or runner label, the command you ran, whether it ran locally or in the cloud and the smallest error excerpt that shows the failure. Remove credentials, prompt text and private repository content first.
+Run `/prflow:help` first. It checks your PRFlow version, setup and the failing run, tells you whether the cause is your setup or a likely PRFlow bug, and for a likely bug writes a report under `.prflow/tmp/help/` holding the version, operating system, command, local or cloud and the smallest error excerpt. For a cloud run it also saves the failed run's log in that folder, whatever the verdict. Review the report and remove credentials, prompt text and private repository content before you share it.
 
 ## Related Articles
 

@@ -15,7 +15,7 @@ Consumer prompt extension (load first). Before doing this skill's work, load any
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh init
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/skill-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor failure above: fix the anchor; do not report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. No `PROMPT-EXTENSION-STATUS:` line on stderr, as after a refusal, is an unestablished extension to report, never an empty one. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run. If it exits 0 and prints nothing, proceed unchanged.
 
 Independently of that exit code, any helper in this run may write a `prflow: reading the superseded .devflow/ state directory` line to stderr. It is not an error and it does not change which arm you take above. The next step is what acts on it; do not relay it separately, or the user reads the same fact several times in one run.
 
@@ -68,7 +68,7 @@ That is the preview: it classifies the repository, plans the four members, valid
 - `NOTHING TO MIGRATE …` — no state directory at either name, so this is a first-time install (not an un-migrated consumer); say nothing about migration and carry on, since the scaffolder below creates the directory.
 - `ALREADY MIGRATED …` — the repository is already on the current layout with nothing changed, so say nothing beyond that and carry on, except that a matching *incomplete* rename-sweep ledger (see *Then: offer an opt-in PRFlow rename sweep* below) triggers the renewed-consent resume described there.
 - `PREVIEW …` / `PLAN …` followed by `will migrate` lines — relay the plan, each line naming one member of the atomic unit (the state-directory move, the workflow-content rewrite, the marketplace-source rewrite, and the version pin).
-- `APPLIED every member of the atomic unit landed together.` — the migration succeeded, so tell the user their state directory moved to `.prflow/`, name the atomic-unit members, say the large mechanical diff needs review before committing, and then offer the opt-in rename sweep this terminal `APPLIED` triggers (see *Then: offer an opt-in PRFlow rename sweep* below, whose *Trigger* subsection states the authoritative rule). <!-- stale-prose-lint: rule-text -->
+- `APPLIED every member of the atomic unit landed together.` — the migration succeeded, so tell the user their state directory moved to `.prflow/`, name the atomic-unit members, say the large mechanical diff needs review before committing, and then offer the opt-in rename sweep this terminal `APPLIED` triggers (see *Then: offer an opt-in PRFlow rename sweep* below, whose *Trigger* subsection states the authoritative rule).
 - `REFUSED …` — nothing was migrated and the repository is byte-identical, so present the migration as not done and relay every `blocked` line and the refusal's own remedy verbatim, then carry on, since the repository still works through the transitional read-through and a refusal is a report, not an init failure.
 - `could not migrate …` lines (which appear on the success path too) — relay each one naming the specific file, since these are items the migration deliberately does not own, chiefly a retained workflow `install.sh` does not ship and cannot refresh.
 
@@ -139,7 +139,7 @@ Before reading any contents, write the durable ledger under `.prflow/tmp/init-re
 
 Use preflight-required `python3` for base64. File contents are never copied into the ledger.
 
-### One candidate per batch (compaction-safe)
+### One candidate per batch
 
 Process candidates one per batch; each batch loads only the manifest, the current page, and the rename authority:
 
@@ -196,6 +196,16 @@ This is the single shared scaffolder, the same script `install.sh` uses. With no
 - relays the scaffolder's rename lines when present: on a `migrated prompt extension:` line, relay it so the user knows their old reception-skill extension file was renamed to `fix.md` (the skill is now `/prflow:fix`); on a `prompt-extension rename conflict:` line, relay it verbatim so they can reconcile it by hand; on a `migrated skill-extensions directory:` line, relay it so the user knows their old `.prflow/prompt-extensions/` directory was renamed to `.prflow/skill-extensions/`; on a `skill-extensions rename conflict:` line, relay it verbatim so they can reconcile it by hand.
 
 It resolves the templates from the installed plugin (`"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../.prflow/`), so it works whether PRFlow was installed via the marketplace or vendored by `install.sh`.
+
+## Then: move the retrospective learnings store to the telemetry branch
+
+The weekly retrospective keeps its learnings on the telemetry branch, not in the default branch. Run the one-time copy after the scaffolder, from the repo root:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/retro-helper.sh learnings-migrate
+```
+
+Relay each `learnings-migrate:` line once. When it staged the removal of tracked `.prflow/learnings/` files, tell the user to review and commit it. A non-zero exit is a report, not an init failure: relay its reason.
 
 ## Then: install the cloud-tier workflows
 

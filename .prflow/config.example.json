@@ -8,7 +8,7 @@
     "allowed_bots": "claude,dependabot",
     "allowed_users": "*",
     "workpad_marker": "<!-- prflow:workpad -->",
-    "effort": "low",
+    "effort": "medium",
     "allowed_tools": [],
     "execution_diagnostics_enabled": true,
     "execution_transcript_artifact_enabled": false,
@@ -40,31 +40,19 @@
     "fix_severity_threshold": "important",
     "max_iterations": 5,
     "fix_below_threshold_iterations": 1,
-    "efficiency_telemetry_enabled": true,
+    "efficiency_telemetry_enabled": false,
     "efficiency_cut_candidate_min_dispatch": 3
   },
   "prflow_review": {
     "verdict_severity_threshold": "critical",
     "live_progress_comment_enabled": true,
-    "stale_prose": {
-      "enabled": false,
-      "severity": "important"
-    },
     "stall_backstop": {
       "enabled": true,
       "max_resume_attempts": 2
     },
     "agent_overrides": {
-      "default": {
-        "effort": "low"
-      },
-      "prflow:checklist-deduper": {
-        "model": "sonnet",
-        "effort": "low"
-      },
       "prflow:code-reviewer": {
         "model": "opus",
-        "effort": "low",
         "iterations": "first-only"
       },
       "prflow:pr-test-analyzer": {

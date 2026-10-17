@@ -18,7 +18,7 @@ Dispatch with the Agent tool, `subagent_type: prflow:implement-intake`, `run_in_
 Pass literals:
 
 - `ISSUE_NUMBER` / `ARGUMENTS` — the invoked issue number.
-- `REPO_ROOT` — this checkout's `git rev-parse --show-toplevel` result; `SKILL_DIR` — the resolved `<skill-dir>`; `WORKPAD` and `SCRIPTS` — the tier-appropriate helper forms from the root (vendored literal first on cloud); the worker advances the remaining ladder rungs itself.
+- `REPO_ROOT` — this checkout's `git rev-parse --show-toplevel` result; `SKILL_DIR` — the resolved `<skill-dir>`; `WORKPAD` and `SCRIPTS` — the helper forms the root's *Tier-agnostic invocation* folder check selected: the anchor form alone when it found `.prflow/vendor/prflow/scripts/` absent, otherwise the vendored literal, `SCRIPTS` being one directory prefix with no trailing `/`; every Phase 1 dispatch passes these same values, and the worker advances the remaining ladder rungs itself.
 - `TIER`, `DEVFLOW_APP_ID`, and the run-facts `run id`/`run attempt` literals, including `unestablished` when absent; the current user instruction/authorization relevant to intake.
 - `DISPATCH_ID` — a fresh unique opaque identifier for this intake dispatch, including on a local run; retain it for result validation. `run_id` / `run_attempt` — literal dispatch fields from the run facts, or `unestablished`; never shell variables or a guessed local Actions run.
 - `IMPLEMENT_EXTENSION_LOAD` — the root's observed load state (`observed-content`, `observed-empty`, or `unestablished`), observed digest from this phase-entry check when available, exact load-failure/pending notes, and the trusted `DEVFLOW_PROMPT_EXTENSION_ROOT` value when set. The worker loads the full extension itself through the same sanctioned loader ladder/root and reports its digest; when both digests were observed they must match. Do not paste the full extension into the dispatch: that would add it again to the parent's tool-call context. A worker load cannot establish what the parent did not observe. Pass any pending phase-reference read note and the root's vendored-version `note` reflection, when held, for delivery after §1.3 too.
@@ -114,12 +114,11 @@ git push -u origin HEAD
 
 If the push exits non-zero or the tier refuses it, retry the identical command once — read the exit status from the tool result, never a `$?` fence. On a second failure, record a `note` reflection quoting the push stderr (or naming the refusal), stating the branch is unpushed and that Phase 2's durability checkpoints push again, and continue; when §1.4.1 recorded a `PUSH_REJECTED` note this run, the reflection also quotes that checkpoint breadcrumb. Phase 1 runs no `git pull` and no rebase on any arm, and this arm takes precedence over the root's generic push-conflict rule for this push.
 
-Then tick the Setup phase in the workpad's `## Progress` checklist, combined as the single §1.5 orchestrator write with the held §1.3.5 dependency-preflight note and, when §1.4.1 checkpoint 1 emitted `UPDATED`, the held checkpoint-1 note:
+Then tick the Setup phase in the workpad's `## Progress` checklist, combined as the single §1.5 orchestrator write with, when §1.4.1 checkpoint 1 emitted `UPDATED`, the held checkpoint-1 note:
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
-    --tick-progress "**Setup**" \
-    --note "<the held §1.3.5 dependency-preflight-passed note>" \
-    --note "Checkpoint 1: merged origin/$BASE and pushed (was behind by <n>)"
+    --note "Checkpoint 1: merged origin/$BASE and pushed (was behind by <n>)" \
+    --tick-progress "**Setup**"
 ```
 On an arm where §1.4.1 checkpoint 1 did not emit `UPDATED`, the checkpoint-1 `--note` is simply absent from this call.
 
@@ -138,7 +137,7 @@ A resumed run adopts a prior attempt's clean audit instead of re-paying the disp
 
 On a fire, skip the dispatch, record `workpad.py update $ISSUE_NUMBER --note "Phase 1.6 reuse gate: fired (resume-kind <kind> + recorded clean audit matches the live inputs); skipping the issue-claim-auditor dispatch and adopting the recorded audit"`, and continue to Phase 2 with an adopted audit whose actionable set is empty (no `AUDIT_HANDOFF_PATH` exists). On a no-fire whose cause is an unestablished check (exit 2, refusal, or no output), record a best-effort `--note` naming the failed check so an operator can tell an unestablished state from a decided no-fire; that note never changes the decision.
 
-Dispatch `prflow:issue-claim-auditor` serially after branch preparation completes, with `run_in_background: false`, no worktree isolation, and no context fork. The worker dispatches nothing and owns the complete claim-check procedure, fresh-tree rules, external-fact rechecks, non-terminal workpad records, record validation, and audit artifacts. Do not read its role/procedure or transcript here, and do not paste issue/workpad bodies, handoff arrays, raw history, or tool output into the dispatch or return.
+Dispatch `prflow:issue-claim-auditor` serially after branch preparation completes, with `run_in_background: false`, no worktree isolation, and no context fork. The worker dispatches nothing and owns the complete claim-check procedure, fresh-tree rules, external-fact rechecks, non-terminal workpad records, and its handoff and self-check. Do not read its role/procedure or transcript here, and do not paste issue/workpad bodies, handoff arrays, raw history, or tool output into the dispatch or return.
 
 Pass literal `ISSUE_NUMBER`, a fresh `DISPATCH_ID`, `WORKPAD`, `SCRIPTS`, `SKILL_DIR`, `REPO_ROOT`, the validated `RUN_SCRATCH`, `ISSUE_BODY_PATH`, `RESOLVED_AC_PATH`, `INTAKE_HANDOFF_PATH`, `WORKPAD_FILE` (the snapshot path §1.4 passed to branch setup), `BASE`, `FRESHNESS`, `TIER`, `DEVFLOW_APP_ID`, issue title/labels, and `VERSIONING_POLICY`. The content operands are paths to exact authoritative artifacts on every scratch arm; the worker never re-fetches the issue or receives an inline copy.
 
@@ -156,7 +155,7 @@ On a `command not found` / `No such file` / rc-127 reading, fall back to the por
 
 Read the exit code from the tool result, as `skills/implement/phases/phase-3-fix-loop.md` does. Only exit 0 is usable: the reader confirmed the handoff's path resolves to `RUN_SCRATCH/issue-claim-audit-handoff-$ISSUE_NUMBER.json` inside the checkout, its dispatch identity, base and freshness, and its outcome-specific conditions, and printed one compact JSON line of carry-forward fields. Exit 2, exit 3, and no reader output at all each mean the handoff is unusable — take the Blocked arm below. Route on the printed `outcome`.
 
-Retain the audit reader's printed fields — `outcome`, `blocked_reason`, `record_path`, `projection_path`, `unmatched_desired_behavior`, `pass5_workflow_resident_acs`, `pass2_wrongly_excluded_surfaces`, `superseding_assumptions`, `external_facts`, `prior_decisions`, `prior_corrections`, and `unresolved_blockers` — plus the exact resolved AC artifact path. These printed fields cross into Phase 2 without loading the full audit record into this context.
+Retain the audit reader's printed fields — `outcome`, `blocked_reason`, `unmatched_desired_behavior`, `pass5_workflow_resident_acs`, `pass2_wrongly_excluded_surfaces`, `superseding_assumptions`, `external_facts`, `prior_decisions`, `prior_corrections`, and `unresolved_blockers` — plus the exact resolved AC artifact path. These printed fields cross into Phase 2 without loading the handoff into this context.
 
 Route only on the validated handoff:
 
@@ -168,6 +167,6 @@ Route only on the validated handoff:
 
 The `error`, failed-dispatch and unusable-handoff arms complete no auditor write, so their `Blocked` write additionally carries `--record-audit-inputs not-reusable`, stripping any stale clean row so a later resume cannot adopt it. The `blocked-specification`, `blocked-policy` and `blocked-capability` arms need no such addition — the auditor already wrote `not-reusable` on those completing arms.
 
-On `NOT_IGNORED`, remove the intake workpad snapshot and any `RUN_SCRATCH/audit-versioning-policy-$ISSUE_NUMBER.md` on every arm here, a gate fire and a failed dispatch included — never before the audit dispatch completes. Remove the retained intake handoff at the same point on every arm except a gate fire, where Phase 2 reads it and then removes it. After the validated audit handoff has been read remove only its audit record and projection files at their validated exact paths. On `proceed`, retain the compact audit handoff and resolved-AC artifact until Phase 2's planning consumers have read them, and retain the intake-owned issue-body artifact through Phase 4's by-path child handoffs; on a terminal audit outcome, remove those three validated files now. Retain all artifacts on `IGNORED` until the existing successful-terminal cleanup.
+On `NOT_IGNORED`, remove the intake workpad snapshot and any `RUN_SCRATCH/audit-versioning-policy-$ISSUE_NUMBER.md` on every arm here, a gate fire and a failed dispatch included — never before the audit dispatch completes. Remove the retained intake handoff at the same point on every arm except a gate fire, where Phase 2 reads it and then removes it. On `proceed`, retain the compact audit handoff and resolved-AC artifact until Phase 2's planning consumers have read them, and retain the intake-owned issue-body artifact through Phase 4's by-path child handoffs; on a terminal audit outcome, remove those three validated files now. Retain all artifacts on `IGNORED` until the existing successful-terminal cleanup.
 
 <!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md end -->

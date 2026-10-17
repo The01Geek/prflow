@@ -188,11 +188,13 @@ else
   log "scaffolded $CONFIG — every value has a working default; edit it only to customize"
 fi
 
-# Ignore ONLY the ephemeral scratch dir (.prflow/tmp/), never the rest of
-# .prflow/: config.json must be committed for the cloud tier to read it, and
-# learnings/ (retrospectives) and the schema/example are tracked too. A scoped
-# .prflow/.gitignore keeps this self-contained — no mutation of the repo-root
-# .gitignore. Created only when absent so an adopter's edits survive re-runs.
+# Ignore the ephemeral scratch dir (.prflow/tmp/) and the retrospective's learnings
+# working copy (.prflow/learnings/, saved to the telemetry branch), never the rest of
+# .prflow/: config.json must be committed for the cloud tier to read it, and the
+# schema/example are tracked too. A scoped .prflow/.gitignore keeps this self-contained
+# — no mutation of the repo-root .gitignore. Created only when absent so an adopter's
+# edits survive re-runs; `retro-helper.sh learnings-migrate` adds /learnings/ to an
+# existing one.
 GITIGNORE="$DEST/.gitignore"
 if [ ! -f "$GITIGNORE" ]; then
   # The body names $DEST rather than a fixed '.prflow/': on an un-migrated consumer
@@ -200,11 +202,12 @@ if [ ! -f "$GITIGNORE" ]; then
   # one would describe a directory the reader cannot see.
   printf '%s\n' \
     '# PRFlow ephemeral scratch (review caches, weekly-loop temp files, issue' \
-    '# drafts). Safe to delete; never commit. Everything else under this' \
-    '# directory (config.json, learnings/, the schema/example) is intentionally' \
-    '# tracked.' \
-    '/tmp/' > "$GITIGNORE"
-  log "wrote $GITIGNORE (ignores ephemeral .prflow/tmp/ scratch)"
+    '# drafts) and the weekly retrospective'"'"'s working copy of its learnings store,' \
+    '# which lives on the telemetry branch. Never commit either. Everything else' \
+    '# under this directory (config.json, the schema/example) is intentionally tracked.' \
+    '/tmp/' \
+    '/learnings/' > "$GITIGNORE"
+  log "wrote $GITIGNORE (ignores ephemeral .prflow/tmp/ scratch and the .prflow/learnings/ working copy)"
 fi
 
 # Consumer-owned skill-extensions directory (issue #84, extended in issue #95;
@@ -425,7 +428,7 @@ else
              '## Audit dimensions' \
              '- A repo-specific invariant every issue must respect, named with what would falsify it.' \
              '' \
-             'Step 2 (the independent-derivation evidence-bundle sub-pass) reads an optional' \
+             'Step 2 (the requirements self-check evidence bundle) reads an optional' \
              '"## Evidence axes" section and appends it to the generic evidence-axis floor.' \
              'Example section (inert until you activate this file):' \
              '' \
@@ -472,6 +475,7 @@ requesting-code-review|tune what the internalized final-pass reviewer prioritize
 retrospective|add house criteria for what counts as a clean PR in the retrospective
 retrospective-audit|name the intervention patterns your team prioritizes when auditing
 challenge|add domain constraints and evidence sources for challenging proposals
+help|name your team's support channel or extra setup checks for troubleshooting
 retrospective-weekly|tune which authors and time window the weekly loop scans
 review|add house review rules the reviewer must enforce
 review-and-fix|add house review rules and fix-loop guardrails specific to your repo
@@ -1057,8 +1061,7 @@ else
   if ! "$DEVFLOW_JQ" -n --slurpfile ex "$EXAMPLE" --slurpfile cfg "$CONFIG" \
         --slurpfile ren "$RENAME_MAP" \
         --argjson have_map "$([ -f "$RENAME_MAP" ] && echo true || echo false)" '
-        ($cfg[0].prflow_review.agent_overrides? // {}) as $userao
-        | ($cfg[0]) as $orig
+        ($cfg[0]) as $orig
         | (if $have_map then (($ren[0].config_keys // {}) + ($ren[0].skill_config_keys // {})) else {} end) as $renames
         | (if $have_map then ($ren[0].workflows_config_keys // {}) else {} end) as $wfrenames
         | ($ex[0] * $cfg[0])
@@ -1088,26 +1091,6 @@ else
                  and ($orig.workflows | has($pair.key))
                  and (($orig.workflows | has($pair.value)) | not)
               then del(.[$pair.value]) else . end))
-          else . end
-        | if (.prflow_review | type) == "object" and (.prflow_review.agent_overrides | type) == "object" then
-            .prflow_review.agent_overrides |= with_entries(
-              # Do NOT let the deep-merge GRAFT an effort from the example onto a
-              # Haiku-pinned entry the user left effort-less. The shipped example
-              # pins the deduper to Sonnet 5 WITH effort; merged onto a config that
-              # re-pins that key to a Haiku id, the merge would add the effort from
-              # the example (Claude Haiku rejects effort with HTTP 400) and re-graft
-              # it on every re-scaffold, fighting the cleanup below forever. Strip
-              # ONLY a grafted effort (Haiku model + effort present + the user
-              # supplied none); a user-set stale effort is preserved here and
-              # repaired by the dedicated Haiku effort-cleanup below, so that the
-              # migration first-run behavior is unchanged. (NOTE: this comment lives
-              # inside a single-quoted jq program — keep it apostrophe-free.)
-              .key as $k
-              | if (.value | type) == "object"
-                   and (((.value.model | strings) // "") | (. == "haiku" or startswith("claude-haiku-")))
-                   and (.value | has("effort"))
-                   and (($userao[$k] // {}) | (type == "object" and has("effort")) | not)
-                then .value |= del(.effort) else . end)
           else . end' \
         > "$BACKFILL_TMP" 2>"$BACKFILL_ERR"; then
     # A genuine merge failure (odd jq build, OOM, corrupt template) is logged and
@@ -1128,22 +1111,12 @@ else
   trap - EXIT
 fi
 
-# Repair model/effort combinations the model API rejects but the no-clobber
-# backfill above structurally cannot fix. The shipped example once pinned the
-# checklist-deduper to a Haiku id and carried an `effort` key on it; the example
-# now defaults that override to Sonnet 5, but a key *removal* never propagates
-# through the backfill — it only ADDS keys, never deletes (see the
-# deletion-tracking note above). So an adopter who scaffolded earlier silently
-# keeps `effort` on a Haiku override (their own deduper pin, or any other agent
-# they pinned to Haiku), which the model API rejects (see the graft-guard above
-# for the Haiku-rejects-effort / HTTP-400 rationale). This data-driven cleanup
-# drops `effort` from any agent_overrides entry whose `model` is a Haiku id —
+# Drop `effort` from an agent_overrides entry whose `model` is `haiku` or begins
+# `claude-haiku-`. The
+# engine ignores a per-agent effort; the backfill above only ADDS keys (see the
+# deletion-tracking note above), so this pass is the one that removes it —
 # narrow (only that combination), idempotent, and best-effort with the same
 # mtime-churn guard as the backfill: an already-clean config is a quiet no-op.
-# Lives here, not in the backfill, because it removes a key rather than adding
-# one. (The backfill separately refuses to GRAFT the example's Sonnet-deduper
-# effort onto a Haiku-pinned entry, so the two passes never churn against each
-# other on a re-scaffold.)
 if "$DEVFLOW_JQ" --version >/dev/null 2>&1 && "$DEVFLOW_JQ" -e . "$CONFIG" >/dev/null 2>&1; then
   # Anti-silent-failure breadcrumb: if agent_overrides exists but is not an
   # object (hand-corrupted to an array/string/scalar), the cleanup filter below

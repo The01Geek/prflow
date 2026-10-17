@@ -223,6 +223,8 @@ reason=""
 # gh token file (surface 2) is stale, so claiming push may have used a stale token would
 # misdirect the operator (PR #491 shadow review).
 impact="git push / gh calls past ~60 min may have used a stale token"
+# A token-file-mode refresher (DEVFLOW_REFRESH_SURFACES=token-file) never refreshes git push.
+[ "${DEVFLOW_REFRESH_SURFACES:-}" = token-file ] && impact="agent-side gh calls past ~60 min may have used a stale token"
 
 # Probe the NORMALIZED own pidfile (issue #614) so a Windows-form DEVFLOW_REFRESH_PIDFILE
 # resolves to the file the reaper left in place; fall back to the raw path when the

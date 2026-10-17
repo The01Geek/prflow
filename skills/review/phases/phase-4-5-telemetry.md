@@ -2,7 +2,7 @@
 
 ### 4.5 Run telemetry record
 
-This step is gated by BOTH `prflow_review_and_fix.efficiency_telemetry_enabled` (read via `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.efficiency_telemetry_enabled true`; shared with `/prflow:review-and-fix`) AND the caller's requested phase range. Skip it entirely — no record — when the flag is `false`, or when the caller passed `phase_range_max = 4.3` (Phase 0.2 "Caller phase-range", every `/prflow:review-and-fix` engine entry), which puts Phase 4.5 outside the range so the caller owns the iteration record as sole writer. Scratch-file existence never establishes ownership; only the requested range does. Independent of the live-comment flag: either can be on while the other is off.
+Skip this step entirely when the caller passed `phase_range_max = 4.3` (Phase 0.2 "Caller phase-range", every `/prflow:review-and-fix` engine entry), which puts Phase 4.5 outside the range so the caller owns the iteration record as sole writer. Scratch-file existence never establishes ownership; only the requested range does. `prflow_review_and_fix.efficiency_telemetry_enabled` (read via `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.efficiency_telemetry_enabled false`; shared with `/prflow:review-and-fix`) gates only the record: unless `true`, write no `iter-1.json` and go straight to the persist below. Independent of the live-comment flag: either can be on while the other is off.
 
 When enabled, assemble a single workpad-shaped object for this run from state the engine already produced and write it to `.prflow/tmp/review/<slug>/<run-id>/iter-1.json` (run-scoped, the same `<run-id>` Phase 0.2 resolved). The `telemetry` key is mandatory: when no phase figures were established, emit the literal JSON string `"unavailable"`, never a missing key or `null`. This scratch write is what `efficiency-trace.sh --persist` reads back; landing in gitignored `.prflow/tmp/`, it is not a tree write and is permitted under the read-only cloud `review` profile — only the durable `--persist` write to the telemetry branch is gated to writable runs.
 
@@ -14,21 +14,21 @@ Then confirm what landed is parseable:
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -e . .prflow/tmp/review/<slug>/<run-id>/iter-1.json
 ```
 
-Read the exit status from the tool result. On non-zero, emit `::warning::review telemetry record failed to parse after authoring: <the first line of the stderr that tool result showed, or the literal stderr=empty>` — this warning is emitted as its own action *after* the read, so the slot is renderable here — and skip the persist below.
+Read the exit status from the tool result. On non-zero, emit `::warning::review telemetry record failed to parse after authoring: <the first line of the stderr that tool result showed, or the literal stderr=empty>` — this warning is emitted as its own action *after* the read, so the slot is renderable here.
 
 ```json
 {
   "iter": 1,
   "source": "review",
   "diff_profile": { … the Phase 0.5 flags … },
-  "checklist": [ { "verification_mode": "lite|agent", "verdict": "…" }, … ],
+  "checklist": [ { "verification_mode": "agent", "verdict": "…" }, … ],
   "phase3_dispatched": [ "<agent id>", … ],
   "phase3_findings": [ { "agent": "<id>", "corroboration_count": N, "contributed_to_verdict": true|false }, … ],
   "telemetry": { "phase_0_5": {…}, "phase_1": {…}, "phase_2": {…}, "phase_3": {…} }
 }
 ```
 
-`source: "review"` selects the review-mode derivation in `lib/efficiency-trace.jq` (distinguishing the record from `/prflow:review-and-fix`'s). Because standalone review never applies a fix, each Phase-3 finding carries `contributed_to_verdict` instead of `fix_decision`: `true` when it counted toward the verdict (drove the REJECT, or was a non-deferral-demoted Important/Suggestion in an APPROVE-with-notes), `false` when Phase 4.0's deferral match or a confirmed disclosure demoted it to Informational. The jq then classifies each agent `unique-effective` / `corroborating` / `noise` / `null` off contribution instead of applied-fix.
+`source: "review"` selects the review-mode derivation in `lib/efficiency-trace.jq` (distinguishing the record from `/prflow:review-and-fix`'s). Because standalone review never applies a fix, each Phase-3 finding carries `contributed_to_verdict` instead of `fix_decision`: `true` when it counted toward the verdict (drove the REJECT, or was a non-demoted Important/Suggestion in an APPROVE-with-notes), `false` when Phase 4.1 demoted it to Informational. The jq then classifies each agent `unique-effective` / `corroborating` / `noise` / `null` off contribution instead of applied-fix.
 
 Then, on a writable run, persist the record with the same direct invocation `/prflow:review-and-fix`'s Loop Exit uses (no `bash` prefix):
 

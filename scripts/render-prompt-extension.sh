@@ -33,10 +33,6 @@
 #
 # THE STATUS VOCABULARY
 # ---------------------
-# Generalized from the `EXTENSION-STATUS:` three-token contract that
-# skills/review/final-pass-contract.md already imposes on the DISPATCHED reviewer
-# subagent. This script gives the orchestrator's own load the counterpart it lacked.
-#
 #   PROMPT-EXTENSION-STATUS: content-present
 #       ...followed by a blank line and the extension's content. Stated precisely,
 #       because the stronger claim would be false: the content is captured with `$(…)`

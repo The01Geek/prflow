@@ -24,8 +24,11 @@ re-spelling the contract):
     section's heading (i.e. fewer `#` characters, or the same count).
 
 Post-merge classification:
-  - Append ` (post-merge)` to any criterion whose text contains a trigger
-    phrase from the bundled list (case-insensitive, word-boundary match).
+  - A criterion is post-merge when its text already ends in the ` (post-merge)`
+    tag (`section_parse.is_post_merge_tagged`) or contains a multi-word trigger
+    phrase from the bundled list (case-insensitive, word-boundary match). `md`
+    output appends the tag to a post-merge criterion whose text does not
+    already contain `(post-merge)`.
   - Trigger phrases are easy to edit at the top of this file — they're
     intentionally not configurable via a flag so the skill text and the
     helper stay in sync without an extra source of truth.
@@ -89,8 +92,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from gh_fresh_env import fresh_gh_env
 from section_parse import (
+    HEADING_RE,
     POST_MERGE_TAG,
     extract_section,
+    is_post_merge_tagged,
     parse_checkboxes,
     render_line,
 )
@@ -100,12 +105,13 @@ from section_parse import (
 GH = os.environ.get("DEVFLOW_GH") or "gh"
 
 
-# Trigger phrases that mark a criterion as post-merge. Matched case-
-# insensitively as substrings against the criterion text. Keep this short and
-# obvious — the skill text references the same list and the orchestrator may
-# override per-criterion when a phrase appears incidentally.
+# Trigger phrases that mark a criterion as post-merge. Every phrase contains a
+# space, so no space-free token (`--exclude-post-merge`, `.husky/post-merge`)
+# can match one. Keep this short and obvious — the skill text references the
+# same list and the orchestrator may override per-criterion when a phrase
+# appears incidentally.
 POST_MERGE_TRIGGERS = (
-    'after merge', 'post-merge', 'post-deploy', 'after deploy',
+    'after merge', 'after deploy',
     'open a pr', 'mark it ready', 'merge button', 'mark the pr',
     'in production', 'on staging', 'live environment',
     # Short bare words like `click` / `manually` / `monitor` produced
@@ -198,37 +204,14 @@ def _parse_checkboxes(section_lines: list[str]) -> list[dict]:
     return items
 
 
-# The heading-shaped tail that disqualifies a bare `post-merge` match (issue #387): the
-# whole word `verification` immediately after the trigger's whitespace names the
-# "Post-Merge Verification" document SECTION, not a statement about when a criterion can be
-# verified. Matched against the text FOLLOWING a `post-merge` occurrence, so backtick- or
-# punctuation-wrapping of the name is handled by the trigger's own `\b` boundary.
-_POST_MERGE_HEADING_TAIL_RE = re.compile(r'^\s+verification\b', re.IGNORECASE)
-
-
 def _is_post_merge(text: str) -> bool:
-    """True iff `text` states a post-merge/post-deploy timing trigger (issue #387).
+    """True iff `text` ends in the ` (post-merge)` tag or matches a trigger phrase.
 
-    Every trigger but the bare `post-merge` phrase tags on any match. `post-merge` is
-    special-cased per occurrence: a heading-shaped hit — `post-merge` immediately followed
-    by whitespace and the whole word `verification` (matched case-insensitively, backticks
-    included) — names the document section and does NOT tag, while a `post-merge` used as a
-    when-clause ("verify post-merge") still does. A non-string `text` is not tagged and does
-    not crash.
+    A non-string `text` is not tagged and does not crash.
     """
     if not isinstance(text, str):
         return False
-    for phrase, regex in zip(POST_MERGE_TRIGGERS, _POST_MERGE_RES):
-        if phrase != 'post-merge':
-            if regex.search(text):
-                return True
-            continue
-        # Per-occurrence: one line may carry both the section name and a real when-clause,
-        # so a heading-shaped occurrence disqualifies only itself, never the whole phrase.
-        for match in regex.finditer(text):
-            if not _POST_MERGE_HEADING_TAIL_RE.match(text[match.end():]):
-                return True
-    return False
+    return is_post_merge_tagged(text) or any(r.search(text) for r in _POST_MERGE_RES)
 
 
 def _warn_near_miss(parsed: list, body: str, canonical: str, needle: str) -> None:
@@ -247,14 +230,15 @@ def _is_unreadable_section(parsed: list, section_lines: list) -> bool:
     """True for the present-but-unreadable case (issue #1198).
 
     The section was matched (`extract_section` returned a non-empty line list)
-    and carries at least one non-blank line, yet `parse_checkboxes` found zero
-    items — its criteria are written in a shape this parser does not read. This
-    is deliberately distinct from a genuinely absent section, for which
-    `section_lines` is empty; the two must not be collapsed (*unknown is not
-    zero*). A present-but-empty section (heading immediately followed by another
-    heading) has no content and is NOT unreadable — there is nothing to read.
+    and carries at least one non-blank, non-heading line, yet `parse_checkboxes`
+    found zero items — its criteria are written in a shape this parser does not
+    read. This is deliberately distinct from a genuinely absent section, for
+    which `section_lines` is empty; the two must not be collapsed (*unknown is
+    not zero*). A present-but-empty section (only blank lines, or only deeper
+    headings) is NOT unreadable — there is nothing to read.
     """
-    return not parsed and any(line.strip() for line in section_lines)
+    return not parsed and any(
+        line.strip() and not HEADING_RE.match(line) for line in section_lines)
 
 
 def _warn_unreadable_section(canonical: str) -> None:

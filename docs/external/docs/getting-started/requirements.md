@@ -97,7 +97,7 @@ python3 -m pip install 'PyYAML>=6'
 
 Name the package rather than pointing `pip` at a requirements file. A requirements file resolves against your current working directory, so in a Python project you would install that project's dependencies by mistake.
 
-Without PyYAML, one helper cannot apply severity demotions from deferred-findings blocks in pull-request bodies. The review continues with the findings intact. That can surface and fix more findings than you intended, so installing PyYAML avoids unnecessary churn.
+Without PyYAML, one helper cannot read deferred-findings blocks in pull-request bodies, so the review report leaves out its Deferrals section. Findings and verdicts are unaffected.
 
 PyYAML stays required for PRFlow's own test suite, its continuous integration and the cloud tiers.
 

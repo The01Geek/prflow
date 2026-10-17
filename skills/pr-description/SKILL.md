@@ -64,10 +64,14 @@ gh issue view $ARGUMENTS --json title,body,labels
 Check for an existing PR on the current branch:
 
 ```bash
-gh pr view HEAD --json number,body,title 2>/dev/null
+gh pr view --json number,body,title
 ```
 
-If this succeeds, an existing PR was found. Save the PR number and body for Step 2.
+Route on the exit status, stdout and stderr in the tool result:
+
+- Exit 0 with parseable JSON carrying a PR number: an existing PR. Its number and body feed Step 2 and Step 3.
+- Non-zero exit whose stderr contains `no pull requests found for branch`: no PR, so Mode A; quote that stderr line, which names the branch, in your final message.
+- Anything else is `unestablished` — any other non-zero exit (authentication, network, no git remote, `could not determine current branch` on a detached HEAD), exit 0 with empty or unparseable output or no PR number, or a harness refusal with no output. Stop: compose no description, make no PATCH, and report the lookup as unestablished in your final message, quoting the stderr or naming the missing output.
 
 Pull post-merge acceptance criteria from the /prflow:implement workpad: `/prflow:implement` tags each criterion verifiable only after merge with a trailing `(post-merge)` marker, and the PR body lists them so the merger can tick them off after deploy.
 
@@ -93,28 +97,20 @@ Report the outcome in your final message as `workpad lookup: <read, <n> post-mer
 
 On `read`, a tagged row is a `## Acceptance Criteria` checkbox row `section_parse` parses — optionally indented `-` or `*`, then `[ ]`, `[x]` or `[X]` — whose text, joined with indented non-blank continuation lines and right-stripped, `is_post_merge_tagged` accepts: ending in ` (post-merge)`, leading space included. Ticked and unticked rows both count. Strip the checkbox and the tag from each and collect them as `POST_MERGE_ITEMS`; their number is the tagged-row count. When `POST_MERGE_ITEMS` is empty, the Post-Merge Verification section is omitted — except that `failed` in Mode B keeps the existing body's section verbatim.
 
-On `read`, also scan the body's `## Progress` notes for any note whose text begins with the marker `test-authoring-waiver:` (the /prflow:implement run records one per test-authoring proportionality waiver it took, naming what was waived and why). Strip the rendered timestamp prefix and the marker, and collect each remainder as `TEST_AUTHORING_WAIVER_ITEMS` for Step 2's Test Plan; on any other outcome, or with no such note, it stays empty.
+Source the Test Plan's executed outcomes from this run's tool results and, on `read`, the workpad's `## Progress` notes. On `no-issue`, `no-workpad` or `failed`, use only other observed execution evidence; without it, claim no executed result. Bind current results to the candidate they verified; preserve relevant historical decisions as historical. A diff establishes what checks exist, not that they passed. Report material limits without manufacturing waiver declarations or describing planned or unavailable checks as passes.
 
-Best-effort: pull deferred review findings from the manifest. /prflow:review-and-fix writes each run's manifest run-scoped (`.prflow/tmp/review/<slug>/<run-id>/deferrals.json`), and /prflow:implement Phase 4.0.5 merges every run-scoped manifest into one slug-level aggregate at `.prflow/tmp/review/pr-<N>/deferrals.json`, then files follow-up issues and updates that aggregate in place with `id` and `follow_up` fields per entry. Read the slug-level aggregate and surface its entries in the PR body as a Scope-Acknowledged Findings block so /prflow:review (run later as a formal merge signal) can match them and demote the corresponding findings to Informational.
+Best-effort: pull deferred review findings from the manifest. /prflow:review-and-fix writes each run's manifest run-scoped (`.prflow/tmp/review/<slug>/<run-id>/deferrals.json`), and /prflow:implement Phase 4.0.5 merges every run-scoped manifest into one slug-level aggregate at `.prflow/tmp/review/pr-<N>/deferrals.json`, then files follow-up issues and updates that aggregate in place with `id` and `follow_up` fields per entry. Read the slug-level aggregate and surface its entries in the PR body as a Scope-Acknowledged Findings block so /prflow:review (run later as a formal merge signal) lists the deferrals in its report; a deferral does not lower a finding's weight in the verdict.
 
-```bash
-PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
-if [ -n "$PR_NUMBER" ]; then
-    DEFERRALS_FILE=".prflow/tmp/review/pr-${PR_NUMBER}/deferrals.json"   # slug-level aggregate written by /prflow:implement Phase 4.0.5
-    if [ -s "$DEFERRALS_FILE" ]; then
-        DEFERRALS_BODY=$(cat "$DEFERRALS_FILE")
-    fi
-fi
-```
+Only when the lookup found a PR, Read `.prflow/tmp/review/pr-<number>/deferrals.json` with the file-read tool, the lookup's PR number substituted as a literal.
 
-If `DEFERRALS_BODY` is set and the parsed JSON has at least one renderable entry under `deferrals[]`, render the Deferred Findings section in Step 2's template — a human-readable Markdown table (one row per deferral) for readers, plus the exact machine payload (the same `schema_version: 1` / `deferrals[]` YAML shape) inside the hidden `DEVFLOW_DEFERRED_PAYLOAD` HTML comment that `scripts/match-deferrals.py` parses. An entry is renderable when it has a populated `follow_up.issue` OR its `reason.category` (equivalently the aggregate's flat `category`) is `settled-by-disclosure` (a foreclosure, which never has a `follow_up.issue`). An ordinary entry (one of the three non-foreclosure categories) lacking a `follow_up.issue` is a stale half-written manifest — skip it silently. A `scheduled-in-run` entry is a distinct, deliberately non-renderable class: the same run's documentation pass discharges it, so it gets no table row and no payload entry — rendering one would claim outstanding work the branch already carries.
+If that read returned an aggregate and its parsed JSON has at least one renderable entry under `deferrals[]`, render the Deferred Findings section in Step 2's template — a human-readable Markdown table (one row per deferral) for readers, plus the exact machine payload (the same `schema_version: 1` / `deferrals[]` YAML shape) inside the hidden `DEVFLOW_DEFERRED_PAYLOAD` HTML comment that `scripts/match-deferrals.py` parses. An entry is renderable when it has a populated `follow_up.issue` OR its `reason.category` (equivalently the aggregate's flat `category`) is `settled-by-disclosure` (a foreclosure, which never has a `follow_up.issue`). An ordinary entry (one of the three non-foreclosure categories) lacking a `follow_up.issue` is a stale half-written manifest — skip it silently. A `scheduled-in-run` entry is a distinct, deliberately non-renderable class: the same run's documentation pass discharges it, so it gets no table row and no payload entry — rendering one would claim outstanding work the branch already carries.
 
 **Carry-forward safety.** Because a `settled-by-disclosure` foreclosure files no follow-up issue, the PR-body Scope-Acknowledged block is its *only* durable record — a regeneration from a fresh environment (where `.prflow/tmp/review/…` is empty) must therefore **never** silently wipe it. So:
-- When the slug aggregate is absent or unparseable (`DEFERRALS_BODY` empty/invalid), do not omit the section: read the existing PR body's `DEVFLOW_DEFERRED_PAYLOAD` block and preserve it verbatim (re-emit its entries unchanged). Only when neither an aggregate nor an existing block exists is the section omitted.
+- When the read returned no usable aggregate (absent, empty, unreadable or unparseable — name a present but unreadable or unparseable one in your final message), do not omit the section: read the existing PR body's `DEVFLOW_DEFERRED_PAYLOAD` block and preserve it verbatim (re-emit its entries unchanged). Only when neither an aggregate nor an existing block exists is the section omitted.
 - When both an aggregate and an existing PR-body block exist, merge them: render the aggregate's entries, then carry forward any entry present in the existing body's `DEVFLOW_DEFERRED_PAYLOAD` but absent from the aggregate (matched by its `dfr-` id) so a foreclosure recorded on an earlier pass is never dropped by a later regeneration that no longer sees its manifest.
 - Reclassification arm, which overrides the carry-forward above: when the aggregate marks an entry `scheduled-in-run`, **remove** that `dfr-` id's table row and payload entry from the existing body instead of carrying it forward — an earlier pass rendered it as an ordinary row, and the run has since taken the work on. This arm fires only for that category; it never strips a foreclosure row.
 
-The lookup is best-effort — never fail the run on a missing or unparseable manifest, and never wipe an existing foreclosure block on one.
+The deferral read is best-effort — never fail the run on a missing or unparseable manifest, and never wipe an existing foreclosure block on one.
 
 ## Step 2: Generate the PR Description
 
@@ -137,10 +133,10 @@ Re-generate from the diff (always overwrite — these reflect current state):
 - Deferred Findings (when there is at least one renderable entry, as defined in Step 1 — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; carry-forward-safe: a regeneration with no manifest present preserves the existing block's entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
 
 Merge (keep existing items that are still relevant, add new ones, remove stale ones):
-- Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist. When `TEST_AUTHORING_WAIVER_ITEMS` is non-empty, seed one `Test authoring waived: <ceremony> — <reason>` line per item into the Test Plan, re-derived from the workpad on every run. Preserve verbatim any such recorded *test-authoring proportionality waiver* line — a durable record of auxiliary test ceremony deliberately not written, not a stale checklist item to remove or a test claim to rewrite.
+- Test Plan — preserve human-added items and relevant historical verification decisions; update the checks, actual outcomes and material limits for the current change. Existing coverage and direct checks are valid evidence where sufficient; report their scope accurately.
 
 Merge (combine existing and new):
-- Resolves — if `$ARGUMENTS` provides an issue number, include it; also keep any existing issue references that differ from `$ARGUMENTS`, and every `Stricter than criterion <N>:`, `Disputed criterion <N>:` or `Disputed criterion (unmatched):` line already in it
+- Resolves — if `$ARGUMENTS` provides an issue number, include it; also keep any existing issue references that differ from `$ARGUMENTS`, and every line already in it starting at column 0 with `Stricter than criterion `, `Disputed criterion ` or `Finding rejected ` (numbered, `(unmatched)` or quoted; read no criteria to decide)
 
 Preserve as-is:
 - Any non-template sections found between the markers (e.g., "## Reviewer Notes", "## Deploy Steps") — carry them forward in the same position
@@ -152,7 +148,7 @@ Relocate, do not preserve in place:
 Strip, do not preserve:
 - A stopped-run note block delimited by `<!-- prflow:stopped-run-note-start -->` and `<!-- prflow:stopped-run-note-end -->` — remove the block and its markers entirely, wherever it appears. Without this, a late stall-backstop write ships a merged PR with a stale stopped-run banner.
 
-If the existing body has NO markers: Treat the entire existing body as pre-marker content, except the provenance line, which the relocation rule above places, and any `Stricter than criterion <N>:`, `Disputed criterion <N>:` or `Disputed criterion (unmatched):` line, which goes to `## Resolves`, or stays with the pre-marker content when none is generated. Output that pre-marker content above `<!-- PR_BODY_START -->`, then generate the full template below the marker, then the provenance line last.
+If the existing body has NO markers: Treat the entire existing body as pre-marker content, except the provenance line, which the relocation rule above places, and any line the `## Resolves` rule above keeps, which goes to `## Resolves`, or stays with the pre-marker content when none is generated. Output that pre-marker content above `<!-- PR_BODY_START -->`, then generate the full template below the marker, then the provenance line last.
 
 ### Template
 
@@ -182,10 +178,10 @@ The following items can only be verified after this PR is merged or deployed. Ti
 - [ ] [...]
 
 ## Deferred Findings
-[Omit this entire section only when there are NO renderable entries (as defined in Step 1) AND no existing PR-body block to carry forward. When rendering, render with the markers — the /prflow:review verdict matcher parses them exactly. The visible content is a human-readable Markdown table; the exact machine payload lives in a hidden HTML comment (`DEVFLOW_DEFERRED_PAYLOAD`) so it does not appear in the rendered PR body. One table row per deferral; one payload entry per deferral, in the same order. A foreclosure row cites the disclosure path in the Follow-up column (e.g. `disclosure: docs/…`) instead of a `#<N>` issue reference. Carry forward any existing-body entry absent from the aggregate, per Step 1's carry-forward rule:]
+[Omit this entire section only when there are NO renderable entries (as defined in Step 1) AND no existing PR-body block to carry forward. When rendering, render with the markers — the /prflow:review deferral matcher parses them exactly. The visible content is a human-readable Markdown table; the exact machine payload lives in a hidden HTML comment (`DEVFLOW_DEFERRED_PAYLOAD`) so it does not appear in the rendered PR body. One table row per deferral; one payload entry per deferral, in the same order. A foreclosure row cites the disclosure path in the Follow-up column (e.g. `disclosure: docs/…`) instead of a `#<N>` issue reference. Carry forward any existing-body entry absent from the aggregate, per Step 1's carry-forward rule:]
 
 <!-- DEVFLOW_DEFERRED_FINDINGS_START -->
-These review-agent findings were deferred under the Scope-Acknowledged Findings contract. /prflow:review honors matching entries as Informational; closing a linked follow-up issue invalidates the deferral and forces re-verification. A `settled-by-disclosure` foreclosure has no follow-up issue — the cited disclosure is its deliverable, and a review re-verifies the disclosure phrase against the tree.
+These review-agent findings were deferred under the Scope-Acknowledged Findings contract. A deferral does not lower a finding's weight in /prflow:review's verdict, and closing a linked follow-up issue invalidates the deferral. A `settled-by-disclosure` foreclosure has no follow-up issue — the cited disclosure is its deliverable, and a review re-verifies the disclosure phrase against the tree.
 
 | Severity | File | Finding | Follow-up |
 | --- | --- | --- | --- |
@@ -242,11 +238,12 @@ Rules:
 
 ## Step 3: Apply the Description
 
-- If an existing PR was found (Mode B): Update it directly via REST (repo-scope only — `gh pr edit --body` resolves the repo through org-scoped GraphQL and fails under a repo-scoped token). The `-F body=@-` form reads the field value literally from stdin, so the quoted-heredoc's no-expansion guarantee (backticks and `$` preserved) holds:
+- If an existing PR was found (Mode B): Update it directly via REST (repo-scope only — `gh pr edit --body` resolves the repo through org-scoped GraphQL and fails under a repo-scoped token). Write the full output, pre/post-marker content included, to a file under `.prflow/tmp/` with the file-write tool, then apply it with the lookup's PR number as a literal:
   ```bash
-  gh api --method PATCH "repos/{owner}/{repo}/pulls/$PR_NUMBER" -F body=@- <<'EOF'
-  [full output including any pre/post-marker content]
-  EOF
+  gh api --method PATCH "repos/{owner}/{repo}/pulls/<number>" -F body=@<file>
   ```
-  After the PATCH, read the body back (`gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER" --jq .body`) and confirm it matches what you sent — `gh api` can exit 0 while the body came through as a literal `@path` or truncated, which is a failed write to redo.
+  Then read the body back with the same literal number and compare it with the file's contents, ignoring the trailing newline `--jq` appends. A non-zero exit from either call, or any other difference — `gh api` can exit 0 while the body came through as a literal `@path` or truncated — is a failed write: redo it once, and if it fails again, report the write as failed in your final message, naming the body file, quoting the stderr or mismatch, and stating whether the last read-back showed the body the lookup returned, or that no read-back succeeded:
+  ```bash
+  gh api "repos/{owner}/{repo}/pulls/<number>" --jq .body
+  ```
 - **If no existing PR (Mode A):** Output the description as plain text for the caller to use when creating the PR.

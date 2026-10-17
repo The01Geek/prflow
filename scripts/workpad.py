@@ -1,66 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""PRFlow workpad helper for the /implement skill.
+"""PRFlow's stateless workpad CLI for /implement.
 
-The /implement orchestrator maintains one canonical marker-tagged comment per
-GitHub issue (the workpad); concurrent create races remain a documented residual.
-Claude Code's Bash tool spawns a fresh shell per
-call, so shell functions and env vars don't survive across phase boundaries.
-This script gives the orchestrator a stateless CLI that re-derives everything
-from arguments + live GitHub state on each call.
+Reads live GitHub state through gh and the repo-root .prflow/config.json.
+One marker-tagged comment is canonical per issue; concurrent create races remain.
+Use --help and update --help for the CLI surface.
 
-All subcommands shell out to `gh` for GitHub API access (same auth path as
-the rest of devflow). The workpad marker is read from the repo-root
-`.prflow/config.json` directly in-process (issue #275: no `.sh` exec, so it
-works on Windows), anchored to the git repo root via a native `git rev-parse`
-subprocess (issue #295: falling back to cwd) so a subdirectory invocation still
-reads the consumer's root config, falling back to the built-in default
-`<!-- prflow:workpad -->` when the config file or key is absent (so it works
-with no config).
-
-Usage:
-    workpad.py id        ISSUE [--marker M]
-    workpad.py acs       ISSUE [--exclude-post-merge] [--neutralize-boxes]
-                               [--emit-source-token]
-    workpad.py acs-resolve ISSUE [--pr N]
-    workpad.py body      COMMENT_ID | --issue ISSUE [--marker M]
-    workpad.py patch     COMMENT_ID BODY_FILE [--drop-leading-marker KIND]...
-    workpad.py create    ISSUE BODY_FILE
-    workpad.py new-body  ISSUE [--run-link V] [--branch V] [--marker M]
-    workpad.py now
-    workpad.py compact   ISSUE [--marker M]
-    workpad.py update    ISSUE [mutations...] [--print-body] [--marker M]
-    workpad.py handoff-state FILE --issue N --run-id ID --run-attempt ATTEMPT
-
-Subcommands that locate the workpad by its marker comment (`id`, `new-body`,
-`update`, and `body --issue`) accept `--marker` to target a non-default marker — /devflow:review
-uses it to drive its own `<!-- prflow:review-progress -->` comment. The flag
-is preferred over the `DEVFLOW_WORKPAD_MARKER` env var: a leading
-env-assignment makes the command un-matchable against the cloud allow-list.
-
-`id` exits 2 with empty stdout when it scanned cleanly but no workpad exists
-yet (so callers can detect "first run" via `$?`); exit 1 is reserved for a
-real gh-api/parse error, so a transient failure is never mistaken for "first
-run" (which would post a duplicate comment).
-
-`update` is the high-level mutation entry point used by /implement at every
-phase boundary. It re-fetches the workpad body, applies the requested
-mutations, auto-updates `Last updated`, and PATCHes the result. A *structural*
-failure (missing section/front-matter line) aborts the call before any PATCH; a
-*volatile* per-row tick miss (a `--tick-*`/`--tick-*-n` that does not resolve)
-is reported and exits non-zero, but the call's other mutations still PATCH.
-`update` writes nothing to stdout by default (issue #814) — the exit code is the
-success signal, and a short stderr breadcrumb naming the PATCHed comment id (with
-the read-back `Status:` value on a `--status` call) distinguishes a successful call
-from one a permission matcher silently refused. `--print-body` restores the body
-echo; the volatile-tick-miss path echoes it regardless, because the caller must
-re-resolve a section-scoped checkbox index against that row inventory.
-Notes (`--note`) are append-only and nest under their lifecycle phase inside
-the ## Progress section; PRFlow Reflections accumulates bullets; checkbox
-sections are mutated in place rather than rewritten. See `workpad.py update
---help` for the available mutation flags.
-"""
+Update re-fetches before mutation. Structural failures prevent PATCH; volatile
+tick misses still persist other mutations and echo the body for re-resolution.
+The final stderr outcome pairs observed persistence with a safe retry remedy."""
 
 import argparse
 import base64
@@ -84,12 +33,7 @@ if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is ev
     )
     sys.exit(1)
 
-# State-directory resolution (issue #1002): canonical .prflow/, with the LOUD
-# transitional fallback to a superseded .devflow/ when only that one is present.
-# lib/ sits beside scripts/ in both the source repo and a vendored
-# .prflow/vendor/prflow/ tree, so this import path holds on every tier. A copy
-# missing the sibling degrades to the canonical name with no fallback rather than
-# failing the read (the same posture the plugin_identity import takes).
+# Resolve .prflow/ through the sibling lib; standalone copies keep canonical defaults.
 try:
     # `__file__` is absent when this module is read and exec'd rather than imported
     # (the #343 gate exercise does exactly that), so the path insert degrades with the
@@ -106,33 +50,10 @@ except Exception:  # pragma: no cover - partial-copy / exec'd-source arm
     def _warn_ancestor_config(repo_root, reader, remedy="", stream=None):
         return None
 
-# Shared section/checkbox parsing rules (issue #781) — the SAME implementation
-# `scripts/parse-acs.py` uses to WRITE the workpad's `## Acceptance Criteria`
-# section, so the read-back here can never disagree with the mirror about what a
-# section or a checkbox is. Imported IN-PROCESS, never through a `.sh`/subprocess
-# hop — Windows refuses that with [WinError 193] (issue #275).
-#
-# Two properties of this block are load-bearing, and both were learned the
-# expensive way:
-#
-# 1. It sits BELOW the Python-version gate above. Placed higher it would run
-#    before the gate, so a 3.10 host would die on the import instead of printing
-#    the gate's floor/remedy message — defeating the fail-fast the gate exists
-#    for.
-# 2. The import is OPTIONAL. `workpad.py` is deployed as a standalone file in
-#    two places that copy it WITHOUT its siblings — the Stop-hook trusted-copy
-#    closure, and the suite's own guard sandboxes — and every subcommand those
-#    paths use (`status`, `id`, `update`) needs nothing from this module. A hard
-#    import would take all of them down with a `ModuleNotFoundError` for a module
-#    only `acs` / `acs-resolve` / the scope-decision flags require. So an absent
-#    sibling degrades to a targeted failure ON THOSE SURFACES ONLY, via
-#    `_require_section_parse()` below, rather than to a dead script.
-#
-# The explicit `sys.path` entry is likewise not belt-and-braces: running this
-# file as a script puts `scripts/` on the path for free, but a consumer that
-# loads it through `importlib.util.spec_from_file_location` — how
-# `lib/test/test_python_scripts.py` drives every helper in this directory — does
-# not.
+# Share AC parsing with parse-acs.py, in-process for Windows.
+# Keep imports below the Python-version gate and optional: standalone Stop-hook
+# copies need status/id/update without this sibling. AC operations fail through
+# _require_section_parse when it is absent. Explicit sys.path also supports importlib.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from section_parse import (
@@ -143,12 +64,11 @@ try:
         render_line,
     )
     _SECTION_PARSE_IMPORT_ERROR = None
-except ImportError as _e:      # standalone deployment — see (2) above
+except ImportError as _e:      # standalone deployment
     _SECTION_PARSE_IMPORT_ERROR = str(_e)
 
 # Refreshed-token env for gh calls on native Windows (see gh_fresh_env.py).
-# Optional for the same standalone deployments as (2): without the sibling, gh
-# inherits the ambient token, as it did before the helper existed.
+# Optional for standalone deployments; without it, gh inherits the ambient token.
 try:
     from gh_fresh_env import fresh_gh_env
 except ImportError:
@@ -177,14 +97,8 @@ GH = os.environ.get("DEVFLOW_GH") or "gh"
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8, idempotently and defensively. Called from
-    the CLI entry path only (not at import) so importing this module for unit
-    tests never mutates the importer's global streams. Windows' default codec is
-    cp1252, so the rocket/em-dash this script emits would otherwise raise
-    `UnicodeEncodeError`; reconfigure overrides even a hostile `PYTHONIOENCODING`.
-    Output is LF-only: native Windows would write CRLF into the shell caller's value.
-    The guard tolerates a stream replaced with a non-`TextIOWrapper` (e.g. a
-    test's `io.StringIO`), which has no `reconfigure`."""
+    """Set CLI streams to UTF-8/LF without mutating an importer's streams.
+    Tolerate streams without reconfigure; native Windows defaults are unsuitable."""
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8", newline="\n")
@@ -227,13 +141,8 @@ _UPDATE_UNSELECTED_OUTCOME = {4: 'precondition-mismatch'}
 
 
 def _emit_update_outcome(outcome):
-    """Write `cmd_update`'s machine-readable terminal outcome line (issue #1562).
-
-    The remedy is derived from the outcome rather than passed in, so a call site
-    cannot pair them wrongly; an outcome outside the map raises KeyError rather
-    than emitting a bogus remedy. Emit AFTER the path's own prose line, because
-    the line's contract is that it is the last line on stderr.
-    """
+    """Emit the mapped outcome/remedy as the last stderr line.
+    Unknown outcomes raise rather than inventing a retry remedy."""
     global _UPDATE_OUTCOME_EMITTED
     _UPDATE_OUTCOME_EMITTED = True
     sys.stderr.write(
@@ -243,26 +152,14 @@ def _emit_update_outcome(outcome):
 
 
 def _update_fallback_outcome(exit_code=None):
-    """Resolve an unselected outcome from observed state, never from a guess.
-
-    Do not shorten this to a code lookup defaulting to `not-persisted`: the
-    post-PATCH tail can still raise (a `BrokenPipeError` on the body echo when a
-    caller pipes the command), and reporting a landed write as not-persisted
-    routes the caller to re-send it, double-writing the append-only notes.
-    """
+    """Resolve from observed persistence: a post-PATCH failure must not invite replay."""
     if exit_code in _UPDATE_UNSELECTED_OUTCOME:
         return _UPDATE_UNSELECTED_OUTCOME[exit_code]
     return 'landed-status-unverified' if _UPDATE_PATCH_LANDED else 'not-persisted'
 
 
 def cmd_update(args):
-    """Emit the terminal outcome line, then re-raise whatever ended the body.
-
-    `BaseException` is caught rather than `SystemExit` alone because the tail
-    after a successful PATCH can still raise, and letting that escape emits no
-    line over a landed write — which the absent-line rule tells a caller to read
-    as not landed. Each handler re-raises, preserving the exit status.
-    """
+    """Emit an outcome even for post-PATCH exceptions, then preserve the original exit."""
     global _UPDATE_OUTCOME_EMITTED, _UPDATE_PATCH_LANDED
     _UPDATE_OUTCOME_EMITTED = False
     _UPDATE_PATCH_LANDED = False
@@ -281,22 +178,8 @@ def cmd_update(args):
 
 
 def _fail(prefix, exc, code=1):
-    # `code` defaults to 1 (the historical contract for every subcommand). The
-    # callers that override it to 3 are cmd_status (its gh-api/transport/auth
-    # failure paths) and the acs surfaces — `_acs_read_workpad` (which passes
-    # api_fail_code=3) and `_acs_fetch_issue_body` (`_fail(cmd, …, code=3)`).
-    # In every one of those the point is the same: the cloud stall
-    # backstop (and cmd_acs_resolve's SystemExit router) can tell an
-    # auth/transport READ failure — the workpad or issue may be perfectly
-    # healthy — apart from a genuinely unreadable/absent workpad. Callers that do
-    # not override keep exit 1 unchanged.
-    # `_run` sets `encoding`, so `.stderr` is normally str — but an exception
-    # raised without capture carries None, and one built elsewhere can carry
-    # bytes, which would render as a `b'...'` repr. Both are handled the same way
-    # `cmd_patch`'s live-body read arm handles them (`getattr(e, 'stderr', None)
-    # or e`, then decode-and-strip), so the two error surfaces of one command
-    # cannot diverge: an absent or empty stderr falls back to the exception
-    # itself rather than printing a breadcrumb that names no failure.
+    # Callers use code=3 to distinguish read/auth failures from unusable content.
+    # _gh_error_detail handles missing, bytes and string stderr consistently.
     sys.stderr.write(f"workpad.py {prefix}: {_gh_error_detail(exc)}\n")
     sys.exit(code)
 
@@ -312,13 +195,7 @@ def _gh_error_detail(e) -> str:
 
 
 def _repo_root():
-    # Resolve the git repo root so config reads anchor there, not to cwd (issue
-    # #295) — the Python mirror of lib/config-source.sh's
-    # `git rev-parse --show-toplevel 2>/dev/null || pwd`. A native `git` subprocess
-    # (like the existing `gh` calls) is Windows-safe — unlike exec-ing a .sh
-    # ([WinError 193], issue #275). Returns the root string, or None when not in a
-    # git tree (git rev-parse rc!=0) or git cannot run at all (OSError) — the caller
-    # then falls back to Path.cwd(), degrading exactly as the pre-#295 code did.
+    # Anchor default config to the nearest git root, falling back to cwd.
     try:
         r = _run(['git', 'rev-parse', '--show-toplevel'])
     except (subprocess.CalledProcessError, OSError):
@@ -328,14 +205,7 @@ def _repo_root():
 
 
 def _git_root_error_suffix():
-    # Best-effort: capture git's own stderr for the no-root breadcrumb so the real
-    # cause (safe.directory refusal, or git absent → OSError) surfaces instead of being
-    # discarded. Returns a " (git: …)" suffix, or "" when git succeeded or printed
-    # nothing to stderr. Gates on a NON-ZERO rc (mirroring the match-deferrals sibling)
-    # so a git that succeeds on this second call but printed a benign advisory to stderr
-    # is not misattributed as the failure cause. Catches broadly (not just OSError) so a
-    # non-UTF-8 decode or any other subprocess error cannot make the breadcrumb path
-    # itself raise — it truly never raises.
+    # Report git's actual failure: unresolved root does not prove "outside a repo".
     try:
         r = subprocess.run(
             ['git', 'rev-parse', '--show-toplevel'],
@@ -360,22 +230,9 @@ def _repo_full(api_fail_code=1):
 
 _DEFAULT_WORKPAD_MARKER = '<!-- prflow:workpad -->'
 
-# ── The comment-marker namespace, both spellings (issue #1003) ───────────────
-# PRFlow WRITES `<!-- prflow:… -->`; every artifact created before the rename
-# carries `<!-- devflow:… -->`, and the rename rewrites no existing issue or PR
-# body. A single workpad is therefore mutated in place ACROSS the rename
-# boundary, so one body can carry BOTH spellings at once — pre-rename records
-# beside post-rename ones. Every grammar below accepts either spelling PER
-# RECORD, never per artifact: a per-artifact choice would leave a pre-rename
-# `deferred-filed` record undischarged and file its follow-up issue a second
-# time, and would leave a pre-rename `scope-decision pr=pending` record out of
-# the pending->pr substitution so the binding silently no-ops.
-#
-# END CRITERION for dropping the superseded alternative, mirroring
-# lib/rename-map.json's transitional_read_through.end_criterion: it is removed in
-# the first release after the maintainer confirms no repository still carries a
-# live workpad, progress comment or audit comment written in the superseded
-# spelling. It is not removed on a timer.
+# Read prflow/devflow namespaces per record: one live body may carry both.
+# Keep the legacy alternative until lib/rename-map.json's retirement criterion
+# is met; renaming the product does not rewrite existing GitHub comments.
 _MARKER_NS_CURRENT = '<!-- prflow:'
 _MARKER_NS_SUPERSEDED = '<!-- devflow:'
 # The regex-source form of the same alternation, for the record grammars below.
@@ -383,13 +240,7 @@ _MARKER_NS_RE = r'<!-- (?:pr|dev)flow:'
 
 
 def _marker_variants(marker: str) -> tuple[str, ...]:
-    """`marker` plus its other-namespace twin, when it is one of PRFlow's own.
-
-    A marker a consumer customized to something outside the namespace has no
-    twin and is returned alone, so this never invents a second literal to match.
-    The superseded->current direction is live too: a consumer whose config still
-    carries the pre-rename value keeps finding comments written under either.
-    """
+    """Return both namespace spellings for built-in markers, or a custom marker alone."""
     if marker.startswith(_MARKER_NS_CURRENT):
         return (marker, _MARKER_NS_SUPERSEDED + marker[len(_MARKER_NS_CURRENT):])
     if marker.startswith(_MARKER_NS_SUPERSEDED):
@@ -398,37 +249,14 @@ def _marker_variants(marker: str) -> tuple[str, ...]:
 
 
 def _workpad_marker(explicit=None):
-    # An explicit override wins: /devflow:review uses this to target its own
-    # `<!-- prflow:review-progress -->` comment with the same helper, rather
-    # than forking a parallel script. Precedence: the `--marker` CLI flag, then
-    # the `DEVFLOW_WORKPAD_MARKER` env var, then config, then the built-in
-    # default. The flag is preferred over the env var because a leading
-    # env-assignment (`DEVFLOW_WORKPAD_MARKER=… workpad.py …`) makes the command
-    # un-matchable against the cloud allow-list rule `Bash(.../workpad.py:*)`
-    # (the command no longer *starts with* the script path), so those calls are
-    # silently denied on the read-only `review` profile; `--marker` keeps the
-    # path as the command prefix. The env var is retained for back-compat.
+    # Precedence: CLI marker, environment, config, default.
+    # Prefer --marker: the cloud matcher requires the script path as command prefix.
     override = (explicit or '').strip() or os.environ.get('DEVFLOW_WORKPAD_MARKER', '').strip()
     if override:
         return override
-    # Read the marker from .prflow/config.json directly in-process (issue
-    # #275): Windows cannot exec a .sh helper ([WinError 193]), so the former
-    # config-get.sh subprocess hop silently dropped a configured custom marker
-    # back to the built-in default there.
-    #
-    # SHARED REPO-ROOT CONFIG CONTRACT (issue #295, supersedes the #275 cwd-relative
-    # contract): this resolver and scripts/config-get.sh both anchor the DEFAULT
-    # `.prflow/config.json` to the git repo root (git rev-parse --show-toplevel,
-    # falling back to cwd) — NOT relative to the current working directory — so a run
-    # invoked from a repo subdirectory reads the consumer's ROOT config, mirroring
-    # lib/config-source.sh. Keep the two readers in lockstep: they resolve the same
-    # file for the same cwd. An absent file is the normal unconfigured case — silent
-    # fallback so the local tier works with no config at all. (Limitation:
-    # --show-toplevel returns the NEAREST git root, so a nested submodule/inner repo
-    # or a monorepo whose .prflow/ is not at the git root resolves a root carrying no
-    # config. Resolution is unchanged, but that shape is DETECTED since issue #12: an
-    # ancestor carrying a .prflow/ earns a lib/ancestor_config.py stderr breadcrumb
-    # naming the resolved root, that ancestor, and the --marker remedy.)
+    # Read config in-process for Windows, anchored like scripts/config-get.sh.
+    # Missing root config is normal; ancestor_config warns about a nested repo
+    # whose nearest git root hides an ancestor's configuration.
     _root = _repo_root()
     if _root is not None:
         _warn_ancestor_config(_root, 'workpad.py',
@@ -437,13 +265,8 @@ def _workpad_marker(explicit=None):
     else:
         cwd = Path.cwd()
         config_file = Path(_resolve_state_dir(str(cwd))) / 'config.json'
-        # Breadcrumb only when NEITHER a git root NOR a .prflow/ dir can be located —
-        # the silent-drop class this fix closes. A git root with no .prflow/ is the
-        # normal unconfigured case and stays silent (handled by FileNotFoundError below).
-        # git can exit non-zero while genuinely INSIDE a repo (safe.directory /
-        # dubious-ownership), or be absent — not only "outside a git tree" — so don't
-        # assert "not in a git repo"; report the root could not be resolved and surface
-        # git's own stderr (re-run on this rare path only).
+        # Warn only when neither git root nor .prflow/ resolves; include git's stderr.
+        # A root without config is the normal, silent unconfigured case.
         if not (cwd / '.prflow').is_dir() and not (cwd / '.devflow').is_dir():
             sys.stderr.write(
                 f"workpad.py: could not resolve a git repo root"
@@ -458,15 +281,8 @@ def _workpad_marker(explicit=None):
         # unconfigured case — silent, unlike the breadcrumbed failures below.
         return _DEFAULT_WORKPAD_MARKER
     except (OSError, ValueError) as e:
-        # ValueError covers json.JSONDecodeError AND UnicodeDecodeError — a
-        # config.json written by PowerShell 5.x `>` redirection is UTF-16LE
-        # with a BOM (the PowerShell UTF-16LE redirection pitfall), which raises
-        # UnicodeDecodeError, not JSONDecodeError, at read time.
-        # A present-but-unreadable/malformed config is otherwise
-        # indistinguishable from "no marker override configured": both fall
-        # back to the built-in default. Leave a breadcrumb naming the file so
-        # an operator debugging a "workpad not found" symptom on a repo with
-        # `.prflow.workpad_marker` configured can tell the two apart.
+        # ValueError includes malformed JSON and invalid UTF-8 (e.g. PowerShell UTF-16).
+        # Warn when a present config is unreadable before falling back to the default.
         sys.stderr.write(
             f"workpad.py: could not read {str(config_file)!r} ({e}); "
             f"falling back to default marker\n"
@@ -502,17 +318,9 @@ def _canonicalize_body(text):
 
 
 def _stage_body_bytes(text, into_dir=None):
-    """Stage `text` as UTF-8 bytes in a BINARY temp file and return its Path; the
-    caller unlinks it. Binary mode is load-bearing (issue #349): a native-Windows
-    text-mode write translates every '\\n' to CR-LF, re-inflating the body past
-    GitHub's comment limit, whereas bytes take no newline translation on any host.
-
-    `into_dir` places the temp file in a specific directory (default: the system
-    temp dir). The snapshot export (issue #525) passes the destination's own
-    directory so its `os.replace` onto the destination is a same-filesystem atomic
-    rename rather than a cross-device `EXDEV` failure; the default keeps every other
-    caller (the PATCH-body stagers, whose temp is uploaded via `gh`, not renamed)
-    unchanged."""
+    """Stage UTF-8 bytes in a temp file; the caller unlinks it.
+    Binary writes avoid Windows newline expansion. Set into_dir to the destination
+    directory when the caller needs a same-filesystem atomic rename."""
     # Encode BEFORE creating the temp file: a UnicodeEncodeError (a lone surrogate) must
     # raise before the delete=False file exists, or it would leak that file uncaught.
     data = text.encode('utf-8')
@@ -529,25 +337,9 @@ def _stage_body_bytes(text, into_dir=None):
 
 def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1,
                           collect_all=False):
-    """Scan an issue's comments (paginated) and return the first whose body
-    starts with `marker`, or None when the scan completed and none matched.
-
-    `collect_all=True` instead returns the LIST of every matching comment, which
-    costs a full walk of every page (the first-match arm short-circuits). Two
-    callers pay for it: `intake-triage`, because refusing a duplicated workpad is
-    part of its complete-by-construction contract, and `compact`, which must see
-    every overflow comment to pick the newest.
-
-    Single source for the marker-scan that `cmd_id`, `cmd_status`, `cmd_body`'s
-    `--issue` arm and the acs surfaces (`_acs_read_workpad`, and so
-    `cmd_acs`/`cmd_acs_resolve` through
-    it) share — the `per_page=100`/`< 100` pagination boundary and the API/parse
-    error handling live here once. A `gh api` or JSON-parse failure exits via
-    `_fail(cmd, …)` with `api_fail_code` (default 1, so the caller's error prefix
-    and historical exit code are preserved; cmd_status and `_acs_read_workpad`
-    both pass 3 to distinguish a transport/auth failure from an unreadable
-    workpad); a clean scan with no match returns None
-    so the caller can apply its own "not found" contract (exit 2)."""
+    """Scan paginated comments for the first marker match, or None on clean absence.
+    With collect_all, return every match for duplicate/overflow detection.
+    API, parse, and page-shape failures exit with api_fail_code; they are not absence."""
     page = 1
     matches = []
     while True:
@@ -563,14 +355,7 @@ def _find_workpad_comment(cmd, repo, issue, marker, api_fail_code=1,
             items = json.loads(r.stdout)
         except json.JSONDecodeError as e:
             _fail(cmd, f"could not parse gh comments response: {e}", code=api_fail_code)
-        # A rc-0 gh response that parses but is NOT a JSON array is a transport/API
-        # anomaly, not a healthy comment page — most often an error envelope
-        # (`{"message":"Bad credentials"}`) some gh/API paths emit at exit 0. Route
-        # it through the same api_fail_code as a parse failure (exit 3 for cmd_status,
-        # so the exit-3 promise covers a wrong-shape body, not only an unparseable
-        # one) rather than iterating a dict's keys into an uncaught AttributeError
-        # (which would surface as a bare exit 1, mislabeling an auth error as an
-        # unreadable workpad).
+        # Wrong-shaped rc-0 JSON (including error envelopes) is an API failure, not absence.
         if not isinstance(items, list):
             _fail(
                 cmd,
@@ -597,13 +382,7 @@ def cmd_id(args):
     if c is not None:
         print(c['id'])
         return
-    # Exit 2 (distinct from _fail's exit 1) means "scanned successfully, no
-    # matching comment" — i.e. first run / not yet seeded. A real `gh api` or
-    # parse failure exits 1 via _fail inside the scan. Callers can thus tell a
-    # benign "create it" from a transient API error and avoid posting a duplicate
-    # workpad comment on a failure they mistook for "not found". Callers also
-    # require an EMPTY stderr for this answer, so no code on the scan path may
-    # write a warning there.
+    # Clean absence is exit 2 with empty stderr; failed scans must not invite create.
     sys.exit(2)
 
 
@@ -617,16 +396,9 @@ def _comment_body(repo, comment_id):
 
 
 def _comment_body_established(repo, comment_id):
-    """(body, established) for one comment, read WITHOUT `--jq .body`.
-
-    `--jq .body` cannot express presence: jq renders a missing key as the literal
-    `null`, so an error envelope carrying no `.body` at exit 0 is indistinguishable
-    from a comment whose body is the four characters `null`. Reading the raw object
-    and testing `'body' in obj` shares the presence question with the data itself,
-    so the accepted set cannot drift. Raises like `_comment_body`; a non-object
-    payload, an absent `body` key, or a non-string `body` all return established
-    False rather than a value the caller would treat as the live body.
-    """
+    """Return (body, established) from the raw comment object.
+    Require a string body key: --jq .body conflates a missing key with literal "null".
+    Transport failures raise; invalid object/body shapes return established=False."""
     out = _run([
         GH, 'api',
         f'/repos/{repo}/issues/comments/{comment_id}',
@@ -687,13 +459,7 @@ def cmd_body(args):
     sys.stdout.write(out)
 
 
-# --- Intake snapshot export (issue #525) ------------------------------------
-# A deterministic copy of the canonical workpad body into intake's fixed scratch
-# destination, replacing intake's model-authored Write, which could silently abridge
-# a large workpad despite an exact-copy instruction. The scratch-home / symlink
-# model deliberately MIRRORS preflight.py's `_scratch_*` helpers rather than
-# importing them: don't refactor this into an import of preflight.py — the two are
-# separate top-level scripts and adding cross-script coupling is the wrong change here.
+# Intake snapshots use a fixed scratch home and mirror preflight's symlink model.
 
 def _snapshot_scratch_dir(root):
     return os.path.join(root, ".prflow", "tmp")
@@ -740,17 +506,9 @@ def _snapshot_fail(msg, code):
 
 
 def cmd_export_snapshot(args):
-    """Write the canonical workpad body to the fixed intake-scratch destination,
-    verify the persisted bytes, and print a compact JSON receipt (issue #525).
-
-    Exit vocabulary: 2 = no workpad comment (absent source), 3 = gh/parse read
-    failure (via `_repo_full` or `_find_workpad_comment`), 4 = destination/write refusal (bad --out,
-    symlink escape, missing parent dir, unresolved checkout root, UTF-8 encode
-    failure, os.replace error),
-    5 = --expect-comment-id identity mismatch, 6 = read-back verification failed. No
-    non-zero path emits the JSON receipt — the ordering (identity, then destination
-    validation, then write, then read-back, then print) is what guarantees it, so the
-    caller can treat any non-zero exit as an unavailable snapshot."""
+    """Export and verify canonical workpad bytes, then print a JSON receipt.
+    Exit 2: absent source; 3: read failure; 4: destination/write refusal;
+    5: identity mismatch; 6: read-back mismatch. No failure emits a receipt."""
     issue = str(args.issue)
     marker = _workpad_marker(args.marker)
     repo = _repo_full(api_fail_code=3)
@@ -804,12 +562,7 @@ def cmd_export_snapshot(args):
         _snapshot_fail(
             f"destination directory {dest_dir} does not exist; the caller owns scratch "
             f"creation, export does not mkdir", 4)
-    # Stage in the destination's own directory so the replace is a same-filesystem
-    # atomic rename (a cross-device rename would raise EXDEV). Any staging failure —
-    # a lone surrogate in the body (UnicodeEncodeError at encode time) or a temp-file
-    # creation/write refusal (OSError: permissions, ENOSPC) — must exit 4 rather than
-    # escape as an undocumented exit-1 traceback that breaks the "any non-zero exit ==
-    # unavailable snapshot" contract this command promises.
+    # Stage beside the destination for atomic rename; encoding/write failures exit 4.
     try:
         staged = _stage_body_bytes(c['body'], into_dir=dest_dir)
     except (UnicodeError, OSError) as e:
@@ -849,56 +602,15 @@ def cmd_export_snapshot(args):
 
 
 def _is_recognized_status_word(word: str) -> bool:
-    """True if `word` (already glyph-stripped) is a canonical Status word —
-    exactly one of `_STATUS_TO_PROGRESS_PHASE`'s keys (every in-progress phase
-    word, plus 'complete') or one of the literal terminal words 'blocked' /
-    'failed' / 'cancelled' (the words `_STATUS_TO_PROGRESS_PHASE` intentionally
-    omits — see `_progress_phase_for_status`). Deliberately exact-match, NOT
-    `_status_glyph(word) in ('🎉', '👎', '💥', '🛑')`: that delegates to
-    `_status_glyph`'s own `startswith('complete'/'blocked'/'failed'/'cancelled')
-    prefix check, which is intentional for its write-path callers but would let
-    a corrupted word like
-    'Completely wrong' or 'Blockeddependency' pass this recognition check —
-    exactly the fail-open this function exists to close. No independent
-    hardcoded word list: 'blocked', 'failed', and 'cancelled' are the only
-    literals not already sourced from `_STATUS_TO_PROGRESS_PHASE` — all three are
-    terminal words that map has no phase for (see `_progress_phase_for_status`);
-    'failed' is the workflow-level stall-backstop "died" status (💥, issue #356),
-    and 'cancelled' is the workflow-level stall-backstop "cancelled" status (🛑,
-    issue #498)."""
+    """Recognize exact phase/terminal words, not _status_glyph's write-time prefixes."""
     s = word.strip().lower()
     return s in _STATUS_TO_PROGRESS_PHASE or s in ('blocked', 'failed', 'cancelled')
 
 
 def cmd_status(args):
-    """Print the workpad Status as `CLASS GLYPH WORD` (e.g. 'interim 🚀 Reviewing').
-
-    CLASS names the terminal end so a non-`Complete` terminal status is
-    distinguishable from a completed one (issue #1025): 'complete' (🎉),
-    'blocked' (👎), 'failed' (💥), 'cancelled' (🛑), else 'interim' for an
-    in-progress glyph. The glyph comes from `_status_glyph` (the same helper the
-    update path uses to render the Status line) and the class from `_status_class`
-    (read-path only) — so the glyph vocabulary has one source of truth and no
-    caller re-parses it ad hoc. Exit codes let a caller fail
-    closed:
-      0  status printed
-      2  no workpad comment exists for this issue (scanned OK, none matched)
-      1  the workpad exists but its Status line is missing/empty, OR the Status
-         line has a value that isn't a recognized status word
-         (present-but-unreadable — a content-shape failure, distinct from 'no
-         workpad'). This is NOT a transport failure — the read succeeded, the
-         content is unusable.
-      3  a gh api / transport / auth failure (the `gh repo view` repo lookup or
-         the `gh api` comment fetch failed — e.g. an expired App token — or that
-         fetch returned a body that is unparseable (a dropped/truncated
-         connection) or parses but is not a JSON array (an error envelope such as
-         `{"message":"Bad credentials"}`)). Distinct from exit 1: the workpad may
-         be perfectly healthy; the READ failed, not the content. Kept separate so the cloud stall backstop never mislabels
-         an auth failure as an unreadable workpad and never burns a resume
-         attempt on a workpad it could not read.
-    The cloud stall backstop maps exit 1 and exit 2 alike to the 'unreadable'
-    decision class, exit 3 to the distinct 'auth-failure' class (both fail
-    closed), while a healthy run prints a class it can act on."""
+    """Print CLASS GLYPH WORD using the shared status vocabulary.
+    Exit 0: printed; 1: present but unreadable status; 2: clean workpad absence;
+    3: repository/API/transport/parse failure. A failed read is not corrupt content."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'status', _repo_full(api_fail_code=3), args.issue, marker,
@@ -914,12 +626,7 @@ def cmd_status(args):
 
 
 def _recognized_status_word_or_exit1(body, cmd):
-    """The recognized Status word carried by `body`, else exit 1 naming why.
-
-    The single source of the present-but-unreadable arm `status` and
-    `intake-triage` share: missing Status line, empty value, or a value outside
-    the recognized vocabulary. Exit 1 means the read succeeded and the CONTENT is
-    unusable — never a transport failure."""
+    """Read the recognized Status word or exit 1 for unusable content, not transport."""
     if not _STATUS_VALUE_RE.search(body):
         sys.stderr.write(
             f"workpad.py {cmd}: workpad found but no Status line in it\n"
@@ -946,34 +653,10 @@ def _recognized_status_word_or_exit1(body, cmd):
 
 
 def cmd_intake_triage(args):
-    """Print implement intake's whole read-only workpad triage state as one JSON
-    object, from ONE repo resolution and ONE marker scan (issue #436).
-
-    Replaces the separate `id` + `status` + `body` + `prior-status` reads the
-    intake procedure used to issue over the same comment — each of which re-ran
-    `gh repo view` and its own comment scan.
-
-    stdout on exit 0 is exactly one JSON object with these five keys, complete by
-    construction (no partial object is ever emitted):
-      comment_id     the workpad comment id (positive int)
-      status_class   complete | blocked | failed | cancelled | interim
-      status_word    the parsed Status word
-      body           the canonical (LF-normalized) full workpad body
-      prior_status   the recorded prior terminal Status word, or null when no
-                     prior-status marker is present
-    Exit codes:
-      0  the object above
-      1  a workpad is present but structurally unreadable — a duplicated marker
-         comment, a malformed comment record, an unreadable Status (see
-         `_recognized_status_word_or_exit1`), or a duplicated prior-status marker
-         set. The caller stops rather than acting on plausible partial state.
-      2  scanned cleanly, no workpad (stdout empty) — the create arm
-      3  a gh transport/API/parse failure, from `_repo_full` or the scan
-
-    Deliberately read-only and separate from `reset-resume-status` (an earlier
-    mutation) and offline `handoff-state`: those serve different ordering and
-    consistency boundaries. `update` keeps its own live re-fetch — never reuse
-    this pre-mutation body for a write."""
+    """Read intake state through one repo resolution and one complete marker scan.
+    On exit 0, emit comment_id, status_class, status_word, canonical body, prior_status.
+    Exit 1: malformed/duplicated workpad state; 2: clean absence; 3: API/read failure.
+    Never emit a partial object or reuse this snapshot for an update's live re-fetch."""
     marker = _workpad_marker(args.marker)
     issue = args.issue
     matches = _find_workpad_comment(
@@ -1027,28 +710,10 @@ def cmd_intake_triage(args):
     }, ensure_ascii=False) + '\n')
 
 
-# ---------------------------------------------------------------------------
-# Acceptance-criteria extraction and resolution (issue #781)
-# ---------------------------------------------------------------------------
-# The review engine sources the requirements it judges a PR against from the
-# GitHub issue BODY, while /devflow:implement's authoritative criteria have
-# moved to the workpad (Phase 2.2.5 narrows the set, Phase 2.2.6 rewrites text,
-# Phase 3.4 retags). `acs` reads the workpad's section back out; `acs-resolve`
-# resolves BOTH surfaces, applies the PR-identity guard, selects the
-# reviewer-facing value, and reports normalized divergence.
-#
-# Both live here rather than in `scripts/parse-acs.py` because the read-only
-# review profile grants `Bash(.prflow/vendor/prflow/scripts/workpad.py:*)` and
-# does NOT grant `parse-acs.py`: riding on workpad.py is what lets the cloud
-# auto-review tier reach this at all without widening the review
-# security-boundary lock.
+# Acceptance criteria: read both issue and workpad, bind decisions to the PR,
+# and report divergence. These commands use workpad.py's existing review grant.
 
-# The source token names WHICH surface supplied the reviewer-facing criteria, so
-# Phase 4's `## Issue Compliance` can report it. Each value is a state a reader
-# must be able to tell apart — collapsing any two of them would make a PRFlow
-# run whose workpad read silently failed, or whose mirroring never ran,
-# indistinguishable from an ordinary non-implement PR on the very report line
-# this mechanism adds.
+# Keep source tokens distinct: absence, failed reads and unmirrored state differ.
 _ACS_SOURCE_WORKPAD = 'workpad'
 _ACS_SOURCE_ISSUE_BODY = 'issue-body'
 _ACS_SOURCE_WORKPAD_UNMIRRORED = 'workpad-unmirrored'
@@ -1061,46 +726,37 @@ _ACS_SOURCE_NONE = 'none'
 # all, exactly what `resolver-unavailable` names — so it reuses that existing token
 # rather than widening the `acceptance_criteria_source` vocabulary Phase 4 renders.
 _ACS_SOURCE_RESOLVER_UNAVAILABLE = 'resolver-unavailable'
-# The /prflow:implement Phase 3.4 gate's defined-degradation read (`acs-gate`,
-# issue #1214). `workpad-absent` names a CLEAN absence (no workpad) — kept
-# distinct from `workpad-read-failed` (a transport/parse failure) so the gate
-# never reroutes a benign first-run absence onto the transport-failure label
-# (AC6). `unestablished` names the both-surfaces-down shape: the workpad read
-# failed AND the issue-body fallback also failed, so no criteria could be
-# resolved and the gate must not pass (AC5).
+# AC gate sources distinguish clean absence, fallback after read failure, and
+# both sources unavailable. Degraded sources cannot establish tick completion.
 _ACS_SOURCE_WORKPAD_ABSENT = 'workpad-absent'
 _ACS_SOURCE_UNESTABLISHED = 'unestablished'
 
 _ACS_SECTION = 'Acceptance Criteria'
 
 
-def _acs_render(items: list[dict], *, exclude_post_merge: bool,
-                neutralize_boxes: bool) -> str:
-    """Render parsed criteria back to checkbox lines.
-
-    `exclude_post_merge` drops every line already carrying the mirror-time
-    ` (post-merge)` tag. The tag is READ, never re-derived from
-    `parse-acs.py`'s trigger phrases: those criteria are work this PR is not
-    delivering, so handing them to the checklist generator unfiltered would mint
-    highest-priority items a Phase 2 verifier then FAILs — the exact failure
-    this mechanism exists to remove.
-    """
-    kept = _acs_filtered(items, exclude_post_merge=exclude_post_merge)
-    return '\n'.join(render_line(it, neutralize_box=neutralize_boxes) for it in kept)
+def _acs_render(items: list[dict], *, neutralize_boxes: bool) -> str:
+    """Render every parsed criterion back to a checkbox line."""
+    return '\n'.join(render_line(it, neutralize_box=neutralize_boxes) for it in items)
 
 
-def _acs_filtered(items: list[dict], *, exclude_post_merge: bool) -> list[dict]:
-    """The items `_acs_render` prints; a criteria file, when written, holds exactly these."""
-    return [it for it in items
-            if not (exclude_post_merge and is_post_merge_tagged(it['text']))]
+def _acs_filtered(items: list[dict]) -> list[dict]:
+    """Exclude stored post-merge tags; never re-derive tags from trigger phrases."""
+    return [it for it in items if not is_post_merge_tagged(it['text'])]
 
 
 _CRITERIA_OUT_CRUMB = 'workpad.py acs-resolve: criteria-out:'
+_COMPLIANCE_OUT_CRUMB = 'workpad.py acs-resolve: compliance-out:'
+_COMPLIANCE_FILE = 'issue-compliance.md'
+# The acs-resolve divergence kinds and their Issue Compliance labels; a kind carries a new text
+# only when it is CHANGED.
+_DIV_DROP, _DIV_DEFERRED, _DIV_CHANGED = 'DROP', 'DEFERRED', 'CHANGED'
+_DIVERGENCE_LABELS = {_DIV_DROP: 'In the issue body, not in the workpad (no recorded decision)',
+                      _DIV_DEFERRED: 'Deferred by this run', _DIV_CHANGED: 'Rewritten by this run'}
 
 
-def _confined_criteria_path(path: str) -> str | None:
-    """The refusal cause for a `--criteria-out` path, or None when it is usable: the leaf
-    must not be a symlink and its resolved parent must sit beneath contiguous
+def _confined_out_path(path: str) -> str | None:
+    """The refusal cause for an `acs-resolve` output path, or None when it is usable: the
+    leaf must not be a symlink and its resolved parent must sit beneath contiguous
     `.prflow/tmp/review` segments."""
     parts = os.path.realpath(os.path.dirname(os.path.abspath(path))).replace('\\', '/').split('/')
     if not any(parts[i:i + 3] == ['.prflow', 'tmp', 'review'] for i in range(len(parts) - 2)):
@@ -1110,66 +766,181 @@ def _confined_criteria_path(path: str) -> str | None:
     return None
 
 
-def _acs_clear_criteria(path: str | None) -> bool:
-    """Remove any earlier `--criteria-out` file; a refused path is left untouched.
-    True when the path is usable and now absent. Runs before the issue-body read,
-    so an exit-3 run leaves no stale file.
-    Every failure is a stderr breadcrumb, never an exit — the stdout blocks are the
-    contract Phase 0.4 consumes."""
+def _acs_clear_out(path: str | None, crumb: str, beside: str | None = None) -> bool:
+    """Clear a usable output path before reading; refuse it if its companion is refused.
+    Return success/absence. Failures print one breadcrumb without aborting resolution."""
     if path is None:
         return False
-    cause = _confined_criteria_path(path)
+    cause = _confined_out_path(path)
+    if not cause and beside is not None and _confined_out_path(beside):
+        cause = f'{beside!r} beside it is refused'
     if cause:
-        print(f'{_CRITERIA_OUT_CRUMB} refused {path!r}: {cause}; nothing written', file=sys.stderr)
+        print(f'{crumb} refused {path!r}: {cause}; nothing written', file=sys.stderr)
         return False
     try:
         os.remove(path)
     except FileNotFoundError:
         pass
     except OSError as e:
-        print(f'{_CRITERIA_OUT_CRUMB} could not remove the earlier file {path!r} '
+        print(f'{crumb} could not remove the earlier file {path!r} '
               f'({type(e).__name__}: {e}); not writing', file=sys.stderr)
         return False
     return True
 
 
-def _acs_write_criteria(path: str, items: list[dict]) -> None:
-    """Write `items` as the criteria file when non-empty, publishing only bytes that
-    read back equal; the caller already cleared `path` via `_acs_clear_criteria`."""
-    if not items:
-        return
-    value = [{'criterion': n, 'text': it['text']} for n, it in enumerate(items, 1)]
+def _acs_write_out(path: str, text: str, crumb: str, verify=None) -> None:
+    """Publish `text` at `path` through a fresh temp and `os.replace`; `verify(fh)` must
+    hold on the temp read back. The caller already cleared `path` via `_acs_clear_out`;
+    a failure is one `crumb` stderr line and leaves no file."""
     tmp = path + '.tmp'
     try:
         if os.path.lexists(tmp):
             os.unlink(tmp)
         with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644),
                   'w', encoding='utf-8', newline='\n') as fh:
-            json.dump(value, fh, indent=2, ensure_ascii=False)
-            fh.write('\n')
-        with open(tmp, encoding='utf-8') as fh:
-            if json.load(fh) != value:
-                raise ValueError('read-back differs from the value written')
+            fh.write(text)
+        if verify is not None:
+            with open(tmp, encoding='utf-8') as fh:
+                if not verify(fh):
+                    raise ValueError('read-back differs from the value written')
         os.replace(tmp, path)
     except (OSError, ValueError) as e:
-        print(f'{_CRITERIA_OUT_CRUMB} write failed for {path!r} ({type(e).__name__}: {e}); '
-              f'no criteria file written', file=sys.stderr)
+        print(f'{crumb} write failed for {path!r} ({type(e).__name__}: {e}); nothing written',
+              file=sys.stderr)
         try:
             os.remove(tmp)
         except OSError:
             pass  # the temp may never have been created; the breadcrumb above already fired
 
 
-def _acs_workpad_state(section_lines: list[str], items: list[dict]) -> str:
-    """Classify the workpad's `## Acceptance Criteria` section.
+def _acs_write_criteria(path: str, items: list[dict]) -> None:
+    """Write `items` as the criteria file when non-empty, publishing only bytes that
+    read back equal."""
+    if not items:
+        return
+    value = [{'criterion': n, 'text': it['text']} for n, it in enumerate(items, 1)]
+    _acs_write_out(path, json.dumps(value, indent=2, ensure_ascii=False) + '\n',
+                   _CRITERIA_OUT_CRUMB, verify=lambda fh: json.load(fh) == value)
 
-    Distinguishes the two NON-EMPTY sentinels that both yield zero criteria,
-    because they make OPPOSITE claims: `parse-acs.py`'s
-    `_(none provided in issue body)_` says the issue authoritatively carries no
-    criteria, while `_AC_PENDING_PLACEHOLDER` says Phase 1.2 mirroring never
-    ran. Collapsing them would report a run whose mirroring silently failed as a
-    run that legitimately had nothing to mirror.
-    """
+
+def _acs_divergence_line(entry: tuple[str, str, str | None]) -> str:
+    """One `divergence:` stdout line for an `_acs_diverge` entry."""
+    kind, text, new = entry
+    return f'{kind}: {text}' if new is None else f'{kind}: {text} -> {new}'
+
+
+def _acs_follow_up(divergence: list[tuple[str, str, str | None]] | None) -> list[str]:
+    """The follow-up prompt, as the last line of the `divergence:` block and of the compliance
+    text, when the run deferred or rewrote a criterion; else no line."""
+    if any(kind in (_DIV_DEFERRED, _DIV_CHANGED) for kind, _, _ in divergence or ()):
+        return ['Confirm the narrowed work was filed as a follow-up issue before merging.']
+    return []
+
+
+def _acs_compliance(issue: str, source: str, count: int,
+                    divergence: list[tuple[str, str, str | None]] | None) -> str:
+    """The text Phase 4 reports for this resolution: `## Issue Compliance` with its
+    explanation, or, for a clean resolution, the one headline line it puts in Run details.
+    `divergence` is None when `not-applicable`, empty when `none`."""
+    if source == _ACS_SOURCE_NONE:
+        return ('## Issue Compliance\n'
+                f'Issue #{issue} resolved, but neither the workpad nor the issue body carried any '
+                'acceptance criteria — requirement compliance not checked.')
+    if source == _ACS_SOURCE_RESOLVER_UNAVAILABLE:
+        return ('## Issue Compliance\n'
+                'The acceptance-criteria resolver could not be invoked (issue argument is not '
+                'numeric); neither the workpad nor the issue body was examined, so this PR was '
+                'reviewed WITHOUT a resolved specification.')
+    kinds = [kind for kind, _, _ in divergence or ()]
+    deferred, rewritten = kinds.count(_DIV_DEFERRED), kinds.count(_DIV_CHANGED)
+    if divergence is None:
+        scope = 'not-established'
+    elif not divergence:
+        scope = 'unchanged'
+    else:
+        scope = (f"narrowed: {deferred} deferred, {rewritten} rewritten, "
+                 f"{kinds.count(_DIV_DROP)} not in the workpad")
+    surface = 'the workpad' if source == _ACS_SOURCE_WORKPAD else 'the issue body'
+    # A workpad fallback that found no issue-body criteria either resolved nothing.
+    unresolved = not count and source in (_ACS_SOURCE_WORKPAD_UNMIRRORED, _ACS_SOURCE_WORKPAD_READ_FAILED)
+    origin = 'no criteria resolved' if unresolved else f'criteria from {surface}'
+    headline = f'Reviewed against issue #{issue} — {origin}; scope {scope}.'
+    if count and ((source == _ACS_SOURCE_WORKPAD and divergence == [])
+                  or (source == _ACS_SOURCE_ISSUE_BODY and divergence is None)):
+        return headline
+    supplied = "so the issue body's `## Acceptance Criteria` section supplied them"
+    sentence = {
+        _ACS_SOURCE_WORKPAD: ("Criteria came from the `/prflow:implement` workpad comment — this "
+                              "run's authoritative set, possibly narrowed from the issue."),
+        _ACS_SOURCE_ISSUE_BODY: f'This PR has no workpad criteria to use, {supplied}.',
+        _ACS_SOURCE_WORKPAD_UNMIRRORED: (
+            "A workpad exists but its criteria were never mirrored from the issue — a PRFlow "
+            "run's mirroring silently failed and the section still holds the seeded pending "
+            f"placeholder — {supplied}."),
+        _ACS_SOURCE_WORKPAD_READ_FAILED: (
+            f"The workpad read failed (a `gh` transport blip), {supplied} and the workpad's own "
+            "criteria were never seen this run."),
+        _ACS_SOURCE_PR_IDENTITY_MISMATCH: (
+            "The workpad lacks issue criteria no recorded decision explains — the issue's "
+            "criteria changed after the run mirrored them, or another run on the issue "
+            f"overwrote that section — {supplied}. After an issue amendment, run "
+            f"`workpad.py acs-remirror {issue}` and re-review."),
+    }[source]
+    if unresolved and source == _ACS_SOURCE_WORKPAD_UNMIRRORED:
+        sentence = ("A workpad exists but its criteria were never mirrored from the issue, and "
+                    "the issue body carries no `## Acceptance Criteria` section either — so no "
+                    "specification was resolved.")
+    elif unresolved:
+        sentence = ("The workpad read failed (a `gh` transport blip) and the issue body carries "
+                    "no `## Acceptance Criteria` section, so no specification was resolved — the "
+                    "workpad's own criteria were never seen this run, so whether criteria exist "
+                    "is unknown, not zero.")
+    lines = ['## Issue Compliance',
+             headline if unresolved else (
+                 f'{headline} Requirement-based checklist items are listed under `## Code Review '
+                 'Findings` and `## Run details`.' if count
+                 else f'{headline} No criterion is left for this review to check.'),
+             sentence]
+    if divergence == []:
+        lines.append("No divergence between the workpad's criteria and the issue body's.")
+    for kind, text, new in divergence or ():
+        lines.append(f'- {_DIVERGENCE_LABELS[kind]}: {text}' + ('' if new is None else f' → {new}'))
+    return '\n'.join(lines + _acs_follow_up(divergence))
+
+
+def _acs_publish(issue: str, source: str, items: list[dict],
+                 divergence: list[tuple[str, str, str | None]] | None,
+                 criteria_out: str | None, compliance_out: str | None) -> None:
+    """Write the criteria file, print the stdout blocks Phase 0.4 parses, then write the
+    compliance file: a fault while building its text is one `compliance-out:` stderr line.
+    The `divergence:` block carries `_acs_follow_up`'s line too, so the lines Phase 0.4 stores
+    hold the prompt when no compliance file is written."""
+    if criteria_out:
+        _acs_write_criteria(criteria_out, items)
+    print(f'source: {source}')
+    print('criteria:')
+    rendered = _acs_render(items, neutralize_boxes=True)
+    if rendered:
+        print(rendered)
+    print(f'criteria-count: {len(items)}')
+    print('divergence:')
+    if divergence is None:
+        print('not-applicable')
+    else:
+        for line in ([_acs_divergence_line(e) for e in divergence] or ['none']) + _acs_follow_up(divergence):
+            print(line)
+    if compliance_out:
+        try:
+            text = _acs_compliance(issue, source, len(items), divergence) + '\n'
+        except Exception as e:  # the blocks above are already out; the file is secondary
+            print(f'{_COMPLIANCE_OUT_CRUMB} could not build the text for {compliance_out!r} '
+                  f'({type(e).__name__}: {e}); nothing written', file=sys.stderr)
+            return
+        _acs_write_out(compliance_out, text, _COMPLIANCE_OUT_CRUMB)
+
+
+def _acs_workpad_state(section_lines: list[str], items: list[dict]) -> str:
+    """Distinguish mirrored-empty criteria from the pending, never-mirrored sentinel."""
     if items:
         return _ACS_SOURCE_WORKPAD
     if any(_AC_PENDING_PLACEHOLDER in ln for ln in section_lines):
@@ -1178,24 +949,9 @@ def _acs_workpad_state(section_lines: list[str], items: list[dict]) -> str:
 
 
 def _acs_read_workpad(cmd: str, issue: str):
-    """Locate the workpad and parse its `## Acceptance Criteria` section.
-
-    Returns `(comment_body, section_lines, items)`. Exits 2 (empty stdout AND
-    empty stderr) on a clean absence — the same benign exit `id` and `status`
-    already use, so Phase 0.4 can tell it from argparse's own exit 2 by the
-    empty stderr. A gh/transport/parse failure exits 3 via `_fail`, which is a
-    DIFFERENT non-zero shape so a transport blip is never routed as "this PR has
-    no workpad".
-
-    The marker is the DEFAULT implement marker: there is deliberately no
-    `--marker` flag on these subcommands, so a caller cannot point this read at
-    `/devflow:review`'s own `<!-- prflow:review-progress -->` comment
-    per-invocation. That closes the CALLER channel, not every channel —
-    `_workpad_marker(None)` still resolves through `DEVFLOW_WORKPAD_MARKER` and
-    `.prflow.workpad_marker`. Those are deliberately not closed: they are the
-    same value the implement workpad itself is written under, so repointing one
-    moves this read and the workpad together rather than desynchronizing them.
-    """
+    """Return (body, section_lines, items) for the configured implement marker.
+    Exit 2 with empty stdout/stderr on clean absence; exit 3 on read failure.
+    No per-call marker override: environment/config still match the implement writer."""
     marker = _workpad_marker(None)
     c = _find_workpad_comment(
         cmd, _repo_full(api_fail_code=3), issue, marker, api_fail_code=3,
@@ -1208,33 +964,14 @@ def _acs_read_workpad(cmd: str, issue: str):
 
 
 def cmd_acs(args):
-    """Print the workpad's `## Acceptance Criteria` section.
-
-    Unfiltered by default — every criterion carried through with its tick state
-    preserved and its ` (post-merge)` tag left as stored — because the
-    unfiltered section is the divergence comparand. The two flags produce the
-    reviewer-facing value instead.
-
-    Not a byte copy of the stored section: the output is the PARSED checkbox
-    items re-rendered, so blank lines between them are dropped and a `* [ ]`
-    bullet normalizes to `- [ ]`. What is guaranteed is the content contract
-    above — no criterion filtered, no tick state or tag altered — which is what
-    the comparand and the reviewer-facing value both depend on.
-
-    A pure read: no PATCH, no timestamp, nothing time-varying in the output, so
-    re-running it against an unchanged workpad is byte-identical by
-    construction.
-    """
+    """Re-render all parsed criteria, preserving ticks and stored post-merge tags.
+    This deterministic read normalizes checkbox formatting; it is not a byte copy."""
     _require_section_parse('acs')
     _, section_lines, items = _acs_read_workpad('acs', args.issue)
     out = []
     if args.emit_source_token:
         out.append(_acs_workpad_state(section_lines, items))
-    rendered = _acs_render(
-        items,
-        exclude_post_merge=args.exclude_post_merge,
-        neutralize_boxes=args.neutralize_boxes,
-    )
+    rendered = _acs_render(items, neutralize_boxes=False)
     if rendered:
         out.append(rendered)
     if out:
@@ -1252,21 +989,8 @@ _ACS_GATE_UNESTABLISHED = 4  # workpad read FAILED and the issue-body fallback a
 
 
 def _acs_gate_issue_body_criteria(issue: str) -> "str | None":
-    """Recover the acceptance criteria from the issue BODY via `parse-acs.py`.
-
-    The issue body is read through a DIFFERENT GitHub endpoint than the workpad
-    comment-listing address, so it stays reachable during the one-endpoint outage
-    the gate degradation exists to survive. AC3 names `scripts/parse-acs.py` as
-    the fallback source, so this shells out to the sibling script (via the current
-    interpreter — never a `.sh`/porcelain hop) rather than re-deriving the parse.
-
-    Returns the rendered `md` criteria (an empty string when the issue carries no
-    `## Acceptance Criteria` section), or `None` when the issue body itself could
-    not be read. That None-on-failure is the recovery-poll discipline (issue
-    #1214, and the model `check-completion-evidence.py`'s `_probe_remote` sets): a
-    non-zero exit or an exec failure means GitHub was not reached, so the criteria
-    are UNKNOWN — never collapsed onto "the issue has no criteria".
-    """
+    """Recover criteria through parse-acs.py and the independent issue-body endpoint.
+    Return rendered criteria (possibly empty), or None when the read is unestablished."""
     parse_acs = str(Path(__file__).resolve().parent / 'parse-acs.py')
     try:
         r = subprocess.run(
@@ -1281,31 +1005,9 @@ def _acs_gate_issue_body_criteria(issue: str) -> "str | None":
 
 
 def cmd_acs_gate(args):
-    """Acceptance-criteria read for the /prflow:implement Phase 3.4 gate, with a
-    DEFINED degradation when the workpad cannot be read (issue #1214).
-
-    The gate reads the workpad's `## Acceptance Criteria` section to confirm every
-    non-post-merge criterion is ticked. A GitHub fault confined to the
-    comment-listing endpoint fails that read while the issue body itself stays
-    reachable — so, exactly as `cmd_acs_resolve` already does for the review
-    engine, a workpad read failure is ROUTED to a distinct label and the criteria
-    are recovered from the issue body via `scripts/parse-acs.py`, NEVER read as a
-    passing gate.
-
-    Line 1 of stdout is always `source: <token>`; the rendered criteria follow.
-    The (code, token) pairs are:
-      0  source: workpad             — clean workpad read; tick state authoritative.
-      2  source: workpad-absent      — clean absence, no workpad. The existing
-                                        absent-case shape, kept distinct from the
-                                        transport-failure label (AC6).
-      3  source: workpad-read-failed — the workpad read failed (transport/parse);
-                                        criteria recovered from the issue body. The
-                                        gate must NOT pass — the tick state could
-                                        not be established (AC3/AC4).
-      4  source: unestablished       — the workpad read failed AND the issue-body
-                                        fallback also failed; no criteria could be
-                                        resolved (AC5). The gate must NOT pass.
-    """
+    """Emit source and criteria for the AC gate; degraded reads never establish ticks.
+    Exit/source pairs: 0/workpad, 2/workpad-absent, 3/workpad-read-failed
+    (issue-body fallback available), 4/unestablished (both reads failed)."""
     _require_section_parse('acs-gate')
     try:
         _, _section_lines, items = _acs_read_workpad('acs-gate', str(args.issue))
@@ -1331,40 +1033,18 @@ def cmd_acs_gate(args):
     # Clean workpad read: render the section exactly as `acs` does (unfiltered,
     # tick state and (post-merge) tags preserved), prefixed with the source token.
     print(f'source: {_ACS_SOURCE_WORKPAD}')
-    rendered = _acs_render(items, exclude_post_merge=False, neutralize_boxes=False)
+    rendered = _acs_render(items, neutralize_boxes=False)
     if rendered:
         print(rendered)
 
 
 def _acs_diverge(issue_items: list[dict], workpad_items: list[dict],
-                 decisions: list[dict]) -> list[str]:
-    """Compare the two criterion sets and describe how the workpad differs.
-
-    Defined over NORMALIZED sets (` (post-merge)` tag stripped, tick state
-    ignored, whitespace collapsed), never raw section text: `parse-acs.py`
-    writes the workpad section with post-merge tags the issue body does not
-    carry and mirrors the issue's `## Test Plan` items into the same block, and
-    tick state moves as the run proceeds — so a raw-text comparison would report
-    divergence on every PRFlow PR and carry no signal.
-
-    Reports DROPS, audited DEFERRALS, and TEXT CHANGES only. A criterion the
-    workpad no longer carries is explained by `_acs_rewrite_walk`: `CHANGED:`
-    naming the workpad text its `rewritten` chain reaches, else `DEFERRED:` when
-    the chain reaches a text a `deferred` record names. An unexplained criterion
-    keeps its pre-walk rendering: `CHANGED:` to its own record's `newtext=` (a
-    report line only — the source token still reads it as unexplained), else
-    `DROP:`. A `rewritten` record without `newtext=` is no edge and licenses no
-    `CHANGED:` line. A criterion present in the workpad and
-    absent from the issue body is never a finding: that is exactly what the
-    mirrored `## Test Plan` items look like, and `_render_md` writes them into
-    one flat block with no heading, label, or marker, so the section carries no
-    discriminator an extractor could use to exclude them.
-
-    An uncovered text change is indistinguishable from a drop — the old text is
-    simply missing — so it is reported as `DROP`. That is the honest reading:
-    the issue body stays the authority on membership, and only a `rewritten`
-    record can license the workpad's text over it.
-    """
+                 decisions: list[dict]) -> list[tuple[str, str, str | None]]:
+    """Return (kind, issue_text, rewrite_target) for normalized issue criteria missing
+    from the workpad. Ignore ticks, whitespace and post-merge tags; workpad additions
+    may be mirrored Test Plan items and are not findings.
+    Follow PR-bound rewrites/deferrals. Unexplained criteria remain DROP, or CHANGED
+    when their own rewrite record names a target; that display alone grants no coverage."""
     issue_norm = [normalize_criterion(it['text']) for it in issue_items]
     workpad_norm = {normalize_criterion(it['text']) for it in workpad_items}
     # A `rewritten` record with no `newtext=` field records nothing about what
@@ -1382,56 +1062,26 @@ def _acs_diverge(issue_items: list[dict], workpad_items: list[dict],
         reached = _acs_rewrite_walk(text, workpad_norm, decisions)
         if reached is not None:
             kind, target = reached
-            lines.append(f'CHANGED: {text} -> {target}' if kind == 'workpad'
-                         else f'DEFERRED: {text}')
+            lines.append((_DIV_CHANGED, text, target) if kind == 'workpad'
+                         else (_DIV_DEFERRED, text, None))
         elif text in rewritten:
-            lines.append(f'CHANGED: {text} -> {rewritten[text]}')
+            lines.append((_DIV_CHANGED, text, rewritten[text]))
         else:
-            lines.append(f'DROP: {text}')
+            lines.append((_DIV_DROP, text, None))
     return lines
 
 
 def _acs_pr_identity_ok(issue_items: list[dict], workpad_items: list[dict],
                         decisions: list[dict]) -> bool:
-    """True when the workpad's criteria are safe to review THIS PR against.
-
-    Not the same as "provably authored by this PR's run", and the difference is
-    deliberate. The guard only rejects a workpad whose set is NARROWER than the
-    issue body's with nothing on record to explain the narrowing; a foreign
-    section that is a superset of the issue body is accepted, because reviewing
-    against a superset can only add criteria, never silently drop one — and
-    dropping is the failure this guard exists to prevent.
-
-    A workpad is one comment per issue, and Phase 2.2.5 replaces its
-    `## Acceptance Criteria` section WHOLESALE — so a second PR's run, or a
-    re-triggered /devflow:implement on the same issue, overwrites the criteria
-    the first PR was reviewed against. An issue whose criteria were amended after
-    the mirror leaves the same narrower workpad, and this guard cannot tell the two
-    causes apart; `acs-remirror` repairs the amendment.
-
-    Fails CLOSED on an absent comparand, and does so PER CRITERION — never at
-    the level of the record set as a whole. Every criterion the issue body
-    carries and the workpad does not must be individually explained by a record
-    bound to this PR: a chain of `rewritten` records from it reaching a text the
-    workpad carries (the criterion did not vanish, it was restated) or a text a
-    `deferred` record names (`_acs_rewrite_walk`). One unexplained
-    criterion rejects the workpad, however many records exist — including the
-    zero-record shape a pre-change workpad and a failed record write both take.
-    An existential `bool(decisions)` test would instead let a single unrelated
-    record license dropping every other criterion: the vacuous-coverage shape
-    this guard forbids, and the same shape an empty base64 payload takes (which
-    is why `_parse_scope_decisions` drops those records outright).
-    """
+    """Accept a superset, or explain every missing issue criterion with a PR-bound
+    rewrite chain reaching the workpad or a deferral. Unrelated records grant nothing.
+    This prevents unexplained narrowing, not proof of which run authored the workpad;
+    an amended issue can cause the same mismatch as a foreign run."""
     issue_norm = {normalize_criterion(it['text']) for it in issue_items}
     workpad_norm = {normalize_criterion(it['text']) for it in workpad_items}
     if not issue_norm or not workpad_norm:
         return True
-    # Pure short-circuit, NOT a load-bearing guard: on a superset the `all()` below
-    # iterates an empty difference and returns True on its own. Deleting this line
-    # is behaviorally inert (mutation-checked green), so no test pins it and none
-    # should be added claiming to — a test named for a guard that cannot fail is a
-    # vacuous one. The superset ACCEPTANCE behavior itself is covered end-to-end by
-    # run.sh's `wp-superset.md` fixture.
+    # A superset needs no narrowing explanation.
     if workpad_norm >= issue_norm:
         return True
     return all(_acs_rewrite_walk(text, workpad_norm, decisions) is not None
@@ -1440,17 +1090,9 @@ def _acs_pr_identity_ok(issue_items: list[dict], workpad_items: list[dict],
 
 def _acs_rewrite_walk(text: str, workpad_norm: set[str],
                       decisions: list[dict]) -> tuple[str, str] | None:
-    """Explain a criterion missing from the workpad by following `rewritten` records.
-
-    Walks breadth-first from `text` along every `rewritten` edge (OLD -> NEW), in
-    record order, visiting each text once, so a chain A->B->C, a fan-out, and a
-    cycle all resolve. Returns `('workpad', t)` for the first reached text the
-    workpad carries, else `('deferred', t)` for the first reached text a `deferred`
-    record names, else None. A `rewritten` record without `newtext=` is no edge.
-    `decisions` must already be bound to this PR by `_parse_scope_decisions`; the
-    walk does no binding of its own. Shared by `_acs_pr_identity_ok` and
-    `_acs_diverge`.
-    """
+    """Breadth-first walk PR-bound rewrite edges in record order, visiting each text once.
+    Return the first reachable workpad text, else first deferred text, else None.
+    A rewritten record without newtext is no edge; callers must bind records first."""
     deferred = {d['text'] for d in decisions if d['kind'] == 'deferred'}
     edges = [(d['text'], d['new_text']) for d in decisions
              if d['kind'] == 'rewritten' and d['new_text']]
@@ -1476,72 +1118,35 @@ def _acs_fetch_issue_body(issue: str, cmd: str = 'acs-resolve') -> str:
 
 
 def cmd_acs_resolve(args):
-    """Resolve the reviewer-facing acceptance criteria and name their source.
-
-    Resolves BOTH surfaces — never a short-circuit chain — because the
-    non-selected set is the divergence comparand, and a fallback that stopped at
-    its first hit would leave that report unable to fire on the one population
-    it matters for.
-
-    The workpad section is parsed ONCE and that one item list is rendered TWICE,
-    for different jobs: unfiltered (the comparand) and post-merge-filtered (the
-    reviewer-facing value) — so the two can never disagree about membership,
-    only about the post-merge filter. Filtering
-    the comparand instead would report every post-merge criterion as a workpad
-    drop on every implement PR, because `parse-acs.py` synthesizes that tag at
-    mirror time and the issue body carries those same criteria untagged.
-
-    Always exits 0 on a resolvable state: a workpad that is absent or unreadable
-    is a ROUTED outcome carrying its own source token, not a run-ending error.
-    Exit 3 covers the two ways this command cannot even begin: a failure to read
-    the issue body itself (without which there is no comparand and nothing to
-    resolve), and the opening `_require_section_parse('acs-resolve')` when
-    `scripts/section_parse.py` was not deployed beside workpad.py — a real
-    partial-deployment shape this file's import block documents. Both are
-    "no basis to resolve", distinct from the ROUTED workpad outcomes above.
-
-    The `none` source is reached ONLY from the clean-absence state, because
-    `none` asserts both surfaces were examined and neither carried criteria. A
-    routed state whose issue-body fallback also comes up empty keeps its own
-    token: collapsing `workpad-read-failed` onto `none` would fabricate a
-    measurement of a surface this run never read, and collapsing
-    `workpad-unmirrored` onto it would report a silently-failed mirroring as an
-    ordinary criteria-less PR.
-
-    A non-numeric (or empty) issue argument is ROUTED, not aborted (issue #857):
-    the §0.4 fence's S1 numeric guard moved here so that fence is a bare
-    single-statement call the cloud matcher permits. Such an argument means no
-    surface can be examined at all, so this prints the `resolver-unavailable`
-    source token with exit 0 rather than letting argparse abort with exit 2 —
-    preserving the always-exit-0-on-a-resolvable-state contract. (An unreadable
-    workpad COMMENT remains routed as `workpad-read-failed`, as before.) The
-    `issue` argument for this subcommand is therefore accepted as a string and
-    validated here, not by argparse `type=int`.
-    """
+    """Resolve both criteria sources and report divergence from the unfiltered sets.
+    Render the selected workpad set separately with post-merge criteria excluded.
+    Routed workpad failures exit 0; unreadable issue body/missing parser exits 3.
+    Only clean workpad absence plus empty issue criteria becomes source=none;
+    unmirrored/unreadable workpads retain their distinct tokens. Invalid issue input
+    routes to resolver-unavailable with a stderr diagnostic.
+    With criteria-out, clear both prior outputs and write issue-compliance.md beside
+    the criteria; refused or failed compliance output gets its own breadcrumb."""
     # `issue` is a required positional accepted as a string (see the argparse note),
     # so `args.issue` is always present; the ASCII-only digit test is deliberate — it
     # rejects the non-ASCII digits `str.isdigit()`/`isdecimal()` would accept, matching
     # the seed helper's `*[!0-9]*` shell guard.
     issue_arg = args.issue
-    criteria_out_ready = _acs_clear_criteria(args.criteria_out)
+    criteria_out = args.criteria_out if _acs_clear_out(args.criteria_out, _CRITERIA_OUT_CRUMB) else None
+    compliance_out = None
+    if args.criteria_out is not None:
+        compliance_out = os.path.join(os.path.dirname(args.criteria_out), _COMPLIANCE_FILE)
+        if not _acs_clear_out(compliance_out, _COMPLIANCE_OUT_CRUMB, beside=args.criteria_out):
+            compliance_out = None
     if not issue_arg or not all(c in '0123456789' for c in issue_arg):
-        # Breadcrumb on stderr so a CALLER bug (a malformed issue argument) is
-        # distinguishable from an infrastructure denial: both route to the same
-        # `resolver-unavailable` token on stdout, and without this line the two are
-        # indistinguishable to whoever reads the run. The old Phase 0.4 fence emitted
-        # a `::warning::` naming this cause; folding the guard into the helper must not
-        # lose that diagnostic. stdout stays byte-identical (it is the routed contract).
+        # Distinguish malformed caller input on stderr; stdout keeps the routed token.
         print(
             f"workpad.py acs-resolve: issue argument {issue_arg!r} is not numeric — "
             f"no surface can be examined; routing as "
             f"{_ACS_SOURCE_RESOLVER_UNAVAILABLE}",
             file=sys.stderr,
         )
-        print(f'source: {_ACS_SOURCE_RESOLVER_UNAVAILABLE}')
-        print('criteria:')
-        print('criteria-count: 0')
-        print('divergence:')
-        print('not-applicable')
+        _acs_publish(issue_arg, _ACS_SOURCE_RESOLVER_UNAVAILABLE, [], None,
+                     criteria_out, compliance_out)
         return
     _require_section_parse('acs-resolve')
     issue_body = _acs_fetch_issue_body(args.issue)
@@ -1583,52 +1188,21 @@ def cmd_acs_resolve(args):
         # still gets a specification whenever one exists anywhere.
         source = state
         selected = issue_items
-        # The `none` demotion is gated on the CLEAN-ABSENCE state alone. `none`
-        # asserts that both surfaces were examined and neither carried criteria,
-        # which is true only when there was no workpad to read (`issue-body`).
-        # For every other routed state the workpad's criteria were either never
-        # read (`workpad-read-failed` — an unestablished measurement, never
-        # collapsed onto the real value `none`), never mirrored
-        # (`workpad-unmirrored` — the OPPOSITE claim from a legitimately empty
-        # section). Demoting either to `none` because the issue-body FALLBACK came
-        # up empty destroys the very signal each token exists to carry. Written as
-        # an allow-list of the ONE demoting state rather than a deny-list of the
-        # others, so it stays correct as states are added — `pr-identity-mismatch`
-        # cannot co-occur with an empty issue body today (`_acs_pr_identity_ok`
-        # returns True when there is no issue-side criterion to drop), and a
-        # deny-list would have to be revisited if that ever changed.
+        # Only clean absence can become none. Empty fallbacks cannot establish that an
+        # unreadable or unmirrored workpad has no criteria.
         if not issue_items and state == _ACS_SOURCE_ISSUE_BODY:
             source = _ACS_SOURCE_NONE
 
-    reviewer_facing = _acs_filtered(selected, exclude_post_merge=True)
-    if criteria_out_ready:
-        _acs_write_criteria(args.criteria_out, reviewer_facing)
-    print(f'source: {source}')
-    print('criteria:')
-    rendered = _acs_render(reviewer_facing, exclude_post_merge=False, neutralize_boxes=True)
-    if rendered:
-        print(rendered)
-    print(f'criteria-count: {len(reviewer_facing)}')
-    print('divergence:')
-    if state in (_ACS_SOURCE_WORKPAD, _ACS_SOURCE_PR_IDENTITY_MISMATCH):
-        for line in _acs_diverge(issue_items, workpad_items, decisions) or ['none']:
-            print(line)
-    else:
-        print('not-applicable')
+    divergence = (_acs_diverge(issue_items, workpad_items, decisions)
+                  if state in (_ACS_SOURCE_WORKPAD, _ACS_SOURCE_PR_IDENTITY_MISMATCH) else None)
+    _acs_publish(args.issue, source, _acs_filtered(selected), divergence,
+                 criteria_out, compliance_out)
 
 
 def cmd_acs_remirror(args):
-    """Re-mirror the issue body's criteria into the workpad (issue #1492).
-
-    Phase 1.2/1.3's mirror without the run: `parse-acs.py --body-file` over the body
-    fetched here, installed by `update --replace-acs-file` with one note, in one PATCH.
-    There is no criteria operand, so only the issue body can supply what lands. The body
-    is staged raw, so the mirror breaks lines where `acs-resolve` does. Refuses before
-    any write when `section_parse.py` is missing or the body is unreadable (exit 3), or
-    the body carries no checkbox criterion or `parse-acs.py` fails (exit 1); `update`
-    refuses an absent or unreadable workpad, or one without the section (exit 1), and,
-    through `--expect-status Complete`, a workpad whose Status is not Complete (exit 4).
-    """
+    """Mirror live issue-body criteria into a Complete workpad in one noted PATCH.
+    Exit 3: missing parser/unreadable body; 1: no criteria, parse failure, or unusable
+    workpad; 4: status precondition mismatch. No caller-supplied criteria can land."""
     _require_section_parse('acs-remirror')
     body = _acs_fetch_issue_body(args.issue, 'acs-remirror')
     if not parse_checkboxes(extract_section(body, _ACS_SECTION)):
@@ -1668,33 +1242,15 @@ def cmd_acs_remirror(args):
             p.unlink(missing_ok=True)
 
 
-# ── Leading-marker preservation across a full-body rewrite (issue #1508) ────
-# A comment's identity is its line-1 marker, and a verdict stamp is the line
-# after it. A caller that re-authors the whole body from state it holds drops
-# whatever it does not retype, and a marker-resolving reader does not error on
-# the result: its scan finds nothing and reads "there was no such comment".
-#
-# The two-line scan covers the leading run key and verdict stamp. A deeper
-# marker is prose; hoisting it would invent a stamp the producer never made.
+# Preserve the leading run key and verdict stamp; deeper markers are prose.
 _LEADING_MARKER_SCAN = 2
-# Anchored at column 0, because that is where the readers' predicate anchors
-# (`_find_workpad_comment`'s `body.startswith(...)`): recognising an INDENTED marker
-# would let a composed body claim one no reader can resolve. Trailing whitespace goes
-# the other way — the readers accept it, so refusing it here would leave a live marker
-# they resolve unpreserved — and is tolerated and stripped off the re-inserted line,
-# which also covers the CRLF GitHub returns for a body last edited in the web UI.
+# Match the readers' column-zero anchor; tolerate and trim trailing whitespace.
 _LEADING_MARKER_RE = re.compile(
     r'^' + _MARKER_NS_RE + r'([A-Za-z0-9_.:-]+)[^\n]*-->[ \t\r]*$')
 
 
 def _leading_markers(body):
-    """`(markers, tail)` — the leading PRFlow marker-comment lines, then the rest.
-
-    `markers` is `[(kind, line)]` with each line's trailing whitespace removed, so
-    a CRLF live body never injects a stray `\\r` into an LF one. `tail` is every
-    remaining line, fully split, so a caller may both rebuild the body and match
-    over it line-by-line without re-splitting.
-    """
+    """Return ([(kind, trimmed_line)], remaining_lines) for the leading marker window."""
     lines = body.split('\n')
     found = []
     for line in lines[:_LEADING_MARKER_SCAN]:
@@ -1706,29 +1262,11 @@ def _leading_markers(body):
 
 
 def _merge_leading_markers(live_body, new_body, drop=()):
-    """Re-insert into `new_body` any leading marker `live_body` carries.
-
-    Returns `(body, reinserted_kinds)`. When anything is re-inserted the live
-    body's ORDER governs the result (the run key stays line 1) and the caller's
-    line wins for any kind it supplied — its FIRST line of that kind, so a
-    composed body carrying one kind twice inside the scan window keeps the copy
-    at the contracted position — so a same-kind re-stamp still lands;
-    a kind only the caller supplied is appended once after the live ones, its
-    first line winning exactly as a live kind's does. When the
-    caller supplied every live kind nothing is re-inserted and its own body —
-    and its own order — is returned untouched. The consequence a caller must
-    know: this can CHANGE a leading marker of a kind the live body already
-    carries, but never REMOVE one it holds unless the caller names its kind in
-    `drop` (`patch --drop-leading-marker`); a migration that changes a marker's
-    KIND goes through a different write path.
-    A same-kind marker the CALLER placed out of position — behind a blank line
-    rather than at line 1 — is dropped rather than duplicated.
-
-    `scripts/post-review-verdict.sh`'s `_prv_stamp_progress` writes the stamp
-    this preserves. The two agree only on the POSITIONS — run key line 1, verdict
-    line 2 — and their matching and precedence rules differ, so a change to
-    either position must be made in both.
-    """
+    """Restore missing leading markers; return (body, reinserted_kinds).
+    On restoration, live order wins and the caller's first line wins per kind.
+    If none are missing, return the caller's body untouched. Removal requires drop;
+    mispositioned same-kind caller markers are discarded instead of duplicated.
+    Keep run-key/verdict positions aligned with post-review-verdict.sh."""
     live = [(k, l) for k, l in _leading_markers(live_body)[0] if k not in drop]
     if not live:
         return new_body, []
@@ -1775,13 +1313,8 @@ def _merge_leading_markers(live_body, new_body, drop=()):
 
 
 def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
-    """PATCH a comment's body from `text` or from `body_path`; return the response.
-
-    A `text` payload is staged into a private temp file, never a sibling of the
-    caller's path, because that directory may be read-only and a sibling would be
-    visible to a `git add` scoped to it. Passing `body_path` PATCHes that file
-    directly, so an unchanged body needs no writable temp directory at all.
-    """
+    """PATCH text via a private temp file, or body_path directly; return the response.
+    Never stage beside the caller's file, which may be read-only or in the git tree."""
     staged = None
     if body_path is None:
         if text is None:
@@ -1810,12 +1343,8 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
 
 
 def _read_canonical_body(body_path, cmd):
-    """Read a body file as BYTES and return (decoded, canonical): the decoded UTF-8
-    text and its LF-canonical form (issue #349). Bytes, never read_text — universal-
-    newline translation would turn a native-Windows \\r\\r\\n into \\n\\n before the
-    canonicalizer could collapse it. Exits(1) with a `<cmd>:` breadcrumb on an
-    unreadable file or invalid UTF-8, so cmd_patch and cmd_create cannot drift their
-    read/decode/canonicalize contract apart."""
+    """Return (decoded UTF-8, LF-canonical) bytes from a body file; exit 1 on failure.
+    Avoid universal-newline reads: they would turn Windows CRCRLF into two newlines."""
     try:
         raw = body_path.read_bytes()
     except OSError as e:
@@ -1838,12 +1367,7 @@ def cmd_patch(args):
         )
         sys.exit(1)
     decoded, composed = _read_canonical_body(body_path, 'patch')
-    # A body the read could not establish is UNESTABLISHED, not "this comment has
-    # no markers": `gh` can emit an error envelope carrying no `.body` key while
-    # exiting 0, and reading that as an empty live body would silently restore
-    # the clobber this preservation exists to prevent. Presence is decided by the
-    # raw object's key, never by `--jq .body`, whose `null` rendering cannot
-    # express it.
+    # Missing/non-string body is unestablished, never an empty marker inventory.
     live, live_read_failed = '', None
     try:
         live, established = _comment_body_established(repo, args.comment_id)
@@ -1907,22 +1431,19 @@ def cmd_patch(args):
 class _ProgressStructureError(Exception):
     """The fetched review progress-comment body lacks structure a boundary write
     requires (no ## Blueprint, no **Last updated:**, or — for an append — no
-    ## Findings (live) section or no lint-adjudications sentinel). Distinct from
+    ## Findings (live) section). Distinct from
     _TickMatchError (a per-row tick miss) and _UpdateError (the size refusal)."""
 
 
 _REVIEW_FINDINGS_PLACEHOLDER = '_(Phase-3 findings appear here as each agent returns.)_'
 _REVIEW_FINDINGS_SECTION = 'Findings (live)'
 _REVIEW_BLUEPRINT_SECTION = 'Blueprint'
-_REVIEW_LINT_ADJ_SENTINEL_START = '<!-- prflow:lint-adjudications-start -->'
 
 
 def _insert_into_findings(section_content: str, payload: str) -> str:
     """Append `payload` as the last line(s) of the ## Findings (live) section body,
     replacing the placeholder on the first insert and demoting a payload line that
-    opens `## ` to `### ` so an inserted block never opens a new section. The
-    sentinel pair lives in a later section, so appending to this section body keeps
-    every insert above it by construction."""
+    opens `## ` to `### ` so an inserted block never opens a new section."""
     # Demote any line `_SECTION_RE` would treat as a section opener (`##` + ANY
     # whitespace, tab included); a bare `startswith('## ')` check misses `##\t`,
     # letting an appended block open a new section on the next `_split_sections` read.
@@ -1970,10 +1491,6 @@ def _progress_apply(live: str, tick, append_text) -> str:
             raise _ProgressStructureError(
                 'no ## Findings (live) section found; the Phase 0.5 template write '
                 'did not land — no PATCH was made')
-        if _REVIEW_LINT_ADJ_SENTINEL_START not in live:
-            raise _ProgressStructureError(
-                'no prflow:lint-adjudications-start sentinel found; the Phase 0.5 '
-                'template write did not land — no PATCH was made')
         heading, fi_content = sections[fi_idx]
         sections[fi_idx] = (heading, _insert_into_findings(fi_content, append_text))
     body = _join_sections(preamble, sections)
@@ -2009,13 +1526,13 @@ def cmd_progress(args):
         sys.stderr.write(f"workpad.py progress: {e}\n")
         sys.exit(1)
     try:
-        out = _patch_comment_body(repo, args.comment_id, content)
+        _patch_comment_body(repo, args.comment_id, content)
     except _UpdateError as e:
         sys.stderr.write(f"workpad.py progress: {e}\n")
         sys.exit(1)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('progress', e)
-    sys.stdout.write(out)
+    sys.stderr.write(f"workpad.py progress: PATCHed comment {args.comment_id}\n")
 
 
 _COMMENT_URL_RE = re.compile(r'#issuecomment-(\d+)\s*$')
@@ -2055,12 +1572,8 @@ def cmd_create(args):
     if m:
         print(m.group(1))
         return
-    # `gh issue comment` is documented to print the new comment URL. If the
-    # URL is missing (gh output-format change, transient stderr-only output,
-    # ...) the comment may already have been posted on GitHub, so falling
-    # back to a fresh marker scan would risk picking up an unrelated workpad
-    # and silently masking the failure. Fail loud instead — the caller can
-    # re-run after inspecting the issue manually.
+    # A missing URL may follow a successful post; re-scanning could select another
+    # comment and hide the failure. Refuse instead of guessing its identity.
     sys.stderr.write(
         "workpad.py create: gh did not print a comment URL; the workpad "
         "may or may not have been posted. Inspect the issue manually before "
@@ -2075,41 +1588,13 @@ def cmd_now(_args):
     print(now.strftime('%Y-%m-%dT%H:%M:%SZ'))
 
 
-# The un-mirrored `## Acceptance Criteria` placeholder — the SINGLE SOURCE seeded by
-# `cmd_new_body`'s template below AND matched by the terminal Complete gate. Keeping
-# both the producer and the guard on this one constant means a reword (e.g. the ASCII
-# vs em-dash trap) can never silently drift them apart and disarm the gate's warning.
-# If it survives to a terminal `--status Complete` write, Phase 1.2/1.3 AC-mirroring
-# never ran, so the gate's checkbox scan has nothing to check — the "self-record
-# matches reality" guarantee would be vacuously satisfied. The gate warns (non-blocking)
-# on this exact placeholder; a genuinely AC-less issue carries the DISTINCT sentinel
-# `_(none provided in issue body)_` parse-acs.py emits, so no warning fires there.
+# Share the pending AC sentinel between skeleton and terminal gate.
+# It means mirroring did not run, unlike parse-acs.py's mirrored-empty sentinel.
 _AC_PENDING_PLACEHOLDER = '_(pending — mirrored from the issue when the run begins)_'
 
-# ---------------------------------------------------------------------------
-# Scope-decision records (issue #781)
-# ---------------------------------------------------------------------------
-# A delimited, machine-readable record of every /devflow:implement decision that
-# changes the workpad `## Acceptance Criteria` set's MEMBERSHIP or a criterion's
-# TEXT. Three writers emit one: Phase 2.2.5's `--replace-acs-file` narrowing
-# (`deferred`), Phase 2.2.6's `--rewrite-ac` (`rewritten`), and Phase 3.4's
-# retroactive `(post-merge)` retag (`rewritten`). The review engine's Phase 0.4
-# reads them to tell an AUDITED narrowing from an unexplained one, and to
-# confirm the section belongs to the PR under review.
-#
-# It is written as an ordinary `## Progress` note, so it rides the existing
-# note-append path (no new section machinery) and sits entirely before
-# `## PRFlow Reflections` — `lib/fetch-pr-context.sh`'s reflection parse
-# therefore never sees it.
-#
-# The criterion text is base64-encoded so a criterion containing `-->`, a
-# newline, or any delimiter this grammar uses cannot break the record or forge a
-# second one. `pr=` accepts the literal `pending` because Phase 2.2.5/2.2.6 run
-# BEFORE Phase 3.1 opens the draft PR: they write `pending` and Phase 3.1 binds
-# every pending record to the real number with `--bind-scope-decisions`. A
-# record still reading `pending` at review time deliberately covers NOTHING —
-# fail closed, so an unbound record can never vacuously satisfy the membership
-# check it exists to gate.
+# Scope decisions explain criterion membership/text changes to the reviewer.
+# They live in Progress, before Reflections. Base64 protects criterion delimiters.
+# Pre-PR records use pending, which covers nothing until bind-scope-decisions.
 _SCOPE_DECISION_KINDS = ('deferred', 'rewritten')
 # The one kind whose work was punted rather than reworded — the only kind the
 # issue-#815 deferred-presence predicate counts. Named from the tuple rather than
@@ -2131,15 +1616,7 @@ def _b64(text: str) -> str:
 
 
 def _unb64(blob: str, record: str = 'scope-decision') -> str | None:
-    """Decode a record's payload, or None when it is not decodable UTF-8.
-
-    Returns None rather than raising or falling back to the raw blob: a record
-    whose payload cannot be read is an UNESTABLISHED comparand, and the caller
-    drops it so it covers nothing (the same fail-closed direction the `pending`
-    PR value takes). Silently substituting the undecodable bytes would let a
-    corrupted record match no criterion while still counting as "a record
-    exists", which is exactly the vacuous-coverage shape the guard forbids.
-    """
+    """Decode UTF-8 or return None; unreadable payloads cannot cover a criterion."""
     try:
         return base64.b64decode(blob.encode('ascii'), validate=True).decode('utf-8')
     except (ValueError, UnicodeDecodeError) as e:
@@ -2164,15 +1641,7 @@ def _warn_empty_scope_payload(field: str, record: str = 'scope-decision') -> Non
 
 
 def _decode_scope_payload(blob: str, field: str, record: str = 'scope-decision') -> str | None:
-    """Decode one record payload, or None when it establishes no criterion.
-
-    The single decode step every scope-decision reader shares: undecodable
-    base64 and a payload that decodes to the empty string are both records that
-    name no criterion and can therefore cover none, and each leaves its own
-    breadcrumb. Callers differ only in what they do with the None — drop it
-    (`_parse_scope_decisions`) or count it as corrupted
-    (`_bound_deferred_records`) — so only that decision is theirs to make.
-    """
+    """Decode a nonempty criterion or return None with a cause-specific breadcrumb."""
     text = _unb64(blob, record)
     if text is None:
         return None
@@ -2191,21 +1660,8 @@ def _render_scope_decision(pr: str, kind: str, text: str, new_text: str | None =
 
 
 def _parse_scope_decisions(body: str, pr: int | None) -> list[dict]:
-    """Return the scope-decision records in `body` that bind to PR `pr`.
-
-    A record whose `pr=` is `pending` (never bound by Phase 3.1) or names a
-    DIFFERENT PR is excluded, as is one whose base64 payload does not decode, as
-    is one whose payload decodes to the EMPTY string. The regex's payload class
-    is `*`-quantified, so a truncated or hand-edited `text=` (or `newtext=`)
-    matches and decodes cleanly to `''` — a record that names no criterion and
-    can therefore cover none, so it is dropped in the undecodable case's same
-    fail-closed direction. All of these establish nothing about this PR, and the
-    membership check treats "no covering record" as a finding.
-
-    `pr` is None in current-branch mode, where there is no PR to bind to: no
-    record can be confirmed as this run's, so none is returned and the guard
-    fails closed rather than crediting a record it cannot attribute.
-    """
+    """Return decoded nonempty records bound to pr.
+    Exclude pending/foreign/unreadable records; pr=None establishes no ownership."""
     out = []
     if pr is None:
         return out
@@ -2226,24 +1682,9 @@ def _parse_scope_decisions(body: str, pr: int | None) -> list[dict]:
 
 
 def _bind_scope_decisions(body: str, pr: int) -> str:
-    """Rewrite every `pr=pending` scope-decision record to `pr=<pr>`.
-
-    Idempotent WITHIN a run: a record already carrying a numeric PR is left
-    untouched, so a re-run (or a resumed run re-entering Phase 3.1) never
-    re-binds a record to a different PR.
-
-    KNOWN LIMITATION — that idempotence argument covers re-entry only, NOT
-    cross-run contamination. The workpad is one comment per ISSUE and survives
-    across runs, so an earlier /devflow:implement attempt that wrote
-    §2.2.5/§2.2.6 records and then died before reaching §3.1 leaves `pr=pending`
-    records behind; this rewrite is unconditional over the whole body, so the
-    NEXT run's §3.1 adopts those foreign records and binds them to ITS PR. The
-    record format carries no run stamp to tell them apart, and inventing one is
-    a larger design change than this function should make. The residual is made
-    OBSERVABLE instead: the number of records bound is written to stderr, so a
-    count higher than the run itself recorded is visible in the log rather than
-    silent.
-    """
+    """Bind all pending records to pr, leaving numeric bindings unchanged.
+    Residual: records have no run stamp, so a later run also binds an earlier run's
+    abandoned pending records. Report the bound count to make that visible."""
     bound = 0
 
     def _sub(m):
@@ -2265,71 +1706,28 @@ def _bind_scope_decisions(body: str, pr: int) -> str:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Issue #815 — the bounded deferred-AC presence predicate.
-#
-# Phase 4 gates the LOAD of `skills/implement/references/deferred-filing.md`
-# on `deferred-presence`'s exit code, so this reader decides whether a run that
-# deferred acceptance criteria ever files a follow-up issue for them. Two
-# properties follow from that, and both are load-bearing:
-#
-#   * It is BOUNDED. A workpad at Phase 4 runs to tens of thousands of
-#     characters — larger than the procedure being gated — so the answer is one
-#     count line plus, on the outstanding arm, one normalized criterion per
-#     outstanding record. The body is never printed.
-#   * It is decided in PYTHON, over the module-level `_SCOPE_DECISION_RE` this
-#     file already owns. `lib/preflight.sh` guarantees no `grep`/`tr`/`sed`, and
-#     a predicate derived through one of those fails OPEN where the tool is
-#     absent: the pipeline yields empty, the run reads "nothing was deferred",
-#     and the deferred work is stranded with no follow-up and no reflection.
-#
-# The filed marker is its OWN comment marker, and the scope-decision grammar is
-# left byte-untouched. That grammar is closed and load-bearing: its regex
-# terminates at a literal ` -->` and its `kind=` alternation is built from
-# `_SCOPE_DECISION_KINDS`, so an added `filed=` field stops the record matching
-# at all and a `kind=filed` value matches nothing without widening that
-# constant — and `_parse_scope_decisions` feeds `acs-resolve`, which the
-# MERGE-GATING reviewer reads, so a record that stops parsing turns a deferred
-# criterion into an unexplained dropped one in front of the gate that decides
-# the merge.
+# Deferred presence uses bounded Python reads, never a body dump or PATH parser.
+# Filed markers have their own grammar; extending the closed scope-decision
+# grammar would also change the merge gate's acs-resolve reader.
 _DEFERRED_FILED_RE = re.compile(
     _MARKER_NS_RE + r'deferred-filed text=([A-Za-z0-9+/=]*) -->')
 
-# A `## Progress` bullet as `_append_progress_note` renders it: `  - HH:MM:SS — <text>`
-# nested, or the same flat. The prefix is a module constant so the READERS of this wire
-# format share one spelling (`_PROGRESS_BULLET_RE` and `_CLASSIFICATION_NOTE_RE`). The
-# writer in `_append_progress_note` still spells the format independently, as an f-string
-# it cannot build from a regex — so a change to the separator or the timestamp width must
-# be made there too. The capture is the bullet's note text; see
-# `_isolated_progress_markers` for why the readers need it isolated.
+# Progress bullet wire format shared by readers. Keep timestamp/separator
+# changes aligned with _append_progress_note's independent f-string writer.
 _PROGRESS_BULLET_PREFIX_RE = r'^[ \t]*[-*][ \t]+\d{2}:\d{2}:\d{2}[ \t]+—[ \t]+'
 _PROGRESS_BULLET_RE = re.compile(_PROGRESS_BULLET_PREFIX_RE + r'(.*)$')
 
 
 def _render_deferred_filed(normalized_text: str) -> str:
-    """Render the filed marker for one discharged deferred criterion.
-
-    `normalized_text` MUST be a `criterion:` line `deferred-presence` printed,
-    verbatim: that string is already `normalize_criterion`'s output (it came
-    back out of the record's own `text=` payload), so re-normalizing here would
-    be a second pass over an already-normalized value, and re-typing it by hand
-    would key the marker on a string no record carries.
-    """
+    """Render a filed marker from deferred-presence's exact normalized criterion.
+    Do not normalize again or retype it: the marker must match the stored record key."""
     return f'<!-- prflow:deferred-filed text={_b64(normalized_text)} -->'
 
 
 def _single_section_content(
     sections: list[tuple[str, str]], name: str
 ) -> str | None:
-    """The content of the ONE section headed `## {name}`, or None when the body
-    presents zero or more than one of it.
-
-    The exactly-one rule is the load-bearing half: `_find_section` answers with
-    the FIRST match, so a duplicated section would otherwise read as a clean
-    single one and a reader built on it would silently speak for only half the
-    body. The heading compare matches `_find_section`'s — case-insensitive over
-    the whitespace-stripped heading line.
-    """
+    """Return the sole case-insensitive section's content, or None if absent/duplicated."""
     target = f'## {name}'.lower()
     hits = [c for h, c in sections if h.strip().lower() == target]
     return hits[0] if len(hits) == 1 else None
@@ -2343,12 +1741,7 @@ _REFLECTION_HEADING_SUPERSEDED = 'Devflow Reflection'
 
 
 def _find_reflection_section(sections: list[tuple[str, str]]) -> int | None:
-    """Index of the reflection section under either heading spelling, new first.
-
-    New-first resolution fixes a well-defined target even in the pathological case
-    where a body carries BOTH headings (no in-tree writer produces that): the new
-    `PRFlow Reflections` section wins.
-    """
+    """Find the current reflection heading first, falling back to the legacy spelling."""
     idx = _find_section(sections, _REFLECTION_HEADING)
     if idx is None:
         idx = _find_section(sections, _REFLECTION_HEADING_SUPERSEDED)
@@ -2364,51 +1757,16 @@ def _single_reflection_content(sections: list[tuple[str, str]]) -> str | None:
 
 
 def _progress_content_or_none(body: str) -> str | None:
-    """The single canonical `## Progress` section's content, or None.
-
-    None means the section is absent or duplicated. The workpad is
-    agent-mutable markdown, so both shapes are read as *unestablished* by the
-    caller rather than as an empty record set: records are written only into
-    this section, so a body that does not present exactly one of it is one this
-    reader cannot speak for — and answering a confident zero there is the
-    stranding failure the three-state contract exists to avoid.
-    """
+    """Return the sole Progress section; absence/duplication is unknown, not empty."""
     _, sections = _split_sections(body)
     return _single_section_content(sections, 'Progress')
 
 
 def _isolated_progress_markers(content: str, pattern: 're.Pattern[str]'):
-    """Yield one match of `pattern` per `## Progress` bullet whose note text is
-    ENTIRELY that marker.
-
-    `content` is the already-resolved `## Progress` section
-    (`_progress_content_or_none`), passed in rather than re-derived so one
-    invocation splits the body once instead of once per reader.
-
-    This isolation is **reader-local**, not a property of the record format:
-    `_parse_scope_decisions` — the older, merge-gate-facing reader that feeds
-    `acs-resolve` — still scans the whole body with `finditer`, deliberately
-    unchanged here so this change cannot move what the merge gate sees. So the
-    guarantees below describe what THIS reader accepts, not what any reader of
-    the grammar accepts.
-
-    Two restrictions, and each closes a distinct half of the same injection
-    shape. Records are written only through the note-append path, so they land
-    in `## Progress` as their own isolated bullet — which means (a) scoping the
-    scan to that section makes a marker-shaped literal in the mirrored
-    `## Acceptance Criteria` or in a `## PRFlow Reflections` bullet invisible,
-    and (b) requiring a `fullmatch` of the bullet's note text makes a marker
-    embedded inside free-text note prose invisible too. Those three regions
-    store their text unencoded, so they are the reachable injection surface; a
-    criterion's own text is not, because the payload is base64-encoded before
-    storage.
-
-    Residual, stated rather than silently assumed: a free-text note whose text
-    is *nothing but* a byte-identical marker is indistinguishable from a
-    writer-produced record. Separating them would need a provenance channel the
-    record format does not carry — the same class of known limitation
-    `_bind_scope_decisions` documents for cross-run contamination.
-    """
+    """Yield full-marker matches from isolated bullets in the resolved Progress content.
+    Other sections and markers embedded in prose are excluded. This is narrower than
+    _parse_scope_decisions's whole-body scan. A free-text note consisting solely of
+    a valid marker remains indistinguishable from a writer-produced record."""
     for line in content.split('\n'):
         bullet = _PROGRESS_BULLET_RE.match(line)
         if bullet is None:
@@ -2419,42 +1777,16 @@ def _isolated_progress_markers(content: str, pattern: 're.Pattern[str]'):
 
 
 def _whole_body_deferred_count(body: str) -> int:
-    """Count `kind=deferred` records the WHOLE-BODY reader sees.
-
-    `_parse_scope_decisions` — the merge-gate-facing reader behind `acs-resolve`
-    — scans the whole body with `finditer`, while `_bound_deferred_records`
-    below reads only isolated `## Progress` bullets. That narrowing is the
-    injection defense, but it is also a way for a record to be visible to the
-    merge gate and invisible here: a body re-rendered by `patch`, a bullet whose
-    timestamp prefix did not survive an edit, a record under a differently-titled
-    heading. Without this comparand the difference would come out as a confident
-    `not-outstanding: 0` — the stranding direction, and precisely the confident
-    zero the three-state contract exists to refuse.
-    """
+    """Count deferred records visible to the merge gate's whole-body reader.
+    Compare with isolated Progress records so reader disagreement cannot look empty."""
     return sum(1 for m in _SCOPE_DECISION_RE.finditer(body)
                if m.group(2) == _SCOPE_DECISION_DEFERRED_KIND)
 
 
 def _bound_deferred_records(content: str, pr: int) -> tuple[list[str], int, int]:
-    """Return `(bound_texts, unbound_count, corrupted_count)` for `pr`.
-
-    `bound_texts` holds the normalized criterion of every `kind=deferred`
-    record bound to `pr` whose payload decoded to non-empty text.
-    `unbound_count` counts the `kind=deferred` records that do NOT bind to `pr`
-    — `pr=pending` (Phase 3.1's binding step never ran) and a superseded PR
-    number alike. `corrupted_count` counts the bound records whose `text=`
-    payload is undecodable base64 or decodes to the empty string.
-
-    The two counts exist because a PR-keyed count alone would answer a
-    confident ZERO for a workpad whose deferred records are still `pending` or
-    are bound to a superseded PR — and a confident zero is not an unavailable
-    operand, so the caller's fail-open arm would never fire and the deferred
-    work would be stranded with no reflection at all.
-
-    `kind=rewritten` records enter none of the three buckets: they record a
-    criterion whose text changed, not one whose work was punted, so no path
-    files a follow-up for one.
-    """
+    """Return (normalized_bound_texts, unbound_count, corrupted_count).
+    Count pending/foreign deferrals as unbound and bad bound payloads as corrupted;
+    neither can establish zero outstanding work. Rewritten records enter no bucket."""
     bound_texts: list[str] = []
     unbound_count = 0
     corrupted_count = 0
@@ -2475,12 +1807,7 @@ def _bound_deferred_records(content: str, pr: int) -> tuple[list[str], int, int]
 
 
 def _filed_criteria(content: str) -> set[str]:
-    """Normalized criterion text of every deferred criterion already filed.
-
-    Read under the same section-scoped, whole-bullet-only discipline as
-    `_bound_deferred_records`, so an injected filed-marker literal cannot
-    discharge a real deferral.
-    """
+    """Read filed criterion keys from isolated Progress bullets, like deferred records."""
     filed: set[str] = set()
     for m in _isolated_progress_markers(content, _DEFERRED_FILED_RE):
         text = _decode_scope_payload(m.group(1), 'text', 'deferred-filed')
@@ -2491,22 +1818,8 @@ def _filed_criteria(content: str) -> set[str]:
 
 def _print_unestablished(reason: str, unbound: int = 0, corrupted: int = 0,
                          filed: 'set[str] | None' = None):
-    """Print the single `unestablished` count line and exit 2.
-
-    One home for the line's format so no arm that reaches it can drift into a
-    different shape of the same contract — the stub literal-matches
-    the `reason=` token, so a divergent arm is a routing decision the reader
-    cannot make.
-
-    `filed` carries the criteria a `prflow:deferred-filed` marker has already
-    discharged, printed one per `filed:` line. Without it the unestablished arm
-    would be a duplicate-filing hole: it exits before the outstanding set is
-    computed, so a workpad whose records never got bound (Phase 3.1's binding
-    PATCH is best-effort) answers `unestablished` on EVERY fresh Phase 4 entry,
-    and an agent with no filed operand re-files what a prior entry already
-    filed. The arms that could not resolve the `## Progress` section pass None
-    and print no `filed:` line — there the operand genuinely does not exist.
-    """
+    """Print the unestablished count/cause and exit 2.
+    Include known filed criteria so retrying an unestablished read cannot re-file them."""
     print(f'unestablished: reason={reason} unbound={unbound} corrupted={corrupted}')
     for text in sorted(filed or ()):
         print(f'filed: {text}')
@@ -2514,32 +1827,10 @@ def _print_unestablished(reason: str, unbound: int = 0, corrupted: int = 0,
 
 
 def cmd_deferred_presence(args):
-    """Answer, boundedly, whether this run has unfiled deferred criteria.
-
-    Exit codes follow `grep(1)`'s 0-match / 1-no-match / 2-error idiom rather
-    than reusing `id`'s or `status`'s own conventions, which were designed for
-    unrelated questions and would read confusingly here:
-
-      0  outstanding      — at least one `kind=deferred` record bound to this
-                            run's PR carries no filed marker. Phase 4 reads the
-                            reference and files.
-      1  not outstanding  — every such record carries one (or there are none).
-                            Phase 4 skips the reference.
-      2  unestablished    — the answer could not be settled. Phase 4 reads the
-                            reference anyway and records a `note` reflection,
-                            because reading an unavailable operand as "nothing
-                            was deferred" silently strands deferred work while
-                            a needless load costs one read the reference's own
-                            skip sentence absorbs.
-
-    Exactly one bounded count line goes to stdout — followed, on the arms that
-    resolved the `## Progress` section, by one `filed:` line per already-filed
-    criterion so an unestablished answer cannot become a duplicate-filing hole —
-    and the `unestablished` line names WHICH operand failed — so a run that never resolved its PR number is
-    distinguishable from a workpad-read failure in the reflection Phase 4
-    records. The workpad body is never printed. (`argparse`'s own usage exit is
-    also 2, which routes a malformed invocation to the same fail-closed arm.)
-    """
+    """Report unfiled PR-bound deferrals without printing the workpad.
+    Exit 0: outstanding; 1: none outstanding; 2: unestablished, so callers still inspect.
+    Print one count/cause line, outstanding criteria, and any known filed criteria;
+    unestablished reads must not strand work or re-file known discharged criteria."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'deferred-presence', _repo_full(api_fail_code=2), args.issue, marker,
@@ -2614,20 +1905,9 @@ def cmd_deferred_presence(args):
 
 
 def cmd_resume_point(args):
-    """Print this run's recorded mid-phase re-anchor resume point (issue #1876).
-
-    A NAVIGATION aid, never evidence: this reader is wired into no verdict/gate, so a
-    self-reported resume point can never reach a verification decision (issue #1489).
-    Exit codes follow `grep(1)`'s idiom, matching `deferred-presence`:
-
-      0  a resume point is on record — its decoded text is the sole stdout line.
-      1  no resume point is recorded (none written, or the marker is malformed and
-         reads as absent) — nothing is printed on stdout.
-      2  unestablished — the workpad or its single `## Progress` section could not be
-         read (stderr names which); the caller re-reads the full phase set rather than
-         trusting an unread record. (argparse's own usage exit is also 2.)
-
-    The workpad body itself is never printed."""
+    """Print a navigation hint, never verification evidence.
+    Exit 0: decoded hint; 1: absent/malformed; 2: unreadable workpad/Progress section.
+    Only the hint reaches stdout; on unreadable state callers re-read the phases."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'resume-point', _repo_full(api_fail_code=2), args.issue, marker,
@@ -2664,19 +1944,8 @@ def cmd_resume_point(args):
 # The backing contract and the two-channel rationale are in the function
 # docstrings below.
 def _deferred_reflection_texts(sections: "list[tuple[str, str]]") -> "list[str] | None":
-    """Trailing text of every rendered `deferred` reflection bullet, or None.
-
-    Takes the already-split `sections` (from `_split_sections`) rather than the
-    raw body, so the caller resolves both this section and `## Progress` from one
-    split — the "resolve the section ONCE" discipline `cmd_deferred_presence`
-    follows. None means the body does not present exactly one reflection section
-    (under either heading spelling; absent or duplicated) — read as *unestablished* by the
-    caller, the fail-closed direction `_progress_content_or_none` also takes,
-    never as an empty set. The bullet shape is derived from
-    `_REFLECTION_KINDS['deferred']` so this reader cannot drift from
-    `_insert_reflection_bullet`'s writer; the exact-prefix match keeps a
-    marker-shaped literal quoted inside other prose from counting.
-    """
+    """Read exact-prefix deferred reflection texts from already-split sections.
+    Return None for an absent/duplicated reflection section, never a confident empty set."""
     content = _single_reflection_content(sections)
     if content is None:
         return None
@@ -2691,48 +1960,11 @@ def _deferred_reflection_texts(sections: "list[tuple[str, str]]") -> "list[str] 
 
 
 def cmd_deferred_reflection_audit(args):
-    """Audit whether every `deferred`-kind reflection this run recorded is backed
-    by a scope-decision-deferred record bound to this run's PR (issue #1513).
-
-    grep(1)-style three-state exit (0/1/2), the same shape `cmd_deferred_presence`
-    uses — but the polarity is inverted from that sibling: here 0 is the CLEAN
-    state (backed) and 1 the problem state (unbacked), whereas there 0 is the
-    act-now state (outstanding):
-
-      0  backed        — the deferred-reflection count does not exceed the count
-                        of `kind=deferred` scope-decision records bound to this
-                        PR (the zero-reflection case included). Phase 4 continues.
-      1  unbacked      — more `deferred` reflections than bound records: at least
-                        one renders as an actionable deferral no channel filed.
-                        Prints `unbacked: <n>` (the excess) then one `text:` line
-                        per deferred reflection. Phase 4.0.6 surfaces it.
-      2  unestablished — the backing count could not be settled: the fail-closed
-                        causes this shares with `deferred-presence` — `workpad-unresolved`,
-                        `progress-section-unreadable`, `reader-divergence`, and an
-                        `unbound`/`corrupted` record — plus `reflection-section-unreadable`
-                        (`ambiguous-criteria` does not apply: a count comparison is
-                        indifferent to two records sharing one normalized text). Phase 4
-                        records a note; never read as "nothing unbacked".
-
-    The backing comparand is the count of scope-decision records bound to this
-    PR. An unbound/corrupted/reader-divergent record makes that count unreliable,
-    so those route to *unestablished* — never to a false `unbacked`. Only one
-    bounded count line goes to stdout; the body is never printed.
-
-    Known residual: `backed` is a count floor, not a per-reflection identity
-    match — a reflection carries no join key to a record's criterion, so N
-    reflections beside N records tracking unrelated criteria read as `backed`.
-    The routing rule (a `deferred` reflection is used only for a
-    scope-decision-backed punt) is the compensating control.
-
-    The scope-decision record is the only channel a `deferred` reflection pairs
-    with, so the review-and-fix deferrals manifest (Channel 2) is deliberately
-    NOT folded into the backing count: the fix loop records `dropped-failed`,
-    never `deferred`, for its punts (phase-3-fix-loop.md), and the routing rule
-    does not name the manifest as backing for `deferred` — folding it in without
-    re-establishing those invariants would let a future Channel-2 `deferred`
-    producer escape this audit.
-    """
+    """Compare deferred-reflection count with PR-bound scope-decision deferrals.
+    Exit 0: backed; 1: excess reflections (print excess and all texts); 2: unestablished
+    section/record/read state. This polarity differs from deferred-presence.
+    Backing is a count floor, not an identity match: reflections have no join key.
+    Fix-loop manifest deferrals use dropped-failed and do not count as backing."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'deferred-reflection-audit', _repo_full(api_fail_code=2), args.issue, marker,
@@ -2792,42 +2024,19 @@ def cmd_deferred_reflection_audit(args):
     sys.exit(0)
 
 
-# The bug-only "reproduction captured" ## Progress sub-row. SINGLE SOURCE for the
-# row `cmd_new_body` renders AND the row `_reconcile_reproduction_row` (issue #449)
-# adds/removes to match the recorded content classification — so the reconcile can
-# never drift from the skeleton the gate/new-body seed. `_REPRODUCTION_ROW_SUBSTR`
-# is the substring the reconcile matches an existing row by (tick-state- and
-# marker-agnostic), so a future reword of the parenthetical never blinds detection.
+# Share the reproduction row between skeleton and reconciliation.
+# Detect by the stable substring so wording/tick/marker changes do not hide it.
 _REPRODUCTION_ROW_TEXT = 'Reproduction captured (bug issues only)'
 _REPRODUCTION_ROW = f'  - [ ] {_REPRODUCTION_ROW_TEXT}'
 _REPRODUCTION_ROW_SUBSTR = 'Reproduction captured'
 
 
-# One nested `## Progress` checkbox row per consumer prompt-extension surface an
-# implement run consumes through a skill body's own load block (issue #1462).
-# SINGLE SOURCE for the rows `cmd_new_body` renders AND the rows
-# `_reconcile_extension_rows` repairs into a workpad created before they existed:
-# each entry pairs the canonical row text with the stable substring both the tick
-# and the reconciliation detect it by, on the `_REPRODUCTION_ROW_TEXT` /
-# `_REPRODUCTION_ROW_SUBSTR` model, so a later reword of the text blinds neither.
-#
-# WORDING IS A HARD CONSTRAINT, not style. `_tick_checkbox` raises when more than
-# one unticked row matches (case-insensitive substring), so a row whose text
-# contains a substring a live `--tick-progress` call passes breaks that EXISTING
-# tick rather than merely failing its own. Naming each row by its extension file
-# puts `review-and-fix.md` inside the literal `review-and-fix` row's reach, so that
-# row's substring is backticked (`_REVIEW_AND_FIX_ROW`); `Documentation` labels a
-# row too. `requesting-code-review` is deliberately absent: the dispatched
-# final-pass reviewer already fetches it unconditionally under its own return
-# contract.
-#
-# Each entry is `(phase, text, substr)`; `phase` names the top-level `## Progress`
-# row the surface is reached under.
+# Extension rows: (phase, text, stable substring), shared by skeleton and repair.
+# Avoid substrings used by other tick-progress calls: ambiguous matches raise.
+# The backticked review-and-fix row keeps its reach separate from extension names.
 _EXTENSION_ROWS = (
     ('Setup', 'Skill extension resolved: implement.md',
      'extension resolved: implement.md'),
-    ('Review', 'Skill extension resolved: review.md',
-     'extension resolved: review.md'),
     ('Review', 'Skill extension resolved: review-and-fix.md',
      'extension resolved: review-and-fix.md'),
     ('Review', 'Skill extension resolved: fix.md',
@@ -2849,12 +2058,8 @@ _REVIEW_PROGRESS_ROWS = (
 )
 
 
-# The literal **Review** rows the run ticks around the managed rows. Each pairs
-# rendered text with the tick substring the phase files already emit — never
-# reword either half, or `_tick_checkbox`/`_reconcile_extension_rows` stop matching.
-# The fix-loop row carries ` loop` so its substring stays outside the reach of the
-# `Skill extension resolved: review-and-fix.md` row above (an operand matching both
-# unticked rows raises instead of ticking either).
+# Rendered Review rows pair with live tick operands; keep their wording coupled.
+# The loop suffix distinguishes the fix-loop row from its extension row.
 _REVIEW_AND_FIX_ROW = ('Review-and-fix loop', 'Review-and-fix loop')
 _AC_GATE_ROW = ('Acceptance-criteria gate', 'Acceptance-criteria gate')
 
@@ -2912,14 +2117,8 @@ def cmd_new_body(args):
     seed_ts = now_dt.strftime('%H:%M:%S')
     branch = f'`{args.branch}`' if args.branch else '_(creating…)_'
     run = args.run_link or '_(local run)_'
-    # The reproduction sub-item is bug-only. It renders by default so a
-    # deterministic producer that cannot judge content (the `gate` job pre-renders
-    # from the `bug` label) never drops it on a lookup failure; the local
-    # fresh-issue path (Phase 1.3) passes --no-reproduction when the recorded
-    # content classification is non-bug. Either way, Phase 1.3's
-    # --reconcile-reproduction is the authoritative correction (issue #449) that
-    # reconciles this row to the classification, so the default here is only a
-    # starting point, not the final word.
+    # Default to a reproduction row when deterministic classification is unknown.
+    # Phase 1's recorded content classification and reconciliation decide the final row.
     repro = (
         ''
         if getattr(args, 'no_reproduction', False)
@@ -2953,21 +2152,7 @@ def cmd_new_body(args):
 """)
 
 
-# ============================================================================
-# update: high-level mutation entry point
-# ============================================================================
-#
-# The workpad body is structured markdown. Earlier flows had the orchestrator
-# rebuild the entire body string per-mutation, which led to drift (rewriting
-# Decisions/Notes from scratch, missing Last updated, splicing into the wrong
-# section, etc.). `update` accepts focused mutation flags, edits the live body
-# in place, and PATCHes.
-#
-# Section model: the body has a fixed front-matter (Status / Branch / Last
-# updated lines after the H1), then ## sections in a known order. We split the
-# body into a header (everything up to and including the first blank line
-# after the metadata block) and an ordered list of section blocks. Each
-# section block is the heading line plus all lines until the next ## heading.
+# Update edits live structured Markdown: metadata header plus ordered ## sections.
 
 _STATUS_RE = re.compile(r'^\*\*Status:\*\*\s+.*$', re.MULTILINE)
 _STATUS_VALUE_RE = re.compile(r'^\*\*Status:\*\*\s+(.*?)\s*$', re.MULTILINE)
@@ -2985,18 +2170,7 @@ _SECTION_RE = re.compile(r'^(##\s+.+)$', re.MULTILINE)
 # grammar can't drift between call sites.
 _CHECKBOX_ROW_RE = re.compile(r'^(\s*[-*]\s+)(\[[ xX]\])(\s+)(.*)$')
 
-# Canonical status glyphs. The Status line always begins with one;
-# `_status_glyph` derives it from the status word so the orchestrator passes a
-# bare status ("Setup", "Complete", "Blocked", "Failed", "Cancelled") and the
-# helper is the single source of truth for the glyph vocabulary. 🚀=running (any
-# in-progress phase), 🎉=Complete, 👎=Blocked, 💥=Failed, 🛑=Cancelled. The first
-# three are reaction-compatible — they match the triggering-comment reactions
-# (rocket / hooray / -1) the implement skill emits. 💥 (the workflow-level
-# stall-backstop "died" flip, issue #356) and 🛑 (the workflow-level
-# stall-backstop "cancelled" flip, issue #498) are the carve-outs: each is a
-# workpad-only terminal glyph with NO triggering-comment reaction equivalent —
-# the cloud backstop writes them when a run dead-ends (💥) or is cancelled (🛑),
-# but emits no outcome reaction for either.
+# Canonical status glyphs; Failed and Cancelled have no triggering-comment reaction.
 _STATUS_GLYPHS = ('🚀', '🎉', '👎', '💥', '🛑')
 
 
@@ -3012,14 +2186,8 @@ def _strip_status_glyph(status: str) -> str:
 
 
 def _status_value_from_body(body: str) -> str:
-    """Return the live Status VALUE from a workpad body **with its glyph intact**,
-    trimmed, or '' when there is no Status line. Every reader of the Status *value*
-    goes through here: `_status_word_from_body` below delegates to it and strips the
-    glyph, and `cmd_update`'s issue-#814 success breadcrumb reports it verbatim (the
-    breadcrumb is the caller's read-back that a `--status` PATCH landed, and the glyph
-    is what makes '🎉 Complete' recognisable at a glance). `cmd_status`'s separate
-    `_STATUS_VALUE_RE` use answers a different question — is a Status LINE present at
-    all — and shares the compiled pattern rather than this function."""
+    """Return the trimmed Status value, glyph intact, or empty if no line exists.
+    Readers needing line presence rather than its value use _STATUS_VALUE_RE."""
     m = _STATUS_VALUE_RE.search(body)
     return m.group(1).strip() if m else ''
 
@@ -3046,16 +2214,8 @@ def _status_glyph(status: str) -> str:
     return '🚀'
 
 
-# The status *class* vocabulary emitted by `workpad.py status` (issue #1025).
-# Historically every terminal glyph collapsed to the single token 'terminal',
-# which made 👎 Blocked indistinguishable from 🎉 Complete to the only code that
-# reads the workpad (the cloud stall backstop) — so a blocked run concluded the
-# job `success`. The class now names WHICH terminal end it is, so the backstop
-# can conclude a non-complete terminal status non-`success` while keeping 🎉
-# Complete green and 🛑 Cancelled a cancel. An in-progress glyph is 'interim'.
-# `stall-backstop-decide.sh` is the coupled consumer of these tokens. Only the four TERMINAL glyphs are
-# enumerated — every in-progress glyph (🚀) and any unknown falls to 'interim'
-# via the default below.
+# Status class tokens distinguish terminal outcomes for stall-backstop-decide.sh.
+# Running and unknown glyphs default to interim.
 _TERMINAL_STATUS_CLASS_BY_GLYPH = {
     '🎉': 'complete',
     '👎': 'blocked',
@@ -3188,15 +2348,8 @@ def _progress_phase_for_status(progress_content: str, status: str | None) -> str
 def _set_or_insert_header(
     body: str, regex: re.Pattern, label: str, value: str, anchors: list[re.Pattern]
 ) -> str:
-    """Replace a `**{label}:** …` front-matter line with `value`, or insert it
-    after the first matching `anchors` line when absent (so a legacy workpad
-    created before run/PR links existed still accepts `--run-link`/`--pr-link`
-    on a resume instead of erroring). `anchors` is tried in priority order to
-    preserve the canonical Status/Branch/Run/PR/Last-updated ordering — e.g. PR
-    inserts after Run when Run exists, else after Branch — so a freshly-inserted
-    line never jumps above an existing one. `value` is substituted via a
-    function replacer so regex-special characters in the value (e.g. URL
-    `?`/`&`) are literal."""
+    """Set a header literally, or insert after the first available priority anchor.
+    Anchor order preserves canonical header order when hydrating legacy workpads."""
     new_line = f'**{label}:** {value}'
     body, n = regex.subn(lambda _m: new_line, body, count=1)
     if n:
@@ -3250,18 +2403,8 @@ def _find_section(sections: list[tuple[str, str]], name: str) -> int | None:
 
 
 def _tick_top_level_progress_phases(sections: list[tuple[str, str]]) -> None:
-    """Tick every still-unticked `_BACKSTOP_PROGRESS_PHASES` row (issue #1337).
-
-    The deterministic backstop for the cooperative per-phase `--tick-progress`
-    calls: the terminal `--status Complete` write invokes this so a Complete
-    workpad never sits above a `- [ ] **Implement**` / `- [ ] **Review**` row that
-    a volatile tick miss left unticked. The row set is `_BACKSTOP_PROGRESS_PHASES`
-    — `_PROGRESS_PHASES` (the single source of truth, never a transcribed list)
-    minus the outcome row the terminal write cannot vouch for; rows
-    are matched with `_TOP_LEVEL_CHECKBOX_RE`, so only column-0 checkbox rows are
-    considered and nested sub-items keep their prior state. Absent (or non-canonical)
-    `## Progress` is a structural no-op — the Complete write still succeeds exactly
-    as before. Mutates `sections` in place."""
+    """Tick canonical top-level backstop phases in place, excluding outcome-only rows.
+    Leave nested rows unchanged; missing/noncanonical Progress is a no-op."""
     idx = _find_section(sections, 'Progress')
     if idx is None:
         return
@@ -3326,22 +2469,10 @@ def _join_preserving_newline(new_lines, content: str) -> str:
 def _tick_checkbox(
     content: str, text_substr: str, section_label: str
 ) -> tuple[str, bool]:
-    """Tick the one row `text_substr` names, returning `(content, ticked_now)`.
-
-    A tick request is SATISFIED when its target row reads `[x]` — whether this
-    call ticked it or an earlier one did (issue #635). `ticked_now` is False for
-    the already-ticked case, which is what lets `_is_satisfied_tick_replay`
-    recognise a pure replay without re-deriving this resolution. Resolution
-    prefers a unique unticked row; a substring matching no unticked row and
-    exactly one ticked row is satisfied unchanged.
-
-    Three volatile misses remain, each naming its own cause: no match, an
-    ambiguous match among unticked rows, and an ambiguous match among ticked rows
-    (judged on the ticked set too, so an all-ticked ambiguous substring can never
-    report a replay). Each raises `_TickMatchError` — a *volatile* per-row failure
-    `_apply_mutations` collects and `cmd_update` reports without discarding the
-    call's other mutations, distinct from a structural `_UpdateError` (a missing
-    section), which still aborts the whole call before any PATCH."""
+    """Return (content, ticked_now) for a unique matching row.
+    Prefer one unticked match, else accept one ticked match as an unchanged replay.
+    No match or ambiguity in either set raises volatile _TickMatchError; other
+    mutations may still land, unlike a missing section's structural _UpdateError."""
     candidates = []  # unticked matches: (line_idx, match)
     ticked = 0       # already-ticked matches
     new_lines = []
@@ -3378,16 +2509,9 @@ def _tick_checkbox(
 def _tick_checkbox_by_index(
     content: str, n: int, section_label: str
 ) -> tuple[str, bool]:
-    """Tick the Nth checkbox (1-based) in the section, counting *every*
-    `- [ ]`/`* [ ]` and `- [x]`/`* [x]` row in document order. Returns
-    `(content, ticked_now)` on the `_tick_checkbox` contract.
-
-    Addressing by position avoids the fragile, hand-picked unique-substring
-    requirement of `_tick_checkbox` for batched ticks. An index landing on an
-    already-ticked row is SATISFIED (issue #635) and returns `ticked_now` False;
-    only an out-of-range N remains a *volatile* `_TickMatchError` (same class the
-    substring path raises) — collected and reported, never a structural abort.
-    Mirrors the `_rewrite_checkbox` row-walk (`[ xX]` state class)."""
+    """Tick the 1-based checkbox position across all tick states.
+    Return (content, ticked_now); an already-ticked target is satisfied.
+    Only an out-of-range index raises volatile _TickMatchError."""
     rows = []  # (line_idx, match) for every checkbox row, ticked or not
     new_lines = []
     for line in content.splitlines():
@@ -3416,14 +2540,8 @@ def _carried_tick_key(text: str) -> str:
 
 
 def _carry_forward_ticks(old_content: str, new_content: str) -> str:
-    """Return `new_content` with each row whose text matches a ticked row of
-    `old_content` re-ticked, one old ticked row to at most one new row.
-
-    `--replace-plan-file` swaps the whole `## Plan` section, which used to untick
-    every row that had not changed; the carry-forward keeps a run's landed plan
-    progress across a re-plan (issue #635). Indentation lives outside the text
-    group of `_CHECKBOX_ROW_RE`, so a re-indented row still matches. An already-
-    ticked new row consumes no budget — it needs no carry."""
+    """Carry old ticks to matching new row text, one-for-one.
+    Ignore indentation; already-ticked new rows consume no carry budget."""
     budget: dict[str, int] = {}
     for line in old_content.splitlines():
         m = _CHECKBOX_ROW_RE.match(line)
@@ -3445,15 +2563,8 @@ def _carry_forward_ticks(old_content: str, new_content: str) -> str:
 
 
 def _find_checkbox_row(content: str, old_substr: str, section_label: str):
-    """Resolve the ONE checkbox row `old_substr` names, returning
-    `(lines, line_idx, match)`. Raises `_UpdateError` when the substring matches
-    zero or multiple rows (the exactly-one-match rule).
-
-    Split out of `_rewrite_checkbox` so the `(post-merge)` rationale guard can
-    reason over the row's CURRENT text using the very same resolution the rewrite
-    will use (issue #338). Sharing the resolution — rather than re-deriving the
-    row from the OLD argument string — keeps the guard's view of "which row is
-    this pair about" identical to the rewriter's by construction."""
+    """Resolve exactly one substring-matched checkbox or raise _UpdateError.
+    The rewrite and rationale guard share this resolution of the current row text."""
     matched = []
     lines = content.splitlines()
     for i, line in enumerate(lines):
@@ -3484,17 +2595,8 @@ def _rewrite_checkbox(
 
 
 def _split_details(content: str) -> tuple[str | None, str, str | None]:
-    """If a section's content wraps its body in a `<details>` block, return
-    `(head, inner, tail)` where `head` is the opening `<details>`/`<summary>`
-    lines (plus the blank line markdown needs to render inside), `inner` is the
-    collapsible body, and `tail` is the closing `</details>`. Returns
-    `(None, content, None)` when there is no wrapper — so the append helpers
-    operate on a legacy (un-wrapped) section unchanged.
-
-    New workpads write the reflection section un-wrapped, but a legacy workpad
-    created before the rename still carries the old `<details>` collapse; this
-    lets `--reflection` append *inside* that legacy block (before `</details>`),
-    never after — which would silently fall outside the collapsible region."""
+    """Split a legacy details wrapper into (head, inner, tail).
+    Without a wrapper return (None, content, None); append inside legacy wrappers."""
     lines = content.split('\n')
     try:
         o = next(i for i, line in enumerate(lines) if line.strip().startswith('<details'))
@@ -3521,15 +2623,8 @@ def _rewrap_details(head: str, new_inner: str, tail: str) -> str:
 
 
 def _render_note(note: str, leading_ws: str) -> tuple[str, list[str]]:
-    """Split a note into its bullet text and indented continuation lines.
-
-    Shared by the note renderer and the replay-dedup matcher so both agree on the
-    rendered form. Split with `str.splitlines()`; blank and whitespace-only lines
-    are dropped; the first surviving line is the bullet text and each further
-    surviving line is rendered at the bullet's content column (`leading_ws` plus
-    two spaces). A note with no line break (or only a trailing one) yields the
-    bullet text alone, matching the pre-change single-line rendering byte-for-byte.
-    """
+    """Return bullet text and content-column continuations, dropping blank lines.
+    Rendering and replay matching share this form."""
     parts = [ln for ln in note.splitlines() if ln.strip()]
     if not parts:
         parts = ['']
@@ -3540,36 +2635,11 @@ def _append_progress_note(
     content: str, note: str, timestamp: str, phase_label: str | None,
     reserved_marker_ok: bool = False,
 ) -> str:
-    """Insert a `  - {timestamp} — {note}` bullet nested under the ## Progress
-    top-level phase whose row text contains `phase_label`.
-
-    Notes live inside the Progress section now (no separate Decisions / Notes
-    section): a note this function appends lands at the end of its phase's block —
-    after that phase's sub-checkboxes and any earlier appended notes, before the
-    next top-level phase — so a phase's appended notes stay grouped and
-    chronological across many update calls. The one exception is the Setup
-    run-started seed note, which `cmd_new_body` writes into the template directly
-    above the `Skill extension resolved: implement.md` checkbox (issue #22), not
-    through this function, so it precedes that checkbox rather than sitting at the
-    block end. `timestamp` is the time-only `HH:MM:SS` string. When
-    `phase_label` is None, or no row matches it, the note is appended flat at
-    the end of the section so it is never dropped. A note carrying line breaks
-    renders as one bullet with its non-blank continuation lines indented to the
-    bullet's content column (blank lines dropped) via `_render_note`, so the
-    nested list never breaks.
-
-    **Reserved-marker guard (issue #1453; widened to every reserved family by #321).**
-    Every caller-supplied text that reaches `## Progress` passes through here, so the
-    screen for a reserved checkpoint marker (any family on
-    `_RESERVED_CHECKPOINT_KEY_PREFIXES`, both marker namespaces) lives here rather than
-    at each writing flag: the gate's readers locate their marker inside a `## Progress`
-    bullet, so any free-text channel — `--note`, `--note-file`, a `--checkpoint` TEXT, a
-    `--record-classification` rationale, or a channel added later — could otherwise write
-    a record that passed none of the producer validation and filed none of the
-    accompanying evidence. The rows the producer itself writes carry their marker and
-    reach this function too, so they are admitted by an explicit opt-in argument rather
-    than by pattern; a caller-supplied operand a producer embeds verbatim is screened
-    before its row is composed (issue #321)."""
+    """Append a timestamped note at the end of its Progress phase block.
+    Use a flat trailing bullet if the phase is missing; _render_note handles continuations.
+    The template's Setup seed is separate and precedes its extension checkbox.
+    Screen all caller text for reserved markers. Only validated producer rows opt out;
+    embedded caller operands must be screened before those rows are composed."""
     if not reserved_marker_ok:
         _owner = _reserved_checkpoint_marker_owner(note)
         if _owner:
@@ -3606,14 +2676,8 @@ def _append_progress_note(
     return _join_preserving_newline(new_lines, content)
 
 
-# ── Reproduce-first classification: row reconcile + note supersede (issue #449) ──
-#
-# The Phase 2.1.5 reproduce-first gate keys on a recorded *content* classification,
-# not the `bug` label. Phase 1.3 records that classification as a superseding
-# `classification: ` note and reconciles the bug-only "reproduction captured"
-# Progress row to match it — on every entry — so a gate-created skeleton (rendered
-# deterministically from the label) always agrees with the classification before
-# Phase 2 begins. Both operate on the ## Progress section.
+# Reproduction follows recorded content classification, not the initial bug label.
+# Reconcile its row and supersede its classification note before Phase 2.
 _CLASSIFICATION_VALUES = ('bug-report', 'non-bug')
 # The fixed, greppable note prefix. Phase 1.1's two exact forms are
 # `classification: bug-report — <rationale>` / `classification: non-bug — <rationale>`.
@@ -3628,22 +2692,9 @@ _CLASSIFICATION_NOTE_RE = re.compile(
 
 
 def _reconcile_reproduction_row(content: str, classification: str) -> str:
-    """Idempotently add or remove the bug-only reproduction-captured Progress
-    sub-row so the skeleton matches the recorded content classification (#449).
-
-    - `bug-report` → ensure the row is present: when absent, insert
-      `_REPRODUCTION_ROW` as the first sub-item of the `**Implement**` phase row
-      (the anchor is the `**Implement**` line itself, not any sibling sub-row);
-      no-op when a row is already present in ANY tick state. A skeleton with no
-      `**Implement**` anchor fails loud (`_UpdateError`) — see below.
-    - `non-bug` → remove the row only when present AND unticked; a *ticked* row is
-      historical evidence and is preserved; an absent row is a no-op. This arm
-      deliberately never fails loud: it needs no anchor (there is nothing to
-      insert), so a missing row or missing `**Implement**` line is the desired
-      end state, not an error — the asymmetry with bug-report is intentional.
-
-    Never removes a ticked row and never inserts a duplicate — so running it on
-    every Phase 1.3 entry is safe. Operates on the ## Progress section content."""
+    """Reconcile the bug-only row without duplicating or deleting ticked evidence.
+    For bugs, insert under Implement or raise if its anchor is missing.
+    For non-bugs, remove only an unticked row; no anchor is needed."""
     lines = content.split('\n')
     matches = [
         (i, m) for i, ln in enumerate(lines)
@@ -3674,29 +2725,10 @@ def _reconcile_reproduction_row(content: str, classification: str) -> str:
 
 
 def _reconcile_extension_rows(content: str) -> str:
-    """Idempotently repair managed nested `## Progress` rows into a workpad
-    created before they existed (issues #1462, #1657 and #22), mirroring the shape
-    `_reconcile_reproduction_row` uses.
-
-    A row is detected by its stable substring in ANY tick state, so a present row
-    is left exactly where it is — never duplicated and never moved. A row present
-    only OUTSIDE its declared phase block is likewise left in place (the no-move
-    contract) and a stderr NOTE is emitted so the un-healed placement is legible. A
-    missing row
-    is inserted after the nearest present row that precedes it in the declared
-    sequence (`_managed_progress_rows` / `_REVIEW_BLOCK_ROWS`) WITHIN THE SAME
-    PHASE BLOCK, and directly under the phase's top-level row when no declared
-    predecessor is present in that block — so a fresh template and a repaired
-    legacy workpad converge on the one declared order, while a workpad whose
-    present rows already sit out of that order keeps them there. A declared
-    predecessor found OUTSIDE the phase block (e.g. a misplaced `review-and-fix`
-    under **Implement**) does not anchor the insert; the missing row then lands directly
-    under the phase anchor exactly as when no predecessor is present. A note is not
-    a declared row, so it never anchors an insert.
-
-    A missing `**Review**` anchor is repaired before its required review rows are
-    inserted. Other absent phase anchors keep the existing warn-and-skip hydration
-    behavior. Operates on the `## Progress` section content."""
+    """Insert missing managed rows after their nearest declared predecessor in-phase,
+    or directly under the phase anchor. Existing rows never move or duplicate;
+    warn when one is outside its phase. Notes cannot anchor inserts.
+    Repair a missing Review anchor; warn/skip other absent phase anchors."""
     lines = content.split('\n')
     managed = tuple(_managed_progress_rows())
     for idx, (phase, text, substr) in enumerate(managed):
@@ -3797,24 +2829,8 @@ def _remove_classification_notes(content: str) -> str:
     return _join_preserving_newline(kept, content)
 
 
-# ── PRFlow Reflections: kind taxonomy + grouped rendering ───────────────────
-#
-# Reflection bullets are grouped by KIND into the `### ` sub-sections defined in
-# _REFLECTION_SUBSECTIONS inside the `## PRFlow Reflections` section (a legacy
-# workpad still carries the old `<details>` collapse around them), so a
-# human scanning a run sees actionable items, improvement proposals, and
-# informational notes separated. The helper owns the glyph, bold label (or none),
-# and sub-section placement — the caller passes only a bare kind token via
-# `--reflection-kind` — the same "helper owns the rendering token" idiom as the
-# `--status` glyph and `--note` phase-nesting.
-#
-# Ordered: kind -> (glyph, bold label, sub-section key). A label of '' renders
-# the bullet GLYPH-ONLY (`- {glyph} {text}`) — used when the sub-section heading
-# already names the kind, so the bold label would be redundant: `note` under
-# `### ℹ️ Notes` and `improvement` under `### 💡 Improvements` (issue #476). The
-# three actionable kinds keep their label (they share one `### ⚠️ Action required`
-# heading, so the label is what distinguishes them); `issue-accuracy` keeps its
-# label because it renders under `### ℹ️ Notes`, which does NOT name it.
+# Reflection kind -> (glyph, label, subsection). The helper owns rendering.
+# Empty labels avoid repeating a heading that already identifies the kind.
 _REFLECTION_KINDS = {
     'blocked':        ('⛔', 'Blocked',        'action'),
     'deferred':       ('⏭️', 'Deferred',       'action'),
@@ -3914,14 +2930,8 @@ def _place_bullet_in_blocks(blocks: list[list], target_heading: str,
 
 
 def _insert_reflection_bullet(inner: str, kind: str, text: str) -> str:
-    """Insert one reflection bullet of `kind` into the reflection-section body
-    (the `<details>` inner body on a legacy workpad, the un-wrapped section body on
-    a new one), under its canonical `### ` sub-section — creating the heading lazily (in
-    Action-required-before-Notes order) when absent, reusing it when present.
-
-    Pre-existing un-kinded (legacy) bullets are retained verbatim as a leading
-    heading-None preamble block, *above* the lazily-created sub-sections — they
-    are never re-sorted into a sub-section."""
+    """Append under the kind's canonical heading, creating it in declared order.
+    Preserve legacy unkinded bullets as an untouched leading preamble."""
     try:
         glyph, label, sub_key = _REFLECTION_KINDS[kind]
     except KeyError:
@@ -3974,16 +2984,9 @@ _DOC_RESOLUTION_MARKER = ' — ✅ resolved: '
 
 
 def _resolve_doc_reflection(content: str, target: str, evidence: str) -> str:
-    """Move the single actionable reflection bullet containing `target` out of
-    `### ⚠️ Action required` into `### ℹ️ Notes`, appending `evidence` and keeping the
-    bullet's original glyph/kind (issue #508).
-
-    Refuses — a structural `_UpdateError`, no PATCH, no other reflection changed — on
-    an empty/multiline operand, an absent or ambiguous target, a match that is not an
-    actionable bullet, or an already-resolved bullet whose evidence differs. An
-    already-resolved bullet under Notes whose evidence matches is an idempotent replay,
-    returned unchanged. Distinct from `_strip_review_coverage_reflection_bullets`, which DELETES
-    a narrow machine-generated bullet family — this one RETAINS history by moving."""
+    """Move the unique actionable target to Notes with evidence, retaining its glyph.
+    Matching resolved evidence is a replay. Invalid operands, ambiguous/non-actionable
+    targets or conflicting evidence raise _UpdateError before any PATCH."""
     target = target.strip()
     evidence = evidence.strip()
     if not target:
@@ -4055,15 +3058,8 @@ def _decode_utf8(raw: bytes, flag: str, path: str) -> str:
 
 
 def _read_section_file(path: str, flag: str) -> str:
-    """Read a file passed via one of the --replace-*-file flags. Reads bytes and
-    decodes UTF-8 EXPLICITLY (never the ambient locale codec) so non-ASCII
-    section content round-trips byte-identical on any host, and converts an
-    OS-level error or a decode failure into a clean `_UpdateError` so the
-    orchestrator gets a targeted message instead of a Python traceback, and the
-    surrounding `cmd_update` aborts before the PATCH (no partial update). The
-    decoded text is canonicalized to LF (issue #349): this reader is an inbound
-    seam for the update PATCH body, so a native-Windows-authored replacement file
-    carrying `\\r\\n` would otherwise re-inject `\\r` into the sink."""
+    """Read a replacement as UTF-8 bytes and normalize LF.
+    Read/decode failures raise structural _UpdateError before any PATCH."""
     try:
         raw = Path(path).read_bytes()
     except OSError as e:
@@ -4072,19 +3068,8 @@ def _read_section_file(path: str, flag: str) -> str:
 
 
 def _read_file_payload(path: str, flag: str, thing: str) -> str:
-    """Read a `--*-file` bullet payload for `flag` (e.g. `--reflection-file`,
-    `--note-file`), bypassing shell interpolation: bytes are read verbatim from a
-    file, or from stdin when `path` is `-`, and decoded via `_decode_utf8`
-    (explicit UTF-8, no ambient codec) so backticks, `$`, quotes, an em-dash or an
-    emoji round-trip byte-identical on any host. An empty or whitespace-only
-    payload is a structural failure — a blank `thing` bullet carries no signal —
-    so it aborts before any PATCH. All failure modes raise `_UpdateError`, so
-    `_apply_mutations` aborts with no partial workpad write. Shared by both file
-    channels so a future fix to the read/decode/empty-guard contract cannot drift
-    one behind the other. The payload is canonicalized to LF (issue #349): this
-    reader is an inbound seam for the update PATCH body, so a native-Windows note
-    or reflection file carrying `\\r\\n` would otherwise re-inject `\\r` into the
-    sink; the empty-guard then measures the canonical text."""
+    """Read file/stdin bytes as UTF-8/LF without shell interpolation.
+    Read/decode failures or blank payloads raise _UpdateError before any PATCH."""
     try:
         if path == '-':
             raw = sys.stdin.buffer.read()
@@ -4101,22 +3086,8 @@ def _read_file_payload(path: str, flag: str, thing: str) -> str:
 
 
 def _multi_file_payloads(args, attr, cache_attr, flag, thing) -> list:
-    """Read `flag`'s repeatable `--*-file` payloads as one bullet payload per path
-    (issue #2076), memoized as a whole list on `args`.
-
-    Both `--note-file` and `--reflection-file` are declared `action='append'`, so
-    `attr` holds a list of paths; this returns a parallel list of decoded payloads,
-    one per path, in command-line order. Two consumers need the SAME payloads:
-    `_apply_mutations`, which renders the bullets, and `_cmd_update_inner`'s
-    failed-write buffering (issues #1214/#1813), which persists them when the PATCH
-    drops them — so the whole list is read once and cached; a later caller is served
-    from that cache. The `-`/stdin arm can only be read once, which the single
-    build-and-cache guarantees; and because stdin is consumed exactly once, `-` may
-    appear at most once per flag — a repeat is refused BEFORE any read (so it never
-    consumes stdin or reaches a PATCH) rather than surfacing later as a spurious
-    empty-payload error against the already-drained stream. Only a SUCCESSFUL build
-    is cached, so a caller that retries after a failure re-reads rather than seeing a
-    half-populated cache. Modeled on `_deferred_filed_file_values`."""
+    """Read repeated file payloads in argument order, caching only a successful list.
+    Mutation and buffering share the cache; reject repeated stdin before consuming it."""
     paths = getattr(args, attr, None)
     if not paths:
         return []
@@ -4148,21 +3119,8 @@ def _note_file_payloads(args) -> list:
 
 
 def _deferred_filed_file_values(args) -> list:
-    """Read `--mark-deferred-filed-file` as one marker value per line (issue #1446).
-
-    A deferred criterion's normalized text routinely carries backticks and an
-    apostrophe, and the cloud matcher denies command substitution — so neither
-    single- nor double-quoting `--mark-deferred-filed`'s inline value is
-    shell-safe, and a run that cannot write its markers re-files the same
-    follow-up on a later Phase 4 entry. This is the interpolation-free arm, the
-    per-line twin of `--reflection-file`: bytes come off disk verbatim through
-    the shared `_read_file_payload` reader, so a value round-trips byte-identical.
-
-    Blank and whitespace-only lines are dropped (a trailing newline is normal) and
-    each surviving line is stripped, since a value the `deferred-presence`
-    predicate printed carries no leading or trailing space. An all-blank payload is
-    already refused by `_read_file_payload`, so no line survives to be marked.
-    Memoized like the other file arms so the `-`/stdin form survives two reads."""
+    """Read literal filed-marker values from a file/stdin, one stripped nonblank line
+    each. Memoize so replay/buffering can reuse stdin without shell interpolation."""
     path = getattr(args, 'mark_deferred_filed_file', None)
     if not path:
         return []
@@ -4185,46 +3143,20 @@ class _UpdateError(Exception):
 
 
 class _TickMatchError(Exception):
-    """Raised by the tick helpers (`_tick_checkbox`, `_tick_checkbox_by_index`)
-    — and by `_progress_apply` for an already-ticked Blueprint row — for a
-    *volatile* per-row failure *inside a present section*: a substring
-    matching no row or ambiguously, or an out-of-range index. Deliberately NOT
-    a subclass of `_UpdateError`, so the structural `except _UpdateError` in
-    `cmd_update` never captures it. Collected
-    per-tick in `_apply_mutations`; the call's other mutations still apply and
-    PATCH, and `cmd_update` then exits non-zero naming each failed tick."""
+    """A volatile row-resolution miss inside a present section.
+    Separate from _UpdateError: collect misses, persist other mutations, then fail."""
 
 
 def _report_failed_ticks(failed_ticks, preamble):
-    """Write the collected volatile tick misses to stderr under `preamble`.
-
-    The single chokepoint every `cmd_update` exit path routes its `failed_ticks`
-    through, so a collected miss is reported on ALL three: the structural-abort
-    path, the PATCH-failure path, and the clean-PATCH-but-ticks-missed path. The
-    `preamble` states whether a PATCH was persisted, so the caller can tell
-    'nothing landed, re-send the whole call' from 'the body PATCHed, re-tick only
-    the unresolved row(s)' without re-sending the already-applied status/notes."""
+    """Report all tick misses with a persistence-specific preamble.
+    Callers must distinguish whole-call retries from reticking after a landed PATCH."""
     sys.stderr.write(f"workpad.py update: {preamble}:\n")
     for ft in failed_ticks:
         sys.stderr.write(f"  - {ft}\n")
 
 
-# ---------------------------------------------------------------------------
-# Failed-write buffering and replay (issue #1214, part (c))
-# ---------------------------------------------------------------------------
-# When a workpad PATCH fails (a GitHub fault confined to the comment endpoint),
-# the append-only history the call intended — its `--note` bullets and its
-# `## PRFlow Reflections` bullets — is otherwise lost, exactly the stranded state
-# issue #1214 describes (a run that cannot record its Blocked reflection or its
-# completion evidence). So a failed call BUFFERS that append-only content to
-# local storage under the gitignored `.prflow/tmp/`, and the next successful
-# `update` — which includes every terminal-status transition, since that is
-# itself an `update` — REPLAYS the buffered content idempotently: a buffered
-# item already RENDERED as its own bullet in the live body is skipped, so a
-# replay never duplicates content (AC9). Status and tick mutations are
-# deliberately NOT buffered — they are transient state a later call
-# re-establishes, whereas a dropped note/reflection is a permanent hole in the
-# run's record.
+# Buffer failed writes' append-only notes/reflections under ignored .prflow/tmp.
+# Replay on the next update; do not buffer transient Status or tick mutations.
 
 _WORKPAD_BUFFER_DIRNAME = 'workpad-buffer'
 
@@ -4313,38 +3245,10 @@ def _buffer_failed_change(comment_id, notes, reflections, kind) -> "Path | None"
     return path
 
 
-# ── Replay identity: "already applied" is an EXACT rendered-bullet match ────
-#
-# A buffered item counts as already applied only when the live body carries the
-# bullet the RENDERER would have produced for it — never when its text merely
-# occurs somewhere in the body. The distinction is the whole safety property of
-# this feature: `fully_replayed` authorizes `_clear_workpad_buffer`, so a
-# false positive here does not merely skip an append, it DESTROYS the only
-# surviving copy of the item. A containment test (`text in body`) false-positives
-# on any item whose text is a substring of unrelated content — a terse Blocked
-# reflection, a status word, an error code, an AC-label fragment, or the same
-# text embedded inside a longer note — which is silent loss of the operator's
-# record inside the feature built to prevent exactly that.
-#
-# Both predicates below are therefore whole-LINE equality against the shapes the
-# two append helpers emit, scoped to the one section each writes into:
-#
-#   * a note      — `_append_progress_note` writes `{indent}- HH:MM:SS — {first}`
-#     into `## Progress`; the bullet text is the ENTIRE remainder of the line, so
-#     comparing that captured remainder for equality against the note's first
-#     non-blank line (plus, for a multi-line note, its continuation lines rendered
-#     under the matched bullet's own indent) cannot be satisfied by a line that
-#     merely contains the text.
-#   * a reflection — `_insert_reflection_bullet` writes `- {glyph} {label}{text}`
-#     into `## PRFlow Reflections`, with the text collapsed to one line; the
-#     candidate set is built from `_REFLECTION_KINDS` itself, so it is exactly
-#     the finite set of renderings that text could have, and a whole-line
-#     equality against it cannot be satisfied by containment either.
-#
-# Both fail toward re-appending: an unresolvable section, a legacy un-kinded
-# bullet, or any shape the renderer does not emit reads as NOT-applied, which
-# risks a duplicate bullet and never a dropped record. That direction is chosen
-# deliberately — a visible duplicate is recoverable, a silent deletion is not.
+# Replay identity is exact rendered-bullet equality in the writer's section.
+# Containment would falsely authorize buffer deletion and lose the sole copy.
+# Notes include their rendered continuations; reflections use taxonomy renderings.
+# Unknown/legacy shapes favor re-append: a visible duplicate is recoverable.
 
 
 def _note_already_rendered(progress_content: "str | None", note: str) -> bool:
@@ -4393,32 +3297,11 @@ def _reflection_already_rendered(
 
 def _plan_buffer_replay(comment_id, body, args,
                         pending_notes=None, pending_reflections=None) -> bool:
-    """Fold any buffered failed-write content for this comment into `args` so it
-    replays on THIS successful update, idempotently (AC8/AC9).
-
-    Idempotency has THREE sources, not one, and all three are needed for the
-    "a replay never duplicates content" guarantee to hold. A buffered item is
-    skipped when its text is (a) already RENDERED as its own bullet in the live
-    `body`'s target section — an exact whole-line identity, never a containment
-    test over the body; see the block comment above for why that distinction is
-    the difference between skipping an append and destroying the record —
-    (b) already carried inline by THIS call (`pending_notes`/`pending_reflections` — the shape a
-    retry of the same update takes during an outage), or (c) already queued by an
-    earlier buffered record in this same pass (two failed calls carrying the same
-    `--note` buffer two records, and deduping against the body alone folds both).
-    Anything not yet present is appended to `args.note` / `args.reflection`, but
-    ONLY when the target section (`## Progress` for notes, the reflection section
-    under either heading spelling for reflections) exists in the body — so a replay never turns a valid call
-    into a structural abort against a truncated/malformed workpad.
-
-    Returns True ONLY when every buffered item is now accounted for — either
-    already present in the live body, or foldable because its section exists.
-    Returns False when a buffered item could NOT be folded (its section is absent
-    from this body), so the caller must NOT clear the buffer: the content stays
-    buffered for a later, healthy body to replay, rather than being silently
-    dropped along with the buffer file. A buffered reflection replays under the
-    CALL's kind rather than its own: the record's durability matters more than
-    its sub-section placement on this degraded path."""
+    """Fold buffered content into args, deduplicating against exact live bullets,
+    this call's inline content, and earlier buffered items in the same pass.
+    Fold only into existing target sections. Return True only when every item is
+    accounted for; otherwise retain the buffer for a later healthy body.
+    Reflections replay under the current call's kind to preserve their text."""
     records = _read_workpad_buffer(comment_id)
     if not records:
         return False
@@ -4479,14 +3362,7 @@ _WORKPAD_ID_CACHE_DIRNAME = 'workpad-id-cache'
 
 
 def _workpad_id_cache_path(issue, marker) -> Path:
-    """Cache file for one (issue, effective marker)'s resolved workpad comment id.
-
-    Mirrors `_workpad_buffer_path`: anchored under the repo-root `.prflow/tmp/`
-    (gitignored here and in every install.sh-scaffolded consumer), so it never
-    lands as a tracked file. Keyed by issue AND a hash of the effective marker so
-    two markers against one issue (e.g. the workpad vs a review-progress comment)
-    never collide.
-    """
+    """Return the ignored repo-root cache path keyed by issue and effective marker."""
     root = _repo_root() or str(Path.cwd())
     key = f'{issue}-{hashlib.sha1(marker.encode("utf-8")).hexdigest()[:16]}'
     return (Path(root) / '.prflow' / 'tmp' / _WORKPAD_ID_CACHE_DIRNAME
@@ -4541,14 +3417,8 @@ def _write_workpad_id_cache(issue, marker, comment_id, repo) -> None:
 
 
 def _comment_body_channel(comment) -> str:
-    """The comment body from a JSON-decoded comment object — the single seam the
-    scan-object and cache-verify paths funnel their body through.
-
-    The object's `body` field is the exact stored body. The former separate
-    `gh api --jq .body` body fetch appended one trailing newline (jq's raw-output
-    newline), which this unification drops in favour of the true stored body, so a
-    round-trip PATCH is idempotent (no per-update trailing-newline drift). Both
-    resolution paths therefore hand `_apply_mutations` byte-identical input."""
+    """Read the exact stored body through one scan/cache seam.
+    Avoid --jq .body's appended newline so repeated PATCHes cannot grow the body."""
     return comment.get('body') or ''
 
 
@@ -4562,16 +3432,9 @@ def _issue_url_names_issue(issue_url, issue) -> bool:
 
 
 def _verify_cached_comment(comment_id, issue, marker):
-    """Fetch the cached comment directly and return its full object only when it is
-    trustworthy, else None (a miss → the caller scans).
-
-    Trust condition (the sole accept shape): the direct fetch succeeds, its body
-    starts with one of `_marker_variants(marker)`, and its `issue_url` names the
-    targeted issue. Every other outcome — a failed request such as a 404, a body
-    without the marker, an issue_url that does not name the issue (absent/null/
-    wrong-typed included), an unparseable or non-object response — is a miss.
-    Uses `{owner}/{repo}` placeholders (gh fills them from the checkout), so no
-    `gh repo view` call is made."""
+    """Return a direct-fetch object only when its marker and issue_url match.
+    Any failed read or invalid shape is a cache miss; the caller then scans.
+    Use gh's repository placeholders without a separate repo lookup."""
     try:
         r = _run([
             GH, 'api',
@@ -4707,15 +3570,8 @@ def _pr_number_from_workpad_body(body):
 
 
 def _resolve_pr_for_mirror(issue, body):
-    """Return (pr_number, cause): the PR a mirror should write to (issue #626).
-
-    A PR whose `closingIssuesReferences` list the issue wins. When none does — the case
-    a PR targeting a non-default branch always produces, because GitHub ignores closing
-    keywords there, and the case an adopted PR with no closing keyword produces too —
-    fall back to the PR the workpad `**PR:**` line names, accepted only when a REST read
-    shows it open. `cause` is empty on a hit and names the miss otherwise, so the caller
-    prints exactly one breadcrumb. No comment read is added: the body is the one the
-    caller already holds."""
+    """Prefer a PR closing the issue, else the open PR named by the workpad.
+    Return (number, cause), with one miss cause for the caller's breadcrumb."""
     pr = _resolve_open_pr_for_issue(issue)
     if pr:
         return pr, ''
@@ -4788,17 +3644,8 @@ def _stopped_note_text_for_mirror(args, own_notes, own_reflections):
 
 
 def _status_labels_enabled():
-    """Whether the status-label mirror is enabled (issue #2117).
-
-    Reads `.status_labels.enabled` from `.prflow/config.json` IN-PROCESS — never
-    by exec-ing config-get.sh, which Windows cannot run ([WinError 193]), the
-    same reason `_workpad_marker` reads config in-process. ON by default: only
-    two values disable it — the JSON boolean `false` and the JSON string
-    "false". EVERY other shape leaves it enabled: a missing key, a missing or
-    unreadable or unparseable config file, an empty string, a number, an array,
-    an object. Failing toward enabled matches the documented default (`true`)
-    and never turns the feature off on a shape the operator did not choose.
-    """
+    """Read the in-process config: only boolean false or string "false" disables.
+    Missing, unreadable or other-shaped values preserve the enabled default."""
     _root = _repo_root()
     base = _root if _root is not None else str(Path.cwd())
     config_file = Path(_resolve_state_dir(base)) / 'config.json'
@@ -4920,24 +3767,9 @@ def _reconcile_managed_label(number, target, label_defined):
 
 
 def _mirror_status_labels(issue, status, *, pr_link=None, body=None):
-    """Best-effort: mirror the workpad Status onto managed labels on the issue and
-    its open PR (issue #2117; the `--pr-link` trigger, issue #252).
-
-    Modelled on `_mirror_stopped_note_to_pr`: it runs AFTER the workpad PATCH has
-    landed and MUST never change that update's own outcome, so every failure is
-    swallowed with a breadcrumb. Makes NO API request when the feature is
-    disabled. The managed labels are a DERIVED mirror of the Status; the workpad
-    comment stays the source of truth. The label REST calls are issued in-process
-    here rather than via scripts/apply-labels.sh / ensure-label.sh, which
-    workpad.py must not exec on Windows ([WinError 193]).
-
-    Two triggers, one fire. A `--status` write passes `status` directly; a
-    `--pr-link`-only write passes `status=None`, and the Status word is read from
-    the patched `body`. Every trigger passes `body`, which also feeds the
-    `**PR:**` line fallback (issue #626). `pr_link` names the PR (issue #252);
-    when it carries no number the closing-references lookup runs, then that
-    fallback. The link parse and the body read run INSIDE this absorber because
-    the `_cmd_update_inner` call site is unwrapped."""
+    """Best-effort mirror after PATCH; failures never change the update outcome.
+    No API requests when disabled. Status writes use the operand; PR-link-only
+    writes read patched Status. Resolve PR from link, closing refs, then body."""
     try:
         if not _status_labels_enabled():
             return
@@ -5013,15 +3845,8 @@ def _cmd_update_inner(args):
         _write_workpad_id_cache(
             args.issue, marker, comment_id, _repo_from_issue_url(comment.get('issue_url')))
 
-    # Hydration-race preconditions (issue #537, AC24). Phase 1 snapshots the workpad
-    # comment ID and the exact stripped Status word BEFORE resetting Status, then
-    # passes them here. We just resolved the live comment id and body (above) — if the
-    # LIVE comment ID or Status word no longer matches the snapshot,
-    # the workpad was concurrently changed (a terminal backstop flip, a delete +
-    # recreate, an operator edit), so ABORT before any mutation/PATCH rather than
-    # overwrite the current state with a stale reset. Exit 4 = precondition mismatch
-    # (distinct from 1=structural/absent and the tick exit paths). A deleted-and-not-
-    # recreated workpad is already caught above (comment_id is None → exit 1).
+    # Compare live identity/Status with the hydration snapshot before mutation.
+    # Exit 4 on mismatch; stale resets must not overwrite concurrent changes.
     if args.expect_comment_id is not None and str(comment_id) != str(args.expect_comment_id):
         sys.stderr.write(
             f"workpad.py update: precondition mismatch — expected comment id "
@@ -5051,20 +3876,8 @@ def _cmd_update_inner(args):
     _own_reflections = list(args.reflection or [])
     _own_kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
     if args.reflection_file:
-        # A file-sourced reflection is buffered like an inline one, and a repeated
-        # flag buffers its payloads (issue #2076), not just the last. This
-        # is the case issue #1214 exists for: the mandated stop-path recipe delivers
-        # the Blocked reflection in its OWN `--reflection-file` call carrying no
-        # inline --note/--reflection, and that recipe's documented inline fallback
-        # covers a *structural* error only — never a PATCH failure — so leaving a
-        # payload uncaptured drops the run's terminal reflection on the one path the
-        # feature was built to rescue. The reads are memoized (see
-        # `_reflection_file_payloads`), so `_apply_mutations` below reuses this text
-        # rather than re-reading, which is also what keeps the `-`/stdin arm
-        # single-read. Pulling the read forward of `_apply_mutations` means a bad
-        # payload now reports before a co-occurring structural fault rather than
-        # after it; both still abort the whole call with exit 1 and no PATCH, which
-        # is the contract that matters.
+        # Capture every file payload for failure buffering, including file-only calls.
+        # Memoized reads let mutation reuse stdin; invalid payloads still prevent PATCH.
         try:
             _own_reflections.extend(_reflection_file_payloads(args))
         except _UpdateError as e:
@@ -5236,23 +4049,9 @@ def _cmd_update_inner(args):
     if args.print_body or failed_ticks:
         sys.stdout.write(r.stdout)
 
-    # Issue #814: one short success breadcrumb on the exit-0 PATCH path, so a
-    # successful call is never byte-identical to one the cloud permission matcher
-    # silently refused (a denial prints nothing). It carries the Status value read
-    # back from the PATCH response on a `--status` call: that read-back is the one
-    # check an exit code cannot discharge, because `gh api -X PATCH` can return
-    # success while the comment body is unchanged. Written independently of
-    # `--print-body`, and NOT written on the volatile-miss path below — a
-    # success-shaped line beside a failing exit code would re-create on stderr the
-    # split the exit-code rule exists to prevent.
-    # Read the Status back from the PATCH response on ANY `--status` call that
-    # PATCHed — including one whose tick missed. Three unobserved states are reported
-    # distinctly rather than collapsed onto one token: an EMPTY response (a throttled
-    # or oversized write — the comment itself may be perfectly healthy, so pointing
-    # the reader at a corrupt body would misdirect them), a non-empty response
-    # carrying no Status line, and a resolved value. None renders as a bare empty
-    # clause a reader could mistake for "no --status was set". The read goes through
-    # the shared value reader, never a second regex site.
+    # On successful PATCH, read Status from the response through the shared reader.
+    # Distinguish empty response, missing Status and resolved value. Only exit-0
+    # paths emit a success breadcrumb; tick-miss paths still need the read-back.
     _status_clause = ''
     _live = ''
     _read_back = ''
@@ -5267,22 +4066,8 @@ def _cmd_update_inner(args):
         sys.stderr.write(
             f"workpad.py update: PATCHed comment {comment_id}{_status_clause}\n"
         )
-    # The read-back is only a guard if something compares it. Leaving the comparison
-    # to prose alone lets a reader skim the line for "breadcrumb present, exit 0" and
-    # advance over a PATCH that returned 200 with the comment body unchanged, so the
-    # mismatch is made machine-observable here. Unlike the success breadcrumb above,
-    # this line is written on the volatile-tick-miss path too: it is failure-shaped,
-    # so it composes with the miss report instead of re-creating the success/failure
-    # split — and that path is where a `--status` write is most likely to ride along
-    # with a tick, so suppressing it would fail open exactly where the mismatch is
-    # most likely. It is a WARNING, not a failure: the PATCH call itself succeeded and
-    # the caller owns the re-issue decision. The comparison reads `_live` — the value
-    # the reader above resolved — never a re-parse of the rendered clause, so the
-    # guard and the breadcrumb cannot disagree about what was read back, and it
-    # reports the same distinct unreadable token the clause carries rather than
-    # collapsing the two unobserved states.
-    # Derive this once: both PATCH-succeeded tails below pick their outcome token from
-    # it, and deriving it twice would let them disagree about the same read-back.
+    # Compare the read-back once for both outcome paths. Warn on mismatch even
+    # when ticks missed; the caller owns remediation after a successful PATCH.
     _status_unverified = False
     if args.status:
         _want = _strip_status_glyph(args.status).strip().lower()
@@ -5321,17 +4106,9 @@ def _cmd_update_inner(args):
 def _apply_section_ticks(
     sections, section_name, flag_base, substr_texts, index_ns, failed_ticks,
 ):
-    """Tick rows in the named section (`## Progress`/`## Plan`/`## Acceptance
-    Criteria`) from the substring and index requests.
-
-    Structural failure (the section is absent while ticks were requested) raises
-    `_UpdateError` to abort the whole call. A per-row miss (a substring matching no
-    row or ambiguously, an out-of-range index) is *volatile*: it is appended to
-    `failed_ticks` as a flag-named descriptor and the remaining ticks still apply.
-    Substring ticks are processed before index ticks; index positions count every
-    `[ ]`/`[x]` row, so a prior substring tick never shifts an index target — and
-    an index landing on the *same* row an earlier substring tick took is satisfied,
-    not a miss (issue #635)."""
+    """Apply substring ticks before 1-based index ticks across all tick states.
+    Absent requested sections raise _UpdateError; row misses accumulate in failed_ticks
+    while remaining ticks apply. Reticking the same row is a satisfied replay."""
     if not substr_texts and not index_ns:
         return
     idx = _find_section(sections, section_name)
@@ -5359,21 +4136,8 @@ _POST_MERGE_MARKER = '(post-merge)'
 
 
 def _is_single_line(text: str) -> bool:
-    """True when `text` holds no line boundary *as the row parser sees one*.
-
-    Shares the consumer's own operation instead of re-deriving its contract. The
-    checkbox-row parsers (`_find_checkbox_row`, `_post_merge_flags`, `_unticked_rows`)
-    split with `str.splitlines()`, which breaks on far more than `\\n`/`\\r`: `\\v`,
-    `\\f`, `\\x1c`-`\\x1e`, `\\x85` (NEL), `\\u2028` (LINE SEPARATOR) and `\\u2029`
-    (PARAGRAPH SEPARATOR). A membership test for `'\\n'`/`'\\r'` accepts a *superset*
-    of what `splitlines()` treats as one line, so any of those other separators would
-    still split a checkbox row in two — a guard's accepted-input set must be a subset
-    of its consumer's, never a guess at it. `''.join(text.splitlines()) == text` holds
-    exactly when `splitlines()` finds no boundary (the empty string included, and a
-    trailing separator caught too). A few section helpers (`_split_details`,
-    `_append_progress_note`) split on `'\\n'` alone — a strict subset of the
-    `splitlines()` boundaries — so this guard over-covers them too, never under.
-    The same `splitlines()` idiom collapses multi-line `--reflection` text above."""
+    """Accept exactly text with no str.splitlines boundary, including trailing ones.
+    Use the row parser's operation: checking only CR/LF misses other Unicode separators."""
     return ''.join(text.splitlines()) == text
 
 
@@ -5440,20 +4204,10 @@ _COMPACT_LOW_WATER_BYTES = _COMMENT_BYTE_LIMIT - 24576
 # marginally conservative.
 _COMPACT_ACCOUNTING_RESERVE = 512
 
-# Line 1 of the overflow comment. The workpad marker is deliberately NOT on line 1
-# and IS on line 2, because the three matchers for that marker differ:
-#   * `_find_workpad_comment` matches a body that STARTS WITH it, so line 2 keeps
-#     every workpad read resolving the real workpad;
-#   * `scripts/resolve-implement-trigger.sh` and `scripts/resolve-command-trigger.sh`
-#     DECLINE any comment containing it anywhere, so line 2 makes the overflow
-#     comment inert to both listeners;
-#   * `lib/fetch-pr-context.sh` matches it case-insensitively as a substring and
-#     takes the EARLIEST match, so it can select an overflow comment once a workpad
-#     is deleted and recreated. Line 3 copies the workpad's live `**Status:**` line
-#     so that mis-selection yields a parsed status word instead of that reader's
-#     `Unparsed` sentinel, and the comment carries no `## PRFlow Reflections`
-#     heading so it yields zero reflections rather than misattributed ones.
-# Each line answers a different consumer; moving one re-breaks that consumer alone.
+# Overflow line 1 identifies overflow; line 2's workpad marker prevents triggers
+# without matching the starts-with workpad reader. Line 3 copies live Status for
+# fetch-pr-context's substring reader, which may select an old overflow after
+# workpad recreation. Omit Reflections headings to avoid misattributed friction.
 _COMPACT_OVERFLOW_MARKER = '<!-- prflow:workpad-overflow -->'
 
 # A `### ℹ️ Notes` reflection bullet: any list item, since the reflection writer
@@ -5499,15 +4253,9 @@ def _compact_progress_region(lines):
 
 
 def _compact_notes_region(lines):
-    """`(start, stop)` bounding the `### ℹ️ Notes` bullets inside the ONE reflection
-    section, or None when either the section or the sub-heading is absent or
-    duplicated.
-
-    Only this sub-section is movable: `lib/fetch-pr-context.sh`'s retrospective
-    parser reads a bullet under `### ⚠️ Action required` or `### 💡 Improvements` as
-    friction, so moving one would silently clear a signal the retrospective owes.
-    Current heading spelling first, superseded second — `_single_reflection_content`'s
-    order. A legacy `<details>` wrapper closes the region like a sub-heading does."""
+    """Locate the sole Notes region in the sole reflection section, or None.
+    Action/Improvement bullets feed retrospective friction and must not move.
+    A legacy details closing tag ends the region."""
     section = None
     for name in (_REFLECTION_HEADING, _REFLECTION_HEADING_SUPERSEDED):
         hits = _compact_heading_hits(lines, name)
@@ -5530,15 +4278,8 @@ def _compact_notes_region(lines):
 
 
 def _compact_bullets_in(lines, region, bullet_re):
-    """Whole bullets inside `region` as `(first, stop, text)`, in document order.
-
-    A bullet is its own line plus every following line that is non-blank, indented
-    PAST it and not a heading — exactly the continuation lines `_render_note` writes,
-    and a nested list under them. The indent test alone separates a SIBLING bullet
-    (same indent or less, so the block ends) from nested content (deeper, so it
-    travels with its bullet): matching a sibling by its `- ` prefix instead would
-    strand a continuation line that happens to start one, and the next phase row and
-    a phase's sub-checkboxes both sit at or above a note bullet's own indent."""
+    """Return whole (start, stop, text) bullets with their deeper nonblank continuations.
+    Indentation, not a dash prefix, separates siblings from nested content."""
     out = []
     if region is None:
         return out
@@ -5591,17 +4332,10 @@ def _compact_ceiling(nbytes, target=_COMPACT_TARGET_BYTES,
 
 def _compact_plan(body, target=_COMPACT_TARGET_BYTES, low=_COMPACT_LOW_WATER_BYTES,
                   reserve=_COMPACT_ACCOUNTING_RESERVE):
-    """`(selected, projected_bytes)` — the fewest oldest unprotected bullets, in
-    document order, whose removal brings `body` to `low` with `reserve` bytes left for
-    the accounting row; when the candidates run out first, every movable bullet,
-    provided that brings it to the smaller of its own size and `target`, less
-    `reserve` — so a compaction never grows the body and a rerun writes nothing.
-    `selected` is None when even that fails (the caller refuses atomically), and
-    empty whenever nothing is movable; `projected_bytes` is what would be left
-    either way.
-
-    Pure: it issues no request and mutates nothing, so the selection and both refusal
-    arms are drivable from an in-memory body."""
+    """Select the fewest oldest unprotected bullets to reach low with accounting reserve.
+    If candidates run out, accept all only below min(original size, target) minus reserve.
+    Return (None, projected_bytes) when unreachable, or an empty selection if none move.
+    Pure planning: no request or mutation."""
     lines = body.split('\n')
     candidates = (
         _compact_bullets_in(lines, _compact_progress_region(lines),
@@ -5686,25 +4420,11 @@ def _update_headroom_line(nbytes: int) -> str:
 
 
 def cmd_compact(args):
-    """Move the oldest unprotected bullets into ONE overflow comment, toward
-    `_COMPACT_LOW_WATER_BYTES` as `_compact_plan` selects them (issues #755, #1547): appended
-    to the newest overflow comment when `_compose_overflow_append` accepts it and the
-    append PATCH lands, else posted as a new one.
-
-    The overflow comment is written BEFORE the workpad PATCH, deliberately: every
-    failure then leaves the moved text in two places rather than none. Duplication
-    over loss.
-
-    Exit vocabulary: 0 = compacted (JSON receipt on stdout), or already at/below the
-    low watermark (measurement on stdout, no comment, no PATCH); 1 = structural
-    refusal (no `**Status:**` line to copy, or no single `## Progress` section to
-    account in) with nothing posted and nothing PATCHed; 2 = clean scan, no workpad;
-    3 = gh transport/parse failure, INCLUDING a PATCH that failed after the overflow
-    comment was written — that message names the comment, which holds every moved
-    bullet whether or not the PATCH landed; 5 = compaction is unreachable — nothing movable, every movable
-    bullet still leaving the body over `_compact_ceiling`, or an overflow comment
-    over the cap — the message naming which. 4 is not used here (it is
-    `export-snapshot`'s write refusal)."""
+    """Move oldest unprotected bullets to the newest usable overflow, else a new comment.
+    Write overflow before PATCH so failures duplicate text rather than lose it.
+    Exit 0: compacted or already low; 1: structural refusal; 2: clean absence;
+    3: API/read/PATCH failure; 5: unreachable compaction. A post-overflow failure
+    names the comment retaining the moved text."""
     marker = _workpad_marker(args.marker)
     repo = _repo_full(api_fail_code=3)
     c = _find_workpad_comment('compact', repo, args.issue, marker, api_fail_code=3)
@@ -5844,25 +4564,9 @@ def _ends_with_post_merge(text: str) -> bool:
 
 
 def _pair_appends_post_merge(old: str, new: str, row_text: str) -> bool:
-    """True when a `--rewrite-ac` OLD/NEW pair *appends* the `(post-merge)` tag to
-    the row it targets: NEW ends with the marker while NEITHER the OLD argument nor
-    `row_text` — the matched row's CURRENT label text, resolved by
-    `_find_checkbox_row`, the same resolution the rewrite itself uses — already
-    does. This is exactly the mid-run retag channel §3.4 requires a rationale
-    `--note` for (issue #338): a pair that tags a previously-untagged criterion.
-
-    Returns False (no rationale needed) when the pair *removes* the tag, or when
-    the row it targets is ALREADY terminally tagged — a text tweak on an
-    already-post-merge row creates no new deferral. Consulting `row_text` rather
-    than the OLD argument alone is what makes that exemption hold for an OLD
-    substring that does not itself span the tag (e.g. `--rewrite-ac "AC two"
-    "AC two clarified (post-merge)"` against a row already reading
-    `AC two (post-merge)`), which the argument-string-only form false-refused.
-
-    The OLD conjunct is retained: a pair whose OLD spans the tag while the row is
-    non-terminally tagged is the crafted multi-pair shuttle the state-based
-    backstop in `_apply_mutations` exists to catch (it is not caught here, by
-    design — see that backstop's comment)."""
+    """Detect NEW's terminal tag when neither OLD nor the resolved current row has it.
+    Current-row inspection exempts text edits on already-tagged rows even when OLD
+    omits the tag. The state backstop catches multi-pair shuttles this guard cannot."""
     return (_ends_with_post_merge(new)
             and not _ends_with_post_merge(old)
             and not _ends_with_post_merge(row_text))
@@ -5884,14 +4588,8 @@ def _unticked_rows(content: str) -> tuple[list[str], list[str]]:
 
 
 def _post_merge_flags(content: str) -> list[bool]:
-    """Per-row `(post-merge)`-terminal flags for a checkbox section's rows, in
-    document order — one entry per checkbox row, across EVERY tick state (`[ ]` and
-    `[x]` alike). Non-checkbox lines (placeholders, prose) contribute nothing.
-
-    This is the retag backstop's population, and it is deliberately WIDER than
-    `_unticked_rows`' (which is `[ ]`-only because the Phase 3.4 terminal gate only
-    reconciles still-unmet criteria): a marker landing on an already-`[x]` row is
-    still a net-added `(post-merge)` row. Read-only — never mutates a row."""
+    """Return terminal-tag flags for every checkbox, including ticked rows.
+    Retag accounting is wider than the terminal gate's unticked-only population."""
     return [
         _ends_with_post_merge(m.group(4))
         for line in content.splitlines()
@@ -5900,37 +4598,16 @@ def _post_merge_flags(content: str) -> list[bool]:
 
 
 def _net_adds_post_merge(pre: list[bool], post: list[bool]) -> bool:
-    """True when the `--rewrite-ac` loop tagged a criterion that was not terminally
-    `(post-merge)` before it ran — i.e. some row transitioned False -> True.
-
-    Compares POSITIONALLY, not by aggregate count. `_rewrite_checkbox` replaces one
-    line in place (never inserts, deletes, or reorders), so a row's index is stable
-    across the whole loop and index `i` before is index `i` after. A count-based
-    comparison would miss a call that removes the tag from one row while adding it
-    to another: the totals net to zero while a criterion was silently deferred.
-
-    Defensive: a differing row count means the positional mapping is meaningless, so
-    the comparison cannot answer the question at all. Fail CLOSED — treat it as a
-    net-add. `_apply_mutations` rejects a multi-line NEW (`_is_single_line`) before the
-    loop runs, so `_rewrite_checkbox` should not be able to change the row count; this
-    branch is the backstop for that guard rather than dead code, and it exists so that
-    any path which *does* change the count can never silently downgrade this guard to
-    an aggregate count (which is blind to a remove-one/add-one swap — exactly the hole
-    the positional comparison closes). Do not "simplify" it back to `sum(post) >
-    sum(pre)`: that comparison returns False on a shorter-but-newly-tagged post state."""
+    """Detect any row's False-to-True tag transition by stable checkbox position.
+    Aggregate counts miss remove-one/add-one swaps. A changed row count is unknown
+    and fails closed as a net add; multiline replacements are rejected upstream."""
     if len(pre) != len(post):
         return True
     return any(now and not before for before, now in zip(pre, post))
 
 
-# ── Completion verification-flight evidence gate (issue #1087) ──────────────────
-# The implement engine's terminal `--status Complete` write must be backed by a
-# current, machine-readable verification-flight record for the run's final in-env
-# verification command. The validated flight key rides on the EXISTING keyed-
-# checkpoint marker family (issue #537) — no second marker family is minted — under
-# a fixed `completion-verification:<flight-key>` key namespace. The record itself is
-# resolved from the repo-root-anchored canonical flight directory and validated by
-# the sibling check-completion-evidence module's implement-completion entry point.
+# Flight completion keys reference canonical repo-root records validated by
+# the sibling check-completion-evidence module.
 _VERIFICATION_FLIGHT_DIRNAME = os.path.join('.prflow', 'tmp', 'verification-flights')
 _COMPLETION_MARKER_KEY_PREFIX = 'completion-verification:'
 # A flight key is a sha256 hex digest; a non-hex value is a malformed marker.
@@ -5944,15 +4621,7 @@ _COMPLETION_VALIDATOR_CACHE = None
 
 
 def _load_completion_validator():
-    """Lazily import the sibling `check-completion-evidence.py` module, once.
-
-    Returns the imported module, or None when the sibling is absent beside this
-    `workpad.py` copy (the standalone-deployment closure — the suite's guard sandboxes
-    copy `workpad.py` without its evidence siblings).
-    Imported by file path via importlib because the sibling's filename carries a
-    hyphen and is not importable as a module name; the result is memoized so a
-    combined record+Complete call does not re-exec the sibling twice. Tests exercise
-    the standalone-copy arm by monkeypatching this function to return None."""
+    """Lazily cache the sibling validator import; return None for standalone copies."""
     global _COMPLETION_VALIDATOR_CACHE
     if _COMPLETION_VALIDATOR_CACHE is not None:
         return _COMPLETION_VALIDATOR_CACHE
@@ -5996,19 +4665,8 @@ def _strip_completion_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
-# ── CI-derived completion-evidence family (issue #1611) ────────────────────────
-#
-# Issue #1607 made a CI reading this repository's LOCAL/interactive whole-suite
-# completion gate, but `_completion_evidence_verdict` could recognise only an
-# in-environment verification-flight pass. This is the SECOND accepted family: a
-# local run that established a green required check for the commit it pushed records
-# that reading here, in a marker family DISTINCT from `completion-verification:`, so
-# a reader tells an in-env suite pass from a CI reading without inspecting any command
-# string. The payload is a base64url-unpadded JSON object carrying the re-audit fields
-# (head SHA, tier, run URL, and a checks list of name/conclusion pairs); it rides the same
-# keyed-checkpoint marker family, validated OFFLINE by the sibling module's
-# `validate_implement_completion_ci`.
-# Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
+# Local CI evidence uses a distinct completion-ci key with encoded JSON
+# (head, tier, run URL, checks), validated offline by the sibling validator.
 _COMPLETION_CI_MARKER_KEY_PREFIX = 'completion-ci:'
 # Composed from `_MARKER_NS_RE` (as the review-coverage grammars are) rather than
 # re-spelling the `(?:pr|dev)flow` alternation, so the confirmation-gated retirement
@@ -6081,17 +4739,8 @@ def _strip_completion_ci_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
-# ── Cloud-CI completion-evidence family (issue #403) ───────────────────────────
-#
-# A cloud implement run that verified through the existing CI suite records the THIRD
-# accepted completion family, distinct from the in-env flight (`completion-verification:`)
-# and the local-tier CI reading (`completion-ci:`). Its payload is the richer
-# `cloud_ci_evidence` record (kind + schema_version + shard population/tallies + required
-# checks), validated OFFLINE by the sibling module's `validate_implement_completion_cloud_ci`.
-# It rides the same base64url-unpadded keyed-checkpoint marker family, its JSON
-# zlib-compressed first (issue #1547); `_encode_ci_payload`/`_decode_ci_payload` are
-# shape-agnostic, so they are reused for this payload too.
-# Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
+# Cloud CI evidence has its own completion-cloud-ci family and offline validator.
+# Reuse the compressed base64url JSON codec for its richer checks/shards record.
 _COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX = 'completion-cloud-ci:'
 _COMPLETION_CLOUD_CI_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint completion-cloud-ci:([^\s]+?) -->'
@@ -6125,22 +4774,9 @@ def _strip_all_completion_marker_rows(content: str) -> str:
     return content
 
 
-# ── Phase 2 sweep-evidence family (issue #438) ─────────────────────────────────
-#
-# A machine-readable record of what a run's Phase 2 sweeps did — the selected set,
-# each sweep's terminal outcome, and the distinct corrections each sweep owned —
-# recorded through the workpad so the weekly retrospective can measure sweep yield
-# without reading prose. Unlike the completion families above this is NOT globally
-# singleton: each run's record is keyed by its own run identity, so multiple runs'
-# records coexist in a retained body for the summarizer (scripts/sweep-evidence.py) to
-# measure; a later validated record for the SAME run identity replaces only that run's
-# prior row. The row is exempt from the caller-note budget and from compaction, so the
-# encoded payload is capped at `_NOTE_BYTE_BUDGET` instead. The base64url-unpadded JSON
-# payload (`_encode_ci_payload`, shape-agnostic) rides a
-# `sweep-evidence:<run_identity>:<payload>` keyed-checkpoint marker.
-# `_SWEEP_EVIDENCE_MARKER_RE` is a coupled mirror of scripts/sweep-evidence.py's
-# `_MARKER_RE` (edited together; the round-trip test writes a marker here and reads it
-# there so a drift fails a test rather than silently under-counting).
+# Sweep evidence replaces only the same run identity's record; other runs coexist.
+# Protected from compaction/caller-note limits, its payload has _NOTE_BYTE_BUDGET.
+# Keep this marker grammar coupled to scripts/sweep-evidence.py's reader.
 _SWEEP_EVIDENCE_KEY_PREFIX = 'sweep-evidence:'
 _SWEEP_EVIDENCE_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint sweep-evidence:([^:\s]+):([^\s]+?) -->'
@@ -6295,20 +4931,8 @@ def _verification_evidence_row(command, outcome, run_roots, tallies, elapsed,
     return _VERIFICATION_EVIDENCE_PREFIX + ' ' + ' '.join(parts)
 
 
-# ── Mid-phase resume-point family (issue #1876) ────────────────────────────────
-#
-# The Phase 3 mid-phase re-anchor used to re-read EVERY member of the phase's
-# reference set to recover the step position after a nested-skill return; this family
-# records that step position durably so only the member holding it need be re-read.
-# It is a NAVIGATION aid and NEVER evidence: no verdict/gate reads it (its reader is a
-# standalone subcommand wired into no `_*_verdict`), which is what keeps a run's
-# self-report out of any verification decision (issue #1489). It rides the same
-# keyed-checkpoint marker family (issue #537); the payload is a base64url-unpadded
-# token of the resume-point text, so it is a single whitespace-free `[^\s]+` the marker
-# and checkpoint-key grammars both accept, and it legitimately CHANGES between calls
-# (each mid-phase invocation records a fresh point), so the producer strips the prior
-# row and appends the new one — the reader returns the sole surviving payload. Both the
-# `prflow:` and superseded `devflow:` spellings are read per record (#1003).
+# Resume points are navigation hints, never verdict evidence.
+# Each write replaces the prior row with encoded whitespace-free text.
 _RESUME_POINT_MARKER_KEY_PREFIX = 'resume-point:'
 _RESUME_POINT_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint resume-point:([^\s]+?) -->'
@@ -6444,16 +5068,8 @@ def _reset_resume_status_inner(args, marker: str) -> str:
 
 
 def cmd_reset_resume_status(args):
-    """Reset a terminal workpad Status to an interim word at the earliest resume hook
-    (issue #137), firing the status→label mirror so PRFlow:Stuck becomes
-    PRFlow:Implementing before a live resume looks dead.
-
-    The ONE shared reset routine invoked from both the cloud gate adopt branch and
-    Phase 1 entry. Best-effort: a workpad resolve/read/write failure warns and exits
-    0, leaving the run's outcome unchanged. Prints one outcome token: `RESET <word>`
-    (a terminal Status was reset, its prior word recorded), `NOOP <word>` (already
-    interim — the idempotent case), `NO_WORKPAD` (no workpad to reset), or
-    `UNAVAILABLE <reason>` (a best-effort failure or an unsafe shape)."""
+    """Best-effort terminal-to-interim reset with prior-status record and label mirror.
+    Print RESET <word>, NOOP <word>, NO_WORKPAD, or UNAVAILABLE <reason>; always exit 0."""
     marker = _workpad_marker(args.marker)
     try:
         outcome = _reset_resume_status_inner(args, marker)
@@ -6478,19 +5094,10 @@ def cmd_reset_resume_status(args):
 
 
 def cmd_prior_status(args):
-    """Print the prior terminal Status word the resume reset recorded (issue #137).
-
-    Grep-style exit contract, matching `cmd_resume_point`:
-      0  exactly one prior-status marker on record — its word is the sole stdout line.
-      1  none recorded, or a duplicated/garbled marker set that reads as absent —
-         nothing on stdout, so Phase 1.3 falls back to the live Status.
-      2  structural absence — no workpad, or no single ## Progress section: the
-         workpad genuinely carries no prior-status context.
-      3  transient — a gh transport/auth failure or an unresolvable repo, kept
-         DISTINCT from 2 so Phase 1.3 does not read a blip as a benign absence and
-         fall back to the reset-mutated interim Status (which would misclassify a
-         terminal re-trigger as mid-flight).
-    The workpad body itself is never printed."""
+    """Print one prior terminal word without the body.
+    Exit 0: one valid marker; 1: absent/garbled/duplicated marker;
+    2: missing workpad or sole Progress section; 3: transient read/repo failure.
+    Keep transient failure distinct so callers do not misclassify a reset run."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'prior-status', _repo_full(api_fail_code=3), args.issue, marker,
@@ -6585,37 +5192,13 @@ def _validate_cloud_ci_evidence(args, payload: str) -> None:
         )
 
 
-# ── Review-coverage record + disposition (issue #1453) ─────────────────────────
-#
-# A run's Phase 3 review pass can fall short — a shadow that was not verified, a
-# reviewer roster short of the expected set, a skipped checklist step — and before
-# this record the only trace was free-text prose in a `## Progress` note, which no
-# reader could resolve. These constants give the fact a machine-readable home so the
-# terminal `--status Complete` gate can refuse a silent shortfall.
-#
-# The record rides the EXISTING keyed-checkpoint marker family (issue #537) under a
-# fixed `review-coverage:` key namespace carrying a four-axis payload, exactly as
-# `completion-verification:` carries a flight key. That family — not the
-# `_REQUIRED_ARTIFACTS` literal-key family — is the right precedent: the payload
-# legitimately CHANGES between calls, and `--checkpoint`'s replay semantics key on
-# the whole key string, so a second call with a different payload would insert a
-# SECOND independent row rather than replacing the first, leaving two records of
-# different vintage with nothing to say which is authoritative. So the producer
-# strips the prior row and appends a fresh one, and the reader refuses on anything
-# other than exactly one record.
+# Review coverage is one replaceable four-axis record, with gap dispositions.
+# Strip before rewriting: generic keyed replay would accumulate changing payloads.
+# Readers require exactly one record.
 _REVIEW_COVERAGE_KEY_PREFIX = 'review-coverage:'
 _REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX = 'review-coverage-disposition:'
-# Both the current `prflow:` and superseded `devflow:` spellings are read per record
-# (issue #1003 renamed the marker namespace and rewrote no history). The coverage
-# pattern cannot collide with the disposition one: `review-coverage:` requires the
-# colon immediately after `review-coverage`, which `review-coverage-disposition:`
-# does not have.
-# Composed from `_MARKER_NS_RE` rather than re-spelling the alternation, so the
-# confirmation-gated retirement of the superseded spelling reaches these grammars
-# too. That constant fixes the single space `_checkpoint_marker` writes, making
-# these two stricter than the older hand-rolled `_COMPLETION_MARKER_RE` — which is
-# the safe direction here: a marker shape this gate cannot read is UNESTABLISHED,
-# which refuses the Complete write rather than admitting it.
+# Use the shared per-record namespace grammar; coverage and disposition keys differ.
+# Unreadable marker shapes remain unestablished at the Complete gate.
 _REVIEW_COVERAGE_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint review-coverage:([^\s]+?) -->'
 )
@@ -6637,24 +5220,10 @@ def _review_coverage_disposition_reason_re(gap: str):
         r'review-coverage disposition — gap=' + re.escape(gap)
         + r'; reason: (.*?)\s*<!--'
     )
-# The record's axes, declared ONCE as a member table in the shape
-# `_REQUIRED_ARTIFACTS` established, with every view below DERIVED from it — so a
-# fifth axis is added in one literal rather than in every derived view below, where
-# omitting the `clean` entry would make the axis unconditionally dirty and omitting
-# `gap` would raise inside the gap derivation at Complete time. Prose mirrors of
-# these vocabularies live in the implement phase files and the review-and-fix
-# references and cannot import them, so before changing a vocabulary grep
-# `record-review-coverage` and `dispatch=` across `skills/**` and reconcile every
-# hit in the same commit.
-#   `values` — the axis's CLOSED vocabulary. `unestablished` is a first-class member
-#     of every axis because an unresolvable fact must be recordable as unknown;
-#     collapsing it onto a clean value is the fail-open this gate exists to close.
-#   `clean`  — the value(s) that are not a shortfall. A record is COMPLETE only when
-#     every axis holds one of its own.
-#   `gap`    — the gap token the axis reports when it is not clean. `coverage` and
-#     `dispatch` are two facts about the same shadow pass, so both report
-#     `shadow-coverage`, keeping the disposition vocabulary to the three gaps a
-#     human actually reasons about.
+# Axis table: values is closed vocabulary, clean defines passing values, gap
+# names the shortfall. Coverage/dispatch share shadow-coverage.
+# Views derive from this table; reconcile shipped prose found by
+# record-review-coverage and dispatch= searches when changing vocabulary.
 _REVIEW_COVERAGE_AXIS_SPECS = (
     {
         # `not-applicable` is the REJECT arm: the loop routes a REJECT straight to
@@ -6705,16 +5274,8 @@ _REVIEW_COVERAGE_AXIS_SPECS = (
     },
 )
 def _validate_review_coverage_axis_specs(specs) -> None:
-    """Enforce the axis table's own invariants at import, so a table edit cannot make
-    the gate fail OPEN silently.
-
-    The dangerous edit is adding `unestablished` to an axis's `clean` tuple: that
-    turns the one value the whole design exists to refuse into a passing one, and no
-    test of the gate's behavior would necessarily notice. A typo in `clean` is the
-    mirror-image failure (an axis permanently dirty). The value-shape rule keeps the
-    colon-joined payload and the marker grammar round-trippable: a value carrying a
-    colon or whitespace would be written by the producer and then read back as a
-    malformed record, refusing the run for a reason no message could explain."""
+    """Validate the axis table at import: clean values must be valid and established,
+    and payload values must round-trip without colon/whitespace ambiguity."""
     seen = set()
     for spec in specs:
         if set(spec) != {'name', 'values', 'clean', 'gap'}:
@@ -6759,8 +5320,7 @@ _REVIEW_COVERAGE_GAPS = tuple(
 # (issue #1984). It rides the disposition marker key as `…:<gap>:<cause-class>`, so a
 # member must stay colon-free. Admissibility lives in
 # `_review_coverage_disposition_cause_rejection`; do not restate it here.
-_REVIEW_COVERAGE_CAUSE_CLASSES = (
-    'environment-denial', 'dispatched-but-lost', 'extension-provenance')
+_REVIEW_COVERAGE_CAUSE_CLASSES = ('environment-denial', 'dispatched-but-lost')
 if any(':' in c for c in _REVIEW_COVERAGE_CAUSE_CLASSES):
     # An explicit raise (not a bare `assert`, which `python3 -O` strips) pins the
     # marker-key round-trip invariant for this producer/consumer contract.
@@ -6852,14 +5412,8 @@ _REVIEW_COVERAGE_BOILERPLATE = frozenset({
 
 
 def _review_coverage_marker_rows(progress_content: str, pattern):
-    """Yield `pattern`'s capture for each `## Progress` bullet whose note text ENDS
-    with that marker — the shape the producer writes (`<text> <marker>`).
-
-    Tail-anchoring to a canonical timestamped bullet is what stops a marker buried
-    mid-sentence inside unrelated prose from being read as a record. It is
-    defence-in-depth beside the free-text guard in `_apply_mutations`, which refuses
-    to write such prose in the first place; either alone would leave the gate
-    readable from text no producer validated."""
+    """Yield captures only from markers ending canonical timestamped Progress bullets.
+    Together with the free-text writer guard, this excludes embedded prose markers."""
     for line in (progress_content or '').splitlines():
         bullet = _PROGRESS_BULLET_RE.match(line)
         if not bullet:
@@ -6882,17 +5436,8 @@ def _review_coverage_payloads(progress_content: str) -> list[str]:
 
 
 def _parse_review_coverage_payload(payload: str):
-    """Split a `<coverage>:<dispatch>:<roster>:<checklist>` payload into an axis dict,
-    or return None when it is malformed — the wrong field count, or any field outside
-    its axis vocabulary. A malformed payload is unestablished, never a partial read:
-    accepting the fields that happened to parse would let a truncated record answer
-    for axes it never carried.
-
-    A record written before issue #1510 has exactly len(_REVIEW_COVERAGE_AXES) fields
-    and no anchor; an anchored record appends the trailing `<head>:<asof>` fields. Both
-    parse to the same axis dict here — the anchor is metadata read by
-    `_parse_review_coverage_anchor`, never a fifth axis — so the gate and every existing
-    reader are unchanged, and the pre-anchor field count still parses (AC4)."""
+    """Parse all coverage axes or return None; partial records establish nothing.
+    Accept legacy axis-only and anchored payloads. Head/asof metadata is not an axis."""
     fields = (payload or '').split(':')
     n = len(_REVIEW_COVERAGE_AXES)
     if len(fields) not in (n, n + _REVIEW_COVERAGE_ANCHOR_FIELDS):
@@ -6905,14 +5450,8 @@ def _parse_review_coverage_payload(payload: str):
 
 
 def _parse_review_coverage_anchor(payload: str):
-    """The as-of anchor a review-coverage payload carries (issue #1510), or None.
-
-    A pre-#1510 record has exactly len(_REVIEW_COVERAGE_AXES) fields and no anchor, so
-    it returns None — absent, never an error (AC4). An anchored record appends
-    `<head>:<asof>`: `head` is a lowercase-hex SHA (or the literal `unestablished` when
-    the reviewed head could not be derived) and `asof` is a colon-free basic-ISO UTC
-    instant. A payload with the anchor field count but a malformed head or asof also
-    returns None — an unreadable anchor is absent, not a partial one."""
+    """Read a valid head/asof anchor or return None for legacy/malformed payloads.
+    Head may be unestablished; asof uses colon-free basic-ISO UTC."""
     fields = (payload or '').split(':')
     n = len(_REVIEW_COVERAGE_AXES)
     if len(fields) != n + _REVIEW_COVERAGE_ANCHOR_FIELDS:
@@ -6948,14 +5487,7 @@ def _review_coverage_gaps(record: dict) -> list[str]:
 
 
 def _review_coverage_incoherence(record: dict) -> str | None:
-    """Why a vocabulary-valid coverage record is internally incoherent, or None.
-
-    `not-applicable` is a single fact about the whole pass — no shadow was owed, so
-    none of the four axes measured anything — and it is CLEAN on every axis. Held on
-    a proper subset it would launder the axes it does NOT cover: a dispatched pass
-    could record `full attempted not-applicable not-applicable` and pass the gate with
-    its real roster and checklist shortfalls never stated. So it is all-four or none,
-    checked identically at write time and at read time."""
+    """Require not-applicable on all axes or none: it describes the whole pass."""
     na = [axis for axis in _REVIEW_COVERAGE_AXES
           if record[axis] == 'not-applicable']
     if na and len(na) != len(_REVIEW_COVERAGE_AXES):
@@ -6967,22 +5499,9 @@ def _review_coverage_incoherence(record: dict) -> str | None:
 
 
 def _review_roster_members(progress_content: str):
-    """The enumerated shadow roster read from the `## Progress` content, as a three-state
-    result — one combined `review-roster:<encoded-roster>` marker row carries every member
-    (the `_encode_reuse_roster` payload the reusable-review record already stores):
-
-    - no `review-roster:` row present → `{}` (empty map; a legacy rosterless record is
-      grandfathered on this state exactly as before);
-    - the row(s) present all decode → the `{member: status}` map, with
-      `_REVIEW_ROSTER_DUPLICATE` for a member enumerated twice — within one payload or
-      across two roster rows (separately refused as a duplicate);
-    - any present row's payload does not decode — truncated or garbled, or the superseded
-      per-member `<member>:<status>` shape → `_REVIEW_ROSTER_UNDECODABLE`, never an empty
-      map, so a damaged record is refused as UNESTABLISHED rather than grandfathered.
-
-    Read back here rather than trusted from the writing call, so an enumeration recorded at
-    the Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
-    coverage flags."""
+    """Read combined roster markers as {member: status}.
+    No row yields {}; duplicate members get _REVIEW_ROSTER_DUPLICATE.
+    Any unreadable payload yields _REVIEW_ROSTER_UNDECODABLE, never legacy absence."""
     payloads = list(_review_coverage_marker_rows(
         progress_content, _REVIEW_ROSTER_MARKER_RE))
     if not payloads:
@@ -6998,29 +5517,12 @@ def _review_roster_members(progress_content: str):
 
 
 def _review_roster_incoherence(record: dict, members: dict) -> str | None:
-    """Why the roster axis value is incoherent with the enumerated members, or None.
-
-    The `roster` axis alone is a self-report (issue #1512): a narrow shadow that believes
-    itself full writes `complete` and nothing downstream sees a roster to contradict it.
-    This cross-checks the axis against the per-member enumeration. It is enforced at write
-    time (a measured record cannot be stamped without a coherent enumeration) and re-run at
-    the read-time `Status: Complete` gate only when an enumeration is present, so a legacy
-    rosterless record — one predating this check — finalizes rather than being re-validated
-    retroactively:
-
-    - `complete` requires every always-on member `dispatched` and no member `missing`; an
-      always-on member absent, `missing`, or `gated-off` refuses it, naming the member.
-    - `short` must name at least one `missing` member — a `short` with none is really
-      complete, so refusing it keeps the axis honest.
-    - an always-on member is never applicability-gated, so recording one `gated-off` on
-      any measured roster (`complete` or `short`) is incoherent and refused.
-    - `complete`/`short` are measured values and require a non-empty enumeration;
-      `not-applicable`/`unestablished` measured no roster and must carry none.
-    - An unknown member or status, or a duplicated member row, fails closed.
-
-    It enforces the always-on floor — no always-on member missing or gated-off on a
-    `complete` roster — not full expected-roster dispatch: a gated analyzer's own
-    dispatch remains self-reported by design (issue #1512 AC3)."""
+    """Cross-check roster vocabulary and enumeration.
+    Measured complete/short require members; unestablished/not-applicable require none.
+    Complete needs every always-on member dispatched and no missing member;
+    short needs a missing member. Always-on members cannot be gated-off.
+    Unknown/duplicate members fail. This enforces the always-on floor; gated analyzers
+    remain self-reported. Read-time callers grandfather legacy rosterless records."""
     roster = record['roster']
     dup = sorted(m for m, s in members.items() if s is _REVIEW_ROSTER_DUPLICATE)
     if dup:
@@ -7087,9 +5589,8 @@ def _render_review_roster(members: dict) -> str:
 
 
 # issue #1509: the diff-profile row that authorizes a `skipped-intentional` checklist
-# skip. These constants MIRROR skills/review/phases/phase-0-setup.md §0.5 (`small_diff`,
-# `config_only`); the divergence test in lib/test/test_python_scripts.py reads that file's
-# ceilings and config-only extension set and goes RED if they drift from these.
+# skip. These constants MIRROR scripts/review-engine-io.py's `small_diff` ceilings and
+# `config_only` extension set; the workpad_compaction divergence test goes RED if they drift.
 _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING = 100   # total changed lines strictly below this
 _REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING = 3     # changed-file count at most this
 _REVIEW_COVERAGE_CONFIG_ONLY_EXTS = frozenset(
@@ -7120,19 +5621,9 @@ def _parse_numstat_counts(numstat: str):
 
 
 def _recompute_diff_facts(anchor_head, base_ref, repo_root):
-    """Recompute the reviewed diff's size and paths from git alone (issue #1509).
-
-    Measures the reviewed head (`anchor_head`, the record's as-of anchor) against the PR
-    base (`base_ref`, else the `origin/HEAD` symbolic ref) — the SAME range the Phase 0.5
-    classification measured, never the working tree at write time. Returns
-    {'resolved': bool, 'reason': str, 'lines': int, 'files': int, 'paths': [str]}.
-
-    resolved is False — never a refusal; the caller records the checklist axis
-    `unestablished` — when the reviewed head is unestablished/absent, the repository is
-    shallow, no base ref can be read, no merge base exists (unrelated histories on a
-    depth-limited checkout), or any git invocation fails (non-zero exit or OSError) or
-    emits a malformed row. Mirrors `_repo_root`'s habit of catching both
-    CalledProcessError and OSError."""
+    """Measure the anchored head against base_ref (else origin/HEAD) using git.
+    Return resolved/reason/lines/files/paths. Missing head/base, shallow/unrelated
+    history, failed git calls or malformed rows make the result unestablished."""
     def _unresolved(reason):
         return {'resolved': False, 'reason': reason,
                 'lines': 0, 'files': 0, 'paths': []}
@@ -7178,22 +5669,9 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
 
 
 def _review_coverage_base_ref(repo_root):
-    """Resolve the base ref for the skipped-intentional review-coverage recompute
-    (issue #359). Returns (base_ref, error): base_ref is `origin/<base_branch>` to
-    measure against, error is None on success or a human-readable string the caller
-    writes to stderr before downgrading the checklist axis to `unestablished`.
-
-    Reads the top-level `base_branch` key from `.prflow/config.json` IN-PROCESS —
-    never by exec-ing config-get.sh, which Windows cannot run ([WinError 193]), the
-    same reason `_workpad_marker` reads config in-process — anchored to `repo_root`
-    (the recompute's own resolved root: the --repo-root arg when given, else the git
-    top-level), so the read matches the tree the diff is measured in. A non-empty
-    string yields `origin/<value>`; a missing file, missing key, JSON null, or empty
-    string yields `origin/main` (the value config-get.sh .base_branch main prints for
-    those). Unlike `_workpad_marker`'s silent fallbacks, a wrong-typed value (bool,
-    number, array, object), a non-object top level, or unparseable/undecodable content
-    yields (None, reason): the acceptance criteria require an `unestablished` downgrade
-    with a stderr breadcrumb there, never a silent default to main."""
+    """Return (origin/configured-base, None) or (None, diagnostic).
+    Read config in-process at repo_root. Missing/null/empty base defaults to main;
+    wrong types, non-object config and unreadable content remain unestablished."""
     base = repo_root if repo_root is not None else str(Path.cwd())
     config_file = Path(_resolve_state_dir(base)) / 'config.json'
     try:
@@ -7246,19 +5724,9 @@ def _review_coverage_profile_disproof(facts) -> str | None:
 
 
 def _review_coverage_dispositions(progress_content: str) -> dict:
-    """The recorded dispositions as `{gap: (cause_class, reason)}`, read from the
-    `## Progress` content. Each is one row carrying a
-    `review-coverage-disposition:<gap>:<cause-class>` marker whose visible text holds
-    the reason; the reason is re-read here rather than trusted from the writing call,
-    so a disposition recorded by an earlier phase still reaches the Phase 4.3 finalize
-    call, which repeats no coverage flags. A row whose reason cannot be re-read maps to
-    the empty string, which the verdict's boilerplate check then refuses — an
-    unreadable reason is not a stated one.
-
-    A legacy TWO-segment marker (`review-coverage-disposition:<gap>` with no cause-class
-    segment, the pre-#1984 form) is SKIPPED, so its gap stays absent from the returned
-    map and the Complete gate reports it undischarged with `[review-coverage-gap]`
-    (issue #1984 AC6) — a disposition with no cause class discharges nothing."""
+    """Read {gap: (cause_class, reason)} from Progress disposition rows.
+    Unreadable reasons become empty and fail validation; legacy markers without
+    a cause class discharge nothing."""
     out = {}
     for line in (progress_content or '').splitlines():
         bullet = _PROGRESS_BULLET_RE.match(line)
@@ -7331,41 +5799,21 @@ def _review_coverage_dispatch_uncorroborated(record: dict, roster_members: dict)
     return not all_present or not any_dispatched
 
 
-def _review_coverage_roster_facts(roster_members: dict) -> tuple[bool, bool, bool]:
-    """`(has_missing, has_dispatched, is_full)` over the roster rows, shared by both
-    cause-class enforcement points. `is_full` is every always-on member `dispatched` and
-    no member `missing`."""
+def _review_coverage_roster_facts(roster_members: dict) -> tuple[bool, bool]:
+    """`(has_missing, has_dispatched)` over the roster rows, shared by both cause-class
+    enforcement points."""
     has_missing = any(s == 'missing' for s in roster_members.values())
     has_dispatched = any(
         roster_members.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
-    is_full = not has_missing and all(
-        roster_members.get(m) == 'dispatched' for m in _SHADOW_ALWAYS_ON_MEMBERS)
-    return has_missing, has_dispatched, is_full
+    return has_missing, has_dispatched
 
 
 def _review_coverage_disposition_cause_rejection(
-        cause_class, *, gap, has_missing_roster_row, has_dispatched_roster_row,
-        has_full_roster_rows):
-    """Why a disposition's cause class is inadmissible, or None (issue #1984).
-
-    The single home of the cause-class rule, shared by the write-time
-    `--review-coverage-disposition` validator and the read-time Complete-gate verdict so
-    the closed vocabulary and the per-cause corroboration cannot drift between the two
-    enforcement points. Returns a diagnostic tail each caller frames with its own prefix;
-    the callers append `[review-coverage-cause-inadmissible]`.
-
-    Corroboration scope is roster-global, not per-gap. `environment-denial` is admitted
-    for ANY gap whenever ANY roster row reads `missing`, so the corroborating row need not
-    name the capability the disposed gap depended on. `dispatched-but-lost` (issue
-    #181/13e) is admitted only when an always-on reviewer's roster row reads `dispatched`:
-    a lost-dispatch claim requires a recorded dispatch, so a record whose roster axis is
-    `unestablished` with no rows (or whose measured roster names no dispatched always-on
-    member) can no longer finalize on it. A dispatched row can only exist on a measured
-    (`complete`/`short`) roster — `_review_roster_incoherence` refuses rows on an
-    `unestablished`/`not-applicable` roster — so this operand carries the roster-axis
-    condition too. `extension-provenance` (issue #1484) — a full-roster shadow whose only
-    prompt addenda are extension-provenance entries — discharges only `shadow-coverage`,
-    and only over the full roster."""
+        cause_class, *, has_missing_roster_row, has_dispatched_roster_row):
+    """Validate cause vocabulary and roster corroboration for both writer and gate.
+    Corroboration is roster-global: environment-denial needs any missing member;
+    dispatched-but-lost needs a dispatched always-on member. The corroborating
+    member need not correspond to the disposed gap."""
     if cause_class not in _REVIEW_COVERAGE_CAUSE_CLASSES:
         return (f"carries cause class {cause_class!r}, which is not one of "
                 f"{', '.join(_REVIEW_COVERAGE_CAUSE_CLASSES)}")
@@ -7375,13 +5823,6 @@ def _review_coverage_disposition_cause_rejection(
     if cause_class == 'dispatched-but-lost' and not has_dispatched_roster_row:
         return ("carries cause class 'dispatched-but-lost' but no always-on reviewer's "
                 "roster row records 'dispatched', so no dispatch is on record")
-    if cause_class == 'extension-provenance' and gap != 'shadow-coverage':
-        return (f"carries cause class 'extension-provenance', which explains only the "
-                f"shadow-coverage gap, not {gap!r}")
-    if cause_class == 'extension-provenance' and not has_full_roster_rows:
-        return ("carries cause class 'extension-provenance' but the roster rows do not "
-                "record every always-on reviewer 'dispatched' with no member 'missing', "
-                "so the full roster is uncorroborated")
     return None
 
 
@@ -7416,14 +5857,8 @@ _REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED = (
 
 
 def _strip_review_coverage_reflection_bullets(content: str) -> str:
-    """Remove the disposition-filed reflection bullets from `## PRFlow Reflections`.
-
-    Runs wherever the rows those bullets accompany are stripped, so a superseded or
-    inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
-    that keeps tripping the retrospective friction gate after the gap it named is
-    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX` (the constant the disposition's
-    reflection writer in `_apply_mutations` emits, so the two move together) and on its
-    superseded spelling, so a bullet a prior code version wrote is cleaned across an upgrade."""
+    """Remove reflections paired with stripped dispositions using current/legacy prefixes.
+    Superseded evidence must not leave permanent retrospective friction."""
     kept = [ln for ln in content.splitlines(keepends=True)
             if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln
             and _REVIEW_COVERAGE_REFLECTION_PREFIX_SUPERSEDED not in ln]
@@ -7463,19 +5898,15 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
     return ''.join(kept)
 
 
-# ── Resume-reuse records (issue #616) ──────────────────────────────────────────
-# A re-triggered implement run reuses completed planning, review and the issue-
-# claim audit only when a durable record still matches the current inputs. Three
-# families ride the keyed-checkpoint marker grammar and, unlike the review-coverage
-# family, survive `--strip-inherited-checkpoints`: each binds itself to the inputs
-# it was produced from, so a later attempt can check it instead of trusting it.
-#   plan-inputs:<issue-digest>
-#   reusable-review:<head>:<merge-base>:<issue-digest>:<verdict>:<checklist>:<roster>
-#   audit-inputs:<issue-digest>:<ac-digest>:<capability>:<policy-digest>:<merge-base>
-# The issue digest is computed here from the live issue body; the audit family's
-# ac- and policy-digests digest the named files here. The head and merge-base are
-# resolved with git against the configured base branch. Any unresolvable input is
-# `unestablished`, never a match.
+# Issue #2026: the human review-waiver disclosure's checkpoint key, reserved so no
+# `## Progress` free-text channel can plant the marker a genuine waiver writes.
+_REVIEW_WAIVED_KEY_PREFIX = 'review-waived:'
+_REVIEW_WAIVED_KEY = _REVIEW_WAIVED_KEY_PREFIX + 'human'
+
+
+# Reuse records survive inherited-checkpoint stripping because they bind inputs.
+# Resolve live issue/file digests and git identities before crediting a match;
+# unreadable inputs remain unestablished.
 _PLAN_INPUTS_KEY_PREFIX = 'plan-inputs:'
 _PLAN_INPUTS_MARKER_RE = re.compile(
     _MARKER_NS_RE + r'checkpoint plan-inputs:([^\s]+?) -->'
@@ -7700,15 +6131,9 @@ def _reuse_record(progress_content: str, kind: str):
 
 def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root, *,
                     audit_inputs=None):
-    """Decide reuse for one family against the current inputs.
-
-    Returns (result, detail, record): result is `match`, `absent`, `duplicate`,
-    `malformed`, `incomplete` (detail names the unticked Review rows), `mismatch`
-    (detail names the field) or `unestablished` (detail names the unresolved
-    input; for a malformed audit row, the parser breadcrumb). `audit_inputs` —
-    required for `kind == 'audit'` — carries the resolved-AC file, the capability
-    key and the versioning-policy file; the file digests and the merge-base are
-    resolved here, so an unreadable one reads `unestablished`, never a match."""
+    """Return (result, detail, record) for current-input reuse.
+    Results distinguish match, absent, duplicate, malformed, incomplete, mismatch
+    and unestablished. Audit digests/base are resolved here; unreadable is no match."""
     state, record = _reuse_record(progress_content, kind)
     if state != 'ok':
         return state, (record if isinstance(record, str) else ''), None
@@ -7844,6 +6269,7 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_PLAN_INPUTS_KEY_PREFIX, '`--record-plan-inputs`'),
     (_AUDIT_INPUTS_KEY_PREFIX, '`--record-audit-inputs`'),
     (_REUSABLE_REVIEW_KEY_PREFIX, '`--record-reusable-review`'),
+    (_REVIEW_WAIVED_KEY_PREFIX, '`--review-waived-by`'),
     (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
 )
 
@@ -7919,26 +6345,10 @@ def _validate_flight_key(args, flight_key: str) -> None:
 
 
 def _completion_evidence_verdict(args, progress_content: str) -> None:
-    """The terminal-gate half: re-validate the completion evidence carried by the
-    workpad's ## Progress marker at Complete time. When no `--claim-identity` is
-    pinned (the production path — Phase 4.3 finalizes with a plain `--status
-    Complete`), the validator re-derives the candidate identity from the current
-    tree, so edits made after the evidence was recorded are caught as `stale`. A
-    pinned `--claim-identity` (loop/test override) is honored verbatim instead, so a
-    caller that pins it deliberately opts out of the fresh re-derivation.
-
-    Three completion-evidence families are accepted: the in-environment
-    verification-flight family (`completion-verification:`, issue #1087), the local/
-    interactive CI-derived family (`completion-ci:`, issue #1611), and the cloud-CI
-    family (`completion-cloud-ci:`, issue #403 — a cloud implement run's reading of the
-    existing CI suite). Exactly one marker must be present COUNTED ACROSS ALL THREE
-    FAMILIES TOGETHER; the single marker is then dispatched to the validator its family
-    owns — the flight family to `_validate_flight_key`, the local CI family to
-    `_validate_ci_evidence`, the cloud CI family to `_validate_cloud_ci_evidence`.
-
-    Raises `_UpdateError` (structural — no PATCH) when no marker of any family is
-    present or more than one is (combined), or when the single marker's record fails
-    its validator. Returns None on a clean pass."""
+    """Validate exactly one marker across flight, local-CI and cloud-CI families.
+    Re-derive current candidate identity unless claim-identity explicitly pins it.
+    Dispatch to the family validator; missing/duplicate/stale/nonpassing evidence
+    raises structural _UpdateError before PATCH."""
     keys = _completion_marker_keys(progress_content)
     ci_payloads = _completion_ci_marker_payloads(progress_content)
     cloud_ci_payloads = _completion_cloud_ci_marker_payloads(progress_content)
@@ -7971,24 +6381,9 @@ def _completion_evidence_verdict(args, progress_content: str) -> None:
 
 
 def _required_artifact_verdict(progress_content: str) -> None:
-    """The required-artifact half of the terminal gate (issue #1348): a terminal
-    `--status Complete` must carry a `## Progress` row for every member of
-    `_REQUIRED_ARTIFACTS`, so a run cannot reach a published, Complete end state
-    having silently skipped the step that produces one (the motivating failure —
-    checkpoint 4 skipped, PR published on a stale base).
-
-    Resolve each artifact's keyed marker with the same two-line idiom
-    `_plan_checkpoints` uses — `_marker_variants(_checkpoint_marker(key))` counted
-    over `progress_content` — so both the `prflow:` and superseded `devflow:`
-    spellings count and a workpad mutated across the #1003 rename boundary is not
-    falsely refused. A member is satisfied by ANY of its accepting keys (the clean
-    key OR #1347's tier-refused variant), so a tier-refused run still completes.
-
-    Structured as a standalone verdict (like `_completion_evidence_verdict`) so it can
-    be isolated in tests. It is a PURE READ: it raises a structural `_UpdateError`
-    (no PATCH — `cmd_update` aborts before the temp-file/PATCH block) and mutates
-    nothing on any path; every repair lives earlier, in the producer, while the run
-    can still act on the result. Returns None on a clean pass."""
+    """Require a Progress marker for each declared artifact, using either namespace
+    and any accepting clean/tier-refused key. Pure validation: raise _UpdateError
+    before PATCH; repairs belong to producers."""
     for artifact in _REQUIRED_ARTIFACTS:
         present = any(
             progress_content.count(variant) > 0
@@ -8005,31 +6400,10 @@ def _required_artifact_verdict(progress_content: str) -> None:
 
 
 def _review_coverage_verdict(progress_content: str) -> None:
-    """The review-coverage half of the terminal gate (issue #1453): a terminal
-    `--status Complete` must carry a `## Progress` review-coverage record showing the
-    Phase 3 review pass ran in full — or, for each gap it does show, an accepted
-    disposition naming that gap and stating a reason.
-
-    Reads ONLY the `## Progress` content, exactly like `_required_artifact_verdict`:
-    the Phase 4.3 finalize call is a plain `--status Complete` that repeats no
-    coverage flags, so a verdict keyed on `args` would see nothing on every real run.
-    Both the record and its dispositions are durable rows, so a disposition written in
-    Phase 3.3 still reaches this read — and one passed on the Complete call itself is
-    equally visible, because the gate runs over the POST-mutation sections.
-
-    An absent, duplicated, or malformed record is UNESTABLISHED, never complete: the
-    fail-open this gate exists to close is precisely a run that shipped Complete with
-    no resolvable coverage fact.
-
-    The disposition is gated on the recorded DISPATCH-ATTEMPTED fact, never on a
-    reason-string blocklist: a fan-out that was dispatched and fell short may state
-    any true cause, cost included (shipped `shadow-review.md`, issue #1230), while a
-    run that never dispatched the shadow has no legal way to record a shortfall and
-    complete — it stops at a non-terminal or `Blocked` status instead.
-
-    A PURE READ: it raises a structural `_UpdateError` (no PATCH — `cmd_update`
-    aborts before the temp-file/PATCH block) and mutates nothing on any path.
-    Returns None on a clean pass."""
+    """Validate durable post-mutation Progress coverage or accepted gap dispositions.
+    Absent/duplicate/malformed coverage is unestablished. Dispositions require
+    attempted dispatch; a never-dispatched pass cannot explain its way to completion.
+    Pure read: violations raise _UpdateError before PATCH."""
     payloads = _review_coverage_payloads(progress_content)
     record = (_parse_review_coverage_payload(payloads[0])
               if len(payloads) == 1 else None)
@@ -8119,8 +6493,8 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "naming the cause instead. No PATCH was made."
         )
     # `roster_members` was read above for the roster cross-check.
-    (has_missing_roster_row, has_dispatched_roster_row,
-     has_full_roster_rows) = _review_coverage_roster_facts(roster_members)
+    has_missing_roster_row, has_dispatched_roster_row = _review_coverage_roster_facts(
+        roster_members)
     for gap in gaps:
         entry = dispositions[gap]
         if entry is _REVIEW_COVERAGE_DUPLICATE_DISPOSITION:
@@ -8135,9 +6509,8 @@ def _review_coverage_verdict(progress_content: str) -> None:
         # #1984: cause-class admissibility is defined once, in
         # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
-            cause_class, gap=gap, has_missing_roster_row=has_missing_roster_row,
-            has_dispatched_roster_row=has_dispatched_roster_row,
-            has_full_roster_rows=has_full_roster_rows)
+            cause_class, has_missing_roster_row=has_missing_roster_row,
+            has_dispatched_roster_row=has_dispatched_roster_row)
         if _cause_rej:
             raise _UpdateError(
                 "refusing to finalize Status: Complete — the disposition for gap "
@@ -8155,27 +6528,8 @@ def _review_coverage_verdict(progress_content: str) -> None:
 
 
 def _extension_row_verdict(progress_content: str) -> None:
-    """The extension-row half of the terminal gate (issue #1817): a terminal
-    `--status Complete` is refused while any `_EXTENSION_ROWS` `Skill extension
-    resolved:` row is BOTH unticked AND unaccompanied by that row's sanctioned
-    `state not established` note — the same fail-open the unticked-AC hard-fail
-    closes, applied to the extension rows so an unticked row on a Complete workpad
-    means the deliberate "state not established" record issue #1462 intended rather
-    than a silent bookkeeping miss.
-
-    Each row is located in the ## Progress content by its stable substring via
-    `_CHECKBOX_ROW_RE` (the same detector `_reconcile_extension_rows` uses). A row
-    that is absent entirely is tolerated, not refused: a workpad created before the
-    rows existed (pre-#1462, never `--reconcile-extension-rows`'d) carries none of
-    them, matching the gate's existing tolerance for older workpads (an absent AC or
-    Plan section contributes nothing). A ticked row passes. An unticked row passes
-    only when ## Progress carries a note line naming that row's substring together
-    with the phrase `state not established` — keyed on the row name plus that phrase,
-    not a byte-exact match of the free-prose note.
-
-    A PURE READ, structured like `_required_artifact_verdict`: it raises a structural
-    `_UpdateError` (no PATCH — `cmd_update` aborts before the temp-file/PATCH block)
-    and mutates nothing on any path. Returns None on a clean pass."""
+    """Require each present extension row ticked or named in a state-not-established note.
+    Absent legacy rows are tolerated. Pure read; violations raise _UpdateError."""
     lines = progress_content.split('\n')
     offending = []
     for _phase, text, substr in _EXTENSION_ROWS:
@@ -8216,46 +6570,11 @@ def _extension_row_verdict(progress_content: str) -> None:
 
 
 def _terminal_complete_gate(sections, args) -> list[str]:
-    """Reconcile the workpad self-record on a terminal `--status Complete` write.
-
-    Hard-fail (a *structural* `_UpdateError`, so `cmd_update` aborts before any
-    PATCH and the Status is never flipped) when any NON-post-merge `## Acceptance
-    Criteria` row is still `- [ ]`, naming each offending row on stderr. Post-merge
-    AC rows are excluded (byte-for-byte the Phase 3.4 exclusion). Returns the
-    still-unticked `## Plan` rows for the caller to emit a NON-blocking warning on
-    (a genuinely dropped/superseded plan step may honestly stay unticked, so Plan
-    is not hard-failed). Also emits a NON-blocking warning when the AC section still
-    holds the un-mirrored `new-body` placeholder (mirroring never ran — a vacuously
-    satisfied hard-fail), so a Complete over an unpopulated self-record is surfaced.
-    NEVER modifies a row; an absent section contributes nothing. Called only for
-    `--status Complete`, over the post-mutation sections.
-
-    Also enforces the completion verification-flight evidence gate (issue #1087):
-    the ## Progress section must carry exactly one `completion-verification:` marker
-    whose canonical record passes the implement-completion validator, re-checked here
-    immediately before the PATCH path so edits made after the evidence was recorded
-    are caught. A missing/duplicate marker or a non-pass record is a structural
-    `_UpdateError` (no PATCH), exactly like the AC hard-fail.
-
-    Also enforces the required-artifact gate (issue #1348): the ## Progress section
-    must carry a row for every member of `_REQUIRED_ARTIFACTS` (initially the
-    base-update checkpoint-4 record, satisfiable by its clean OR tier-refused
-    marker). A missing row is a structural `_UpdateError` (no PATCH) whose message
-    names the exact producing command. Like every other check here it is a pure read
-    that never mutates a row — every repair lives earlier in the producer.
-
-    Also enforces the review-coverage gate (issue #1453): the ## Progress section must
-    carry exactly one resolvable review-coverage record showing the Phase 3 review
-    pass ran in full, or a disposition for each gap it records, over a fan-out that
-    was actually dispatched. An unestablished record, an undispositioned gap, an
-    undispatched pass, or a boilerplate reason is a structural `_UpdateError` (no
-    PATCH), like every other member here.
-
-    Also enforces the extension-row gate (issue #1817): every `_EXTENSION_ROWS`
-    `Skill extension resolved:` row present in ## Progress must be ticked or carry a
-    `state not established` note, so a resolved-but-unrecorded row cannot pass
-    silently. A wholly-absent row set (a pre-#1462 workpad) is tolerated. A violation
-    is a structural `_UpdateError` (no PATCH), like every other member here."""
+    """Validate the post-mutation self-record before a Complete PATCH; never modify rows.
+    Unticked non-post-merge ACs fail. Pending AC mirroring and unticked Plan rows warn.
+    Require current completion evidence, required artifacts, extension records,
+    and review coverage unless explicitly human-waived. Absent AC/Plan sections
+    contribute nothing; each delegated gate owns its other missing-state rules."""
     # Completion-evidence gate first: it is the strictest precondition and its
     # failure is the one issue #1087 exists to enforce. `args` is REQUIRED (never
     # defaulted) so the gate can never be silently skipped by an argument omission —
@@ -8265,7 +6584,8 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     prog_content = sections[prog_idx][1] if prog_idx is not None else ''
     _completion_evidence_verdict(args, prog_content)
     _required_artifact_verdict(prog_content)
-    _review_coverage_verdict(prog_content)
+    if getattr(args, 'review_waived_by', None) is None:
+        _review_coverage_verdict(prog_content)
     _extension_row_verdict(prog_content)
     ac_idx = _find_section(sections, 'Acceptance Criteria')
     if ac_idx is not None:
@@ -8298,32 +6618,10 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     return non_pm + pm  # Plan has no post-merge concept; warn on every unticked row
 
 
-# ── Idempotent keyed checkpoints + offline handoff record (issue #537) ──────────
-#
-# Two independent additions that together make the /devflow:implement startup
-# lifecycle observable in the workpad:
-#
-#   * `update --checkpoint KEY TEXT` writes ONE timestamped ## Progress row that
-#     carries a hidden `<!-- prflow:checkpoint KEY -->` marker. A second call with
-#     the same KEY is an idempotent REPLAY (the marker is already present) and adds
-#     no duplicate row; a checkpoint-only replay whose every key already exists is a
-#     pure no-op — no `Last updated` refresh, no PATCH (see `_NoOpReplay`). The key
-#     grammar and the ## Progress structure are validated BEFORE any PATCH, so an
-#     invalid key / multi-line TEXT / duplicate marker / marker-outside-Progress /
-#     DUPLICATE ## Progress / empty body is a structural failure that mutates
-#     nothing. An ABSENT ## Progress is the one shape that is not a failure: it is
-#     repaired (created at the head of the section list) ahead of that validation,
-#     because the then-documented `--note` degrade (removed outright by issue #1348)
-#     located the same section and raised too, so that shape had no working path at
-#     all (issue #1347).
-#   * `handoff-state FILE …` validates the workflow-owned gate→claude handoff record
-#     OFFLINE (no gh, no network) and prints one of three origin tokens, degrading
-#     every malformed/mismatched shape to `unknown` with a targeted breadcrumb.
-# `\A…\Z` (not `^…$`): this grammar is the injection boundary for the HTML-comment
-# marker `<!-- prflow:checkpoint KEY -->`, and Python's `$` also matches just before a
-# single trailing newline — so `^…$` would admit a key like "gha:1:1:stage\n" and inject
-# a newline into the marker/Progress bullet. `\Z` matches only at the true end of string,
-# keeping the key strictly single-line.
+# Keyed checkpoints replay without PATCH/timestamp changes.
+# Validate structure before mutation; repair absent Progress in nonempty bodies.
+# Use strict end anchoring: Python's $ also accepts a trailing newline, which
+# would break the single-line marker. Handoff records are validated offline.
 _CHECKPOINT_KEY_RE = re.compile(r'\A[A-Za-z0-9._:-]+\Z')
 
 
@@ -8333,16 +6631,8 @@ def _checkpoint_marker(key: str) -> str:
     return f'<!-- prflow:checkpoint {key} -->'
 
 
-# The declared required-artifact set (issue #1348): each member is a run artifact
-# the terminal `--status Complete` gate requires a recorded `## Progress` row for, so
-# a run cannot reach a published, Complete end state having silently skipped the step
-# that produces one. A member is identified by its primary marker `key` and satisfied
-# by ANY of its `accept_keys` — the clean checkpoint-4 key OR #1347's tier-refused
-# variant, so a tier-refused run still completes. `producer` names, verbatim, the
-# command a human runs to record the missing row; the gate quotes it in the refusal.
-# The set is DATA that the gate iterates, so a second member extends the gate (and,
-# via the derived strip set below, the Phase 1.3 resume strip) without touching
-# either loop. Initially exactly one member: `base-update-checkpoint-4`.
+# Required artifacts pair accepting keys with the command quoted on refusal.
+# The table drives both terminal validation and resume stripping.
 _REQUIRED_ARTIFACTS = (
     {
         'key': 'base-update-checkpoint-4',
@@ -8360,34 +6650,16 @@ _REQUIRED_ARTIFACTS = (
     },
 )
 
-# The flat required-artifact checkpoint keys (issue #1347's resume strip): keyed rows
-# that describe THIS attempt rather than the workpad, so a resumed run must not
-# inherit the previous attempt's copy. DERIVED from _REQUIRED_ARTIFACTS (issue #1348)
-# so a new member — or a new accepting spelling — extends both the terminal gate and
-# this strip by construction, never a hand-transcribed second list. Every member is
-# deliberately outside the `gha:` prefix — that prefix is the review-tier cloud/local
-# discriminator and checkpoint 4 runs on both tiers — which is also what makes a strip
-# scoped to this set unable to reach a `gha:` row.
+# Attempt-scoped strip keys derive from artifact accept_keys.
+# They exclude gha keys, so this strip cannot erase run-scoped cloud records.
 _REQUIRED_ARTIFACT_CHECKPOINT_KEYS = tuple(
     key for artifact in _REQUIRED_ARTIFACTS for key in artifact['accept_keys']
 )
 
 
 def _repair_missing_progress_section(body: str) -> str:
-    """Re-create an absent `## Progress` section at the head of the section list.
-
-    `--checkpoint` writes into `## Progress` and fails structurally when it is
-    absent — and the then-documented `--note` degrade (removed outright by issue
-    #1348) located the same section, so an otherwise intact workpad missing just that
-    one section had no working path to record a checkpoint outcome at all (issue
-    #1347). This repairs it mid-update so
-    the run self-heals with no human involved.
-
-    Deliberately narrow: an empty/whitespace-only body is returned unchanged, so
-    `--checkpoint` still raises on it and no skeleton is ever synthesized (that is
-    `new-body`'s job). A body already carrying one or more `## Progress` sections is
-    likewise unchanged — the duplicate-section shape keeps failing closed.
-    """
+    """Restore an absent Progress section in a nonempty workpad.
+    Empty bodies and existing/duplicate Progress sections remain unchanged."""
     if not body.strip():
         return body
     preamble, sections = _split_sections(body)
@@ -8409,16 +6681,7 @@ def _repair_missing_progress_section(body: str) -> str:
 
 
 def _announce_progress_repair() -> None:
-    """Breadcrumb a `## Progress` repair that has cleared validation.
-
-    A repair rewrites a human-visible GitHub artifact, so a maintainer reading the
-    workpad later must be able to tell a re-created section from one that was
-    always there; every sibling degrade in this file breadcrumbs to stderr for the
-    same reason. Emitted by the caller at `_apply_mutations`' successful return —
-    after every raising mutation in it, not merely after `_plan_checkpoints` — so
-    the breadcrumb tracks a repaired body that survived every structural check and
-    is being returned for the PATCH, never one a later guard discarded.
-    """
+    """Report repair only after all mutation validation succeeds, before returning for PATCH."""
     sys.stderr.write(
         "workpad.py update: '## Progress' was absent; re-created it at the head of "
         "the section list so the checkpoint could be recorded (issue #1347 repair)\n"
@@ -8435,34 +6698,25 @@ _REQUIRED_ARTIFACT_MARKER_VARIANTS = tuple(
 )
 
 
-def _strip_required_artifact_checkpoint_rows(content: str) -> str:
-    """Remove every `## Progress` row carrying a declared required-artifact
-    checkpoint marker, in either marker spelling.
+# Attempt-scoped checkpoints (issue #1947): a checkpoint key under this prefix
+# records something THIS run did, so `--strip-inherited-checkpoints` clears such rows
+# from the `## Progress` section it rewrites (a survivor elsewhere draws its warning).
+_ATTEMPT_CHECKPOINT_KEY_PREFIX = 'attempt:'
+_ATTEMPT_CHECKPOINT_MARKER_RE = re.compile(
+    _MARKER_NS_RE + 'checkpoint ' + re.escape(_ATTEMPT_CHECKPOINT_KEY_PREFIX))
 
-    The sibling of `_strip_completion_marker_rows`, and the same idiom: a record
-    describing *this* attempt is per-attempt, so the Phase 1.3 resume arm clears an
-    inherited copy before the run proceeds rather than letting an earlier attempt's
-    row answer for this one. Scoped to `_REQUIRED_ARTIFACT_CHECKPOINT_KEYS`, whose
-    members are non-`gha:` by construction, so a `gha:` run-scoped row is never
-    reached.
-    """
+
+def _strip_required_artifact_checkpoint_rows(content: str) -> str:
+    """Strip inherited required-artifact keys in either namespace.
+    The declared keys exclude gha run-scoped rows, which remain untouched."""
     kept = [ln for ln in content.splitlines(keepends=True)
             if not any(v in ln for v in _REQUIRED_ARTIFACT_MARKER_VARIANTS)]
     return ''.join(kept)
 
 
 class _NoOpReplay(Exception):
-    """Signals a supported pure replay before any mutation occurs.
-
-    `kind` distinguishes the existing keyed-checkpoint replay from a satisfied-tick
-    replay, so `cmd_update` can emit an accurate breadcrumb while sharing the same
-    success/no-PATCH control path.
-
-    Raised by `_apply_mutations` BEFORE it mutates anything; `cmd_update` catches
-    it, echoes the unchanged body only under `--print-body`, and exits 0 without
-    refreshing `Last updated` or issuing a PATCH. Deliberately not an
-    `_UpdateError`: a replay is success, not a structural failure.
-    """
+    """Successful checkpoint/tick replay, raised before mutation.
+    The caller may echo the unchanged body but neither timestamps nor PATCHes it."""
 
     def __init__(self, kind: str = 'checkpoint'):
         super().__init__(kind)
@@ -8470,7 +6724,7 @@ class _NoOpReplay(Exception):
 
 
 def _has_non_checkpoint_mutation(args) -> bool:
-    """True when the update carries at least one mutation OTHER than `--checkpoint`.
+    """True when the update carries at least one mutation OTHER than `--checkpoint`/`--replace-checkpoint`.
 
     Drives the AC14 idempotency short-circuit: a checkpoint-only call whose keys are
     all already present and that carries no other mutation is a pure no-op. A
@@ -8518,16 +6772,9 @@ _TICK_ARGS = frozenset({
 
 
 def _is_satisfied_tick_replay(body: str, args) -> bool:
-    """Return true for a pure replay: the call's ONLY mutations are ticks whose
-    rows are already ticked (issue #635).
-
-    Decided through the production resolvers themselves — a request is satisfied
-    exactly when `_tick_checkbox`/`_tick_checkbox_by_index` resolves it without
-    ticking anything — so this predicate can never disagree with the tick it is
-    predicting. Any miss, any tick that would land now, and any other set operand
-    keeps the ordinary path, so a companion flag (`--record-roster-member`
-    without its parent, say) still reaches its validation. Every operand outside
-    `_REPLAY_CONTEXT_ARGS` counts, so a new flag cannot be silently dropped."""
+    """Recognize calls containing only already-satisfied ticks through the real resolvers.
+    Misses, new ticks and any other mutation keep ordinary validation. All operands
+    outside _REPLAY_CONTEXT_ARGS count, so new flags cannot silently disappear."""
     tick_reqs = (
         ('Progress', list(args.tick_progress or []), []),
         ('Plan', list(args.tick_plan or []), list(args.tick_plan_n or [])),
@@ -8587,19 +6834,12 @@ def _require_arity(flag: str, value: object, n: int, labels: tuple[str, ...]) ->
         )
 
 
-def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
-    """Validate `--checkpoint` requests against `body` and return the (key, text)
-    pairs that must be INSERTED (their marker is absent). A request whose marker is
-    already present exactly once in ## Progress is an idempotent replay and is
-    omitted from the returned list. Raises `_UpdateError` (structural — no PATCH)
-    on every invalid shape, so validation completes before any mutation:
-
-      * a key not matching `[A-Za-z0-9._:-]+`,
-      * a key repeated within a single batch,
-      * an empty/whitespace-only body,
-      * zero or more-than-one `## Progress` section,
-      * a key marker present outside ## Progress,
-      * a key marker present more than once inside ## Progress."""
+def _plan_checkpoints(body: str, checkpoint_reqs,
+                      flag: str = '--checkpoint') -> list[tuple[str, str]]:
+    """Validate all checkpoint requests before returning absent (key, text) pairs.
+    Exactly one in-Progress marker is replay. Reject invalid/repeated keys, empty
+    body, missing/duplicate Progress, and outside/duplicate markers.
+    Replace-checkpoint reuses validation; flag names the caller in diagnostics."""
     # 1. Key grammar — checked first so a bad key fails before any body inspection.
     #    A key repeated within one batch is also structural: both copies would see
     #    in_prog==0 (the body is read once, before any insert) and be appended, so
@@ -8611,16 +6851,16 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
         # or a bare string like `"k1"`, which would unpack silently into `key='k',
         # text='1'` and write a corrupt checkpoint row — raises a named refusal here
         # rather than a bare traceback below.
-        _require_arity('--checkpoint', _req, 2, ('KEY', 'TEXT'))
+        _require_arity(flag, _req, 2, ('KEY', 'TEXT'))
         key, _text = _req
         if not _CHECKPOINT_KEY_RE.match(key):
             raise _UpdateError(
-                f"--checkpoint key {key!r} is invalid; keys must match "
+                f"{flag} key {key!r} is invalid; keys must match "
                 f"[A-Za-z0-9._:-]+ . No PATCH was made."
             )
         if key in _seen_keys:
             raise _UpdateError(
-                f"--checkpoint key {key!r} appears more than once in a single "
+                f"{flag} key {key!r} appears more than once in a single "
                 f"batch; keys must be unique per call. No PATCH was made."
             )
         # Reserved key namespaces (issue #1453). The generic `--checkpoint` head would
@@ -8632,7 +6872,7 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
         for _prefix, _owner in _RESERVED_CHECKPOINT_KEY_PREFIXES:
             if key.startswith(_prefix):
                 raise _UpdateError(
-                    f"--checkpoint key {key!r} is in the reserved {_prefix!r} "
+                    f"{flag} key {key!r} is in the reserved {_prefix!r} "
                     f"namespace; record it with {_owner} instead, the flag that owns "
                     "that namespace. No PATCH was made."
                 )
@@ -8644,7 +6884,7 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
         # `--record-classification` rejects a multi-line rationale (issue #1347).
         if not _is_single_line(_text):
             raise _UpdateError(
-                f"--checkpoint text for key {key!r} must be a single line (a line "
+                f"{flag} text for key {key!r} must be a single line (a line "
                 f"boundary would split the row and orphan its marker). No PATCH was "
                 f"made."
             )
@@ -8655,7 +6895,7 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
     # section-locating idiom the rest of the file uses.
     if not body.strip():
         raise _UpdateError(
-            "--checkpoint requires a canonical workpad body, but the body is "
+            f"{flag} requires a canonical workpad body, but the body is "
             "empty/whitespace-only [empty-body]. Remedy: reconstruct the workpad "
             "with `workpad.py new-body` + `create` (a whitespace-only body has no "
             "front matter, so re-creating one section alone would still fail every "
@@ -8665,7 +6905,7 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
     n_prog = sum(1 for h, _c in _sections if h.strip().lower() == '## progress')
     if n_prog != 1:
         raise _UpdateError(
-            f"--checkpoint requires exactly one '## Progress' section, but "
+            f"{flag} requires exactly one '## Progress' section, but "
             f"{n_prog} are present [duplicate-progress]. Remedy: edit the workpad so "
             f"exactly one '## Progress' section remains (the checkpoint is never "
             f"merged or reordered across duplicates). No PATCH was made."
@@ -8684,7 +6924,7 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
         in_prog = sum(prog_content.count(v) for v in variants)
         if total != in_prog:
             raise _UpdateError(
-                f"--checkpoint key {key!r} marker appears outside the "
+                f"{flag} key {key!r} marker appears outside the "
                 f"'## Progress' section [marker-anomaly]. Remedy: move the "
                 f"checkpoint row into '## Progress' (its marker is only read there); "
                 f"choosing which copy is authoritative cannot be automated. No PATCH "
@@ -8692,7 +6932,7 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
             )
         if in_prog > 1:
             raise _UpdateError(
-                f"--checkpoint key {key!r} marker appears {in_prog} times in "
+                f"{flag} key {key!r} marker appears {in_prog} times in "
                 f"'## Progress' (expected 0 or 1) [marker-anomaly]. Remedy: remove "
                 f"the duplicate checkpoint row so exactly one remains; choosing which "
                 f"copy is authoritative cannot be automated. No PATCH was made."
@@ -8719,18 +6959,9 @@ def _handoff_unknown(reason: str):
 
 
 def cmd_handoff_state(args):
-    """Validate the workflow-owned gate→claude handoff record OFFLINE and print the
-    resolved origin token (one of `created-current-run`, `adopted-existing`,
-    `unknown`). Always exits 0. No network access — a pure file read.
-
-    The record is a five-field JSON object: `schema_version` (int 1), `issue`
-    (int), `run_id` (digit string), `run_attempt` (digit string), and `origin`
-    (one of the three tokens). Every degraded shape — missing/unreadable/undecodable
-    file, malformed JSON, a non-object (array/scalar/null), an unsupported schema
-    version, a wrong field type, an issue/run identity mismatch, or an unrecognized
-    origin — resolves to `unknown` with a targeted breadcrumb (see AC4). A record
-    that validates cleanly but carries `origin: "unknown"` prints `unknown` with NO
-    breadcrumb (the explicit-unknown handoff, AC11), distinct from a degraded shape."""
+    """Validate the offline five-field handoff against schema and issue/run identity.
+    Always exit 0 with created-current-run, adopted-existing or unknown.
+    Invalid/unreadable state prints a diagnostic; explicit valid unknown does not."""
     p = Path(args.file)
     try:
         raw = p.read_text(encoding='utf-8')
@@ -8798,16 +7029,9 @@ def _normalize_handoff_origin(gate: str) -> str:
 
 
 def cmd_write_handoff_record(args):
-    """Write the five-field gate->claude handoff record (issue #537), normalizing the
-    gate-provided origin to one of `_HANDOFF_ORIGINS` first. Prints nothing.
-
-    The workflow-owned, gitignored, non-secret, advisory record that `cmd_handoff_state`
-    reads back offline. `origin` is normalized via `_normalize_handoff_origin` (an empty
-    or unrecognized gate token becomes `unknown`). A write/permission failure (or a
-    non-integer `issue`) raises — the workflow's `if ! python3 … ; then` wrapper turns
-    that into a best-effort ::warning::, and Phase 1 then degrades to unknown provenance
-    at read time. The JSON shape is the exact record `cmd_handoff_state` validates:
-    schema_version (int 1), issue (int), run_id/run_attempt (strings), origin (token)."""
+    """Write the five-field advisory handoff, normalizing unknown origin tokens.
+    Print nothing. Write/issue-conversion errors raise for the workflow to warn;
+    the reader then degrades absent or invalid provenance to unknown."""
     origin = _normalize_handoff_origin(args.gate)
     # Resolve the int BEFORE opening (truncating) the target, so a non-integer issue
     # raises and the `if !` wrapper warns without leaving a zero-byte record behind.
@@ -8882,16 +7106,9 @@ def _render_scope_decisions(args) -> list[str]:
 
 
 def _check_rewrites_match_records(rows, records) -> None:
-    """Refuse a `--rewrite-ac` call whose rows disagree with its records (issue #1067).
-
-    `rows` holds one `[before, after]` text pair per rewritten row; `records` holds
-    the call's `--scope-decision-rewritten` `(PR, OLD, NEW)` triples. With no record
-    the call behaves as before. Otherwise rows and records must pair one-to-one: each
-    record's OLD and NEW `normalize_criterion` equal to its row's before and after
-    text. So a fragment NEW (which replaces the whole row) cannot land beside a
-    full-text record that claims otherwise, and no record in a `--rewrite-ac` call
-    can vouch for a rewrite that call did not make. Raises before any PATCH.
-    """
+    """When records accompany rewrites, require a one-to-one normalized OLD/NEW match
+    with actual before/after row text. Without records retain the ordinary behavior.
+    Refuse before PATCH so a partial replacement cannot claim a full-text rewrite."""
     if not records:
         return
     pool = {}
@@ -9027,15 +7244,9 @@ def _plan_completion_evidence(args, recorded_at: datetime.datetime) -> _Completi
 
 
 def _apply_mutations(body: str, args, failed_ticks) -> str:
-    """Apply all mutations from args and return the new body.
-
-    Structural failures (missing section / front-matter line / unreadable file)
-    raise `_UpdateError` before returning — the caller must not PATCH. Volatile
-    per-row tick misses are appended to the caller-provided `failed_ticks` list
-    (a flat list of descriptor strings) and do NOT abort: the body returned still
-    carries every other mutation, and the caller PATCHes it then reports the
-    failed ticks. `failed_ticks` is a required out-parameter (no silent-swallow
-    default); `cmd_update` is the production caller and always supplies one."""
+    """Return the mutated body or raise _UpdateError for structural failure; never PATCH here.
+    Collect volatile row misses in required failed_ticks while retaining other mutations.
+    The caller persists the body, then reports those misses."""
     now_dt = datetime.datetime.now(datetime.timezone.utc)
     # Friendly UTC for the human-facing `Last updated` line (the `now`
     # subcommand still prints full ISO-8601 for machine uses like follow-up
@@ -9043,13 +7254,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     last_updated = now_dt.strftime('%Y-%m-%d %H:%M UTC')
     now_time = now_dt.strftime('%H:%M:%S')        # time-only for note bullets
 
-    # Idempotent keyed checkpoints (issue #537). Validate + plan them FIRST, before
-    # any body mutation, so an invalid key / malformed ## Progress structure is a
-    # structural failure that changes nothing (all-or-nothing). `checkpoint_inserts`
-    # holds only the keys whose marker is absent (a present marker is a replay and
-    # is skipped). A checkpoint-only call whose every key already exists AND that
-    # carries no other mutation is a pure no-op: raise `_NoOpReplay` here so
-    # `cmd_update` skips the `Last updated` refresh and the PATCH entirely.
+    # Plan checkpoints before mutation; an all-replayed checkpoint-only call skips PATCH.
     checkpoint_reqs = getattr(args, 'checkpoint', None) or []
     # Arity before ANY positional unpack of a checkpoint request (issue #1501): the
     # --strip-inherited-checkpoints clash set below unpacks `k, _t` before
@@ -9058,29 +7263,39 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # above that unpack; _plan_checkpoints keeps its own guard for its standalone contract.
     for _req in checkpoint_reqs:
         _require_arity('--checkpoint', _req, 2, ('KEY', 'TEXT'))
+    # `--replace-checkpoint` (issue #1947): the upsert sibling of `--checkpoint`. A
+    # key absent from ## Progress is inserted, a present row is replaced; a row with the
+    # current marker and the same text is a replay. One key under both flags is ambiguous.
+    replace_reqs = getattr(args, 'replace_checkpoint', None) or []
+    for _req in replace_reqs:
+        _require_arity('--replace-checkpoint', _req, 2, ('KEY', 'TEXT'))
+    _both = sorted({k for k, _t in checkpoint_reqs} & {k for k, _t in replace_reqs})
+    if _both:
+        raise _UpdateError(
+            "--checkpoint and --replace-checkpoint name the same key(s): "
+            f"{', '.join(_both)}. Pass each key to one flag. No PATCH was made.")
+    replace_writes: list[tuple[str, str]] = []
     checkpoint_inserts: list[tuple[str, str]] = []
     # Bound here, not inside the `if checkpoint_reqs:` arm below, because the
     # deferred announce at this function's return reads it on EVERY path.
     _did_repair = False
     strip_inherited = bool(getattr(args, 'strip_inherited_checkpoints', False))
     if strip_inherited:
-        # AC10 (issue #1347): `_plan_checkpoints` computes its inserts against the
-        # PRE-strip body, so a single call that both stripped and inserted the same
-        # key would read the inherited row as a replay, skip the insert, then strip
-        # the row it just declined to rewrite — silently losing it. Reject the
-        # combination structurally (before any PATCH) rather than ordering around
-        # it, so the hazard is unreachable rather than merely avoided today.
+        # Reject strip+insert for the same key: planning sees the pre-strip row as replay,
+        # so stripping it afterward would silently lose the record.
         _clash = sorted(
-            {k for k, _t in checkpoint_reqs}
-            & set(_REQUIRED_ARTIFACT_CHECKPOINT_KEYS)
+            k for k, _t in [*checkpoint_reqs, *replace_reqs]
+            if k in _REQUIRED_ARTIFACT_CHECKPOINT_KEYS
+            or k.startswith(_ATTEMPT_CHECKPOINT_KEY_PREFIX)
         )
         if _clash:
             raise _UpdateError(
                 "--strip-inherited-checkpoints cannot be combined with "
-                f"--checkpoint for the same declared key(s): {', '.join(_clash)}. "
+                f"--checkpoint or --replace-checkpoint for the same stripped key(s): "
+                f"{', '.join(_clash)}. "
                 "Strip and record in separate calls. No PATCH was made."
             )
-    if checkpoint_reqs:
+    if checkpoint_reqs or replace_reqs:
         # Repair an absent `## Progress` BEFORE the section-shape validation below,
         # so the validation sees the repaired body (issue #1347). The breadcrumb for
         # it is deferred all the way to this function's successful return — see the
@@ -9088,8 +7303,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _repaired_body = _repair_missing_progress_section(body)
         _did_repair = _repaired_body is not body
         body = _repaired_body
-        checkpoint_inserts = _plan_checkpoints(body, checkpoint_reqs)
-        if not checkpoint_inserts and not _has_non_checkpoint_mutation(args):
+        if checkpoint_reqs:
+            checkpoint_inserts = _plan_checkpoints(body, checkpoint_reqs)
+        if replace_reqs:
+            _plan_checkpoints(body, replace_reqs, '--replace-checkpoint')
+            # A whole rendered row, never a substring: a stored `A — B` is not `B`.
+            _progress = _progress_content_or_none(body)
+            replace_writes = [
+                (k, t) for k, t in replace_reqs
+                if not _note_already_rendered(_progress, f'{t} {_checkpoint_marker(k)}')]
+        if (not checkpoint_inserts and not replace_writes
+                and not _has_non_checkpoint_mutation(args)):
             raise _NoOpReplay()
 
     # A resumed run can repeat a tick whose row an earlier call already ticked.
@@ -9153,15 +7377,45 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     resume_point_payload = (
         _encode_resume_point(record_resume_point) if record_resume_point else None)
 
-    # Review-coverage record + dispositions (issue #1453). Validated here, BEFORE any
-    # body mutation, for the same all-or-nothing reason as the flight key above; the
-    # rows are written below beside the completion-evidence marker. Read via getattr
-    # so a standalone `workpad.py` copy invoked with an older arg shape degrades to
-    # "flag absent" rather than raising AttributeError.
-    # Reusable-review adoption (issue #616) re-stamps the coverage record from a
-    # stored record that still matches the current inputs. It rides a copy of the
-    # arguments through the ordinary coverage validation below, so an adopted record
-    # passes exactly the checks a freshly measured one does.
+    # Issue #2026: a human review waiver is caller authorization, never review
+    # evidence — so it writes no review record.
+    review_waived_by = getattr(args, 'review_waived_by', None)
+    _wv_note = None
+    if review_waived_by is not None:
+        if not (args.status and _status_glyph(args.status) == '🎉'):
+            raise _UpdateError(
+                "--review-waived-by is accepted only with --status Complete. "
+                "No PATCH was made.")
+        if not review_waived_by.strip():
+            raise _UpdateError(
+                "--review-waived-by: SOURCE must be a non-empty reference to the human "
+                "instruction that waived review. No PATCH was made.")
+        if not _is_single_line(review_waived_by):
+            raise _UpdateError(
+                "--review-waived-by: SOURCE must be a single line. No PATCH was made.")
+        _wv_note = (
+            f'Review waived by human instruction ({review_waived_by.strip()}) — the '
+            'review-coverage prerequisite was not applied; this change remains '
+            # The marker keeps `compact` from relocating the disclosure.
+            'unverified by review ' + _checkpoint_marker(_REVIEW_WAIVED_KEY))
+        if _byte_len(_wv_note) > _NOTE_BYTE_BUDGET:
+            raise _UpdateError(
+                f"--review-waived-by: its disclosure note is over the {_NOTE_BYTE_BUDGET}-"
+                "byte per-note budget (measured as UTF-8 bytes); shorten SOURCE. "
+                "No PATCH was made.")
+        if any(getattr(args, _f, None) for _f in (
+                'record_review_coverage', 'record_roster_member', 'record_reusable_review',
+                'adopt_reusable_review', 'review_coverage_disposition')):
+            raise _UpdateError(
+                "--review-waived-by cannot be combined with --record-review-coverage, "
+                "--record-roster-member, --record-reusable-review, --adopt-reusable-review "
+                "or --review-coverage-disposition: a waiver is not review evidence. "
+                "No PATCH was made.")
+        _wv_owner = _reserved_checkpoint_marker_owner(review_waived_by)
+        if _wv_owner:
+            raise _reserved_marker_error("the --review-waived-by source", _wv_owner)
+    # Validate coverage before mutation. Reuse adoption follows the same validators
+    # as fresh measurements; getattr permits older programmatic argument shapes.
     adopt_review = bool(getattr(args, 'adopt_reusable_review', False))
     adopted_review = None
     if adopt_review:
@@ -9239,17 +7493,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"--record-review-coverage-head: {_anchor_head!r} is not a "
                 "lowercase-hex head SHA (or 'unestablished'). No PATCH was made."
             )
-        # issue #1509: a `skipped-intentional` checklist claim is accepted only when the
-        # diff it was recorded over satisfies the profile row that authorizes the skip
-        # (skills/review/phases/phase-0-setup.md §0.5). Recompute the diff from git over
-        # the reviewed head (the anchor above) against the PR base: a resolved-and-
-        # disproved row is a hard refusal (AC3); an unresolvable measurement downgrades
-        # the axis to `unestablished` — never a refusal (AC5); an explicit --override
-        # downgrades to bare `skipped` (non-clean, forces a disposition — AC13); a
-        # confirmed row keeps the value and writes exactly today's record (AC6).
-        # Copy here — after _require_arity above proved it is a real sequence — so the
-        # downgrade never mutates the caller's list and a non-sequence still hits the
-        # arity refusal rather than this list() (issue #1544).
+        # Recompute intentional-skip eligibility at the reviewed head/base.
+        # Disproved claims fail; unknown measurements become unestablished; override
+        # becomes non-clean skipped. Copy only after arity validation.
         review_coverage = list(review_coverage)
         _checklist_idx = _REVIEW_COVERAGE_AXES.index('checklist')
         if review_coverage[_checklist_idx] == 'skipped-intentional':
@@ -9461,7 +7707,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # this call's own rows, so a disposition recorded in a later call than the roster
     # enumeration still sees it. Guarded by `review_dispositions` so a note-only or
     # checkpoint update pays no extra section parse.
-    _disp_has_missing = _disp_has_dispatched = _disp_has_full = False
+    _disp_has_missing = _disp_has_dispatched = False
     if review_dispositions:
         if review_coverage_payload:
             # This call re-stamps coverage, which strips the prior roster rows before the
@@ -9478,16 +7724,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                     + _REVIEW_ROSTER_UNDECODABLE_TAIL)
             _disp_roster = dict(_disp_existing)
             _disp_roster.update(roster_members)
-        (_disp_has_missing, _disp_has_dispatched,
-         _disp_has_full) = _review_coverage_roster_facts(_disp_roster)
+        _disp_has_missing, _disp_has_dispatched = _review_coverage_roster_facts(
+            _disp_roster)
     for _triple in review_dispositions:
-        # Arity is guaranteed by argparse's nargs=3 from the CLI, but a programmatic
-        # caller (the suite builds `args` directly) can pass an element of any other
-        # length — or a bare str, whose `gap, cause, reason` unpack would silently split
-        # it into single characters. `_require_arity` rejects the non-sequence explicitly
-        # and enforces the count, for the same reason `--record-review-coverage` uses
-        # it above: the guarantee is local rather than inherited from a distant
-        # declaration.
+        # Validate programmatic arguments too: argparse's nargs does not protect those callers.
         _require_arity('--review-coverage-disposition', _triple, 3,
                        ('gap', 'cause-class', 'reason'))
     for gap, cause_class, reason in review_dispositions:
@@ -9514,9 +7754,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # #1984: cause-class admissibility is defined once, in
         # `_review_coverage_disposition_cause_rejection`; do not restate it here.
         _cause_rej = _review_coverage_disposition_cause_rejection(
-            cause_class, gap=gap, has_missing_roster_row=_disp_has_missing,
-            has_dispatched_roster_row=_disp_has_dispatched,
-            has_full_roster_rows=_disp_has_full)
+            cause_class, has_missing_roster_row=_disp_has_missing,
+            has_dispatched_roster_row=_disp_has_dispatched)
         if _cause_rej:
             raise _UpdateError(
                 f"--review-coverage-disposition: gap {gap!r} {_cause_rej} "
@@ -9594,15 +7833,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # Section-level mutations.
     preamble, sections = _split_sections(body)
 
-    # ROW-SHAPE REPAIRS RUN BEFORE THE TICKS. Both reconcilers only insert or remove
-    # ## Progress rows, and Phase 1.3 issues them in the SAME `update` call as a tick
-    # — so running them after `_apply_section_ticks` would tick against the
-    # un-repaired section, record a volatile miss, and then insert the very row the
-    # tick wanted, leaving it unticked. `--reconcile-extension-rows` (issue #1462)
-    # repairs the prompt-extension rows into a workpad created before they existed;
-    # its `--reconcile-reproduction` sibling (issue #449) reconciles the bug-only row
-    # to the recorded classification. Both are idempotent and run on every Phase 1.3
-    # entry, and they share one section lookup because they run back to back.
+    # Repair row shapes before ticks so a same-call tick can find its inserted row.
     _reconcile_ext = getattr(args, 'reconcile_extension_rows', False)
     if args.reconcile_reproduction or _reconcile_ext:
         idx = _find_section(sections, 'Progress')
@@ -9615,13 +7846,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             content = _reconcile_extension_rows(content)
         sections[idx] = (heading, content)
 
-    # WHOLE-SECTION REPLACEMENTS RUN BEFORE THE TICKS, for the reason the row-shape
-    # repairs above do (issue #1389): `--tick-plan-n N` resolves its index against the
-    # section body present when the tick runs, so a single call combining
-    # `--replace-plan-file` with `--tick-plan-n` used to resolve every index against
-    # the PRE-replace Plan — on a seed one-row Plan, each index above 1 recorded a
-    # volatile miss ("index out of range") while the replace itself landed, so the
-    # ticks were silently lost. Do not move these below `_apply_section_ticks`.
+    # Replace whole sections before ticks so indices address the new rows.
     if args.replace_plan_file:
         new_content = _read_section_file(args.replace_plan_file, '--replace-plan-file')
         # Carry each old ticked row's tick onto the new row with the same text
@@ -9655,16 +7880,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     _apply_section_ticks(
         sections, 'Progress', 'progress', args.tick_progress, [], failed_ticks,
     )
-    # Terminal-Complete backstop (issue #1337): a --status Complete write ticks
-    # every still-unticked `_BACKSTOP_PROGRESS_PHASES` row, so a terminal 🎉 Complete
-    # workpad never sits above an unticked **Implement** / **Review** parent that a
-    # dropped or volatile-missed cooperative --tick-progress left behind. Only
-    # Complete ticks — Failed/Cancelled/Blocked and the interim words change no
-    # checkbox, keeping the record honest about where a non-complete run stopped.
-    # Gate on the SAME derived glyph the terminal-complete self-record gate uses
-    # (`_status_glyph(args.status) == '🎉'`, below) rather than an exact-word match,
-    # so the two decisions cannot diverge: any status the gate treats as terminal
-    # Complete also gets its parent rows ticked.
+    # Only Complete backfills parent-phase ticks. Use the same glyph predicate as
+    # the terminal gate so their Complete classifications cannot diverge.
     if args.status and _status_glyph(args.status) == '🎉':
         _tick_top_level_progress_phases(sections)
     _apply_section_ticks(
@@ -9679,50 +7896,15 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         idx = _find_section(sections, 'Acceptance Criteria')
         if idx is None:
             raise _UpdateError("section '## Acceptance Criteria' not found")
-        # Rationale-required guard (issue #338): any pair that *appends* the
-        # `(post-merge)` tag (NEW ends with it; neither OLD nor the row the pair
-        # resolves to already does) is a mid-run retag —
-        # the §3.4 channel used to defer a criterion's verification past merge — and
-        # MUST carry a non-empty `--note` recording why the deferral qualifies
-        # (genuinely-live), so a silently-laundered self-reconfiguration/tooling-gap
-        # deferral becomes a recorded, retrospective-auditable claim rather than a
-        # trust-me tag. Fail structurally (raise before any PATCH → all-or-nothing,
-        # Status never flips) when no non-empty note accompanies such a pair. The
-        # guard cannot judge the rationale's *truth* — it enforces that one exists,
-        # and does so at *call* scope: any one non-empty `--note` in the same
-        # `update` call satisfies it, whether or not that note is *about* the retag
-        # (the note is appended to Progress, not bound to the rewritten row). The
-        # retrospective auditor reads the recorded note; the guard only guarantees
-        # there is one to read. Only `--note` satisfies it: a `--reflection` is a
-        # different channel (## PRFlow Reflections) and never stands in for the
-        # rationale. The check runs per pair INSIDE the rewrite loop below, against
-        # the row each pair actually resolves to, so a text tweak on an
-        # already-`(post-merge)` row is exempt even when the OLD substring does not
-        # itself span the tag.
-        # Scope: this covers the `--rewrite-ac` retag channel only; the Phase 2.2.5
-        # `--replace-acs-file` channel can introduce `(post-merge)` rows wholesale —
-        # a deliberate, known limitation left open here, not closed by this guard.
-        # Arity before the first positional read (issue #1501): the `p[1]` read in the
-        # `offending_nl` generator below, and the `for old, new` loop later, both unpack
-        # each pair. Guard every pair here — above both — so a short pair (an IndexError
-        # on `p[1]`) or a long/non-sequence one raises a named refusal, not a bare
-        # traceback. A bare string is rejected too (it would `p[1]`-index a character).
+        # Retagging a previously untagged row needs a nonempty Progress note.
+        # This proves a note exists, not its truth or connection to that row.
+        # Only rewrite-ac is covered; replace-acs-file remains outside this guard.
+        # Validate pair arity before indexing/unpacking programmatic arguments.
         for _pair in args.rewrite_ac:
             _require_arity('--rewrite-ac', _pair, 2, ('OLD', 'NEW'))
         has_note = any(n.strip() for n in args.note) or bool(getattr(args, 'note_file', None))
-        # A multi-line NEW is structurally invalid, and rejecting it here is load-bearing
-        # for BOTH guards below (issue #338). `_rewrite_checkbox` writes NEW verbatim into
-        # one line, so an embedded line boundary SPLITS that checkbox row in two: it injects
-        # an unreviewed AC row, and it breaks the row-index stability `_net_adds_post_merge`
-        # compares against. It also slips the per-pair guard, whose `NEW ends with the
-        # marker` test reads the whole string — `X (post-merge)<sep>- [ ] Y` ends with `Y`,
-        # so the tag reads non-terminal while landing terminal on the split row. Combined
-        # with a compensating tag-removal, that laundered a note-less deferral.
-        # `_is_single_line` shares the row parser's own `str.splitlines()` contract, so the
-        # rejected set matches the splitting set exactly — a `'\n'`/`'\r'` membership test
-        # would accept `\v`, `\f`, `\x1c`-`\x1e`, NEL, LS and PS, every one of which still
-        # splits the row. Reject unconditionally (a malformed argument, note or not), before
-        # any PATCH, so the all-or-nothing contract holds.
+        # Reject every splitlines boundary in NEW before rewriting.
+        # Injected rows would bypass terminal-tag checks and destroy stable row positions.
         offending_nl = next((p for p in args.rewrite_ac if not _is_single_line(p[1])),
                             None)
         if offending_nl:
@@ -9731,37 +7913,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"boundary in NEW; an AC row is a single line (it would split into an "
                 f"extra, unreviewed row). No PATCH was made."
             )
-        # --rewrite-ac is repeatable (issue #308): apply every OLD/NEW pair in
-        # argument order against the progressively-rewritten section. Each pair
-        # runs the existing exactly-one-match rule, so a pair matching zero or
-        # multiple rows raises _UpdateError here — before any PATCH — preserving
-        # the structural all-or-nothing contract for the whole call. Thread
-        # `content` through a local and write `sections[idx]` once after the
-        # loop, so a mid-loop raise leaves the section fully untouched.
+        # Apply repeated rewrites in order to local content; any ambiguous/missing row
+        # aborts before the section is assigned or PATCHed.
         heading, content = sections[idx]
-        # State-based backstop (issue #338 hardening): the per-pair guard consults
-        # the resolved row's text, but still exempts any pair whose OLD argument
-        # itself spans the tag, so a crafted MULTI-pair call whose pairs each
-        # individually dodge `_pair_appends_post_merge` — e.g.
-        # pair 1 places the marker non-terminally (`X` -> `(post-merge) X`, NEW
-        # doesn't end in the tag), pair 2 makes it terminal (`(post-merge)` ->
-        # `X (post-merge)`, OLD ends in the tag) — could net-add a post-merge row
-        # with no note and slip past. Snapshot each AC row's post-merge-terminal
-        # flag before the loop and compare POSITIONALLY after it: any row that went
-        # untagged -> terminally-tagged is a laundered deferral regardless of how the
-        # pairs were shaped, so abort here (still before any PATCH → all-or-nothing
-        # holds). Row indices are stable because `_rewrite_checkbox` replaces a line
-        # in place AND the `_is_single_line` rejection above keeps a NEW from splitting
-        # a row. The flags span EVERY tick state (`_post_merge_flags`, not
-        # `_unticked_rows`): an unticked-only population would miss the same shuttle
-        # aimed at an already-`[x]` row, which still net-adds a tagged row. And the
-        # comparison is positional, not an aggregate count, so a call that removes
-        # the tag from one row while adding it to another — netting to zero — is
-        # caught too. This is additive: it never fires on a call the per-pair guard
-        # already caught, and it leaves the tag-preserving/tag-removing cases (no
-        # False -> True transition) untouched. Scope: like the per-pair guard, this
-        # covers the `--rewrite-ac` channel only — the Phase 2.2.5
-        # `--replace-acs-file` channel remains a deliberate, documented exception.
+        # Compare tag flags positionally to catch multi-pair nonterminal-to-terminal
+        # shuttles and remove-one/add-one swaps. Include ticked rows.
+        # Single-line replacement preserves positions; replace-acs-file remains out of scope.
         pre_pm = _post_merge_flags(content)
         # Row index -> [text before this call, text after it], for the record
         # cross-check below. Indices are stable for the reason given above.
@@ -9792,19 +7949,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             rewritten_rows.values(), getattr(args, 'scope_decision_rewritten', None) or [])
         sections[idx] = (heading, content)
 
-    # Notes and checkpoint rows are both timestamped ## Progress bullets, so they
-    # share one Progress lookup + append loop (a checkpoint row is just a note whose
-    # text carries the hidden marker). `checkpoint_inserts` holds only absent keys
-    # (replays were dropped during planning), nested under the current phase like any
-    # note; args.note bullets append first, then the checkpoint rows.
-    # Scope-decision records (issue #781) ride the note-append path: each is one
-    # ordinary Progress bullet whose text is the delimited marker. They append
-    # AFTER the free-text --note bullets so a 2.2.5/2.2.6 call reads
-    # human-narrative-then-machine-record in the rendered workpad.
-    # Filed markers (issue #815) ride the same note-append path for the same
-    # reason the scope-decision records do, and each is one whole isolated
-    # bullet — which is precisely what lets `_isolated_progress_markers` refuse
-    # a marker embedded in free-text prose.
+    # Append notes before checkpoint/scope/filed records through one Progress path.
+    # Keep machine records isolated so their readers can reject prose-embedded markers.
     mark_filed = list(getattr(args, 'mark_deferred_filed', None) or [])
     mark_filed.extend(_deferred_filed_file_values(args))
     if mark_filed:
@@ -9828,23 +7974,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                     f"`criterion:` line `deferred-presence` printed, verbatim\n"
                 )
     deferred_filed_notes = [_render_deferred_filed(t) for t in mark_filed]
-    # Same-invocation note/checkpoint de-dup (issue #1337): the Phase 1 cloud
-    # hydration fence passes the selected lifecycle event twice in one call — as a
-    # --checkpoint text and again as a --note — which rendered the event as two
-    # ## Progress rows (a bare note bullet and the marker-carrying checkpoint row).
-    # Suppress a --note only when its text will already be RECORDED by a checkpoint
-    # row, so the marker-carrying row is the single record and no note is ever
-    # dropped without its text appearing somewhere. A text is "covered" when it is
-    # being inserted this call (an absent-key checkpoint in `checkpoint_inserts`) OR
-    # a byte-equal row already exists in the body under a replayed key (`{text}
-    # {marker}` present). This keeps the same-text replay case suppressing the
-    # duplicate note (the row is already there) while a differing-text replay — whose
-    # new text is recorded nowhere, because a replay keeps the row's existing text —
-    # is NOT suppressed, so that text still renders rather than silently vanishing.
-    # A --note that differs from every covered text (the local-tier call passes
-    # --note with no checkpoint flags) is untouched.
-    _checkpoint_covered_texts = {text for _key, text in checkpoint_inserts}
-    for _ckey, _ctext in checkpoint_reqs:
+    # Suppress a note only when identical text is recorded by an inserted or existing
+    # checkpoint row. A replayed key with different text does not cover the new note.
+    _checkpoint_covered_texts = {text for _key, text in checkpoint_inserts + replace_writes}
+    for _ckey, _ctext in checkpoint_reqs + replace_reqs:
         if f'{_ctext} {_checkpoint_marker(_ckey)}' in body:
             _checkpoint_covered_texts.add(_ctext)
     # --note-file payloads (issues #1813/#2076) are ordinary notes appended AFTER
@@ -9859,7 +7992,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # issue #1509: a review-coverage downgrade/override records its reason as an ordinary
     # ## Progress note alongside the (mutated) record row.
     progress_notes = _notes + review_coverage_auto_notes + scope_decision_notes + deferred_filed_notes + [
-        f'{text} {_checkpoint_marker(key)}' for key, text in checkpoint_inserts
+        f'{text} {_checkpoint_marker(key)}'
+        for key, text in checkpoint_inserts + replace_writes
     ]
     progress_notes.extend(completion_plan.progress_rows)
     _producer_reserved_rows = set(completion_plan.progress_rows)
@@ -9912,6 +8046,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f"({adopted_review['verdict']}; head {adopted_review['head'][:12]}); "
             'head, merge-base and issue body match')
     progress_notes.extend(reuse_skip_notes)
+    # One disclosure per distinct source: a Complete follow-up repeating a source whose
+    # exact note `## Progress` already renders adds none.
+    if _wv_note is not None:
+        _wv_idx = _find_section(sections, 'Progress')
+        if not _note_already_rendered(
+                sections[_wv_idx][1] if _wv_idx is not None else None, _wv_note):
+            progress_notes.append(_wv_note)
+            _producer_reserved_rows.add(_wv_note)
     # Review-coverage record + dispositions (issue #1453): validated above; the prior
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
@@ -9950,32 +8092,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         idx = _find_section(sections, 'Progress')
         if idx is not None:
             heading, content = sections[idx]
-            # The review-coverage record (issue #1453) is stripped by the same flag
-            # and for the same reason: it describes THIS attempt's review pass, so a
-            # resumed run must re-establish it rather than inherit an earlier
-            # attempt's answer. Its key carries a run-varying payload, so it cannot
-            # join the literal `_REQUIRED_ARTIFACT_CHECKPOINT_KEYS` derivation; the
-            # non-transcription guarantee comes instead from one regex pair powering
-            # the reader, the producer and this strip.
+            # Strip inherited review coverage by its shared regex; variable payloads cannot
+            # join the literal required-artifact key set.
             sections[idx] = (
                 heading,
-                _strip_review_coverage_marker_rows(
-                    _strip_required_artifact_checkpoint_rows(content)),
+                _strip_marker_rows(
+                    _strip_review_coverage_marker_rows(
+                        _strip_required_artifact_checkpoint_rows(content)),
+                    _ATTEMPT_CHECKPOINT_MARKER_RE),
             )
-        # Writer and reader disagree on scope, so never let a survivor pass in
-        # silence. This strip rewrites the FIRST `## Progress` section, while the
-        # consumer it exists to correct (`lib/fetch-pr-context.sh`'s
-        # `base_update_checkpoint4_present`) matches over the WHOLE body — so a
-        # declared marker living in a duplicate section, in the preamble, or under a
-        # heading `_find_section` does not recognise survives, and the resumed run
-        # would then be credited with a reconciliation an earlier attempt performed.
-        # Breadcrumb rather than raise: the caller is Phase 1.3's hydration write, and
-        # a non-canonical workpad must not be able to wedge a resume at setup.
-        # The review-coverage family (issue #1453) is scanned by its own regexes
-        # rather than by a variant literal, because its keys carry a run-varying
-        # payload; the justification is the same — the strip rewrites the FIRST
-        # `## Progress` section, so a record surviving elsewhere must not pass in
-        # silence.
+        # Warn about markers surviving outside the first Progress section: whole-body
+        # readers could still credit them. Do not block resume hydration on that shape.
         _joined = _join_sections(preamble, sections)
         _rc_survivors = (
             ['review-coverage record']
@@ -9986,6 +8113,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         ) + (
             ['review-roster enumeration']
             if _REVIEW_ROSTER_MARKER_RE.search(_joined) else []
+        ) + (
+            ['attempt-scoped checkpoint']
+            if _ATTEMPT_CHECKPOINT_MARKER_RE.search(_joined) else []
         )
         _survivors = _rc_survivors + sorted(
             v for v in _REQUIRED_ARTIFACT_MARKER_VARIANTS
@@ -10042,6 +8172,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         if idx is None:
             raise _UpdateError("section '## Progress' not found")
         heading, content = sections[idx]
+        if replace_writes:
+            _replaced = [v for k, _t in replace_writes
+                         for v in _marker_variants(_checkpoint_marker(k))]
+            content = ''.join(ln for ln in content.splitlines(keepends=True)
+                              if not any(v in ln for v in _replaced))
         if resume_point_payload:
             content = _strip_resume_point_marker_rows(content)
         if record_plan_inputs:
@@ -10082,13 +8217,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
         for bullet in args.reflection:
             content = _append_reflection(content, kind, bullet)
-        # The --reflection-file bullets append AFTER the inline --reflection
-        # bullets, one per path in command-line order, under the same kind (issue
-        # #2076). Their reader raises _UpdateError (unreadable path, undecodable
-        # payload, empty/whitespace-only, or a repeated stdin `-`) before the PATCH,
-        # so a bad payload aborts the whole call with no partial write. The reads go
-        # through the memo so `cmd_update`'s failed-write buffering sees the same
-        # text without re-reading (and without re-consuming stdin on the `-` arm).
+        # Append memoized file reflections after inline ones, in path order and same kind.
+        # Read failures abort before PATCH; buffering reuses the exact payloads/stdin read.
         for bullet in _reflection_file_payloads(args):
             content = _append_reflection(content, kind, bullet)
         sections[idx] = (heading, content)
@@ -10131,15 +8261,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 content = _append_reflection(content, 'note', row)
             sections[idx] = (heading, content)
 
-    # Every accepted review-coverage disposition also files its own `dropped-failed`
-    # reflection bullet (issue #1453). Synthesized HERE rather than left to a paired
-    # `--reflection-kind dropped-failed --reflection …` the caller must remember: the
-    # routing this satisfies — `lib/cheap-gate.jq` counts every kind except `note` as
-    # friction — must not be defeatable by a caller omission, so a disposition can
-    # never be recorded without its friction bullet. The kind is fixed, so a call's
-    # own `--reflection-kind` never applies to these bullets. A write that supersedes
-    # the prior dispositions strips their bullets first, so a gap that no longer
-    # exists stops asserting itself in `### ⚠️ Action required`.
+    # Every disposition emits fixed-kind dropped-failed friction, regardless of caller
+    # reflection flags. Strip superseded dispositions' bullets before replacing them.
     if review_coverage_payload or review_dispositions or strip_inherited:
         idx = _find_reflection_section(sections)
         if idx is None:
@@ -10208,15 +8331,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         content = _append_progress_note(content, note_text, now_time, phase_label)
         sections[idx] = (heading, content)
 
-    # Reconcile the bug-only reproduction Progress row to the classification
-    # (issue #449) — idempotent, runs on every Phase 1.3 entry.
-    # Terminal self-record gate (issue #258): a `--status Complete` write is the
-    # deterministic chokepoint that guarantees the workpad's Plan/AC self-record
-    # matches reality. It runs LAST, over the *post-mutation* sections, so a call
-    # that ticks the final AC row and flips to Complete in one shot still passes.
-    # Detection reuses `_status_glyph` (the single source of truth for the
-    # Complete/🎉 vocabulary), so a non-Complete status (Blocked/👎, any in-progress
-    # 🚀) and a status-less update are never gated.
+    # Gate Complete last against post-mutation sections, allowing same-call final ticks.
+    # Use the shared glyph predicate; other statuses are ungated.
     if args.status and _status_glyph(args.status) == '🎉':
         unticked_plan = _terminal_complete_gate(sections, args)  # AC/evidence hard-fail raises here
         if unticked_plan:
@@ -10228,16 +8344,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"{rows}\n"
             )
 
-    # Announce a `## Progress` repair LAST — after every raising mutation in this
-    # function, not merely after `_plan_checkpoints`. The repair runs early by
-    # design (the section-shape validation must see the repaired body), but several
-    # later guards abort the whole call with zero PATCH — the unconditional
-    # `Last updated` check, the `--status`/`--branch` header raises, the
-    # `--rewrite-ac` guards, `_validate_flight_key`. Announcing before those would
-    # claim a self-heal the call then discards, which is the very defect this
-    # breadcrumb's placement exists to avoid. Emitting here makes the invariant
-    # unconditional: the breadcrumb appears only for a repaired body that survived
-    # every structural check and is being returned for the PATCH.
+    # Announce Progress repair only after every raising validation has passed.
     if _did_repair:
         _announce_progress_repair()
     return _join_sections(preamble, sections)
@@ -10348,13 +8455,8 @@ def _build_parser():
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_intake_triage)
 
-    # No `--marker` on either acs subcommand — deliberately. The review engine
-    # drives its own `<!-- prflow:review-progress -->` comment through this same
-    # helper, and the acceptance criteria live only on the IMPLEMENT workpad, so
-    # omitting the flag denies a CALLER any way to point this read at the wrong
-    # comment. The env/config precedence in `_workpad_marker` still applies (see
-    # `_acs_read_workpad`'s docstring) — it moves the workpad and this read
-    # together, so it is not a desync channel.
+    # AC commands use the implement marker, with no per-call --marker override.
+    # Environment/config still move the implement writer and its reader together.
     s = sub.add_parser(
         'acs',
         help="Print the workpad's ## Acceptance Criteria section unfiltered "
@@ -10366,15 +8468,6 @@ def _build_parser():
              'beside workpad.py.',
     )
     s.add_argument('issue', type=int)
-    s.add_argument('--exclude-post-merge', action='store_true',
-                   help='Drop every criterion already tagged " (post-merge)". '
-                        'Phase 0.4 passes this for the reviewer-facing value; '
-                        'the unfiltered form is the divergence comparand.')
-    s.add_argument('--neutralize-boxes', action='store_true',
-                   help='Render every criterion unticked. A tick is the code '
-                        "author's own assertion that the criterion is "
-                        'satisfied, so the merge-gating judge is never handed a '
-                        'specification pre-annotated by the party it judges.')
     s.add_argument('--emit-source-token', action='store_true',
                    help='Prefix stdout with one token line naming the workpad '
                         "section's state (workpad | workpad-unmirrored | "
@@ -10421,7 +8514,10 @@ def _build_parser():
                         'leaf must not be a symlink. Any earlier file there is removed '
                         'first; nothing is written when the criteria set is empty. A '
                         'refused path is left untouched; it or a failed write is named '
-                        'on stderr and still exits 0.')
+                        'on stderr and still exits 0. On every route that prints the '
+                        'stdout blocks, issue-compliance.md beside it, cleared and confined '
+                        'the same way, receives the Issue Compliance text Phase 4 reports, '
+                        'or a compliance-out: stderr line says why not.')
     s.set_defaults(func=cmd_acs_resolve)
 
     s = sub.add_parser(
@@ -10598,8 +8694,10 @@ def _build_parser():
                'PATCH), so a caller batches an entire moment into a single '
                'invocation. The combination constraints are: '
                '--strip-inherited-checkpoints cannot be combined with a '
-               '--checkpoint for the same declared key (strip and record in '
-               'separate calls); --branch and --branch-from-head are mutually '
+               '--checkpoint or --replace-checkpoint for a key it strips (a '
+               'declared or attempt: key; strip and record in separate calls); '
+               'one key cannot go to both --checkpoint and --replace-checkpoint; '
+               '--branch and --branch-from-head are mutually '
                'exclusive (pass one); each --record-* flag requires its own '
                'companion flags (e.g. --record-completion-evidence-ci requires '
                '--completion-ci-check; --record-verification-evidence requires '
@@ -10834,14 +8932,21 @@ def _build_parser():
                         'combined with another mutation it applies that mutation '
                         'once and does not duplicate the checkpoint. KEY must match '
                         '[A-Za-z0-9._:-]+ . May be passed multiple times.')
+    u.add_argument('--replace-checkpoint', nargs=2, metavar=('KEY', 'TEXT'),
+                   action='append', default=[],
+                   help='Like --checkpoint, but an existing row for KEY is replaced '
+                        'by a fresh row carrying TEXT (issue #1947); a row with the '
+                        'current marker and the same text is a replay. A key may not also be passed to '
+                        '--checkpoint. May be passed multiple times.')
     u.add_argument('--strip-inherited-checkpoints', action='store_true',
                    help='Remove every declared required-artifact checkpoint row '
                         'from ## Progress (issue #1347), so a resumed run does not '
                         'inherit the previous attempt\'s record. Declared keys: '
                         + ', '.join(_REQUIRED_ARTIFACT_CHECKPOINT_KEYS)
-                        + '. Scoped to that set, so "gha:"-prefixed run checkpoints '
-                          'are untouched. Combining it with --checkpoint for one of '
-                          'those same keys is rejected before any PATCH.')
+                        + '. Also removes every row carrying an "attempt:"-prefixed '
+                          'key (issue #1947). Combining it with --checkpoint or '
+                          '--replace-checkpoint for one of those same keys is '
+                          'rejected before any PATCH.')
     u.add_argument('--record-sweep-evidence', default=None, metavar='FILE',
                    help='Record one Phase 2 sweep-evidence JSON record (issue #438): '
                         'the selected sweep set, each sweep\'s terminal outcome '
@@ -11046,6 +9151,13 @@ def _build_parser():
                         'predates a later standalone review from a current one. A '
                         'lowercase-hex SHA; omit it to record the head as '
                         '"unestablished". Only meaningful with --record-review-coverage.')
+    u.add_argument('--review-waived-by', default=None, metavar='SOURCE',
+                   help='Only with --status Complete: an explicit human instruction '
+                        'waived review (issue #2026). Skips the review-coverage gate '
+                        'alone and appends a note disclosing the waiver, SOURCE (the '
+                        'instruction\'s URL or locator) and that review is unverified, '
+                        'once per distinct SOURCE. Writes no review record. Every other '
+                        'Complete gate still applies.')
     u.add_argument('--review-coverage-disposition', nargs=3, action='append',
                    default=[], metavar=('GAP', 'CAUSE_CLASS', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '
@@ -11056,11 +9168,9 @@ def _build_parser():
                         + '|'.join(_REVIEW_COVERAGE_CAUSE_CLASSES)
                         + ' — environment-denial (a capability the runner did not '
                           'expose; must be corroborated by a recorded missing roster '
-                          'row), dispatched-but-lost (a reviewer that was dispatched '
-                          'whose result was lost) or extension-provenance (shadow-coverage '
-                          'only: a full-roster shadow whose only prompt addenda are '
-                          'extension-provenance entries; every always-on roster row '
-                          'dispatched, no member missing). A budget belief or a partial pass '
+                          'row) or dispatched-but-lost (a reviewer that was dispatched '
+                          'whose result was lost, or a shadow run inline after a refused, '
+                          'dead or malformed engine dispatch). A budget belief or a partial pass '
                           'judged adequate has no admissible class and stops the run at '
                           'Blocked. Repeatable — one per gap; every gap the record '
                           'reports must be dispositioned. Accepted ONLY over a record '
@@ -11077,8 +9187,7 @@ def _build_parser():
                         '(issue #1087; default: the git top-level, else cwd).')
     u.add_argument('--claim-identity', default=None,
                    help='Pin the current candidate identity the completion-evidence '
-                        'gate compares the flight record against (issue #1087), '
-                        'mirroring check-completion-evidence.py --claim-identity; '
+                        'gate compares the flight record against (issue #1087); '
                         'default re-derives it via scripts/reception_identity.py.')
     u.add_argument('--expect-comment-id', default=None,
                    help='Hydration-race precondition (issue #537, AC24): abort '

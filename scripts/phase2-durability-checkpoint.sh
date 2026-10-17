@@ -253,7 +253,7 @@ _ip_walk() {  # <readable directory>
   local e
   for e in "$1"/* "$1"/.[!.]* "$1"/..?*; do
     if [ -L "$e" ] || { [ -e "$e" ] && ! [ -d "$e" ]; }; then
-      _bc "in-place mutation-check guard: copy ${e#"$ip_top"/} remains — settle that check (revert the recorded mutation, confirm the file's recorded ID, then delete the copy)"
+      _bc "in-place mutation-check guard: copy ${e#"$ip_top"/} remains — compare the file's ID with its recorded original ID; delete only the copy on a match, otherwise stop without changing either file and report both IDs (or the unavailable ID)"
       ip_copies=$((ip_copies + 1))
     elif [ -d "$e" ]; then
       [ -r "$e" ] && [ -x "$e" ] || _ip_fail "cannot read ${e#"$ip_top"/}"

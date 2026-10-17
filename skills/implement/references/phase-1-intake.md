@@ -71,12 +71,6 @@ Hold the verdict and a one-line rationale; Phase 1.3 records them in the workpad
 On the resolved-IGNORED arm only, after the §1.1 cache is written and validated and before §1.2's acs write, prepare this issue's folder so `<run-scratch>` exists — it clears any prior folder for this issue, creates it fresh, and sweeps the flat pre-folder leftovers keyed to that issue:
 
 ```bash
-.prflow/vendor/prflow/scripts/preflight.py scratch-issue --issue $ARGUMENTS --action prepare
-```
-
-On a `command not found` / `No such file` / rc-127 reading, fall back to:
-
-```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py scratch-issue --issue $ARGUMENTS --action prepare
 ```
 
@@ -132,13 +126,13 @@ Branch on all four exits before any create or mutation decision:
 - Exit 3 → a gh-api / parse / transport failure: the read did not complete. Do NOT create and do NOT proceed as if absent: take the same no-mutation stop path, naming the failed triage read.
 - A refused or no-output invocation, or any other exit code → an *unestablished measurement*, never a decided "no workpad": take the same stop path, naming the unestablished triage read.
 
-Comment read. On exit 0 or 2, read the issue's comments once — intake's only comment read. Substitute `WORKPAD_ID` for `<WORKPAD_ID>`, or `none` on exit 2 (it matches no comment, so every comment returns):
+Comment read. On exit 0 or 2, read the issue's comments once — intake's only comment read. Substitute `WORKPAD_ID` for `<WORKPAD_ID>`, or `none` on exit 2 (it matches no comment). It skips the workpad and comments starting with the `/prflow:spec` record marker:
 
 ```bash
-gh issue view $ISSUE_NUMBER --json comments --jq '.comments[] | select(.url | endswith("issuecomment-<WORKPAD_ID>") | not) | {url, author: .author.login, body}'
+gh issue view $ISSUE_NUMBER --json comments --jq '.comments[] | select(.url | endswith("issuecomment-<WORKPAD_ID>") | not) | select((.body // "") | startswith("<!-- prflow:investigation-record -->") | not) | {url, author: .author.login, body}'
 ```
 
-Exit 0 with no output means no comments. Retry a non-zero or refused read once; a second failure is a sourced unestablished obligation under `corrections`, never `[]` — continue intake.
+Exit 0 with no output means no other comments. Retry a non-zero or refused read once; a second failure is a sourced unestablished obligation under `corrections`, never `[]` — continue intake.
 
 Handoff-provenance + live-status triage (cloud tier). On the cloud tier (`tier: cloud` in the run-facts block) the workflow wrote an advisory handoff record naming this run's provenance. Read it and pair it with the triage state above so lifecycle wording is truthful:
 
@@ -263,9 +257,8 @@ When the §1.1 cache was written, read it via `--body-file` — no re-fetch. pre
 On the degraded arm where §1.1 wrote no cache, revert to the original `preflight.py dependencies --issue $ISSUE_NUMBER`, which fetches internally. On a local runner that refuses the direct helper path, use the documented fallback `python3 <resolved helper path> dependencies …` with the same `--body-file` argument (or the `--issue $ISSUE_NUMBER` form on the degraded arm).
 Read the helper's one-token stdout result and its exit code:
 
-- `PROCEED` (including a listed set of landed dependencies) exits 0. Hold a
-  `--note` that the early dependency preflight passed (delivered in the §1.5
-  write), then continue to §1.4.
+- `PROCEED` (including a listed set of landed dependencies) exits 0. Continue
+  to §1.4.
 - `BLOCKED <numbers>` exits 2. The named dependencies are still open. Set the
   workpad to `Blocked` with a `blocked` reflection naming the numbers and the
   remedy (merge/close them, amend a stale dependency, or correct a declaration

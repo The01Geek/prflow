@@ -110,6 +110,9 @@ FINDINGS_SECTION_RE = re.compile(r"^##\s+Code Review Findings\s*$", re.MULTILINE
 IMPORTANT_HEADING_RE = re.compile(r"^###\s+.*Important", re.MULTILINE)
 NEXT_SECTION_RE = re.compile(r"^##\s", re.MULTILINE)
 NUMBERED_ITEM_RE = re.compile(r"^\s*\d+\.\s")
+# The line, less its indent, that scripts/verdict_report.py's `_evidence_block` opens a
+# checklist item's Evidence block with.
+EVIDENCE_OPENER = "<details><summary>Evidence</summary>"
 # Line-bound (issue #435): `[ \t]*` admits only space/tab between the label and its token,
 # so the capture stays on the label's own line under EVERY line terminator — deliberately
 # NOT `[^\S\n]`, which excludes only `\n` and would consume a bare `\r`/`\f`/`\v`/NEL/LS/PS
@@ -427,10 +430,10 @@ def _read_jsonl(path, strict=False):
     * `strict=True` (for the DESTINATION store): an unreadable file or a malformed line
       raises `StoreReadError`. Tolerance here would be DESTRUCTIVE, not merely lossy:
       `main()` does not append to the store, it REWRITES it from what this read
-      returned, and `lib/open-state-pr.sh` then commits the result. So a transient
-      `OSError` (EIO, a permissions blip, a half-synced worktree) or one corrupt line
-      left by a killed prior run would silently DELETE every historical record the read
-      could not account for — and ship the truncation in the state PR. A destination you
+      returned, and the retrospective then saves the result to the learnings store. So a
+      transient `OSError` (EIO, a permissions blip, a half-synced worktree) or one corrupt
+      line left by a killed prior run would silently DELETE every historical record the
+      read could not account for — and save the truncation. A destination you
       are about to overwrite is not a degradable input: fail closed and let the operator
       look (issue #431 review)."""
     p = Path(path)
@@ -500,14 +503,95 @@ def _own_telemetry(record):
     return [e for e in tel if not (isinstance(e, dict) and e.get("iter") in restored)]
 
 
+def _json_type(value):
+    return {dict: "object", list: "array", str: "string", bool: "boolean",
+            type(None): "null"}.get(type(value), "number")
+
+
 def _own_iterations(record):
-    """The run's own iteration count: `per_iteration` entries not restored from a killed
-    attempt when that array is present, else the recorded `iterations` scalar."""
+    """The run's own iteration count, as `efficiency-trace.jq` derives `iterations`: the
+    `per_iteration` entries whose `restored_from` is null (a restored iteration is counted
+    under the killed attempt it came from, issue #893), so a standalone review counts its
+    one. A record without `per_iteration` entries, which predates the field, keeps a
+    positive `iterations` scalar. None otherwise — a floor-only skeleton, whose count
+    `_skeleton_iterations` reads from the run's iter files when the run is collected. A
+    wrong-type `per_iteration` or `iterations` is named and ignored."""
+    slug = record.get("slug")
     per_iteration = record.get("per_iteration")
-    if not isinstance(per_iteration, list) or not per_iteration:
-        return record.get("iterations")
-    return sum(1 for e in per_iteration
-               if not (isinstance(e, dict) and e.get("restored_from") is not None))
+    if isinstance(per_iteration, list) and per_iteration:
+        if not all(isinstance(e, dict) for e in per_iteration):
+            _warn(f"efficiency record {slug}: per_iteration holds a non-object entry; "
+                  f"counted as one of the run's own iterations")
+        return sum(1 for e in per_iteration
+                   if not (isinstance(e, dict) and e.get("restored_from") is not None))
+    if per_iteration is not None and not isinstance(per_iteration, list):
+        _warn(f"efficiency record {slug}: per_iteration is a JSON "
+              f"{_json_type(per_iteration)}, not an array; ignored")
+    iterations = record.get("iterations")
+    if isinstance(iterations, int) and not isinstance(iterations, bool) and iterations >= 0:
+        return iterations or None
+    if iterations is not None:
+        _warn(f"efficiency record {slug}: iterations is {json.dumps(iterations)}, "
+              f"not a count; ignored")
+    return None
+
+
+# A persisted iteration record's file name, for the branch listing and the working-tree
+# archive alike; `iter-<N>-gate-evidence.json` and its kin are not iteration records.
+_ITER_NAME = r"iter-[1-9][0-9]*\.json"
+_ITER_NAME_RE = re.compile(_ITER_NAME)
+_ITER_PATH_RE = re.compile(r"\.prflow/logs/review/([^/]+)/([^/]+)/" + _ITER_NAME)
+
+
+def _read_iter_text(repo_root, where):
+    """One iter file's text: a `<branch>:<path>` blob when repo_root is set, else a
+    working-tree path. None (with a breadcrumb) when it cannot be read or decoded."""
+    try:
+        if repo_root is not None:
+            return _git_show(repo_root, where)
+        return Path(where).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        _warn(f"could not read iteration record {where}: {e}")
+        return None
+
+
+def _skeleton_iterations(label, files):
+    """A floor-only skeleton's fix-loop iteration count from `(name, text)` pairs of its
+    run's persisted iter files. A record carrying a `restored_from` key, whatever its value,
+    is excluded as `efficiency-trace.jq` excludes it (counted under the killed attempt it
+    came from); a standalone-review record (`source: "review"`) is excluded too, being no
+    loop iteration. None when no file is a loop record, or at the first file that is
+    unreadable, not JSON or not an object (whether it is a loop iteration is unknown), which
+    is named; 0 when every loop record was restored."""
+    loop = own = 0
+    for name, text in files:
+        if text is None:
+            _warn(f"{label}: {name} could not be read; iteration count unestablished")
+            return None
+        try:
+            rec = json.loads(text)
+        except json.JSONDecodeError:
+            _warn(f"{label}: {name} is not JSON; iteration count unestablished")
+            return None
+        if not isinstance(rec, dict):
+            _warn(f"{label}: {name} is a JSON {_json_type(rec)}, not an object; "
+                  f"iteration count unestablished")
+            return None
+        source = rec.get("source")
+        if source == "review":
+            continue
+        if source is not None and not isinstance(source, str):
+            _warn(f"{label}: {name} carries a source that is a JSON {_json_type(source)}; "
+                  f"counted as a fix-loop iteration")
+        loop += 1
+        if "restored_from" in rec:
+            restored = rec["restored_from"]
+            if not (isinstance(restored, str) and restored):
+                _warn(f"{label}: {name} carries a malformed restored_from "
+                      f"({json.dumps(restored)}); counted as restored, not as its own")
+            continue
+        own += 1
+    return own if loop else None
 
 
 def _run_cost(record):
@@ -756,8 +840,15 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
          OVERWRITES a same-key working-tree entry). The branch is where every run
          now persists; the legacy glob is the read-only migration archive.
     Tolerates the branch being absent (a not-yet-upgraded repo — the ls-tree yields
-    nothing and the legacy archive is used alone, AC17)."""
+    nothing and the legacy archive is used alone, AC17).
+
+    A floor-only skeleton (no `iterations` of its own) carries `_iter_files`: where its
+    run's iter files live under `.prflow/logs/review/<slug>/<run_id>/` — the branch's copy
+    when it holds one, else the working-tree archive beside `eff_dir`. `_collect_efficiency`
+    reads them only for the runs it returns."""
     by_key = {}   # (slug, run_id) -> entry ; insertion order preserved (branch overwrites in place)
+    br = None
+    branch_iters = {}   # (slug, run_id) -> [branch path of each iter-*.json]
 
     def _ingest(text, stem, label):
         """Parse one record's JSON text, shape it, and key it into by_key by
@@ -876,6 +967,30 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
                               f"omitted from the index")
                         continue
                     _ingest(text, Path(path).stem, f"{br}:{path}")
+            rc, out, err = _run([GIT, "-C", str(repo_root), "ls-tree", "-r", "--name-only",
+                                 br, "--", ".prflow/logs/review/"])
+            if rc != 0:
+                _warn(f"branch {br} exists but its .prflow/logs/review/ tree could not be read "
+                      f"(ls-tree rc={rc}): {(err or '').strip()[:160]} — every run's iteration "
+                      f"count is unestablished for this run")
+                branch_iters = None
+            else:
+                for path in out.splitlines():
+                    m = _ITER_PATH_RE.fullmatch(path.strip())
+                    if m:
+                        branch_iters.setdefault((m.group(1), m.group(2)), []).append(m.group(0))
+
+    if branch_iters is not None:
+        review_dir = Path(eff_dir).parent / "review"
+        for key, entry in by_key.items():
+            if entry["iterations"] is not None:
+                continue
+            if key in branch_iters:
+                entry["_iter_files"] = [[str(repo_root), f"{br}:{p}"] for p in branch_iters[key]]
+            elif all(part not in ("", ".", "..") and "/" not in part for part in key):
+                entry["_iter_files"] = [
+                    [None, str(f)] for f in sorted((review_dir / key[0] / key[1]).glob("iter-*.json"))
+                    if _ITER_NAME_RE.fullmatch(f.name)]
 
     index = {}
     for entry in by_key.values():
@@ -885,7 +1000,8 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
 
 def _collect_efficiency(eff_index, target_slugs):
     """Every indexed efficiency run whose `slug` is in target_slugs, as a per-run list
-    (both slug families). Sorted by (slug, run_id) for a deterministic store."""
+    (both slug families). Sorted by (slug, run_id) for a deterministic store. A skeleton's
+    iteration count is read here, so only the runs a PR joins read their iter files."""
     runs = []
     for slug in target_slugs:
         # A PR-less implement record (issue #2006) describes a run for which no PR ever
@@ -895,6 +1011,12 @@ def _collect_efficiency(eff_index, target_slugs):
         # branch literally named `issue-<N>` would make a name-based guard admit it.
         runs.extend(r for r in eff_index.get(slug, []) if r.get("no_pr_reason") is None)
     runs.sort(key=lambda r: (r["slug"], r["run_id"]))
+    for r in runs:
+        files = r.pop("_iter_files", None)
+        if files is not None:
+            r["iterations"] = _skeleton_iterations(
+                f"efficiency run {r['slug']}/{r['run_id']}",
+                [(where.rsplit("/", 1)[-1], _read_iter_text(root, where)) for root, where in files])
     return runs
 
 
@@ -905,9 +1027,8 @@ def _parse_verdict(body):
     if not m:
         return None
     raw = m.group(1).strip()
-    # Drop the stub-body suffix the engine appends on the pr-review surface when a live
-    # progress comment is active (skills/review/phases/phase-4-4-github-post.md stub form:
-    # "## Verdict: {VERDICT} — full report in PR comment"). This is the DEFAULT cloud
+    # Drop the stub-body suffix scripts/post-review-verdict.sh posts when its lookup finds the
+    # progress comment ("## Verdict: {VERDICT} — full report in PR comment"). This is the DEFAULT cloud
     # path, so without this strip the primary outcome variable stores
     # "APPROVE — full report in PR comment" instead of "APPROVE" (issue #431 review).
     raw = re.split(r"\s*[—–-]+\s*full report in PR comment", raw, maxsplit=1)[0].strip()
@@ -960,10 +1081,10 @@ def _reviewed_head(body):
 
 
 def _count_important(body):
-    """Count numbered items under the "### … Important …" sub-heading of the
+    """Count the numbered review findings under the "### … Important …" sub-heading of the
     `## Code Review Findings` section. Returns an int (0 when the section exists but
-    has no Important group — the engine omits empty groups) or None when the comment
-    carries no findings section at all (unparseable for this purpose)."""
+    has no Important group, or the group holds only checklist items) or None when the
+    comment carries no findings section at all (unparseable for this purpose)."""
     body = body or ""
     section = FINDINGS_SECTION_RE.search(body)
     if not section:
@@ -972,8 +1093,11 @@ def _count_important(body):
     # reports follow it and can carry their own Important heading), counting items from the
     # first Important heading to the next heading of any depth (`##`+, so a nested `####`
     # also ends the group). Lines inside a fenced code block are never headings or items.
+    # Count no line from an Evidence opener to the next unfenced line starting `</details`: a
+    # checklist item's evidence can hold numbered lines.
     count = 0
     in_important = False
+    in_evidence = False
     fence = None  # (char, length) of the open fence
     for line in body[section.end():].splitlines():
         stripped = line.lstrip()
@@ -993,8 +1117,13 @@ def _count_important(body):
                 break
             in_important = bool(IMPORTANT_HEADING_RE.match(line))
             continue
-        if in_important and NUMBERED_ITEM_RE.match(line):
-            count += 1
+        if in_important:
+            if in_evidence:
+                in_evidence = not stripped.lower().startswith("</details")
+            elif stripped.startswith(EVIDENCE_OPENER):
+                in_evidence = True
+            elif NUMBERED_ITEM_RE.match(line):
+                count += 1
     return count
 
 

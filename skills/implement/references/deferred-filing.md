@@ -31,7 +31,7 @@ This reference owns both Phase 4 filing channels. Run only the channel selected 
 
 #### Deferred-AC channel
 
-Dispatch one `prflow:deferral-drafter` with the predicate's projected criteria, the Phase 2.2.5 scope-decision note, issue-body cache or inline parent slots, `<run-scratch>`, spec template, and writing standard. Commit shared-checkout changes before dispatch, collect its completed return, and use its inline fallback only after a terminally unusable return.
+Dispatch one `prflow:deferral-drafter` with the predicate's projected criteria, the Phase 2.2.5 scope-decision note, issue-body cache or inline parent slots, `<run-scratch>`, and writing standard. Commit shared-checkout changes before dispatch, collect its completed return, and use its inline fallback only after a terminally unusable return.
 
 The plan must provide, per draft, `chunk`, `draft_path`, `title`, `projection_disposition`, `unmatched_desired_behavior`, and a `covers_criteria` list whose every entry carries that criterion's `marker_value`, plus the plan-level `writing_standard_loaded`, `parent_slots_source`, and `notes`. The units.json `key` is derived from each `marker_value` at the template below, not supplied per draft. Record non-clean plan-level values once as `dropped-failed`. An unplaced criterion remains undischarged.
 

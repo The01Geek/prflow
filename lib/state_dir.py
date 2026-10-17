@@ -23,9 +23,6 @@ reached before any breadcrumb or gate could run. A LOUD fallback keeps the tree
 working while staying observable, so it is not the unobservable-and-therefore-
 permanent fallback #988 rejected. The key-level rule is unchanged: no
 read-through for ``devflow_* -> prflow_*``.
-
-Readers that use this: ``scripts/workpad.py``, ``scripts/match-deferrals.py``,
-``scripts/match-lint-adjudications.py``, ``scripts/render-audit-prompt.py``.
 """
 from __future__ import annotations
 

@@ -61,6 +61,8 @@ except ImportError:  # POSIX
 # loads this module via importlib.util.spec_from_file_location does not — so the
 # `import lint_manifest` in `_manifest_provenance` needs this entry too.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+from path_forms import posix_path
 
 RECEIPT_SCHEMA = "prflow-lint-receipt/1"
 HELPER_NAME = "lint_changed.py"
@@ -799,10 +801,13 @@ def _run_invocation(inv: Invocation, top: str, tool_cache: dict,
 #   0  established, invocations ran (advisory — lint FINDINGS never fail the run)
 #   1  `lint-changed --fail-on-findings` only: an invocation ran and its tool exited non-zero
 #   2  population or manifest unestablished (an unknown set is not a clean empty one), or,
-#      under `--fail-on-findings`, an invocation whose outcome is not `ran`
+#      under `--fail-on-findings`, an invocation whose outcome is not `ran` or a failing
+#      op's receipt path that `str.splitlines` would split
 #   3  no repository root, or a named receipt non-success
 # A `lint-changed` ruff invocation that ran with `ruff_family` `skew` never counts toward 1;
 # it prints `LINT-CHANGED unverified ops=<ids> ...` instead (issue #1199).
+# A `LINT-CHANGED findings ops=<ids>` line is followed by one
+# `LINT-CHANGED op=<id> receipt=<path>` line per printable id (issue #2140).
 LINT_OK = 0
 LINT_FINDINGS = 1
 LINT_UNESTABLISHED = 2
@@ -905,15 +910,12 @@ def _emit_invocations(invocations, pop, top, writer, base_fields, examined,
     family (issue #603) summarizes the run's ruff invocations for the caller's summary line;
     it is `none` when no ruff family was recorded (no ruff invocation, or none requested).
     When `outcomes` is a list, each invocation's (op id, outcome, exit, ruff_family or None,
-    reported family or None) is appended to it."""
+    reported family or None, receipt path) is appended to it after its receipt is written."""
     written = 0
     tool_cache: dict = {}
     ruff_families: list[str] = []
     for inv in invocations:
         outcome = _run_invocation(inv, top, tool_cache, ruff_family_pinned)
-        if outcomes is not None:
-            outcomes.append((inv.op_id, outcome["outcome"], outcome["exit"],
-                             outcome.get("ruff_family"), _minor_family(tool_cache[inv.tool][1])))
         if "ruff_family" in outcome:
             ruff_families.append(outcome["ruff_family"])
         fields = dict(base_fields)
@@ -921,7 +923,11 @@ def _emit_invocations(invocations, pop, top, writer, base_fields, examined,
         if examined is not None:
             fields["examined"] = examined
         fields["skips"] = _skip_entries(pop) if pop is not None else []
-        writer.write(inv.op_id, fields)
+        receipt = writer.write(inv.op_id, fields)[0]
+        if outcomes is not None:
+            outcomes.append((inv.op_id, outcome["outcome"], outcome["exit"],
+                             outcome.get("ruff_family"), _minor_family(tool_cache[inv.tool][1]),
+                             receipt))
         written += 1
     return written, _distill_ruff_family(ruff_families)
 
@@ -981,13 +987,22 @@ def cmd_lint_changed(args) -> int:
     if getattr(args, "fail_on_findings", False):
         # issue #870: opt-in exit status for a caller that gates on this lint. A not-`ran`
         # outcome (tool absent, timeout, launch error) is unknown, which outranks a finding.
-        failing = [op for op, outcome, code, _fam, _rep in gated if outcome != "ran" or code != 0]
-        if any(outcome != "ran" for _op, outcome, _code, _fam, _rep in gated):
+        failing = [(op, receipt) for op, outcome, code, _fam, _rep, receipt in gated
+                   if outcome != "ran" or code != 0]
+        if any(outcome != "ran" for _op, outcome, _code, _fam, _rep, _receipt in gated):
             rc = LINT_UNESTABLISHED
         elif failing:
             rc = LINT_FINDINGS
         if failing:
-            print(f"LINT-CHANGED findings ops={','.join(failing)}")
+            print(f"LINT-CHANGED findings ops={','.join(op for op, _receipt in failing)}")
+            # issue #2140: the path is the last field, so a line boundary in it would split it.
+            for op, receipt in failing:
+                path = posix_path(receipt)
+                if path.splitlines() != [path]:
+                    print(f"LINT-CHANGED receipt-unprintable op={op}", file=sys.stderr)
+                    rc = LINT_UNESTABLISHED
+                else:
+                    print(f"LINT-CHANGED op={op} receipt={path}")
     if skewed:
         print(f"LINT-CHANGED unverified ops={','.join(row[0] for row in skewed)} "
               f"reason=ruff-family-skew reported={skewed[0][4]} pinned={ruff_family_pinned}")

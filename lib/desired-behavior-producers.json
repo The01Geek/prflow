@@ -1,6 +1,0 @@
-{
-  "noninteractive_issue_body_producers": [
-    "agents/deferral-drafter.md",
-    "skills/retrospective-audit/SKILL.md"
-  ]
-}

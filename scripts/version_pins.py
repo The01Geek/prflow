@@ -86,6 +86,9 @@ import subprocess
 import sys
 from typing import Literal, NamedTuple
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+from path_forms import posix_path
+
 # The two machine-recognizable release-pin forms. Each pattern captures the semver in a
 # `version` group and preserves everything else, so a rewrite is surgical.
 PIN_PATTERNS = (
@@ -146,7 +149,7 @@ class PinSite(NamedTuple):
 
 
 def _is_excluded(relpath: str) -> bool:
-    posix = relpath.replace(os.sep, "/")
+    posix = posix_path(relpath)
     if posix in EXCLUDED_FILES:
         return True
     if posix.endswith(EXCLUDED_SUFFIXES):
@@ -193,7 +196,7 @@ def iter_scanned_files(root: str) -> list[str]:
 def _is_pruned_path(relpath: str) -> bool:
     """True when any path component is a pruned directory name (the walk's prune rule,
     re-expressed for a flat path list so both populations drop the same content)."""
-    return any(part in PRUNED_DIR_NAMES for part in relpath.replace(os.sep, "/").split("/"))
+    return any(part in PRUNED_DIR_NAMES for part in posix_path(relpath).split("/"))
 
 
 def resolve_index_population(root: str) -> list[str]:

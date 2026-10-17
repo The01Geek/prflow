@@ -66,7 +66,7 @@ Write a short paragraph (3–5 sentences): what could go wrong if this change is
 
 ## § 4 — Author the issue body
 
-The `body` you return is filed verbatim as the GitHub issue, so it must read like a `/prflow:spec`-quality issue plus a clearly delimited provenance section. Follow `[[PLUGIN_ROOT]]/skills/spec/references/issue-template.md` (read with your file-read tool) for the issue structure, and append the provenance block. When that template cannot be read, apply the compact no-options fallback — the body carries no unresolved implementation decision anywhere (a flagged `— assumption, confirm before implementing` premise is not one), every acceptance criterion is one concrete unconditional assertion, and wording the user approved or the issue prescribes verbatim (quoted as text to add to a file) is never reworded — and continue: emit no new response field and no extra text disclosing the reduction, because a degradation signal here would change the closed single-object JSON response contract, so that missing signal on this headless path is an accepted residual. Before composing the prose, also read the shared writing standard `[[PLUGIN_ROOT]]/lib/writing-standard.md` with your file-read tool and follow it; if it cannot be read, compose the body without it and report nothing about it — a breadcrumb here would violate the stdout contract.
+The `body` you return is filed verbatim as the GitHub issue, so it must read like a `/prflow:spec`-quality issue plus a clearly delimited provenance section. Use the body structure below, with no section wrapped in `<details>`. Before composing the prose, also read the shared writing standard `[[PLUGIN_ROOT]]/lib/writing-standard.md` with your file-read tool and follow it; if it cannot be read, compose the body without it and report nothing about it — a breadcrumb here would violate the stdout contract.
 
 GitHub autolink hygiene (your returned `title` and `body` are posted verbatim to a GitHub issue): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
 
@@ -74,6 +74,7 @@ Body structure (sections in this order):
 
 ```
 ## Problem Statement
+As a <role>, I want <capability>, so that <outcome>.
 <who hits what pain — derived from the root cause and the occurrences>
 
 ## Current Behavior
@@ -86,11 +87,6 @@ Body structure (sections in this order):
 <who benefits and how>
 
 ## Technical Context
-> **Scope note:** The files and details below are the known starting points, not the full
-> list. Before implementing, trace the change through the codebase to find every affected
-> call site, consumer, and layer — this issue maps the work, it does not bound it.
-
-- **Relevant Classes/Files** — <the surface(s) the proposed change touches>
 - **Architecture Alignment** — <how it fits existing patterns>
 - **Cross-layer Impact** — <layers affected>
 
@@ -100,7 +96,7 @@ Body structure (sections in this order):
 
 ## Implementation Notes
 - **Approach** — <the one proposed change: what changes and why>
-- **Relevant files** — <the file and function surfaces the change is expected to reach, **at minimum** — a floor-declared map the implementer extends, hedges permitted>
+- **Relevant files** — at minimum: <the file and function surfaces the change is expected to reach — a floor-declared map the implementer extends, hedges permitted>
 - **Code Patterns** — <patterns in this repo to mirror>
 - **Potential Gotchas** — <constraints / false-positive edges from § 3>
 
@@ -119,7 +115,7 @@ Author the `## 🔁 Retrospective provenance` block per finding, inside each fin
 
 Projection disposition gates each finding. Desired Behavior is authoritative intent; Acceptance Criteria are its exhaustive, merge-gated projection. Before adding a finding to the returned JSON, account for every independently verifiable post-change Desired Behavior obligation as represented, unmatched, or non-obligation. Record `projection disposition: represented` in your internal composition check only when the unmatched set is empty. If any obligation is unmatched, revise its issue body and re-audit before it is eligible for filing; never return an unmatched body. Representation may be one AC or a jointly sufficient AC set and must preserve subject, scope, outcome, and strength; explanatory, motivational, estimate, and current-behavior prose is a non-obligation.
 
-The Technical Context scope note is verbatim, fixed boilerplate — include it exactly as shown. Observe the template's no-options rule in the issue sections (Problem → Implementation Notes): the proposed change is a resolved decision. Keep the `## 🔁 Retrospective provenance` block after the issue sections, separated by the `---` rule.
+No-options rule: the issue sections have no unresolved implementation decision anywhere; a premise flagged `— assumption, confirm before implementing` is not one. Leave out a decision the proposed change leaves open that a competent implementer could clearly make, unless it is the implementation approach or a member's outcome in a fully listable set. Every acceptance criterion is one concrete, unconditional assertion, and wording the user approved or the issue prescribes verbatim is never reworded. Keep the `## 🔁 Retrospective provenance` block after the issue sections, separated by the `---` rule.
 
 ---
 

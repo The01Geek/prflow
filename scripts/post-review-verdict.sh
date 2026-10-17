@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-# post-review-verdict.sh PR_NUMBER VERDICT BODY_FILE HEAD_SHA [PROGRESS_MARKER] — post a
+# post-review-verdict.sh PR_NUMBER VERDICT BODY_FILE HEAD_SHA [PROGRESS_MARKER] [RUN_ROOT] — post a
 # PRFlow Review verdict as a formal GitHub Pull Request review, stamping the producer's
 # machine-readable ownership-plus-verdict marker on every durable surface it writes, and
 # printing exactly one closed-vocabulary outcome line the caller routes on
@@ -56,9 +56,9 @@
 # This is convention alignment, NOT a claim that porcelain caused the observed failure,
 # which was never established (issue #1059's root-cause investigation is explicit on this).
 # The body is passed as a FILE PATH, not an inline string, which removes the shell-quoting
-# hazard for a report containing backticks, `$(`, and literal double quotes: the file's
-# bytes are read verbatim by jq --rawfile, the marker line is prepended inside jq, and the
-# result is sent as the body unmodified.
+# hazard for a report containing backticks, `$(`, and literal double quotes: when the file is
+# the posted body (see BODY) its bytes are read by jq --rawfile and the marker line is
+# prepended inside jq.
 #
 # CHANNEL SELECTION comes from the VERDICT token, never from the caller. The accepted token
 # set and its mapping (bash `case` globs — builtins, so the screen holds on a stripped host):
@@ -75,10 +75,20 @@
 # Anything else — including the empty string — is refused, issues no request, and takes
 # SKIP unknown-event.
 #
-# CONTRACT — exactly one OUTCOME line per reachable path, and (on the paths that reach the
-# progress-comment stamp) one PROGRESS line after it. The outcome vocabulary is closed and
-# complete by construction, names the DURABLE CHANNEL that received the verdict, and has NO
-# silent path:
+# BODY. With PROGRESS_MARKER set the helper looks the progress comment up before it posts: the
+# last comment whose body STARTS WITH PROGRESS_MARKER. When the lookup finds it, the posted body is
+# the stub `## Verdict: <VERDICT> — full report in PR comment` plus a two-line quote pointing at
+# that comment. With no PROGRESS_MARKER, a comment not found or a failed lookup, it is BODY_FILE's
+# bytes, less every line that starts with a run-key marker (`<!-- prflow:review-progress ` or
+# `<!-- devflow:review-progress `) and then a first line that is a verdict marker. Either body is
+# posted under this run's `<!-- prflow:review-verdict ` line, so this helper's lookup by a run-key
+# marker never selects a posted body, and no line of a posted body starts with a run-key marker
+# (one quoted inside a line is kept). BODY_FILE must be readable either way.
+#
+# CONTRACT — exactly one OUTCOME line per reachable path; on the paths that reach the
+# progress-comment stamp, one PROGRESS line after it, then (POSTED APPROVE family only) one DISMISS
+# line. The outcome vocabulary is closed and complete by construction, names the DURABLE
+# CHANNEL that received the verdict, and has NO silent path:
 #
 #   stdout                            exit  meaning
 #   POSTED review <event>             0     the formal review was created for <event>; the
@@ -91,9 +101,11 @@
 #                                           consumer joining through it will not see this
 #                                           verdict — the marker is what makes the comment
 #                                           readable at all)
-#   FAILED no-durable-channel <err>   1     BOTH channels were issued and refused, so NO
-#                                           durable artifact carries this verdict; <err> is
-#                                           the captured cause of each, collapsed to one line
+#   FAILED no-durable-channel <err>   1     BOTH channels were issued and refused, so no
+#                                           review or comment carries this verdict, and the
+#                                           progress comment is left untouched (no PROGRESS
+#                                           line); <err> is the captured cause of each,
+#                                           collapsed to one line
 #   SKIP not-numeric                  3     the PR number is empty or non-numeric; no request
 #   SKIP unknown-event                3     the verdict token is outside the accepted set
 #                                           (INCLUDING the empty string); no request issued
@@ -101,29 +113,41 @@
 #                                           so no honest marker can be composed; no request
 #   SKIP body-file-unreadable         3     the body-file argument is absent or unreadable; no
 #                                           request issued
-#   SKIP evidence-missing             3     with reproducible cloud run identity, the run root
-#                                           did not pass the offline review-evidence grade
-#                                           (issue #193); no marker composed and no review,
-#                                           comment, or progress-stamp request issued
+#   SKIP evidence-missing             3     the graded run root (the cloud run's, else RUN_ROOT)
+#                                           did not pass the offline review-evidence grade for
+#                                           this verdict at the configured
+#                                           prflow_review.verdict_severity_threshold (`critical`,
+#                                           with a stderr `NOTE:`, when the read fails or the
+#                                           value is outside the ladder; issues #193, #1656); no
+#                                           marker composed and no review, comment, or
+#                                           progress-stamp request issued
 #
 #   PROGRESS not-requested            —     no progress-comment marker was supplied (the local
 #                                           / no-live-comment case); nothing was stamped
 #   PROGRESS stamped <comment-id>     —     the run-keyed progress comment was rewritten with
 #                                           the marker on the line immediately AFTER its
-#                                           `<!-- prflow:review-progress run=… -->` line
-#   PROGRESS not-found                —     no comment on this pull request carried the
-#                                           supplied run-keyed marker
-#   PROGRESS failed <one-line error>  —     the lookup or the rewrite was issued and refused
+#                                           `<!-- prflow:review-progress run=… -->` line and
+#                                           its first `- [ ] Run complete` line ticked (it has
+#                                           none: a stderr `NOTE:` line)
+#   PROGRESS not-found                —     no comment on this pull request starts with the
+#                                           supplied run-keyed marker; BODY_FILE was the body sent
+#   PROGRESS failed <one-line error>  —     the lookup or the rewrite failed: the API refused
+#                                           it, jq could not read the comments page or build
+#                                           the rewrite, or the comment id did not split from
+#                                           its body (after a failed lookup BODY_FILE was the
+#                                           body sent)
+#   DISMISS <rc>                      —     dismiss-stale-rejections.sh's exit code (127: the
+#                                           sibling is missing or not executable)
 #
-# The PROGRESS line NEVER changes the exit code: the review artifact is the authoritative
-# surface (a progress comment is edited in place, so superseded rounds vanish), and a failed
-# secondary stamp must not turn a posted verdict into a failure. It is a second line, not a
-# second outcome — the caller routes on line 1.
+# The PROGRESS and DISMISS lines NEVER change the exit code: the review artifact is the
+# authoritative surface (a progress comment is edited in place, so superseded rounds vanish),
+# and failed secondary work must not turn a posted verdict into a failure. The caller routes
+# on line 1.
 #
 # THE RECEIPT (issue #1156). Every line above is ALSO written to a run-scoped receipt file
 # (lib/verdict-receipt.sh owns the path, and is the single source both this producer and
 # scripts/check-verdict-post-reached.sh compose it from): the outcome line becomes the
-# receipt's first line, and the PROGRESS line, when one is emitted, its second. The receipt
+# receipt's first line, and the PROGRESS and DISMISS lines follow it when emitted. The receipt
 # is what makes this helper's ABSENCE observable after the run. Everything documented above
 # begins at this helper's first line, so a review run that never invokes it produces none of
 # it — no outcome line, no error text, no failure record — and presents afterwards as a
@@ -139,9 +163,8 @@
 #
 # WHAT SILENCE MEANS. Printing NOTHING is not one of the outcomes above: a helper that
 # emits no line at all was refused by the harness/permission matcher before it ran. A
-# caller reads that silence as "route to the fallback arm" (post the full report as a
-# plain comment and record that the formal review could not be posted) — NEVER as
-# authorization to treat the review as posted. Likewise the caller must never read a
+# caller reads that silence as "the verdict was not posted" — NEVER as authorization to treat
+# the review as posted. Likewise the caller must never read a
 # `FAILED`/`SKIP …` line as a posted review: only `POSTED review <event>` (exit 0) means the
 # formal review exists, and only `POSTED comment <event>` (exit 0) means the verdict reached
 # the comment channel instead.
@@ -161,7 +184,7 @@
 # lib/resolve-jq.sh). $DEVFLOW_GH / $DEVFLOW_JQ override the binaries for tests, the same
 # seam the rest of devflow uses.
 #
-# Usage: post-review-verdict.sh PR_NUMBER VERDICT BODY_FILE HEAD_SHA [PROGRESS_MARKER]
+# Usage: post-review-verdict.sh PR_NUMBER VERDICT BODY_FILE HEAD_SHA [PROGRESS_MARKER] [RUN_ROOT]
 set -uo pipefail
 # gh + jq: resolved once via the single-source execution-verified resolvers; an explicit
 # DEVFLOW_GH/DEVFLOW_JQ still wins, so test stubs are untouched. Both sources are guarded
@@ -202,7 +225,7 @@ _PRV_RECEIPT_WARNED=0
 # rather than accumulate behind it.
 #
 # KNOWN RESIDUAL, stated with its real blast radius rather than papered over: when the
-# write itself fails, the run leaves no receipt, so scripts/check-verdict-post-reached.sh
+# first post cannot create the receipt, the run leaves none, so scripts/check-verdict-post-reached.sh
 # answers NOT-REACHED for a run that DID reach this helper — and the workflow step that
 # consumes that answer POSTS A PUBLIC PULL-REQUEST COMMENT. The consequence is therefore
 # not merely an indistinguishable internal state: on this residual with a `POSTED review`
@@ -210,6 +233,11 @@ _PRV_RECEIPT_WARNED=0
 # formal review sitting in the reviews API for that head. That is why the comment names
 # both causes and asserts neither, and why it points at the breadcrumb below — which is
 # the ONLY signal separating them, and lives in the job log, not on the pull request.
+# When a later post in the same job (the delivery retry) cannot open the receipt, the
+# earlier post's outcome line stays first: a `FAILED no-durable-channel` first post
+# followed by a retry that posts still fails the job and may let the stall backstop
+# request the review again; the `could not write the verdict-post receipt` breadcrumb
+# is the only trace.
 # Anything that changes this breadcrumb's wording changes the instruction that comment
 # gives a maintainer; the focused module asserts the two are the same literal.
 _prv_say() {
@@ -227,11 +255,27 @@ _prv_say() {
   return 0
 }
 
+# _prv_note TEXT — one stderr `NOTE:` line: something the caller reports that changes no outcome.
+_prv_note() { printf 'NOTE: post-review-verdict.sh: %s\n' "$1" >&2; }
+
+# Collapse a captured error, or a value a NOTE quotes, to a single line with pure parameter
+# expansion — an EMITTED value must not be routed through a non-preflight PATH tool (tr/sed),
+# which would come back empty on a host that lacks it. Newlines and carriage returns become
+# spaces; an empty input reads `(no error output)`.
+_prv_oneline() {
+  local s="${1-}"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+  [ -n "$s" ] || s="(no error output)"
+  printf '%s' "$s"
+}
+
 PR_NUMBER="${1:-}"
 VERDICT="${2:-}"
 BODY_FILE="${3:-}"
 HEAD_SHA="${4:-}"
 PROGRESS_MARKER="${5:-}"
+RUN_ROOT="${6:-}"
 
 # (1) Refuse a non-numeric PR number before any request. The `case` glob is a bash
 # builtin (no PATH tool), so the screen holds on a stripped-down host.
@@ -276,98 +320,146 @@ if [ ! -r "$BODY_FILE" ] || [ ! -f "$BODY_FILE" ]; then
   exit 3
 fi
 
-# (5) Grade execution evidence before any request (issue #193). Derive the run key through
-# compose-run-key.sh — never inline — so the scratch-key format cannot drift and mis-grade a
-# different directory; a cloud non-pass grade refuses with SKIP evidence-missing before posting.
+# (5) Grade execution evidence before any request (issues #193, #1656). A cloud run key derives
+# the run root through compose-run-key.sh — never inline — so the scratch-key format cannot
+# drift and mis-grade a different directory; a local or absent key grades the RUN_ROOT argument
+# when given. review-evidence-gate.py's POSTED-VERDICT MODE says what each verdict owes. A
+# non-pass grade refuses with SKIP evidence-missing.
 _prv_run_key="$("$_PRV_DIR/compose-run-key.sh" 2>/dev/null)"
 case "$_prv_run_key" in
-  ''|local-*)
-    echo "devflow post-verdict: no reproducible cloud run identity (compose-run-key.sh: '${_prv_run_key:-(none)}') — run-root evidence grading unavailable; posting without an evidence-pass claim (issue #193 local arm)" >&2 ;;
-  *)
-    _prv_run_root=".prflow/tmp/review/pr-${PR_NUMBER}/${_prv_run_key}"
-    # Take grade line 1 with parameter expansion, never `head`: this token DECIDES whether to
-    # refuse, and a value deciding a selection must not route through a non-preflight PATH tool
-    # (CLAUDE.md). The gate is an install-relative sibling and reads <run-root>/diff.patch alone.
-    _prv_grade_full="$(python3 "$_PRV_DIR/review-evidence-gate.py" --grade-run-root "$_prv_run_root" --repo-root . 2>/dev/null)"
-    _prv_grade="${_prv_grade_full%%$'\n'*}"
-    case "$_prv_grade" in
-      pass\ *) : ;;  # evidence present — proceed to the marker and the post
-      *)
-        echo "devflow post-verdict: review-evidence grade for run root '$_prv_run_root' is '${_prv_grade:-(no grade)}' (not a pass) — refusing the verdict post; no marker, review, comment, or progress-stamp request issued (issue #193)" >&2
-        _prv_say "SKIP evidence-missing"
-        exit 3 ;;
-    esac ;;
+  ''|local-*) _prv_run_root="$RUN_ROOT" ;;
+  *) _prv_run_root=".prflow/tmp/review/pr-${PR_NUMBER}/${_prv_run_key}" ;;
 esac
+if [ -z "$_prv_run_root" ]; then
+  _prv_note "no reproducible cloud run identity (compose-run-key.sh: '${_prv_run_key:-(none)}') and no run-root argument — run-root evidence grading unavailable; posting without an evidence-pass claim (issue #193 local arm)"
+else
+  # A failed read and a value outside the ladder each grade at `critical` under their own NOTE.
+  # The `case` words are verdict_report.py's SEVERITIES: bash cannot import them, a test ties them.
+  if ! _prv_threshold="$("$_PRV_DIR/config-get.sh" .prflow_review.verdict_severity_threshold critical)"; then
+    _prv_note "could not read prflow_review.verdict_severity_threshold (config-get.sh failed) — grading at critical"
+    _prv_threshold=critical
+  fi
+  case "$_prv_threshold" in
+    critical|important|suggestion) : ;;
+    *)
+      _prv_note "prflow_review.verdict_severity_threshold is '$(_prv_oneline "$_prv_threshold")', not critical|important|suggestion — grading at critical"
+      _prv_threshold=critical ;;
+  esac
+  # Take grade line 1 with parameter expansion, never `head`: this token DECIDES whether to
+  # refuse, and a value deciding a selection must not route through a non-preflight PATH tool
+  # (CLAUDE.md). The gate is an install-relative sibling and reads the run root alone.
+  _prv_grade_full="$(python3 "$_PRV_DIR/review-evidence-gate.py" --grade-run-root "$_prv_run_root" --repo-root . \
+                       --posted-verdict "$MARKER_VERDICT" --threshold "$_prv_threshold")"
+  _prv_grade="${_prv_grade_full%%$'\n'*}"
+  # The gate's later lines say why (a pass's notes, a refusal's cause): they go to stderr either way.
+  case "$_prv_grade_full" in *$'\n'*) printf '%s\n' "${_prv_grade_full#*$'\n'}" >&2 ;; esac
+  case "$_prv_grade" in
+    pass\ *) : ;;  # evidence present — proceed to the marker and the post
+    *)
+      echo "devflow post-verdict: review-evidence grade for run root '$_prv_run_root' is '${_prv_grade:-(no grade)}' (not a pass) — refusing the verdict post; no marker, review, comment, or progress-stamp request issued (issue #193)" >&2
+      _prv_say "SKIP evidence-missing"
+      exit 3 ;;
+  esac
+fi
 
 # The one authoritative marker literal. Composed HERE, at the producer boundary — the agent
 # never composes it, which is the whole point of issue #1030.
 MARKER="<!-- prflow:review-verdict head=$HEAD_SHA verdict=$MARKER_VERDICT -->"
 
-# Compose the JSON request body inside jq so the body-file bytes (backticks, `$(`, literal
+# Look up the run-keyed progress comment, before the post because the result picks the posted
+# body. Sets _PRV_PC_STATE to not-requested, found, not-found or failed; on found, _PRV_PC_ID and
+# _PRV_PC_BODY (the body as a JSON string); on failed, _PRV_PC_ERR (one line).
+_PRV_PC_STATE=not-requested
+_PRV_PC_ID=""
+_PRV_PC_BODY=""
+_PRV_PC_ERR=""
+_prv_find_progress() {
+  [ -n "$PROGRESS_MARKER" ] || return 0
+  local raw target
+  _PRV_PC_STATE=failed
+  # One paginated read of the pull request's issue comments, then a SEPARATE jq pass over the
+  # captured payload — never one `gh … 2>&1 | jq` pipeline, whose merged stderr would reach jq
+  # as unparseable input and misattribute an API failure to a parse failure. Select the LAST
+  # comment whose body starts with the supplied run-keyed marker and emit "<id>\t<body-json>": the
+  # id and the body travel together, and the stamp below rewrites this body without a second read.
+  if ! raw="$("$DEVFLOW_GH" api --paginate "repos/{owner}/{repo}/issues/$PR_NUMBER/comments?per_page=100" 2>&1)"; then
+    _PRV_PC_ERR="$(_prv_oneline "$raw")"
+    return 0
+  fi
+  if ! target="$(printf '%s' "$raw" | "$DEVFLOW_JQ" -rs --arg m "$PROGRESS_MARKER" \
+                     'add | map(select(((.body // "") | type == "string") and ((.body // "") | startswith($m)))) | last
+                      | if . == null then "" else ((.id | tostring) + "\t" + (.body | @json)) end' 2>&1)"; then
+    _PRV_PC_ERR="$(_prv_oneline "$target")"
+    return 0
+  fi
+  # A native-Windows jq ends the line with CR; an integer id and an @json body hold no raw CR.
+  target="${target//$'\r'/}"
+  if [ -z "$target" ]; then
+    _PRV_PC_STATE=not-found
+    return 0
+  fi
+  _PRV_PC_ID="${target%%$'\t'*}"
+  _PRV_PC_BODY="${target#*$'\t'}"
+  if [ -z "$_PRV_PC_ID" ] || [ "$_PRV_PC_ID" = "$target" ]; then
+    _PRV_PC_ERR="could not split the comment id from its body"
+    return 0
+  fi
+  _PRV_PC_STATE=found
+}
+_prv_find_progress
+
+# A found progress comment holds the full report, so the posted body is a verdict-only stub built
+# from VERDICT verbatim (scripts/build-experiment-records.py strips its
+# ` — full report in PR comment` suffix); otherwise it is the body file.
+if [ "$_PRV_PC_STATE" = found ]; then
+  PRV_BODY_ARG=(--arg body "## Verdict: $VERDICT — full report in PR comment"$'\n\n'"> The complete review report (checklist results, findings, details) is in the"$'\n'"> PRFlow Review progress comment on this PR."$'\n')
+else
+  PRV_BODY_ARG=(--rawfile body "$BODY_FILE")
+fi
+
+# Compose the JSON request body inside jq so the body bytes (backticks, `$(`, literal
 # quotes, newlines) reach the API unmangled and the marker prepend is byte-lossless:
 # split("\n")/join("\n") round-trips any input exactly, including a missing final newline.
-# A caller-authored marker already on LINE 1 is dropped rather than double-stamped — only
+# Every line starting with a run-key marker, in either spelling, is dropped first (see BODY).
+# A caller-authored verdict marker then on LINE 1 is dropped rather than double-stamped — only
 # line 1, so a marker literal quoted deeper in the report (a finding citing this contract)
 # is preserved as prose and the producer's own line stays line 1.
-PRV_JQ_BODY='{event:$event, body: ($marker + "\n" + ($body | split("\n")
+PRV_JQ_LINES='($body | split("\n")
+  | map(select((startswith("<!-- prflow:review-progress ") or startswith("<!-- devflow:review-progress ")) | not))
   | (if ((.[0] // "") | startswith("<!-- prflow:review-verdict ")) then .[1:] else . end)
-  | join("\n")))}'
+  | join("\n"))'
+PRV_JQ_BODY='{event:$event, body: ($marker + "\n" + '"$PRV_JQ_LINES"')}'
 
 # Issue exactly one review POST. Capture the WHOLE pipeline stderr (never /dev/null) so a
 # failure carries its cause whichever stage produced it — the group's `2>&1 1>/dev/null`
 # captures both jq's stderr (a broken/missing DEVFLOW_JQ, an unreadable rawfile) and gh's;
 # discard the group's stdout (gh's response). Under `set -o pipefail` a jq OR a gh failure
 # surfaces as a non-zero pipeline status.
-REVIEW_ERR="$( { "$DEVFLOW_JQ" -n --arg event "$EVENT" --arg marker "$MARKER" --rawfile body "$BODY_FILE" "$PRV_JQ_BODY" \
+REVIEW_ERR="$( { "$DEVFLOW_JQ" -n --arg event "$EVENT" --arg marker "$MARKER" "${PRV_BODY_ARG[@]}" "$PRV_JQ_BODY" \
                  | "$DEVFLOW_GH" api -X POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" --input - ; } 2>&1 1>/dev/null)"
 REVIEW_RC=$?
 
-# Collapse a captured error to a single line with pure parameter expansion — an EMITTED
-# value must not be routed through a non-preflight PATH tool (tr/sed), which would come
-# back empty on a host that lacks it. Newlines and carriage returns become spaces.
-_prv_oneline() {
-  local s="${1-}"
-  s="${s//$'\n'/ }"
-  s="${s//$'\r'/ }"
-  [ -n "$s" ] || s="(no error output)"
-  printf '%s' "$s"
-}
-
-# Stamp the run-keyed progress comment with the SAME marker, on the line immediately after
-# its `<!-- prflow:review-progress run=… -->` line, so the run key stays line 1 and
-# seed-review-progress.sh's reported literal is byte-unchanged. Best-effort by design: it
-# prints a PROGRESS line and never touches the exit code (see the CONTRACT block).
+# Report the lookup above and, for a found comment, stamp it with the SAME marker on the line
+# immediately after its `<!-- prflow:review-progress run=… -->` line, so the run key stays line 1
+# and seed-review-progress.sh's reported literal is byte-unchanged, and tick the first
+# `- [ ] Run complete` line (a stderr `NOTE:` says so when there is none). Called only after a
+# POSTED outcome: a marker on the progress comment means the verdict reached a durable channel.
+# Best-effort by design: it prints a PROGRESS line and never touches the exit code (see the
+# CONTRACT block).
 _prv_stamp_progress() {
-  if [ -z "$PROGRESS_MARKER" ]; then
-    _prv_say "PROGRESS not-requested"
-    return 0
-  fi
-  local err raw target
-  # One paginated read of the pull request's issue comments, then a SEPARATE jq pass over the
-  # captured payload — never one `gh … 2>&1 | jq` pipeline, whose merged stderr would reach jq
-  # as unparseable input and misattribute an API failure to a parse failure. Select the LAST
-  # comment whose body carries the supplied run-keyed marker and emit "<id>\t<body-json>": the
-  # id and the body travel together so no second read can race a different comment.
-  if ! raw="$("$DEVFLOW_GH" api --paginate "repos/{owner}/{repo}/issues/$PR_NUMBER/comments?per_page=100" 2>&1)"; then
-    _prv_say "PROGRESS failed $(_prv_oneline "$raw")"
-    return 0
-  fi
-  if ! target="$(printf '%s' "$raw" | "$DEVFLOW_JQ" -rs --arg m "$PROGRESS_MARKER" \
-                     'add | map(select(((.body // "") | type == "string") and ((.body // "") | contains($m)))) | last
-                      | if . == null then "" else ((.id | tostring) + "\t" + (.body | @json)) end' 2>&1)"; then
-    _prv_say "PROGRESS failed $(_prv_oneline "$target")"
-    return 0
-  fi
-  if [ -z "$target" ]; then
-    _prv_say "PROGRESS not-found"
-    return 0
-  fi
-  local cid="${target%%$'\t'*}"
-  local bjson="${target#*$'\t'}"
-  if [ -z "$cid" ] || [ "$cid" = "$target" ]; then
-    _prv_say "PROGRESS failed could not split the comment id from its body"
-    return 0
-  fi
+  local out err
+  case "$_PRV_PC_STATE" in
+    not-requested)
+      _prv_say "PROGRESS not-requested"
+      return 0 ;;
+    not-found)
+      _prv_say "PROGRESS not-found"
+      return 0 ;;
+    failed)
+      _prv_say "PROGRESS failed $_PRV_PC_ERR"
+      return 0 ;;
+  esac
+  local cid="$_PRV_PC_ID" bjson="$_PRV_PC_BODY"
   # Rewrite: keep line 1 (the run key), put the marker on line 2, drop a marker line already
   # sitting at line 2 so a re-post does not accumulate two of them, and preserve every other
   # line verbatim.
@@ -375,22 +467,47 @@ _prv_stamp_progress() {
   # marker lines after a full-body rewrite. It agrees with this stamp only on the POSITIONS —
   # run key line 1, verdict line 2; its matching and precedence rules differ, so a change to
   # either position must be made in both.
-  if ! err="$( { "$DEVFLOW_JQ" -n --arg marker "$MARKER" --argjson b "$bjson" \
-                   '{body: ($b | split("\n")
-                     | (if (length == 0) then [$marker]
-                        else (.[0:1] + [$marker] + (.[1:] | if ((.[0] // "") | startswith("<!-- prflow:review-verdict ")) then .[1:] else . end))
-                        end)
-                     | join("\n"))}' \
-                 | "$DEVFLOW_GH" api -X PATCH "repos/{owner}/{repo}/issues/comments/$cid" --input - ; } 2>&1 1>/dev/null)"; then
+  # One jq pass prints whether it ticked a row (output line 1), then the request body (line 2):
+  # the NOTE below is printed unless that answer is `true`.
+  if ! out="$("$DEVFLOW_JQ" -nc --arg marker "$MARKER" --argjson b "$bjson" \
+                '$b | split("\n")
+                 | (if (length == 0) then [$marker]
+                    else (.[0:1] + [$marker] + (.[1:] | if ((.[0] // "") | startswith("<!-- prflow:review-verdict ")) then .[1:] else . end))
+                    end)
+                 | (first(range(length) as $j | select(.[$j] | startswith("- [ ] Run complete")) | $j) // null) as $i
+                 | ($i != null), {body: ((if $i == null then . else .[$i] |= ("- [x]" + .[5:]) end) | join("\n"))}' 2>&1)"; then
+    _prv_say "PROGRESS failed $(_prv_oneline "$out")"
+    return 0
+  fi
+  # A native-Windows jq ends each line with CR; the answer and the compact JSON hold no raw CR.
+  out="${out//$'\r'/}"
+  if ! err="$(printf '%s\n' "${out#*$'\n'}" \
+                | "$DEVFLOW_GH" api -X PATCH "repos/{owner}/{repo}/issues/comments/$cid" --input - 2>&1 1>/dev/null)"; then
     _prv_say "PROGRESS failed $(_prv_oneline "$err")"
     return 0
   fi
+  [ "${out%%$'\n'*}" = true ] \
+    || _prv_note "progress comment $cid has no line starting '- [ ] Run complete', so none was ticked"
   _prv_say "PROGRESS stamped $cid"
+}
+
+# After a POSTED outcome, an APPROVE-family verdict runs the sibling dismiss-stale-rejections.sh
+# (all its output to stderr, so stdout keeps the closed vocabulary) and reports its exit code as
+# `DISMISS <rc>` — never as this helper's own. A REJECT and a FAILED post run no dismissal.
+_prv_dismiss() {
+  [ "$MARKER_VERDICT" = APPROVE ] || return 0
+  local rc=127
+  if [ -x "$_PRV_DIR/dismiss-stale-rejections.sh" ]; then
+    "$_PRV_DIR/dismiss-stale-rejections.sh" "$PR_NUMBER" </dev/null >&2
+    rc=$?
+  fi
+  _prv_say "DISMISS $rc"
 }
 
 if [ "$REVIEW_RC" -eq 0 ]; then
   _prv_say "POSTED review $EVENT"
   _prv_stamp_progress
+  _prv_dismiss
   exit 0
 fi
 
@@ -400,10 +517,8 @@ fi
 # REST, per CLAUDE.md's rule that GitHub writes go through `gh api` and never through
 # GraphQL-resolving porcelain. `gh pr comment` targets the pull request's issue-comment
 # thread, which is exactly this endpoint.
-COMMENT_ERR="$( { "$DEVFLOW_JQ" -n --arg marker "$MARKER" --rawfile body "$BODY_FILE" \
-                  '{body: ($marker + "\n" + ($body | split("\n")
-                    | (if ((.[0] // "") | startswith("<!-- prflow:review-verdict ")) then .[1:] else . end)
-                    | join("\n")))}' \
+COMMENT_ERR="$( { "$DEVFLOW_JQ" -n --arg marker "$MARKER" "${PRV_BODY_ARG[@]}" \
+                  '{body: ($marker + "\n" + '"$PRV_JQ_LINES"')}' \
                   | "$DEVFLOW_GH" api -X POST "repos/{owner}/{repo}/issues/$PR_NUMBER/comments" --input - ; } 2>&1 1>/dev/null)"
 COMMENT_RC=$?
 
@@ -411,9 +526,11 @@ if [ "$COMMENT_RC" -eq 0 ]; then
   echo "devflow post-verdict: the formal review POST was refused ($(_prv_oneline "$REVIEW_ERR")) — the marker-stamped verdict was posted as a pull-request comment instead" >&2
   _prv_say "POSTED comment $EVENT"
   _prv_stamp_progress
+  _prv_dismiss
   exit 0
 fi
 
+# Never stamp here: an undelivered verdict must leave the progress comment unmarked, or
+# derive-review-verdict.sh reads it as posted.
 _prv_say "FAILED no-durable-channel review: $(_prv_oneline "$REVIEW_ERR") | comment: $(_prv_oneline "$COMMENT_ERR")"
-_prv_stamp_progress
 exit 1

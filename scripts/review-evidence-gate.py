@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Fail a cloud review run whose posted verdict lacks phase-execution evidence (issue #2075).
+"""Grade a review verdict against its run's phase-execution evidence: after a cloud run posted it,
+or offline before a post on either tier (issue #2075).
 
 THE QUESTION IT ANSWERS. The `/prflow:review` engine is the merge-gating judge, but
 nothing on the cloud tier checks that a run that posted a verdict actually executed its
@@ -11,7 +12,7 @@ green. This gate compares the posted verdict against the durable work products t
 checklist phases leave in the run-scoped directory by doing their work (issue #21): the
 final checklist Phase 1 hands to Phase 2 (`checklist-iter-<N>.json`) and the combined
 verification results Phase 2 hands to Phase 4 (`verification-iter-<N>.json`), each a JSON
-array. This mirrors how the implement/reception tier proves completion — validating a
+array. This mirrors how implement proves completion — validating a
 producer-owned artifact (check-completion-evidence.py's flight record), not a discretionary
 bookkeeping line an agent could omit while doing the work correctly. The one legitimate
 no-checklist arm that produces no such artifact, a generator double failure, proves itself
@@ -66,12 +67,30 @@ step's unrecognized-output warning rather than a silent green.
                              --execution-file, the transcript is missing a dispatch of any
                              always-on Phase 3 reviewer, or (c) with --grade-run-root, the
                              run root lacks a `p3-<bare name>.md` block file for such a
-                             reviewer (graded before any post). The <tokens>
+                             reviewer (graded before any post), or (d) in the posted-verdict
+                             mode below, an APPROVE lacks a block it owes or carries a counted
+                             checklist FAIL. The <tokens>
                              are space-free (checklist-artifact, verification-artifact, run-root,
                              transcript-dispatch-shortfall, phase3-dispatch:<subagent_type>,
-                             phase3-block-file:<bare name>), joined by commas.
+                             phase3-block-file:<bare name>, checklist-fail-at-threshold:<id>,
+                             verdict-file:<id>, delivery-failed:<id>, and a posted-verdict
+                             cause named beside a missing block file),
+                             joined by commas.
   unestablished <reason>     an evidence state the gate could not settle — reported neither
                              as a pass nor as a failure.
+
+POSTED-VERDICT MODE (issue #1656). `--grade-run-root DIR --posted-verdict APPROVE|REJECT
+--threshold <t>`: a REJECT grades as the default mode. An APPROVE also owes
+`p3-requesting-code-review.md` and each gated reviewer's block whose `DIR/engine-setup.json` flag
+is true, and fails each checklist FAIL that
+verdict_report.checklist_reject_ids counts at <t> as `checklist-fail-at-threshold:<id>`. These
+causes leave an APPROVE unsettled: `engine-setup-malformed` (the file absent or malformed),
+`engine-setup-unreadable`, and then one of `verdict-report-unloadable` (verdict_report.py
+unimportable), `threshold-invalid` (<t> outside its `SEVERITIES`) and `checklist-unreadable`
+(unreadable stored verdicts or checklist). With nothing missing the grade is `unestablished` with
+the first that applies. Beside a missing block file each joins `missing=` as a token, so a refusal
+naming block files only is one that writing those files clears. Beside any other missing token
+the cause is a detail line only.
 
 UNKNOWN IS NOT ZERO. A present-but-malformed artifact, a malformed phase log, an unreadable
 run root, an unresolvable diff range, an unparseable reviews payload, an ambiguous run-root
@@ -85,7 +104,6 @@ grade, an ungradeable phase log, or an established checklist failure settles the
 """
 import argparse
 import glob
-import hashlib
 import importlib.util
 import json
 import os
@@ -98,15 +116,16 @@ import tempfile
 
 # The special record that legitimately stands in for the checklist phases, carried on the
 # run-scoped phase log by Phase 1.3's generator double-failure arm and consulted only when the
-# durable artifact pair is absent (issue #21).
+# graded checklist artifact is absent (issue #21): the record says no checklist was generated, and
+# the log is run-wide, so a present checklist falsifies it.
 _GENERATOR_FAILURE_RECORD = 'checklist-skip reason=failure'
 # Records of the retired blocker-recheck fast path (issue #1482): exact-match no-op grammar
 # lines. Dropping them grades a log carrying one malformed (unestablished) instead of owing
 # the missing evidence.
 _RETIRED_RECORDS = frozenset({'blocker-recheck-hit re-verdict=posted',
                               'blocker-recheck-hit verification=complete'})
-# The durable Phase 1 / Phase 2 work-product artifacts (issue #21): the final post-dedup,
-# post-cap checklist array Phase 1 hands to Phase 2, and the combined normalized results
+# The durable Phase 1 / Phase 2 work-product artifacts (issue #21): the final, capped
+# checklist array Phase 1 hands to Phase 2, and the combined normalized results
 # array Phase 2 hands to Phase 4 — each iteration-scoped so /prflow:review-and-fix's
 # re-entries write one per iteration and the gate accepts any iteration's pair.
 _CHECKLIST_ARTIFACT_RE = re.compile(r'\Achecklist-iter-(?P<n>\d+)\.json\Z')
@@ -131,20 +150,30 @@ _VERDICT_MARKER_RE = re.compile(
     r'verdict=(?P<verdict>APPROVE|REJECT) -->')
 
 _REVIEW_SUBDIR = os.path.join('.prflow', 'tmp', 'review')
-# Per-item nonce verifier files, verdicts/iter-<N>/<item-id>-<nonce>.json (issue #193,
+# Per-item verifier attempt files, verdicts/iter-<N>/<item-id>.a<k>.json (issue #193,
 # phase-2-verification.md §2.2). The coverage check must never read verification-iter-<N>.json
 # instead: its no-file timeout/response fallback would then satisfy the requirement.
 _VERDICTS_SUBDIR = 'verdicts'
+# normalize-verdicts.py's `_ATTEMPT_RE`, the producer's grammar; a test holds the two equal.
+_ATTEMPT_FILE_RE = re.compile(r"\A(?P<id>.+)\.a(?P<k>[1-9][0-9]{0,5})\.json\Z")
 # The subagent a checklist agent-item is verified by; the transcript backstop counts actual
 # dispatch events naming it (issue #193).
 _VERIFIER_SUBAGENT = 'prflow:checklist-verifier'
-# The always-on Phase 3 reviewers every standalone roster carries (issue #1051). The final-pass
-# `general-purpose` Task and the gated type-design/pr-test analyzers are deliberately absent:
-# requiring them would fail a run whose in-run gate legitimately excluded them.
+# The Phase 3 reviewers the transcript backstop and the default offline grade require (issue
+# #1051). The final pass and the gated type-design/pr-test analyzers are owed only by an APPROVE's
+# posted-verdict grade, which reads the planned roster from `engine-setup.json` (below).
 _PHASE3_ALWAYS_ON_SUBAGENTS = ('prflow:code-reviewer', 'prflow:silent-failure-hunter',
                                'prflow:comment-analyzer')
 # Every subagent the transcript backstop counts; `_decide` reads each key from the counts.
 _COUNTED_SUBAGENTS = (_VERIFIER_SUBAGENT,) + _PHASE3_ALWAYS_ON_SUBAGENTS
+_ALWAYS_ON_BLOCKS = tuple(s.split(':', 1)[1] for s in _PHASE3_ALWAYS_ON_SUBAGENTS)
+# An APPROVE's posted-verdict grade (issue #1656) also owes the final pass's block
+# (`p3-requesting-code-review.md`), and each gated reviewer's when its `engine-setup.json` flag is true.
+_FINAL_PASS_BLOCK = 'requesting-code-review'
+_GATED_BLOCKS = (('has_new_types', 'type-design-analyzer'), ('test_relevant', 'pr-test-analyzer'))
+# The offline fail token's prefix: `_format_offline_grade` writes it, and
+# `grade_posted_verdict_offline` reads the `missing=` list back from behind it.
+_FAIL_MISSING = 'fail missing='
 # The tool a harness records a subagent dispatch under: `Agent` on the current cloud harness,
 # `Task` on older ones. Dropping either zeroes the count on that harness's transcripts.
 _DISPATCH_TOOL_NAMES = frozenset({'Agent', 'Task'})
@@ -346,45 +375,50 @@ def _read_json_array_value(path):
     return 'malformed', None
 
 
-def _effective_verification_mode(item):
-    """The effective Phase 2 verification mode of a checklist item (issue #193), matching
-    phase-2-verification.md §2.0/§2.1a: 'agent' unless the item declares
-    `verification_mode: "lite"` AND carries a well-formed `lite_probe`. A missing or
-    unrecognized mode defaults to agent, and a lite item with a malformed `lite_probe`
-    promotes to agent — the fail-closed direction, requiring a nonce file rather than
-    waiving one."""
-    if not isinstance(item, dict) or item.get('verification_mode') != 'lite':
-        return 'agent'
-    probe = item.get('lite_probe')
-    if (isinstance(probe, dict)
-            and probe.get('kind') in ('string_present', 'string_absent')
-            and isinstance(probe.get('string'), str)
-            and isinstance(probe.get('file'), str)):
-        return 'lite'
-    return 'agent'
+def _dispatched(item):
+    """Whether Phase 2 dispatches a verifier for a checklist item: every item but a carried PASS
+    (normalize-verdicts.py's `_fresh_agent`). A non-object element counts, so it fails closed."""
+    return not (isinstance(item, dict) and item.get('reused_from_iter_prev') is True
+                and item.get('verdict') == 'PASS')
 
 
 def _nonce_file_present(run_root_dir, n, item_id):
-    """Whether a `verdicts/iter-<n>/<item-id>-*.json` verifier file exists (issue #193). The
-    existence of the nonce FILE is the requirement — no verification array is read — so a
+    """Whether a `verdicts/iter-<n>/<item-id>.a<k>.json` verifier file exists (issue #193). The
+    existence of the FILE is the requirement — no verification array is read — so a
     no-file timeout/response fallback cannot satisfy it."""
     return _nonce_file_in_dir(
         run_root_dir, os.path.join(_VERDICTS_SUBDIR, f'iter-{n}'), item_id)
 
 
+def _missing_file_token(run_root_dir, n, item_id):
+    """`delivery-failed:<id>` when the item's `checklist-iter-<n>.items/<id>.json` records a spent
+    delivery (`delivery: true`), else `verdict-file:<id>`; an unreadable item file is the latter."""
+    path = os.path.join(run_root_dir, f'checklist-iter-{n}.items', f'{item_id}.json')
+    try:
+        with open(path, encoding='utf-8') as fh:
+            value = json.load(fh)
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        value = None
+    spent = isinstance(value, dict) and value.get('delivery') is True
+    return ('delivery-failed:' if spent else 'verdict-file:') + item_id
+
+
+def _delivery_failed(run_root_dir, n, item_id):
+    """Whether iteration `n`'s grade names the item `delivery-failed:`: no verifier file and a
+    spent delivery. Phase 1.0's carry (checklist_finalize.py) never reuses such a PASS."""
+    return (not _nonce_file_present(run_root_dir, n, item_id)
+            and _missing_file_token(run_root_dir, n, item_id).startswith('delivery-failed:'))
+
+
 def _nonce_items_satisfied(checklist_items, resolve_item):
-    """Shared agent-item nonce-coverage skeleton (issue #516 cleanup): walk the effective
-    agent-mode checklist items — extracting each id with the `unidentified-agent-item`
-    fallback — and mark an item missing when `resolve_item(item_id)` is falsy. `resolve_item`
-    is the per-caller verifier-file presence predicate (plain iteration vs entry-scoped +
-    reuse), the only axis on which the two nonce checks differ. Returns
+    """Walk the checklist items — extracting each id with the
+    `unidentified-agent-item` fallback — and mark an item missing when
+    `resolve_item(item_id)`, the caller's verifier-file presence predicate, is falsy. Returns
     (satisfied, [missing-item-id, ...]); a non-list checklist fails closed."""
     if not isinstance(checklist_items, list):
         return False, ['checklist-not-an-array']
     missing = []
     for item in checklist_items:
-        if _effective_verification_mode(item) != 'agent':
-            continue
         item_id = item.get('id') if isinstance(item, dict) else None
         if not isinstance(item_id, str) or not item_id:
             missing.append('unidentified-agent-item')
@@ -395,11 +429,12 @@ def _nonce_items_satisfied(checklist_items, resolve_item):
 
 
 def _iteration_nonce_satisfied(run_root_dir, n, checklist_items):
-    """Whether iteration `n`'s effective agent-mode items each have a matching
-    `verdicts/iter-<n>/<item-id>-*.json` verifier file present (issue #193). Returns
-    (satisfied, [missing-item-id, ...]). Lite items are exempt, as is a lite-only or empty
-    checklist. A checklist that is not a list, or an agent item with no usable id, fails
-    closed."""
+    """Whether iteration `n`'s dispatched items each have a matching
+    `verdicts/iter-<n>/<item-id>.a<k>.json` verifier file present (issue #193); a carried PASS,
+    never dispatched, owes none. Returns (satisfied, [missing-item-id, ...]); an empty checklist
+    is satisfied. A checklist that is not a list, or an item with no usable id, fails closed."""
+    if isinstance(checklist_items, list):
+        checklist_items = [it for it in checklist_items if _dispatched(it)]
     return _nonce_items_satisfied(
         checklist_items,
         lambda item_id: _nonce_file_present(run_root_dir, n, item_id))
@@ -446,26 +481,29 @@ def _grade_run_root_detail(run_root_dir):
     their nonce coverage decide first; the phase log is consulted only when no qualifying
     artifact pair exists, for the special no-work-product records. Returns
     `(grade, payload, agent_count)` where `agent_count` is the qualifying iteration's
-    effective agent-mode item count on the 'pass' arm and None otherwise:
+    dispatched (non-carried-PASS) item count on the 'pass' arm and None otherwise:
       ('pass', None, n)                                    a valid checklist+verification
                                                            array pair for at least one
                                                            iteration, each of that
-                                                           iteration's agent-mode items
+                                                           iteration's dispatched items
                                                            backed by a nonce verifier file
       ('unestablished', 'review-artifact-malformed', None) a present-but-corrupt artifact
       ('unestablished', 'phase-log-malformed', None)       no pair; malformed phase log
       ('unestablished', 'run-root-unreadable', None)       no pair; unreadable phase log
-      ('special', 'generator-failure', None)               a no-checklist record
+      ('special', 'generator-failure', None)               a no-checklist record, with no
+                                                           checklist array present
       ('fail', [missing-token, ...], None)                 neither a qualifying pair nor a
                                                            record (a `verdict-file:<id>`
                                                            token names each agent item
-                                                           lacking a verifier file)."""
+                                                           lacking a verifier file, a
+                                                           `delivery-failed:<id>` one an
+                                                           item whose delivery was spent)."""
     arts = _scan_artifacts(run_root_dir)
     checklist = arts['checklist']
     verification = arts['verification']
     checklist_values = arts['checklist_values']
     # Pass: some single iteration carries BOTH a parseable-array checklist AND a
-    # parseable-array verification artifact, AND every effective agent-mode item in that
+    # parseable-array verification artifact, AND every dispatched item in that
     # iteration's checklist has a nonce verifier file (issue #193). Every candidate pair is
     # tried, so an earlier qualifying iteration still passes during later verdict reuse; the
     # last nonce-failing candidate's missing set is kept for the fail arm.
@@ -476,10 +514,9 @@ def _grade_run_root_detail(run_root_dir):
                 run_root_dir, n, checklist_values.get(n))
             if satisfied:
                 items = checklist_values.get(n) or []
-                agent_count = sum(1 for it in items
-                                  if _effective_verification_mode(it) == 'agent')
+                agent_count = sum(1 for it in items if _dispatched(it))
                 return 'pass', None, agent_count
-            nonce_missing = missing
+            nonce_missing = [_missing_file_token(run_root_dir, n, m) for m in missing]
     # No qualifying pair. A present-but-malformed artifact means the run's outputs cannot be
     # trusted as evidence — unestablished (AC3). An absent iteration has no key, so this
     # fires only on a real corrupt file.
@@ -496,7 +533,7 @@ def _grade_run_root_detail(run_root_dir):
         grade, payload = _grade_phase_log(text)
         if grade == 'malformed':
             return 'unestablished', 'phase-log-malformed', None
-        if grade == 'record':
+        if grade == 'record' and not any(s == 'array' for s in checklist.values()):
             return 'special', payload, None
     # The fail arm (AC3/AC4). An absent array is named as a missing artifact; when both
     # arrays are present but no iteration's nonce coverage is complete, name the missing
@@ -507,69 +544,12 @@ def _grade_run_root_detail(run_root_dir):
     if not any(s == 'array' for s in verification.values()):
         missing.append('verification-artifact')
     if not missing and nonce_missing:
-        missing = ['verdict-file:' + m for m in nonce_missing]
+        missing = nonce_missing
     if not missing:
         # Both kinds have a valid array, but never at a common iteration — no single
         # iteration's pair, so name both.
         missing = ['checklist-artifact', 'verification-artifact']
     return 'fail', missing, None
-
-
-def _sha256_file(path):
-    """(hex, None) on success; (None, 'unreadable') when the file cannot be read. Reads bytes,
-    so a non-UTF-8 artifact digests without raising."""
-    try:
-        with open(path, 'rb') as fh:
-            return hashlib.sha256(fh.read()).hexdigest(), None
-    except OSError:
-        return None, 'unreadable'
-
-
-def _read_active_entry_binding(run_root_dir, entry, iteration):
-    """Read and validate the active-entry binding for (entry, iteration) — issue #516. Returns
-    (binding_dict, None) or (None, 'missing'|'unreadable'|'malformed'). The binding ties this
-    entry's verdict to its own producer artifacts, so a missing or ill-typed binding is never
-    evidence: an absent binding routes to the special-record / unestablished arms, and a
-    present-but-malformed one is unestablished (never laundered into a pass)."""
-    path = os.path.join(run_root_dir, f'active-entry-{entry}-iter-{iteration}.json')
-    try:
-        with open(path, 'rb') as fh:
-            raw = fh.read()
-    except FileNotFoundError:
-        return None, 'missing'
-    except OSError:
-        return None, 'unreadable'
-    try:
-        obj = json.loads(raw)
-    except (ValueError, UnicodeError):
-        return None, 'malformed'
-    if not isinstance(obj, dict):
-        return None, 'malformed'
-    # `schema_version` is the binding-shape version this grader interprets; a value other than
-    # the exact int 1 (a future shape, or a corrupt/absent field) is not graded under v1
-    # semantics — malformed, so the caller routes to unestablished rather than reading a
-    # decorative version field as an implicit v1 (issue #516 hardening). A bool is an int
-    # subclass (True == 1), so reject it explicitly — only the literal int 1 is v1.
-    schema_version = obj.get('schema_version')
-    if (not isinstance(schema_version, int) or isinstance(schema_version, bool)
-            or schema_version != 1):
-        return None, 'malformed'
-    # `iteration` must be a real int (a bool is an int subclass, so reject it explicitly);
-    # the string fields must be non-empty; `reuse` defaults to [] but must be a list if given.
-    if not isinstance(obj.get('entry'), str):
-        return None, 'malformed'
-    if not isinstance(obj.get('iteration'), int) or isinstance(obj.get('iteration'), bool):
-        return None, 'malformed'
-    # Every string field must be non-empty: an empty `reviewed_head` is an unestablished head,
-    # and on the `--entry latest` path (which grades the binding's OWN recorded head) the
-    # mismatch guard would compare '' against '' and pass — laundering a verdict marker over an
-    # unestablished head. Require it non-empty alongside its siblings, closing that fail-open.
-    for key in ('reviewed_head', 'checklist_artifact', 'verification_artifact', 'verdicts_subdir'):
-        if not isinstance(obj.get(key), str) or not obj.get(key):
-            return None, 'malformed'
-    if not isinstance(obj.get('reuse', []), list):
-        return None, 'malformed'
-    return obj, None
 
 
 def _special_record_grade(run_root_dir):
@@ -590,256 +570,18 @@ def _special_record_grade(run_root_dir):
     return None
 
 
-def _nonce_file_in_dir(run_root_dir, subdir, item_id, excluded_names=frozenset()):
-    """Whether a `<subdir>/<item-id>-*.json` verifier file exists under the run root — the
-    entry-scoped variant of `_nonce_file_present` (issue #516). Existence of the nonce FILE is
-    the requirement; no verification array is read. A basename in `excluded_names` does not
-    count (issue #621: a shadow file whose name is also step1's is the loop's file, since
-    nonces are unique per dispatch)."""
-    pattern = os.path.join(run_root_dir, subdir, glob.escape(item_id) + '-*.json')
-    return any(os.path.isfile(p) and os.path.basename(p) not in excluded_names
+def _nonce_file_in_dir(run_root_dir, subdir, item_id):
+    """Whether a `<subdir>/<item-id>.a<k>.json` verifier attempt file exists under the run
+    root. Existence of the FILE is the requirement; no verification array is read."""
+    pattern = os.path.join(run_root_dir, subdir, glob.escape(item_id) + '.a*.json')
+    return any(os.path.isfile(p) and _attempt_owner(os.path.basename(p)) == item_id
                for p in glob.glob(pattern))
 
 
-def _snapshot_names(run_root_dir, subdir):
-    """The basenames of the `*.json` verifier files in a snapshot directory (issue #621).
-    Returns (names, None), or (None, 'unreadable') when the directory exists but cannot be
-    listed. An ABSENT directory is the empty set: a producer that copied no verifier file
-    leaves none, an observed fact. An unreadable one is not that fact — `glob` reports both
-    as no matches, and an empty exclusion set excludes nothing while an empty own-snapshot
-    set reports nothing unbound, so each caller would silently claim what it never observed.
-    Unknown is not zero here: the callers route the reason to an unestablished arm."""
-    path = os.path.join(run_root_dir, subdir)
-    try:
-        entries = os.listdir(path)
-    except FileNotFoundError:
-        return set(), None
-    except OSError:
-        return None, 'unreadable'
-    return {name for name in entries
-            if name.endswith('.json') and os.path.isfile(os.path.join(path, name))}, None
-
-
-def _bound_agent_item_ids(checklist_items):
-    """The usable ids of the effective agent-mode items in a bound checklist (issue #621)."""
-    if not isinstance(checklist_items, list):
-        return set()
-    ids = set()
-    for item in checklist_items:
-        if _effective_verification_mode(item) != 'agent':
-            continue
-        item_id = item.get('id') if isinstance(item, dict) else None
-        if isinstance(item_id, str) and item_id:
-            ids.add(item_id)
-    return ids
-
-
-def _unbound_snapshot_files(run_root_dir, verdicts_subdir, checklist_items, excluded_names):
-    """The entry's own snapshot files that belong to no bound agent item (issue #621), by the
-    same `<item-id>-` prefix rule the nonce lookup globs — so a retry's second nonce file for a
-    bound id stays valid while a file carried over from a wider claim set does not. Files the
-    step1-filename exclusion already dropped are not the entry's, so they are ignored here.
-    Returns (sorted basename list, None), or (None, 'unreadable') when the snapshot directory
-    could not be listed — an unenumerable snapshot is not an empty one."""
-    names, reason = _snapshot_names(run_root_dir, verdicts_subdir)
-    if reason is not None:
-        return None, reason
-    bound = _bound_agent_item_ids(checklist_items)
-    return sorted(
-        name for name in names
-        if name not in excluded_names
-        and not any(name.startswith(item_id + '-') for item_id in bound)), None
-
-
-def _shadow_step1_binding(run_root_dir, iteration):
-    """The `step1` binding for the shadow's OWN iteration (issue #621), the reference the
-    shadow's independence is measured against. Returns (binding, None), (None, None) when no
-    step1 binding exists (both step1-derived checks are then skipped), or (None, fault-tuple)
-    for an unreadable or malformed one. The entry/iteration/head mismatch check is deliberately
-    not applied: Step 2.6 can follow an early-exit convergence, so step1's reviewed head can
-    legitimately differ from the shadow's at the same iteration."""
-    binding, reason = _read_active_entry_binding(run_root_dir, 'step1', iteration)
-    if reason == 'unreadable':
-        return None, ('unestablished', 'active-entry-step1-binding-unreadable', None)
-    if reason == 'malformed':
-        return None, ('unestablished', 'active-entry-step1-binding-malformed', None)
-    return binding, None
-
-
-def _has_generator_item(items):
-    """Whether a checklist holds an item a generator wrote this entry — anything but a
-    finalize-built `issue_acceptance` item or a §1.0 carried item (`carried: true`, or
-    `reused_from_iter_prev: true` from a finalize that predates that marker). A non-list or a non-object item
-    counts as one, so a malformed artifact keeps the staleness check."""
-    if not isinstance(items, list):
-        return True
-    return any(not isinstance(it, dict)
-               or (it.get('category') != 'issue_acceptance' and it.get('carried') is not True
-                   and it.get('reused_from_iter_prev') is not True)
-               for it in items)
-
-
-def _shadow_artifact_grade(binding, step1_binding, checklist_value, verification_value):
-    """Grade a bound shadow artifact against step1's own record of the same iteration (issue
-    #621). Returns the unestablished reason, or None when both artifacts are the shadow's own.
-    The shadow and the loop write the same `checklist-iter-<N>.json` /
-    `verification-iter-<N>.json` filenames, so a digest identical to step1's means the shadow
-    never rewrote that artifact and its binding snapshotted step1's work —
-    `active-entry-artifact-stale`. An empty `[]` artifact is exempt: two independent empty
-    artifacts collide by construction, not by staleness. A step1 record carrying no usable
-    digest (its producer could not hash its own artifact) cannot answer the comparison at all,
-    so a NON-EMPTY shadow artifact is then `active-entry-step1-digest-unestablished` rather
-    than a silent pass that skips the staleness check for that artifact. A checklist holding
-    no generator-written item (only finalize's `issue_acceptance` items and carried items) is
-    exempt too: its acceptance items derive from the same criteria file and its carried items
-    from the same prior iteration, so equal bytes are expected."""
-    for value, key in ((checklist_value, 'checklist_sha256'),
-                       (verification_value, 'verification_sha256')):
-        if not value:
-            continue
-        if key == 'checklist_sha256' and not _has_generator_item(value):
-            continue
-        theirs = step1_binding.get(key)
-        if not (isinstance(theirs, str) and theirs):
-            return 'active-entry-step1-digest-unestablished'
-        mine = binding.get(key)
-        if isinstance(mine, str) and mine and mine.lower() == theirs.lower():
-            return 'active-entry-artifact-stale'
-    return None
-
-
-def _active_entry_nonce_satisfied(run_root_dir, entry, verdicts_subdir, checklist_items,
-                                  reuse_map, excluded_names=frozenset()):
-    """Nonce coverage for an active entry over its OWN entry-scoped verifier snapshot (issue
-    #516 AC2/AC3). Every fresh agent item needs a file in `verdicts_subdir` (the binding's
-    own iteration-N snapshot); an item named in `reuse_map` is instead satisfied by that
-    entry's retained prior-iteration snapshot `verdicts-<entry>/iter-<from_iteration>/`. A
-    reuse claim whose `from_iteration` is not a real int, or whose retained file is absent,
-    does not satisfy — reuse must point back to actual retained producer evidence. A fresh
-    file whose basename is in `excluded_names` does not satisfy either (issue #621). Returns
-    (satisfied, [missing-item-id, ...])."""
-    def resolve_item(item_id):
-        if item_id in reuse_map:
-            n = reuse_map[item_id]
-            if not isinstance(n, int) or isinstance(n, bool):
-                return False
-            prior_subdir = os.path.join(f'verdicts-{entry}', f'iter-{n}')
-            return _nonce_file_in_dir(run_root_dir, prior_subdir, item_id)
-        return _nonce_file_in_dir(run_root_dir, verdicts_subdir, item_id, excluded_names)
-    return _nonce_items_satisfied(checklist_items, resolve_item)
-
-
-def _grade_active_entry_detail(run_root_dir, entry, iteration, reviewed_head):
-    """Grade a fix-loop entry's verdict against THAT entry's own producer evidence (issue
-    #516): its exact entry/iteration/reviewed-head binding and the checklist, verification
-    and verifier-file artifacts the binding names. An earlier iteration's evidence never
-    satisfies a later entry, so the run-wide `_grade_run_root_detail` is left untouched for
-    the legacy interface (AC7). Returns `(grade, payload, agent_count)` with the run-wide
-    grade's arm vocabulary plus these active-entry arms:
-      ('unestablished', 'active-entry-binding-missing', None)     no current-entry binding
-      ('unestablished', 'active-entry-binding-unreadable', None)
-      ('unestablished', 'active-entry-binding-malformed', None)
-      ('unestablished', 'active-entry-binding-mismatch', None)    binding entry/iter/head ≠ ask
-      ('unestablished', 'active-entry-artifact-digest-mismatch', None)  bound file replaced
-      ('unestablished', 'active-entry-artifact-digest-unestablished', None)  present artifact,
-                                                                   no usable recorded digest
-    and, for the `shadow` entry only, the issue #621 independence arms:
-      ('unestablished', 'active-entry-step1-binding-unreadable'|'...-malformed', None)
-      ('unestablished', 'active-entry-artifact-stale', None)      loop artifact bound as ours
-      ('unestablished', 'active-entry-step1-digest-unestablished', None)  step1 recorded no
-                                                                   usable digest to compare
-      ('unestablished', 'active-entry-step1-snapshot-unreadable', None)   exclusion set
-                                                                   unenumerable
-      ('unestablished', 'active-entry-snapshot-unreadable', None)  own snapshot unenumerable
-      ('fail', ['verdict-file-unbound:<file>', ...], None)        snapshot file with no item."""
-    binding, reason = _read_active_entry_binding(run_root_dir, entry, iteration)
-    if reason == 'unreadable':
-        return 'unestablished', 'active-entry-binding-unreadable', None
-    if reason == 'malformed':
-        return 'unestablished', 'active-entry-binding-malformed', None
-    if reason == 'missing':
-        # No current-entry binding. The special no-checklist records still stand (AC5);
-        # otherwise a legacy record lacking an active-entry binding is unestablished for
-        # active-entry completion (AC7), routing the caller to bounded recovery.
-        special = _special_record_grade(run_root_dir)
-        if special is not None:
-            return special
-        return 'unestablished', 'active-entry-binding-missing', None
-    # The binding must describe the caller's exact entry/iteration/reviewed head (AC4) —
-    # a primary binding never answers a shadow ask, and a stale-head binding never answers a
-    # new head.
-    if (binding['entry'] != entry
-            or binding['iteration'] != iteration
-            or binding['reviewed_head'].lower() != (reviewed_head or '').lower()):
-        return 'unestablished', 'active-entry-binding-mismatch', None
-    checklist_path = os.path.join(run_root_dir, binding['checklist_artifact'])
-    verification_path = os.path.join(run_root_dir, binding['verification_artifact'])
-    c_status, c_value = _read_json_array_value(checklist_path)
-    v_status, v_value = _read_json_array_value(verification_path)
-    if c_status == 'malformed' or v_status == 'malformed':
-        return 'unestablished', 'review-artifact-malformed', None
-    missing = []
-    if c_status == 'missing':
-        missing.append('checklist-artifact')
-    if v_status == 'missing':
-        missing.append('verification-artifact')
-    if missing:
-        # A binding whose named artifact is absent is a legitimate generator-failure path when
-        # the phase log records one (AC5); grading the absent artifact as a fail here would drop
-        # that non-fabricated disposition, so the special record stands in as it does run-wide.
-        special = _special_record_grade(run_root_dir)
-        if special is not None:
-            return special
-        return 'fail', missing, None
-    # A recorded digest that no longer matches the on-disk artifact means the bound file was
-    # replaced after the binding was written (another entry overwriting a shared filename),
-    # so the binding no longer describes what is on disk — unestablished, never a pass (AC4).
-    for art_path, recorded in ((checklist_path, binding.get('checklist_sha256')),
-                               (verification_path, binding.get('verification_sha256'))):
-        if not (isinstance(recorded, str) and recorded):
-            # The producer records a null digest only when it could not hash its own artifact.
-            # A present artifact whose binding carries no usable recorded digest cannot be
-            # checked for a post-binding overwrite, so it is unestablished rather than a silent
-            # pass that skips the overwrite check for that artifact (issue #516 hardening).
-            return 'unestablished', 'active-entry-artifact-digest-unestablished', None
-        actual, _sha_reason = _sha256_file(art_path)
-        if actual is None or actual.lower() != recorded.lower():
-            return 'unestablished', 'active-entry-artifact-digest-mismatch', None
-    # Shadow independence (issue #621): the shadow engine writes the same iteration-scoped
-    # filenames the loop used, so evidence the loop produced must never grade as the shadow's.
-    excluded_names = frozenset()
-    if entry == 'shadow':
-        step1_binding, fault = _shadow_step1_binding(run_root_dir, iteration)
-        if fault is not None:
-            return fault
-        if step1_binding is not None:
-            artifact_reason = _shadow_artifact_grade(
-                binding, step1_binding, c_value, v_value)
-            if artifact_reason is not None:
-                return 'unestablished', artifact_reason, None
-            step1_names, names_reason = _snapshot_names(
-                run_root_dir, step1_binding['verdicts_subdir'])
-            if names_reason is not None:
-                return 'unestablished', 'active-entry-step1-snapshot-unreadable', None
-            excluded_names = frozenset(step1_names)
-    reuse_map = {}
-    for r in binding.get('reuse', []):
-        if isinstance(r, dict) and isinstance(r.get('item_id'), str):
-            reuse_map[r['item_id']] = r.get('from_iteration')
-    satisfied, nonce_missing = _active_entry_nonce_satisfied(
-        run_root_dir, entry, binding['verdicts_subdir'], c_value, reuse_map, excluded_names)
-    missing = ['verdict-file:' + m for m in nonce_missing] if not satisfied else []
-    if entry == 'shadow':
-        unbound, unbound_reason = _unbound_snapshot_files(
-            run_root_dir, binding['verdicts_subdir'], c_value, excluded_names)
-        if unbound_reason is not None:
-            return 'unestablished', 'active-entry-snapshot-unreadable', None
-        missing += ['verdict-file-unbound:' + name for name in unbound]
-    if missing:
-        return 'fail', missing, None
-    items = c_value or []
-    agent_count = sum(1 for it in items if _effective_verification_mode(it) == 'agent')
-    return 'pass', None, agent_count
+def _attempt_owner(name):
+    """The item id a verifier attempt file `<item-id>.a<k>.json` belongs to, else None."""
+    match = _ATTEMPT_FILE_RE.match(name)
+    return match.group('id') if match else None
 
 
 def _load_shared_reader():
@@ -1043,7 +785,7 @@ def _offline_owed_check(run_root):
 
 
 def _format_offline_grade(run_root, grade, payload, disproof=None):
-    """Format a `_grade_run_root_detail`/`_grade_active_entry_detail` grade+payload into the
+    """Format a `_grade_run_root_detail`/`_grade_iteration_detail` grade+payload into the
     shared offline (token, [detail...]) shape. `disproof`, when supplied, names the
     checklist-owed reason in the fail detail."""
     if grade == 'unestablished':
@@ -1057,22 +799,21 @@ def _format_offline_grade(run_root, grade, payload, disproof=None):
     if grade == 'pass':
         return 'pass checklist-phases-ran', _detail(
             'review-evidence-gate: offline grading — the run root holds the durable ',
-            'checklist/verification artifact pair and a nonce verifier file for every ',
-            'agent-mode item.')
+            'checklist/verification artifact pair and a verifier attempt file for every ',
+            'dispatched item.')
     owed = f' owes the checklist phases ({disproof}) but' if disproof else ''
-    return f'fail missing={",".join(payload)}', _detail(
+    return _FAIL_MISSING + ','.join(payload), _detail(
         'review-evidence-gate: offline grading — the graded run root ', run_root,
         owed, ' is missing: ', ', '.join(payload), '.')
 
 
-def _phase3_block_files_missing(run_root):
+def _phase3_block_files_missing(run_root, names):
     """The Phase 3 block-file requirement (issue #1156): one regular `p3-<bare name>.md` per
-    always-on reviewer, the offline stand-in for the transcript's dispatch count. Returns
+    named reviewer, the offline stand-in for the transcript's dispatch count. Returns
     (['phase3-block-file:<name>', ...], [unreadable file name, ...]) — a stat error other
     than not-found makes the file unreadable, never missing."""
     missing, unreadable = [], []
-    for subagent in _PHASE3_ALWAYS_ON_SUBAGENTS:
-        name = subagent.split(':', 1)[1]
+    for name in names:
         try:
             if stat.S_ISREG(os.stat(os.path.join(run_root, f'p3-{name}.md')).st_mode):
                 continue
@@ -1085,10 +826,10 @@ def _phase3_block_files_missing(run_root):
     return missing, unreadable
 
 
-def _decide_offline(run_root):
+def _decide_offline(run_root, block_names=_ALWAYS_ON_BLOCKS):
     """Grade a run root offline through the legacy run-wide `_grade_run_root_detail` (issue
     #193 AC1) — no GitHub, ref resolution, reviews payload, or repo checkout — then require
-    the Phase 3 block files on every arm (issue #1156). Returns (token, [detail...])."""
+    the named Phase 3 block files on every arm (issue #1156). Returns (token, [detail...])."""
     token, detail, disproof = _offline_owed_check(run_root)
     grade, payload = None, None
     if token is None:
@@ -1096,7 +837,7 @@ def _decide_offline(run_root):
         token, detail = _format_offline_grade(run_root, grade, payload, disproof)
     if token.startswith('unestablished '):
         return token, detail
-    blocks, unreadable = _phase3_block_files_missing(run_root)
+    blocks, unreadable = _phase3_block_files_missing(run_root, block_names)
     if not blocks and not unreadable:
         return token, detail
     # Read the phase log only now: a complete lean root with a malformed log must still pass.
@@ -1115,27 +856,159 @@ def _decide_offline(run_root):
 
 
 def grade_run_root_offline(run_root_dir):
-    """Public offline run-wide grade for the producer helpers (post-review-verdict.sh via
-    subprocess, loop-verdict-marker.py via install-relative import) — issue #193 AC3/AC5, and
-    the legacy interface issue #516 keeps; issue #1156 adds its Phase 3 block-file
-    requirement. Returns (token, [detail...]); the token's first field is
+    """Public offline run-wide grade (issue #193 AC3/AC5; issue #1156 adds its Phase 3
+    block-file requirement): loop-verdict-marker.py's install-relative import, a bare
+    `--grade-run-root`, and what `grade_posted_verdict_offline` (post-review-verdict.sh's
+    grade) gives a REJECT. Returns (token, [detail...]); the token's first field is
     `pass`/`fail`/`unestablished` exactly as the CLI emits, so a caller admits only an
     explicit `pass ` result."""
     return _decide_offline(run_root_dir)
 
 
-def grade_active_entry_offline(run_root_dir, entry, iteration, reviewed_head):
-    """Public offline ACTIVE-ENTRY grade (issue #516) for loop-verdict-marker.py: the same
-    owed/skip precheck as `grade_run_root_offline`, then grade the named entry against its own
-    producer evidence via `_grade_active_entry_detail`. Returns (token, [detail...]); the
-    token's first field is `pass`/`fail`/`unestablished` exactly as the run-wide grade emits,
-    so a caller admits only an explicit `pass ` result."""
+def _grade_iteration_detail(run_root_dir, n):
+    """Grade fix-loop iteration `n` by its own `checklist-iter-<n>.json` /
+    `verification-iter-<n>.json` pair in `run_root_dir`: every item owes a
+    `verdicts/iter-<n>/<id>.a<k>.json` verifier attempt file, except a carried PASS
+    (`reused_from_iter_prev: true`), whose file is the one its origin iteration
+    (`reused_from_iter`, an int from 1 to n-1) left in `verdicts/iter-<origin>/`. With no
+    checklist, the phase log's generator-failure record stands in. Returns `(grade, payload)` in
+    `_grade_run_root_detail`'s vocabulary."""
+    c_status, items = _read_json_array_value(
+        os.path.join(run_root_dir, f'checklist-iter-{n}.json'))
+    v_status, _rows = _read_json_array_value(
+        os.path.join(run_root_dir, f'verification-iter-{n}.json'))
+    if c_status == 'array' and v_status == 'array':
+        missing = []
+        for item in items:
+            item_id = item.get('id') if isinstance(item, dict) else None
+            if not isinstance(item_id, str) or not item_id:
+                missing.append('unidentified-agent-item')
+                continue
+            k = n
+            if not _dispatched(item):
+                k = item.get('reused_from_iter')
+                if isinstance(k, bool) or not isinstance(k, int) or not 1 <= k < n:
+                    missing.append(item_id)
+                    continue
+            if not _nonce_file_present(run_root_dir, k, item_id):
+                missing.append(item_id)
+        if missing:
+            return 'fail', [_missing_file_token(run_root_dir, n, m) for m in missing]
+        return 'pass', None
+    if 'malformed' in (c_status, v_status):
+        return 'unestablished', 'review-artifact-malformed'
+    # The generator-failure record says no checklist was generated; a present one falsifies it.
+    special = _special_record_grade(run_root_dir) if c_status == 'missing' else None
+    if special is not None:
+        return special[0], special[1]
+    return 'fail', [name for name, status in (('checklist-artifact', c_status),
+                                              ('verification-artifact', v_status))
+                    if status != 'array']
+
+
+def grade_iteration_offline(run_root_dir, iteration):
+    """Public offline grade of ONE fix-loop iteration for loop-verdict-marker.py: the same
+    owed/skip precheck as `grade_run_root_offline`, then `_grade_iteration_detail`. No Phase 3
+    block-file requirement: a fix-loop iteration may legitimately dispatch fewer reviewers
+    than the always-on four (a `first-only` override). Returns (token, [detail...]) in the
+    run-wide grade's shape."""
     token, detail, disproof = _offline_owed_check(run_root_dir)
     if token is not None:
         return token, detail
-    grade, payload, _agent_count = _grade_active_entry_detail(
-        run_root_dir, entry, iteration, reviewed_head)
+    grade, payload = _grade_iteration_detail(run_root_dir, iteration)
     return _format_offline_grade(run_root_dir, grade, payload, disproof)
+
+
+def _planned_block_names(run_root):
+    """The posted-verdict roster beyond the always-on three (issue #1656): the final pass, plus
+    each gated reviewer whose `engine-setup.json` flag is true.
+    Returns (names, unestablished reason or None, [detail...])."""
+    names = [_FINAL_PASS_BLOCK]
+    path = os.path.join(run_root, 'engine-setup.json')
+
+    def malformed(defect):
+        return names, 'engine-setup-malformed', _detail(
+            'review-evidence-gate: ', path, ' ', defect, ', so the gated reviewers it selects ',
+            'are unknown.')
+    try:
+        with open(path, encoding='utf-8') as fh:
+            setup = json.load(fh)
+    except FileNotFoundError:
+        return malformed('is absent')
+    except ValueError:  # includes a non-UTF-8 byte
+        return malformed('is not valid JSON')
+    except OSError as e:
+        return names, 'engine-setup-unreadable', _detail(
+            'review-evidence-gate: could not read ', path, f' ({type(e).__name__}).')
+    if not isinstance(setup, dict):
+        return malformed('is not a JSON object')
+    flags = setup.get('flags')
+    if not isinstance(flags, dict):
+        return malformed('has no `flags` object')
+    for key, _ in _GATED_BLOCKS:
+        if key in flags and not isinstance(flags[key], bool):
+            return malformed(f'records flags.{key} = {json.dumps(flags[key])}, not a boolean')
+    for key, name in _GATED_BLOCKS:
+        if key not in flags:
+            return malformed(f'has no flags.{key}')
+        if flags[key]:
+            names.append(name)
+    return names, None, []
+
+
+def _threshold_id_token(rid):
+    """A checklist FAIL id as a space- and comma-free `missing=` token suffix."""
+    if isinstance(rid, str) and rid and not re.search(r'[\s,]', rid):
+        return 'checklist-fail-at-threshold:' + rid
+    return 'checklist-fail-at-threshold:unidentified'
+
+
+def grade_posted_verdict_offline(run_root, verdict, threshold):
+    """`grade_run_root_offline` for a verdict about to be posted (issue #1656): an APPROVE also
+    owes the planned roster's block files and no checklist FAIL that counts at `threshold`
+    (verdict_report.checklist_reject_ids); a REJECT, which approves nothing, owes only the
+    default grade. An unestablished base grade stands; an established fail unions every missing
+    token, and takes each unknown cause as a token too when a block file is among them; any other
+    unknown grades unestablished. Returns (token, [detail...])."""
+    if verdict == 'REJECT':
+        return _decide_offline(run_root)
+    names, setup_reason, notes = _planned_block_names(run_root)
+    token, detail = _decide_offline(run_root, _ALWAYS_ON_BLOCKS + tuple(names))
+    if token.startswith('unestablished '):
+        return token, detail
+    # The base grade's list is read from its token, the form every reader of the grade routes on.
+    failed = token.startswith(_FAIL_MISSING)
+    missing = token[len(_FAIL_MISSING):].split(',') if failed else []
+    unknown = [setup_reason] if setup_reason else []
+    report, err = _load_sibling('verdict_report.py', 'review_gate_verdict_report')
+    if report is None:
+        unknown.append('verdict-report-unloadable')
+        notes += _detail('review-evidence-gate: could not import scripts/verdict_report.py (',
+                         err or '', '), so the threshold check is unavailable.')
+    elif threshold not in report.SEVERITIES:
+        unknown.append('threshold-invalid')
+        notes += _detail('review-evidence-gate: --threshold ', repr(threshold), ' is not one of ',
+                         '/'.join(report.SEVERITIES), ', so the threshold check is unavailable.')
+    else:
+        ids, reason = report.checklist_reject_ids(run_root, threshold)
+        if ids is None:
+            unknown.append('checklist-unreadable')
+            notes += _detail('review-evidence-gate: could not read the stored checklist verdicts ',
+                             'or their checklist in ', run_root, ' (', str(reason), ').')
+        elif ids:
+            missing += [_threshold_id_token(rid) for rid in ids]
+            notes += _detail('review-evidence-gate: the posted APPROVE carries checklist ',
+                             'FAIL(s) that count at the ', threshold, ' threshold: ',
+                             ', '.join(str(rid) for rid in ids), '.')
+            if reason:
+                notes += _detail('review-evidence-gate: ', str(reason), '.')
+    if any(t.startswith('phase3-block-file:') for t in missing):
+        missing += unknown
+    if missing:
+        return _FAIL_MISSING + ','.join(missing), (detail if failed else []) + notes
+    if unknown:
+        return 'unestablished ' + unknown[0], notes
+    return token, detail + notes
 
 
 def _decide(args):
@@ -1376,8 +1249,8 @@ def _force_utf8_streams():
 def main(argv=None):
     _force_utf8_streams()
     parser = argparse.ArgumentParser(
-        description='Fail a cloud review run whose posted verdict lacks phase-execution '
-                    'evidence (issue #2075). Exits 0 for every decision outcome once '
+        description='Grade a review verdict against its run\'s phase-execution evidence '
+                    '(issue #2075). Exits 0 for every decision outcome once '
                     'arguments parse; the caller reads stdout line 1 for the verdict '
                     'token.')
     # The six cloud-path flags are required=False so `--grade-run-root` (issue #193 AC1) can
@@ -1405,8 +1278,21 @@ def main(argv=None):
                         help='the harness transcript (issues #193, #1051): count actual '
                              'checklist-verifier and always-on Phase 3 reviewer dispatch '
                              'events as a cloud-path backstop.')
+    parser.add_argument('--posted-verdict', choices=('APPROVE', 'REJECT'),
+                        help='with --grade-run-root and --threshold (issue #1656): the marker '
+                             'verdict about to be posted; an APPROVE also owes the planned '
+                             'roster\'s block files and no checklist FAIL that counts at the '
+                             'threshold.')
+    parser.add_argument('--threshold',
+                        help='with --posted-verdict: the verdict severity threshold, one of '
+                             'verdict_report.py\'s SEVERITIES; an APPROVE under any other value '
+                             'is never graded a pass.')
     args = parser.parse_args(argv)
 
+    if (args.posted_verdict is None) != (args.threshold is None):
+        parser.error('--posted-verdict and --threshold must be given together')
+    if args.posted_verdict is not None and not args.grade_run_root:
+        parser.error('--posted-verdict and --threshold require --grade-run-root')
     if args.grade_run_root is None:
         _missing = [name for name, value in (
             ('--pre-inventory', args.pre_inventory),
@@ -1419,8 +1305,13 @@ def main(argv=None):
     # decision routes to an unestablished arm (a warning), never a traceback that would end
     # the step non-zero and fail the job on the gate's own bug.
     try:
-        token, detail = (_decide_offline(args.grade_run_root)
-                         if args.grade_run_root else _decide(args))
+        if args.posted_verdict is not None:
+            token, detail = grade_posted_verdict_offline(
+                args.grade_run_root, args.posted_verdict, args.threshold)
+        elif args.grade_run_root:
+            token, detail = _decide_offline(args.grade_run_root)
+        else:
+            token, detail = _decide(args)
     except Exception as e:  # a decision fault must never crash the step
         token = 'unestablished internal-error'
         detail = _detail('review-evidence-gate: an unexpected internal error occurred (',

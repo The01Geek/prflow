@@ -94,7 +94,7 @@ The report is compact — kept under 1,000 words — and names four fields:
 - **Doc verdict and location** — one of `RELIABLE`, `UNRELIABLE` or `ABSENT`, together with the internal-doc location the run resolved. It describes the internal documentation only, a wrong default in a schema or a stale code comment being reported under current behavior instead. It is returned by default and under `--lead docs`; a `--lead code` run does not return it.
 - **Relevant files** — the files that implement the topic, marked to show the minimum set someone must read, with file and line references for the entry points, guards and writers.
 - **Current behavior** — what the code actually does today, including the failure paths and non-obvious couplings you would otherwise find the hard way.
-- **Duty statuses** — what the run established and what it did not, with a one-clause reason for each duty it could not establish.
+- **Not established** — what the run reports it did not do or establish: each duty it skipped or could not establish, and each internal-documentation page it located but did not read in full, with a one-clause reason each; `none` when nothing qualifies.
 
 You can steer where the run starts. `--lead docs` reads the internal documentation first (from its index) before turning to the code; `--lead code` starts from the code and treats documentation as supporting evidence. With no `--lead`, the run reads documentation then code and returns the doc verdict.
 
@@ -102,7 +102,7 @@ You can steer where the run starts. `--lead docs` reads the internal documentati
   `ABSENT` means no internal document covers the topic. If the documentation location itself could not be read, the run says so instead — an absence it could not establish is not an established absence.
 </Tip>
 
-[Create an Issue](/docs/workflows/spec) uses this same report-only mode to understand a topic before drafting a ticket: it dispatches two of these runs at once, one led by the docs and one led by the code.
+[Create an Issue](/docs/workflows/spec) runs this report-only discovery with `--lead docs` alongside an independent investigator of request-specific assumptions, constraints and conditional risks before drafting a ticket.
 
 Drop `--report-only` and the same command fixes the internal documentation it found wrong.
 

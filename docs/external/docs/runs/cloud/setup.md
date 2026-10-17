@@ -75,6 +75,8 @@ This is a second, separate GitHub App, used only by the `/prflow:review` comment
 
 Install it on the repository with a narrower permission set than the primary App: `Contents: read`, `Issues: read`, `Pull requests: write` and `Actions: read`. It reads the repository, the issue and CI results, and it posts comments and formal reviews. It cannot push.
 
+Its token expires after 60 minutes, so a `/prflow:review` run with this App configured re-mints it at the same permission set every 45 minutes, retrying every 2 minutes after a failed refresh. A review that outlives the hour can then still post its verdict. When the vendored PRFlow scripts predate this refresh, the run starts none and logs a warning; bump `prflow_version` in `.prflow/config.json` to enable it. Without the reviewer App, no refresh runs.
+
 Why a second App exists: GitHub does not let an identity approve or request changes on its own pull request. When the same identity both authors a pull request and reviews it, the formal review cannot be recorded.
 
 <Warning>

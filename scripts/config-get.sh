@@ -281,9 +281,9 @@ sys.stdout.write("." + ".".join(old))
 }
 
 # Telemetry master-key inheritance (issue #2035): 0 iff "$1" is one of the five
-# enrolled default-true telemetry gates AND telemetry.enabled is the JSON boolean
+# enrolled telemetry gates AND telemetry.enabled is the JSON boolean
 # false. Best-effort: missing python3 -> 1; a read/parse error -> 2; every
-# non-zero means telemetry on.
+# non-zero preserves the caller's fallback.
 telemetry_master_disables_for() {
     case "$1" in
         prflow_review_and_fix.efficiency_telemetry_enabled|\

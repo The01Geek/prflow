@@ -2,10 +2,10 @@
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
 # review-dirty-tree.sh SUBCOMMAND … — the review engine's dirty-tree backstop
-# (issue #2082). Snapshots the working tree before the Phase 3.1 review-agent
-# dispatch and compares/restores after it, so advisory review agents cannot
-# leave a mutation behind. Owns the whole snapshot/authenticate/compare/restore
-# loop that used to live inline in skills/review/phases/phase-3-agents.md §3.1/§3.2.
+# (issue #2082). Owns the whole snapshot/authenticate/compare/restore loop: Phase 0.2's
+# engine-setup takes the snapshot before the engine dispatches any agent and the
+# Phase 3.2 fence runs the compare, so the window covers the agents dispatched between
+# the two and none dispatched later (Phase 4.1's re-verification).
 #
 # WHY A HELPER, not an inline fence (issue #2082): the fence was written with
 # `${GIT_SNAP_BEFORE:-…}` expansions and `>` redirects, and the cloud permission
@@ -22,9 +22,9 @@
 #
 # The object ID that AUTHORISES a restore is held by the orchestrator (printed by
 # `snapshot`) and passed back to `compare-and-restore` as a literal argument — never
-# read from agent-writable scratch (issue #2082 AC4). The `entry-close` arm (issue #898)
-# is the one exception by design: it reads the OID file the loop already persists and
-# re-reads for compaction resilience, adding no trust boundary the loop does not carry.
+# read from agent-writable scratch (issue #2082 AC4). The loop's `entry-close` is the one
+# exception by design: it reads the OID file entry-open wrote, adding no trust boundary the
+# loop does not carry.
 #
 # CONTRACT — subcommands (each takes OPTIONAL trailing literal path operands BEFORE AFTER DISABLED,
 # issue #513 — precedence arg > GIT_SNAP_* env seam > default for BEFORE/AFTER; DISABLED has no env
@@ -45,13 +45,13 @@
 #     ??->staged transition is in-scope dirt, not already-dirty). Short-circuits on the disabled
 #     sentinel, emitting a DISABLED/SKIPPED breadcrumb.
 #     Emits the same `::warning::` breadcrumbs the inline fence did. Exit 0.
-#   engine-setup ARGS… / engine-return ARGS… / view-materialize ARGS…
-#     The review engine's one-call setup, return-file assembly, and commit-bound source-view
-#     materialization (issue #851), hosted here because this head is granted on every tier;
-#     the work and the argument contract live in the sibling review-engine-io.py. engine-setup
-#     takes the `snapshot` LAST — after the diff cache is published, before the engine dispatches
-#     any child — and its object ID reaches stdout only. Exit: the sibling's (0 ok/empty, 1 stop,
-#     2 usage).
+#   engine-setup ARGS… / engine-brief ARGS… / engine-return ARGS…
+#     The review engine's one-call setup, review brief and return-file assembly, hosted here because this head is granted on every
+#     tier; the work and the argument contract live in the sibling review-engine-io.py. engine-setup
+#     reads `.base_branch` through config-get.sh and, without --run-id, mints the run key through
+#     compose-run-key.sh (the same seams loop-setup uses), then takes the `snapshot` LAST — after
+#     the diff cache and views are published, before the engine dispatches any child — and its
+#     object ID reaches stdout only. Exit: the sibling's (0 ok/empty, 1 stop, 2 usage).
 #   loop-setup [--pr N] / branch-sync --pr N
 #     The review-and-fix loop's one-call setup and PR-head branch-sync (issue #894), hosted
 #     here for the same granted-head reason; the work lives in the sibling review-loop-io.py.
@@ -61,32 +61,31 @@
 #     engine-setup uses, creates the run dir, persists loop-setup.json and prints one JSON line;
 #     it runs no gh. branch-sync: the producer runs the git/gh reads and prints the comparison —
 #     no checkout, no git-state change. Exit: the sibling's (0 ok, 1 error, 2 usage).
-#   entry-open --run-root DIR --entry step1|shadow --iteration N
-#   entry-close --run-root DIR --entry step1|shadow --iteration N --head SHA --branch NAME
+#   entry-open --contract 3 --run-root DIR --entry step1|shadow --iteration N
+#   entry-close --contract 3 --run-root DIR --entry step1|shadow --iteration N --branch NAME
 #     The review-and-fix loop's per-engine-entry bracket (issue #898), one call each side of a
-#     dispatch, printing one JSON line on stdout. entry-open deletes DIR/diff.patch and every
-#     DIR/batch-*.patch (the re-entrant freshness deletion), takes the `snapshot` to
-#     .prflow/tmp/review/dt-<s1|shadow>-N-{before,after,disabled} and writes the object ID to
-#     .prflow/tmp/review/dt-<s1|shadow>-N-oid.txt — the same files the loop's fallback fences
-#     use, so either side of the bracket interoperates with the fence form of the other.
-#     Line: {status:"ok", entry, iteration, cache_deleted:[…], snapshot:"taken"|"disabled", oid,
-#     oid_file}. entry-close runs the post-return branch guard (`git rev-parse --abbrev-ref HEAD`
-#     against --branch; on inequality the line is {status:"branch-mismatch", branch, expected},
-#     on a failed or empty read {status:"branch-unestablished", expected} — nothing else runs on
-#     either), then reads the OID file the open arm wrote (the loop's own persisted copy of the
-#     ID `snapshot` printed — this arm, unlike a direct compare-and-restore, takes no OID
-#     operand), checks the outer disabled sentinel and
-#     runs `compare-and-restore` for the entry's files, classifying its breadcrumbs into
-#     restore: "clean" | "restored" | "not-restored" | "blocked" (an OID file missing or empty,
-#     a missing/forged before file, a SKIPPED/DISABLED/still-dirty breadcrumb, the outer
-#     sentinel present, or an unrecognized breadcrumb — fail closed), then runs the sibling
-#     loop-verdict-marker.py `write-active-entry-binding` and `check-evidence` with the same
-#     operands and relays check-evidence's line-1 first token, exit code and line as
-#     evidence:{token, exit, line} ("" / the observed code when the marker is absent). Line:
-#     {status:"ok", branch, restore, restore_detail:[…], evidence:{…}}. Errors print
-#     {status:"error", step, reason}: `arguments`/`run-root` exit 2; `cache` (a survivor after
-#     deletion) exit 1. `iteration` and `evidence.exit` are JSON numbers, `cache_deleted` and
-#     `restore_detail` arrays, every other field a string.
+#     dispatch, printing one JSON line on stdout. Shadow entry-open first removes DIR-shadow;
+#     then entry-open deletes the entry's stale inputs
+#     and outputs — DIR/diff.patch, every DIR/batch-*.patch, iteration N's
+#     checklist-iter-N.json / verification-iter-N.json, DIR/verdicts/iter-N/, every
+#     DIR/p3-*.md, DIR/phase-log and the entry's DIR/engine-return-<entry>-iter-N.json — so
+#     the entry's Phase 0.2 rebuilds the diff at HEAD and
+#     entry-close grades only what this entry wrote; then takes the `snapshot` to
+#     .prflow/tmp/review/dt-<s1|shadow>-N-{before,after,disabled}, writes the object ID to
+#     .prflow/tmp/review/dt-<s1|shadow>-N-oid.txt, the working-tree and index tree IDs to
+#     .prflow/tmp/review/dt-<s1|shadow>-N-content.txt (empty when they cannot be recorded, the
+#     cause then in dt-<s1|shadow>-N-content-err.txt) and HEAD to …-head.txt, and on a step1
+#     entry at N >= 2 runs review-loop-io.py `prior`. Line: {status:"ok", entry, iteration,
+#     cache_deleted:[…], snapshot:"taken"|"disabled", oid, oid_file, prior:{…}|null}.
+#     entry-close is the sibling review-loop-io.py `entry-close` (branch guard, the restore of
+#     tracked files the engine changed, shadow migration from DIR-shadow into DIR, the retained
+#     evidence copies, the engine return's grade and the entry's evidence grade).
+#     Errors print {status:"error", step, reason}: `arguments`/`run-root` exit 2;
+#     `cache` (a survivor after deletion), `content` (a content record it can neither replace
+#     nor clear), `head` (HEAD not recorded), `run-dir` (shadow removal/migration failed) and
+#     `repo-root` (git or the environment unavailable) exit 1. Migration errors retain the restoration fields; an unestablished dirty check
+#     still requires the loop to stop. Without `--contract 3` both arms
+#     refuse (exit 2).
 #
 # Portability: bash 3.2 / BSD userland, no GNU-only flags (indexed-array linear scan,
 # never `declare -A`; NUL-safe `read -r -d ''`).
@@ -96,7 +95,6 @@ set -u
 SNAP_BEFORE="${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}"
 SNAP_AFTER="${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}"
 DISABLED_SENTINEL=".prflow/tmp/review-dirty-tree-disabled"
-OUTER_DISABLED_SENTINEL="$DISABLED_SENTINEL"
 ENGINE_IO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/review-engine-io.py"
 LOOP_IO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/review-loop-io.py"
 # The loop-setup host runs compose-run-key.sh and config-get.sh itself (issue #894); the
@@ -106,10 +104,6 @@ LOOP_IO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/review-loop-io.py"
 # emitted skill command names neither.
 LOOP_COMPOSE_RUN_KEY="${LOOP_COMPOSE_RUN_KEY:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/compose-run-key.sh}"
 LOOP_CONFIG_GET="${LOOP_CONFIG_GET:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/config-get.sh}"
-# The entry bracket's evidence half (issue #898) runs the sibling marker script; the
-# LOOP_VERDICT_MARKER env seam is retained INTERNALLY so the suite can point it at a stub,
-# exactly like GIT_SNAP_*; the emitted skill command never names it.
-LOOP_VERDICT_MARKER="${LOOP_VERDICT_MARKER:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/loop-verdict-marker.py}"
 
 cmd_snapshot() {
   if ! mkdir -p .prflow/tmp 2>/dev/null; then
@@ -165,7 +159,7 @@ cmd_compare_and_restore() {
        [ -L "$SNAP_AFTER" ]; then
     # After-snapshot failed. Do NOT misattribute a git failure as an agent mutation or
     # restore off an empty AFTER — surface a DISTINCT, attributable breadcrumb instead.
-    echo "::warning::devflow review: could not create a regular working-tree snapshot after the Phase 3.1 dispatch (stale-path removal, git status, or regular-file validation failed); dirty-tree verification SKIPPED this dispatch — this is NOT an agent mutation" >&2
+    echo "::warning::devflow review: could not create a regular working-tree snapshot after this dispatch window (stale-path removal, git status, or regular-file validation failed); dirty-tree verification SKIPPED this dispatch — this is NOT an agent mutation" >&2
     rm -f "$SNAP_AFTER" 2>/dev/null
   else
     # Compare the two NUL-delimited (`-z`) snapshots. `cmp` rc: 0 identical, 1 differ, >=2 ERROR.
@@ -203,7 +197,7 @@ cmd_compare_and_restore() {
             before_paths+=("$rec")
             continue
           fi
-          case "${rec:0:1}" in [RC]) before_orig=1 ;; esac   # index column (X) only: the two-record shape is emitted iff X is R/C
+          case "${rec:0:2}" in [RC]?|?[RC]) before_orig=1 ;; esac   # either column: a work-tree (intent-to-add) rename is also two records
           case "${rec:0:2}" in '??') before_untracked+=("${rec:3}") ;; esac
           before_paths+=("${rec:3}")
         done < "$SNAP_BEFORE" || before_extract_rc=$?
@@ -211,6 +205,7 @@ cmd_compare_and_restore() {
         if [ "$before_extract_rc" -ne 0 ]; then
           echo "::warning::devflow review: could not extract the before-snapshot path set (rc=$before_extract_rc); dirty-tree restore SKIPPED this dispatch — nothing auto-restored" >&2
         else
+          # Deliberately unlike review-loop-io.py `_engine_records` (which resets a rename's original): left for a human.
           # AFTER: a rename/copy is surfaced-not-restored; a normal entry is classified by a
           # whole-record exact-string scan of `before_paths` (`[ "$bp" = "${rec:3}" ]`), so a
           # spaced/newline/glob path matches only itself. Absent from BEFORE → restore set; present in
@@ -221,8 +216,8 @@ cmd_compare_and_restore() {
           rec=
           while IFS= read -r -d '' rec; do
             if [ "$after_orig" = 1 ]; then after_orig=0; continue; fi
-            case "${rec:0:1}" in   # index column (X) only: a rename/copy (X = R/C) emits the two-record shape
-              [RC]) printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-renamed-paths" || { after_extract_rc=$?; break; }; after_orig=1; continue ;;
+            case "${rec:0:2}" in   # either column: a work-tree (intent-to-add) rename is also two records
+              [RC]?|?[RC]) printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-renamed-paths" || { after_extract_rc=$?; break; }; after_orig=1; continue ;;
             esac
             # Never restore scratch under .prflow/tmp (issue #513): a parent's own in-window OID/snapshot
             # files live there, so restoring them would delete the outer window's own bookkeeping.
@@ -253,19 +248,19 @@ cmd_compare_and_restore() {
             if [ ! -s ".prflow/tmp/review-dirty-tree-changed-paths" ]; then
               if [ -n "$RENAMED_NAMES" ]; then
                 # The only divergence is a rename/copy: surfaced, never auto-restored (index surgery needed).
-                echo "::warning::devflow review: a Phase 3.1 review-agent dispatch renamed/copied tracked path(s) [ ${RENAMED_NAMES}]; not auto-restored (a staged rename needs index surgery) — left for the Step 2.6 shadow and the human" >&2
+                echo "::warning::devflow review: this dispatch window renamed/copied tracked path(s) [ ${RENAMED_NAMES}]; not auto-restored — left as-is for human inspection" >&2
               else
                 # Divergence with an EMPTY restore set and no rename — the by-path set can be empty
                 # from an already-dirty path's status-byte change, a dirty->clean transition, or a
                 # divergence confined to skipped .prflow/tmp scratch; the cause cannot be determined here.
-                echo "::warning::devflow review: a Phase 3.1 review-agent dispatch diverged the working tree but the by-path restore set is empty (an already-dirty path's status byte changed, a dirty->clean transition, or the only differing paths were skipped .prflow/tmp scratch — the cause cannot be determined here); nothing auto-restored — left for the Step 2.6 shadow and the human" >&2
+                echo "::warning::devflow review: this dispatch window diverged the working tree but the by-path restore set is empty (an already-dirty path's status byte changed, a dirty->clean transition, or the only differing paths were skipped .prflow/tmp scratch — the cause cannot be determined here); nothing auto-restored — left as-is for human inspection" >&2
               fi
             else
               # Restore the snapshot-delta paths per-path from HEAD — NOT `git checkout -- "$p"`, which
               # restores from the INDEX and re-materializes a STAGED mutation while exiting 0 (fail-open).
               # Trust the TREE STATE not the exit code: re-check `git status` and breadcrumb iff still dirty (an untracked file is never auto-deleted).
               CHANGED_NAMES=$(tr '\0' ' ' < ".prflow/tmp/review-dirty-tree-changed-paths")
-              echo "::warning::devflow review: a Phase 3.1 review-agent dispatch modified the working tree (advisory review agents must never mutate it); affected paths: [ ${CHANGED_NAMES}]${RENAMED_NAMES:+ (plus surfaced-not-restored rename/copy: [ ${RENAMED_NAMES}])}; recording an Important finding and attempting best-effort restore of the snapshot delta (per-path outcome in the warnings below)" >&2
+              echo "::warning::devflow review: this dispatch window modified the working tree (advisory review agents must never mutate it); affected paths: [ ${CHANGED_NAMES}]${RENAMED_NAMES:+ (plus surfaced-not-restored rename/copy: [ ${RENAMED_NAMES}])}; attempting best-effort restore of the snapshot delta (a path the restore leaves dirty is named below)" >&2
               while IFS= read -r -d '' p; do
                 [ -n "$p" ] || continue
                 restore_err=$(git checkout HEAD -- "$p" 2>&1)
@@ -293,7 +288,16 @@ cmd_compare_and_restore() {
 }
 
 cmd_engine_setup() {
-  local record oid rc=0
+  # The host runs the .sh work (the producer executes none): the configured base read, and
+  # the run key when the caller passed no --run-id.
+  local record oid rc=0 a cfg cfg_rc=0 run_key key_rc=0 have_run_id=0
+  for a in "$@"; do case "$a" in --run-id|--run-id=*) have_run_id=1 ;; esac; done
+  cfg="$("$LOOP_CONFIG_GET" --scalar .base_branch main)" || cfg_rc=$?
+  set -- "$@" --cfg-base-branch "$cfg" --cfg-base-branch-rc "$cfg_rc"
+  if [ "$have_run_id" -eq 0 ]; then
+    run_key="$("$LOOP_COMPOSE_RUN_KEY")" || key_rc=$?
+    set -- "$@" --run-id "$run_key" --run-key-rc "$key_rc"
+  fi
   record="$(python3 "$ENGINE_IO" setup-prepare "$@")" || rc=$?
   case "$record" in
     record:*) ;;
@@ -313,11 +317,10 @@ cmd_loop_setup() {
   # read is --scalar (so an array/object resolves as unset, never coerced to a scalar). The
   # three int/enum reads carry NO default, so the producer distinguishes a resolver failure
   # (rc 2) from an absent key (rc 1) from a present value (rc 0) and applies each key's own
-  # clamp/default. The telemetry read DOES pass the `true` default, mirroring the pre-#894
-  # loop-exit.md `config-get.sh ... true` read: config-get.sh owns the schema default (true)
-  # and the #2035 telemetry.enabled master inheritance on the miss path, so a default-config
-  # repo (key unset) resolves to true, not the producer's fail-closed false — keeping
-  # telemetry (the effectiveness trace and permission-denial forensics) ON by default. Read
+  # clamp/default. The effectiveness read DOES pass the `false` fallback: an unset key
+  # then resolves to false at rc 0 (opt-in default) instead of the miss path, so the
+  # producer prints no "not configured; using default" breadcrumb every run; config-get.sh
+  # still applies the #2035 telemetry.enabled master inheritance on that path. Read
   # each rc on its own line: `local x=$(…)` would mask the substitution's status behind
   # `local`'s own.
   local run_key mi mi_rc ft ft_rc fb fb_rc et et_rc
@@ -325,7 +328,7 @@ cmd_loop_setup() {
   mi="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.max_iterations)"; mi_rc=$?
   ft="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.fix_severity_threshold)"; ft_rc=$?
   fb="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.fix_below_threshold_iterations)"; fb_rc=$?
-  et="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.efficiency_telemetry_enabled true)"; et_rc=$?
+  et="$("$LOOP_CONFIG_GET" --scalar .prflow_review_and_fix.efficiency_telemetry_enabled false)"; et_rc=$?
   python3 "$LOOP_IO" loop-setup \
     --run-key "$run_key" \
     --cfg-max-iterations "$mi" --cfg-max-iterations-rc "$mi_rc" \
@@ -362,25 +365,23 @@ entry_error() {  # STEP REASON EXIT
   return "$3"
 }
 
-# Parse the bracket's named operands into ENTRY_RUN_ROOT / ENTRY_KIND / ENTRY_ITER / ENTRY_HEAD /
-# ENTRY_BRANCH and derive the entry's scratch paths. `$1` names the arm (open|close) so the
-# close-only operands are required only there. Prints the error line itself; returns 2 on a
-# usage error so the caller can `return` it.
+# Parse entry-open's named operands into ENTRY_RUN_ROOT / ENTRY_KIND / ENTRY_ITER and derive the
+# entry's scratch paths. Prints the error line itself; returns 2 on a usage error.
 parse_entry_args() {
-  local arm="$1"; shift
-  ENTRY_RUN_ROOT=""; ENTRY_KIND=""; ENTRY_ITER=""; ENTRY_HEAD=""; ENTRY_BRANCH=""
+  local contract=""
+  ENTRY_RUN_ROOT=""; ENTRY_KIND=""; ENTRY_ITER=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --contract)  [ "$#" -ge 2 ] || { entry_error arguments "--contract needs a value" 2; return 2; }; contract="$2"; shift 2 ;;
       --run-root)  [ "$#" -ge 2 ] || { entry_error arguments "--run-root needs a value" 2; return 2; }; ENTRY_RUN_ROOT="$2"; shift 2 ;;
       --entry)     [ "$#" -ge 2 ] || { entry_error arguments "--entry needs a value" 2; return 2; }; ENTRY_KIND="$2"; shift 2 ;;
       --iteration) [ "$#" -ge 2 ] || { entry_error arguments "--iteration needs a value" 2; return 2; }; ENTRY_ITER="$2"; shift 2 ;;
-      --head)      [ "$#" -ge 2 ] || { entry_error arguments "--head needs a value" 2; return 2; }; ENTRY_HEAD="$2"; shift 2 ;;
-      --branch)    [ "$#" -ge 2 ] || { entry_error arguments "--branch needs a value" 2; return 2; }; ENTRY_BRANCH="$2"; shift 2 ;;
       *) entry_error arguments "unknown operand '$1'" 2; return 2 ;;
     esac
   done
+  [ "$contract" = 3 ] || { entry_error arguments "--contract 3 is required (this helper retired the earlier entry-open contracts)" 2; return 2; }
   # An unsubstituted `<placeholder>` in any operand is a prose slot the caller never filled.
-  case "${ENTRY_RUN_ROOT}${ENTRY_KIND}${ENTRY_ITER}${ENTRY_HEAD}${ENTRY_BRANCH}" in
+  case "${ENTRY_RUN_ROOT}${ENTRY_KIND}${ENTRY_ITER}" in
     *'<'*|*'>'*) entry_error arguments "an operand carries an unsubstituted <placeholder>" 2; return 2 ;;
   esac
   case "$ENTRY_KIND" in
@@ -391,34 +392,77 @@ parse_entry_args() {
   case "$ENTRY_ITER" in
     ''|*[!0-9]*|0*) entry_error arguments "--iteration must be a positive integer (got '${ENTRY_ITER}')" 2; return 2 ;;
   esac
-  if [ "$arm" = close ]; then
-    case "$ENTRY_HEAD" in
-      *[!0-9a-f]*|'') entry_error arguments "--head must be a 40-hex commit id" 2; return 2 ;;
-    esac
-    [ "${#ENTRY_HEAD}" -eq 40 ] || { entry_error arguments "--head must be a 40-hex commit id" 2; return 2; }
-    [ -n "$ENTRY_BRANCH" ] || { entry_error arguments "--branch needs a non-empty value" 2; return 2; }
-  fi
   [ -n "$ENTRY_RUN_ROOT" ] || { entry_error run-root "--run-root is required" 2; return 2; }
   [ -d "$ENTRY_RUN_ROOT" ] || { entry_error run-root "run root '${ENTRY_RUN_ROOT}' is not a directory" 2; return 2; }
   SNAP_BEFORE=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-before"
   SNAP_AFTER=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-after"
   DISABLED_SENTINEL=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-disabled"
   ENTRY_OID_FILE=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-oid.txt"
+  ENTRY_HEAD_FILE=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-head.txt"
+  ENTRY_CONTENT_FILE=".prflow/tmp/review/dt-${ENTRY_TAG}-${ENTRY_ITER}-content.txt"
+  return 0
+}
+
+# Write the entry's content record: "<working-tree tree> <index tree>". `git stash create` prints
+# nothing when no tracked path but a submodule differs from HEAD; then HEAD's tree and the index's
+# own, so a staged gitlink is not read as an engine change. Never `git commit-tree`: with no
+# identity configured it can fail, where `git stash create` falls back to a built-in one (an
+# empty `user.name` fails both). A record it can neither replace nor clear fails the entry (`content`,
+# exit 1), since entry-close would restore to an earlier run's content.
+record_entry_content() {
+  local stash wt="" idx="" cause="" said="" err="${ENTRY_CONTENT_FILE%.txt}-err.txt" errto
+  rm -f "$ENTRY_CONTENT_FILE" "$err" 2>/dev/null
+  # A redirect that cannot be opened skips its command, so an unwritable err file goes unused.
+  errto="$err"
+  : 2>/dev/null > "$err" || errto=/dev/null
+  if ! stash="$(git stash create 2>"$errto")"; then
+    cause='git stash create failed'; IFS= read -r said 2>/dev/null < "$errto" || :
+  elif [ -n "$stash" ]; then
+    { wt="$(git rev-parse --verify -q "${stash}^{tree}")" && idx="$(git rev-parse --verify -q "${stash}^2^{tree}")"; } \
+      || cause='git rev-parse could not resolve the stash trees'
+  elif ! wt="$(git rev-parse --verify -q 'HEAD^{tree}')"; then
+    cause="git rev-parse could not resolve HEAD's tree"
+  elif ! idx="$(git write-tree 2>"$errto")"; then
+    cause='git write-tree failed'; IFS= read -r said 2>/dev/null < "$errto" || :
+  fi
+  if [ -z "$cause" ]; then
+    if printf '%s %s\n' "$wt" "$idx" 2>/dev/null > "$ENTRY_CONTENT_FILE"; then
+      rm -f "$err" 2>/dev/null
+      return 0
+    fi
+    cause='the record write failed'
+  fi
+  printf '%s\n' "${cause}${said:+: $said}" 2>/dev/null > "$err" || :
+  : 2>/dev/null > "$ENTRY_CONTENT_FILE"
+  if [ -f "$ENTRY_CONTENT_FILE" ] && [ -s "$ENTRY_CONTENT_FILE" ]; then
+    entry_error content "could not replace or clear ${ENTRY_CONTENT_FILE}, which may hold an earlier run's content" 1
+    return 1
+  fi
+  echo "::warning::devflow review: could not record the working-tree and index content in ${ENTRY_CONTENT_FILE} (${cause}${said:+: $said}); entry-close falls back to the status snapshot alone" >&2
   return 0
 }
 
 cmd_entry_open() {
-  parse_entry_args open "$@" || return $?
-  local f deleted="" survivor="" oid snapshot nl=$'\n'
-  # Re-entrant freshness: the entry's Phase 0.2 rebuilds the cache at HEAD. Deleting an absent
-  # cache is a no-op, so the first entry needs no special arm. Deletion only — never a rebuild.
-  for f in "$ENTRY_RUN_ROOT/diff.patch" "$ENTRY_RUN_ROOT"/batch-*.patch; do
+  parse_entry_args "$@" || return $?
+  local f deleted="" survivor="" oid snapshot nl=$'\n' r="$ENTRY_RUN_ROOT" n="$ENTRY_ITER"
+  if [ "$ENTRY_KIND" = shadow ]; then
+    python3 "$LOOP_IO" shadow-open --run-root "$r" || return $?
+  fi
+  # Freshness: the entry's Phase 0.2 rebuilds the diff at HEAD, and the entry's own checklist,
+  # item files, verification, verifier files, Phase 3 blocks, phase-log records, report and
+  # return file replace this iteration's, so entry-close grades only what this entry wrote.
+  # Deleting an absent file is a no-op; deletion only.
+  for f in "$r/diff.patch" "$r"/batch-*.patch "$r/checklist-iter-$n.json" "$r/checklist-iter-$n.items" \
+           "$r/verification-iter-$n.json" "$r/verdicts/iter-$n" "$r"/p3-*.md "$r/phase-log" \
+           "$r/verdict-body.md" "$r/engine-return-$ENTRY_KIND-iter-$n.json"; do
     [ -e "$f" ] || continue
-    rm -f "$f"
-    deleted="${deleted}${deleted:+$nl}${f#"$ENTRY_RUN_ROOT"/}"
+    rm -rf "$f"
+    deleted="${deleted}${deleted:+$nl}${f#"$r"/}"
   done
-  for f in "$ENTRY_RUN_ROOT/diff.patch" "$ENTRY_RUN_ROOT"/batch-*.patch; do
-    [ -e "$f" ] && survivor="${f#"$ENTRY_RUN_ROOT"/}"
+  for f in "$r/diff.patch" "$r"/batch-*.patch "$r/checklist-iter-$n.json" "$r/checklist-iter-$n.items" \
+           "$r/verification-iter-$n.json" "$r/verdicts/iter-$n" "$r"/p3-*.md "$r/phase-log" \
+           "$r/verdict-body.md" "$r/engine-return-$ENTRY_KIND-iter-$n.json"; do
+    [ -e "$f" ] && survivor="${f#"$r"/}"
   done
   if [ -n "$survivor" ]; then
     entry_error cache "cache file '${survivor}' survived deletion" 1
@@ -428,66 +472,27 @@ cmd_entry_open() {
   mkdir -p .prflow/tmp/review 2>/dev/null || :
   oid="$(cmd_snapshot)"
   if [ -n "$oid" ]; then snapshot=taken; else snapshot=disabled; fi
-  # The OID file is what entry-close (and the fallback compare fence) reads back after the
-  # dispatch — written empty on a disabled snapshot so the close arm fails closed on it.
+  # The OID file is what entry-close reads back after the dispatch — written empty on a
+  # disabled snapshot so the close arm reports that no snapshot was taken.
   if ! printf '%s' "$oid" > "$ENTRY_OID_FILE"; then
-    echo "::warning::devflow review: could not write ${ENTRY_OID_FILE}; the close arm will read it as missing and block" >&2
+    echo "::warning::devflow review: could not write ${ENTRY_OID_FILE}; the close arm cannot verify this entry's snapshot" >&2
   fi
-  emit_json status=ok "entry=$ENTRY_KIND" "#iteration=$ENTRY_ITER" "@cache_deleted=$deleted" \
-    "snapshot=$snapshot" "oid=$oid" "oid_file=$ENTRY_OID_FILE"
-}
-
-cmd_entry_close() {
-  parse_entry_args close "$@" || return $?
-  local branch oid restore="" detail="" token="" mexit=0 line="" rc nl=$'\n'
-  # 1. Post-return branch guard: nothing else runs on a mismatch (the loop takes the guard's
-  #    mismatch arms and re-runs this call once on its restored arm).
-  if ! branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || [ -z "$branch" ]; then
-    # An unreadable checkout is neither a match nor a mismatch (error-handling.md's
-    # *unestablished* reading): the loop stops, never checks anything out.
-    emit_json status=branch-unestablished "expected=$ENTRY_BRANCH"
-    return 0
+  record_entry_content || return 1
+  # The HEAD the engine must produce its diff at; entry-close compares the return against it.
+  if ! git rev-parse HEAD > "$ENTRY_HEAD_FILE"; then
+    entry_error head "could not record HEAD in ${ENTRY_HEAD_FILE}" 1
+    return 1
   fi
-  if [ "$branch" != "$ENTRY_BRANCH" ]; then
-    emit_json status=branch-mismatch "branch=$branch" "expected=$ENTRY_BRANCH"
-    return 0
-  fi
-  # 2. Compare-and-restore against the persisted OID, fail closed on every missing operand.
-  #    The compare prints nothing on stdout, so its stderr breadcrumbs are captured in a
-  #    variable — no scratch file is created between the before and after snapshots.
-  if [ ! -f "$ENTRY_OID_FILE" ] || [ -L "$ENTRY_OID_FILE" ]; then
-    restore=blocked; detail="OID file ${ENTRY_OID_FILE} is missing"
-  elif ! oid="$(cat "$ENTRY_OID_FILE" 2>/dev/null)" || [ -z "$oid" ]; then
-    restore=blocked; detail="OID file ${ENTRY_OID_FILE} is empty or unreadable"
-  elif [ -e "$OUTER_DISABLED_SENTINEL" ]; then
-    restore=blocked; detail="outer sentinel ${OUTER_DISABLED_SENTINEL} present at compare start"
-  else
-    detail="$(cmd_compare_and_restore "$oid" 2>&1)"
-    case "$detail" in
-      '') restore=clean ;;
-      *SKIPPED*|*DISABLED*|*'still dirty after restore attempt'*) restore=blocked ;;
-      *'nothing auto-restored'*|*'not auto-restored'*) restore=not-restored ;;
-      *'modified the working tree'*) restore=restored ;;
-      *) restore=blocked ;;   # an unrecognized breadcrumb never reads as clean
+  local prior=null prior_rc=0
+  if [ "$ENTRY_KIND" = step1 ] && [ "$n" -ge 2 ]; then
+    prior="$(python3 "$LOOP_IO" prior --run-root "$r" --iteration "$n")" || prior_rc=$?
+    case "$prior" in
+      '{"diff_head"'*) : ;;
+      *) prior="{\"diff_head\": null, \"findings\": null, \"count\": 0, \"warnings\": [\"the prior-iteration reader printed no record (exit ${prior_rc})\"]}" ;;
     esac
   fi
-  # 3. Evidence: bind, then grade, relaying check-evidence's line 1 and exit code verbatim.
-  rc=0
-  line="$(python3 "$LOOP_VERDICT_MARKER" write-active-entry-binding --run-root "$ENTRY_RUN_ROOT" \
-    --entry "$ENTRY_KIND" --iteration "$ENTRY_ITER" --head "$ENTRY_HEAD" 2>&1)" || rc=$?
-  if [ "$rc" -eq 0 ]; then
-    line="$(python3 "$LOOP_VERDICT_MARKER" check-evidence --run-root "$ENTRY_RUN_ROOT" \
-      --entry "$ENTRY_KIND" --iteration "$ENTRY_ITER" --head "$ENTRY_HEAD" 2>/dev/null)" || mexit=$?
-    line="${line%%"$nl"*}"
-    token="${line%% *}"
-  else
-    # The binding refused (an unrecovered other-entry grade, a missing marker, argparse): relay
-    # its first output line so the loop's recovery narrative names the cause; no token.
-    mexit="$rc"
-    line="write-active-entry-binding exited ${rc}: ${line%%"$nl"*}"
-  fi
-  emit_json status=ok "branch=$branch" "restore=$restore" "@restore_detail=$detail" \
-    "%evidence=$(emit_json "token=$token" "#exit=$mexit" "line=$line")"
+  emit_json status=ok "entry=$ENTRY_KIND" "#iteration=$ENTRY_ITER" "@cache_deleted=$deleted" \
+    "snapshot=$snapshot" "oid=$oid" "oid_file=$ENTRY_OID_FILE" "%prior=$prior"
 }
 
 main() {
@@ -531,10 +536,9 @@ main() {
       shift
       python3 "$ENGINE_IO" return "$@"
       ;;
-    view-materialize)
-      # issue #851 source-view producer (placement rationale in the header block above).
+    engine-brief)
       shift
-      python3 "$ENGINE_IO" view-materialize "$@"
+      python3 "$ENGINE_IO" brief "$@"
       ;;
     loop-setup)
       # issue #894 fix-loop one-call setup (host/sibling split in cmd_loop_setup below).
@@ -553,10 +557,10 @@ main() {
       ;;
     entry-close)
       shift
-      cmd_entry_close "$@"
+      python3 "$LOOP_IO" entry-close "$@"
       ;;
     *)
-      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-return | view-materialize | loop-setup | branch-sync | entry-open | entry-close)" >&2
+      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-brief | engine-return | loop-setup | branch-sync | entry-open | entry-close)" >&2
       return 2
       ;;
   esac

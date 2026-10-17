@@ -11,8 +11,8 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 | `prflow.execution_transcript_artifact_enabled` | Boolean | Runtime and scaffold: `false` | Cloud model jobs. When true, uploads a scrubbed transcript artifact with seven-day retention. Treat it as sensitive. | `"execution_transcript_artifact_enabled": false` |
 | `prflow.execution_transcript_job_log_enabled` | Boolean | Runtime and scaffold: `false` | Cloud implement jobs. When true, every agent message is written into the job log as it happens, **unscrubbed**, so a run whose runner dies abruptly can still yield a transcript. The log can include credentials, such as refreshed GitHub App tokens, which are not masked, and anyone who can read the run logs can read them. PRFlow therefore applies this setting only when GitHub reports the repository as private: in a public repository, or when the visibility is not reported, the run leaves streaming off and logs a warning that says why. The log grows to the transcript’s size. The rebuilt transcript artifact also needs `execution_transcript_artifact_enabled`: with only this key on, content is streamed to the log and no artifact is produced. | `"execution_transcript_job_log_enabled": false` |
 | `prflow.execution_denial_commands_enabled` | Boolean | `true` | Cloud model jobs. Controls durable scrubbed command text only. Denial count and tool names remain available when a record can be built. | `"execution_denial_commands_enabled": false` |
-| `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `true` | Local and cloud review-and-fix. False also prevents denied-command records from being persisted on the telemetry branch. | `"efficiency_telemetry_enabled": true` |
-| `telemetry.enabled` | Boolean | `true` | Master quiet switch. Set to the JSON boolean `false` to turn off the five enrolled telemetry mechanisms at once, plus the workpad-copy push to the telemetry branch; `execution_transcript_artifact_enabled` is not enrolled. Only the boolean `false` disables; every other value leaves telemetry on. A key you have set to a real value wins over this master for those five, while the branch push reads the master alone. | `"enabled": false` |
+| `prflow_review_and_fix.efficiency_telemetry_enabled` | Boolean | `false` | Local and cloud review-and-fix. False stops the effectiveness record and keeps denied-command records off the telemetry branch. Run workpads and cloud cost records still persist unless `telemetry.enabled` is false. | `"efficiency_telemetry_enabled": true` |
+| `telemetry.enabled` | Boolean | `true` | Master quiet switch. Set to the JSON boolean `false` to turn off the five enrolled telemetry mechanisms at once, plus the workpad-copy push to the telemetry branch; `execution_transcript_artifact_enabled` is not enrolled. Only the boolean `false` disables; every other value leaves the master on, preserving each mechanism's default. A key you have set to a real value wins over this master for those five, while the branch push reads the master alone. | `"enabled": false` |
 | `telemetry.branch` | String branch name | `prflow-telemetry` | Writable runs persist observability records to this long-lived orphan branch. Exclude it from broad push-triggered CI. If you upgrade from a version that used the older `devflow-telemetry` branch, PRFlow moves those records onto this branch for you — once when you run `/prflow:init` (or `install.sh --apply`), and otherwise on your next writable run — so your full cost-and-effectiveness history stays visible. A branch this key names that still carries records under `.devflow/logs/` (such as `devflow-telemetry` kept through config) is rewritten to `.prflow/logs/` in place, in one commit, on your next `/prflow:init` or `install.sh --apply`; until then writable runs refuse to append to it. | `"branch": "prflow-telemetry"` |
 
 ## Know What Persists
@@ -21,9 +21,9 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 - Full transcript artifacts are disabled by default, and so is streaming the transcript into the
   job log. The artifact is scrubbed and expires; the job log is neither.
 - When a run is cancelled or interrupted before the model step writes its execution file, the transcript artifact instead holds the CLI's own session files for that run. Those files carry more than the action's message stream — tool results, attachments and file-history snapshots — so the artifact is larger and the incomplete-blocklist caveat below applies to it in full; treat it as sensitive.
-- Scrubbed denied-command text is enabled by default and can persist on the telemetry branch.
+- The scrubbed denied-command text toggle defaults on; durable denial records also require effectiveness opt-in.
 - Denial count and tool identifiers are not controlled by the command-text toggle.
-- Effectiveness records are enabled by default.
+- Effectiveness records are disabled by default.
 
 The transcript and command scrubber is an incomplete blocklist. It redacts these credential families: GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, basic Authorization headers, AWS access key IDs, npm tokens, Slack tokens, GitLab tokens, connection-string passwords, `Password=`/`Pwd=` values, and PEM private keys. The Authorization scheme keyword is matched whatever its casing, and an Authorization value shorter than four characters is left alone, so a literal command such as `sed 's/AUTHORIZATION: basic //'` is not mistaken for a credential.
 
@@ -43,13 +43,13 @@ The engine workflows request seven-day retention for the transcript artifact. "T
 
 ## What a Run Record Contains
 
-`prflow_review_and_fix.efficiency_telemetry_enabled` is on by default, so a review-and-fix run writes one record per run to the telemetry branch. Read this before you decide whether to keep it.
+`prflow_review_and_fix.efficiency_telemetry_enabled` defaults to `false`. Set it to `true` to derive an effectiveness record for each review-and-fix run. Existing saved values survive upgrades, including `true` supplied by an earlier scaffold; set it to `false` to opt out. Boolean `true` and the string `"true"` keep their existing enabled interpretation. An older runtime keeps its old fallback until upgraded.
 
 One record is a single JSON file. It holds:
 
 - **Which run it was.** A record format version, the repository slug and the time the record was written. The file name carries the run identifier.
 - **How the run was configured.** A hash of your review settings, so two runs can be compared, plus three values recorded in the clear: the verdict threshold, the fix threshold and the iteration limit.
-- **One entry per fix-loop iteration.** How many review agents ran. Flags describing the shape of the change, such as whether the diff was small, config only or added new types. How the verification checklist was handled and how it split between cheap direct checks and dispatched agents. How many fixes were applied, and whether the iteration applied none at all. Each agent's verdict and whether it led to a fix. The model effort each agent asked for and got.
+- **One entry per fix-loop iteration.** How many review agents ran. Flags describing the shape of the change, such as whether the diff was small, config only or added new types. How the verification checklist was handled and how it split between cheap direct checks and dispatched agents. How many fixes were applied, and whether the iteration applied none at all. Each agent's verdict and whether it led to a fix.
 - **Cost figures.** Calls, token counts and wall-clock time, per phase and per iteration. A cloud run can also carry a whole-job summary: cost in dollars, tokens, usage per model, number of turns and total duration.
 
 The record holds counts, flags, identifiers and settings. It does not hold your source code, your diff, prompt text or the wording of any finding.
@@ -58,7 +58,7 @@ The record holds counts, flags, identifiers and settings. It does not hold your 
   The record is not the only thing stored. Each run also copies its workpad to the same branch, and a workpad contains the run's own written notes about the work: what it planned, what it changed and what it deferred. Scrubbed denied-command text can be stored there too. Anyone who can read the repository can read that branch.
 </Warning>
 
-A run with no readable iterations writes no record at all rather than an empty one. Set `efficiency_telemetry_enabled` to false to stop writing records entirely.
+A run with no readable iterations writes no effectiveness record rather than an empty one. Set `efficiency_telemetry_enabled` to false to stop writing effectiveness and denied-command records; durable run files, cloud cost and run-profile records remain governed by `telemetry.enabled`. Run fingerprints belong to effectiveness records; later analysis can fall back to merge-commit configuration, which may differ from the run's settings. To stop writing every record, set `telemetry.enabled` to false.
 
 ## One-Switch Quiet Mode
 
@@ -72,14 +72,14 @@ If you want a private, low-noise setup without hunting down each individual key,
 }
 ```
 
-With `telemetry.enabled` set to the JSON boolean `false`, the enrolled telemetry mechanisms turn off in one place: the efficiency trace, execution diagnostics, durable scrubbed denied-command text, the live review progress comment and the created-issue investigation record all resolve to disabled wherever their own key does not resolve to a value — you have not set it, or you set it to `null` or an empty string, and the workpad-copy push to the `prflow-telemetry` branch is skipped — so quiet runs write nothing to that branch.
+With `telemetry.enabled` set to the JSON boolean `false`, the enrolled telemetry mechanisms turn off in one place: the efficiency trace, execution diagnostics, durable scrubbed denied-command text, the live review progress comment and the spec investigation record all resolve to disabled wherever their own key does not resolve to a value — you have not set it, or you set it to `null` or an empty string, and the workpad-copy push to the `prflow-telemetry` branch is skipped — so quiet runs write nothing to that branch.
 
 Neither `execution_transcript_artifact_enabled` nor `execution_transcript_job_log_enabled` is enrolled, because both already default to `false`; if you turned one on, it stays on until you turn it off yourself.
 
 A few things to know:
 
-- **Only the boolean `false` disables.** Every other value — the string `"false"`, `0`, `null`, a wrong type, a missing key or an unreadable config — leaves telemetry **on**. This fail-safe direction is deliberate: a malformed config never silently drops your observability.
-- **A key you set to a real value always wins for the five sub-keys.** If you set one of them (for example `prflow.execution_diagnostics_enabled`) to `true` or `false` it overrides the master, in both directions — so you can turn the master off but keep that mechanism on, or leave the master on and turn it off. The `prflow-telemetry` branch push is the exception: it reads the master alone, so a master `false` skips it even when `efficiency_telemetry_enabled` is explicitly `true`.
+- **Only the boolean `false` disables.** Every other value — the string `"false"`, `0`, `null`, a wrong type, a missing key or an unreadable config — leaves the master switch **on**, with each mechanism using its own default. Operational persistence remains enabled when the master cannot be read.
+- **A key you set to a real value always wins for the five sub-keys.** If you set one of them (for example `prflow.execution_diagnostics_enabled`) to `true` or `false` it overrides the master, in both directions — so you can turn the master off but keep that mechanism on, or leave the master on and turn it off. The `prflow-telemetry` branch push and the post-review check of the telemetry it would carry are the exception: they read the master alone, so a master `false` skips them even when `efficiency_telemetry_enabled` is explicitly `true`.
 - **The value is ergonomics and privacy, not cost.** Turning telemetry off saves only a small amount of run time; the point is fewer GitHub writes, no telemetry branch and no stored records.
 - **Rollback is removing the key**, which restores every default. Mixed plugin versions are safe: a repository whose vendored PRFlow copy predates this key simply ignores it and keeps telemetry on until the next upgrade.
 

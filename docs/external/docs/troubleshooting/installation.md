@@ -88,7 +88,7 @@ On a GitHub Actions runner, or in a repository that commits the vendored plugin 
 .prflow/vendor/prflow/lib/preflight.sh
 ```
 
-Install every dependency the check reports. A missing PyYAML is advisory on a local run: the preflight prints `devflow preflight: required dependencies present; PyYAML advisory (see above).` and still exits 0, but one severity helper is degraded until you install it:
+Install every dependency the check reports. A missing PyYAML is advisory on a local run: the preflight prints `devflow preflight: required dependencies present; PyYAML advisory (see above).` and still exits 0, but the review report leaves out its Deferrals section until you install it:
 
 ```bash
 python3 -m pip install PyYAML

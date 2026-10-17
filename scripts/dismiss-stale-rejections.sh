@@ -102,9 +102,10 @@
 #      #1029). Distinct from 0 on purpose: "refused" is not "there was
 #      nothing to do", and collapsing an unestablished outcome onto the
 #      success value is what makes a wedged PR look like a clean no-op.
-#      A real failure outranks a refusal, so 1 wins when both occur. The
-#      caller's existing branch — non-zero means say the PR stays blocked
-#      until dismissed manually — is the correct human message here too.
+#      A real failure outranks a refusal, so 1 wins when both occur. On
+#      either non-zero code the PR can stay blocked until the review is
+#      dismissed manually; post-review-verdict.sh prints the code as
+#      `DISMISS <rc>`, which Phase 4.4 reports.
 
 set -euo pipefail
 # gh binary: resolved once via the single-source resolver (execution-verified);

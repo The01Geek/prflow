@@ -33,7 +33,8 @@
 #     review is a human override; its stale body must not resurrect) — such
 #     reviews are skipped as if absent
 #   - No HEAD review, but this run's run-keyed progress
-#     comment carries a `## Verdict:` line for HEAD ......... reject/approve
+#     comment carries a prflow:review-verdict marker for HEAD  reject/approve
+#     (its `## Verdict:` line alone is not a verdict)
 # `incomplete` is distinct from `reject`: finalize_check maps it to a blocking
 # `failure` titled "Devflow review incomplete — re-run needed", and it NEVER
 # triggers the stale-REJECT dismissal (only a positively-observed APPROVE does).
@@ -84,12 +85,14 @@
 #   Same-identity self-review fallback (the review POST fails) -> the verdict is
 #     recovered from THIS run's run-keyed `prflow:review-progress` PROGRESS
 #     comment, which carries the marker on the line after its run key plus the full
-#     report, and is the only artifact this helper matches in step 6 (it carries the
-#     run-keyed `<!-- prflow:review-progress run=<id>- -->` marker). Issue comments
+#     report, and is the artifact step 6 looks for (the last comment whose body holds the
+#     run-keyed `<!-- prflow:review-progress run=<id>-` prefix, either spelling). Issue comments
 #     carry no commit_id, so scoping is by that run-keyed marker, never a historical
 #     comment. NOTE: the emitter's own comment-channel fallback — the marker-stamped
 #     body it posts when the review POST is refused — is a plain issue comment with no
-#     run-keyed progress marker, so this helper does NOT read it. That is deliberate:
+#     line that starts with a run-keyed progress marker (the emitter drops such lines),
+#     so step 6 reads it only when its body quotes this run's key inside a line. Leaving
+#     it unread otherwise is deliberate:
 #     matching it un-scoped, across all issue comments, is exactly the stale-/
 #     prior-run-verdict resurrection this HEAD-scoping fix removes, and the emitter
 #     reports that channel to its caller instead so the gap is visible rather than
@@ -377,7 +380,7 @@ if [ "$STATE" = "APPROVED" ] || grep -qE "$APPROVE_RE" <<<"$RBODY"; then
 fi
 
 # 6. No verdict review on HEAD. Fall back to THIS run's run-keyed progress
-#    comment, which embeds the verdict line. Scope by the run marker (issue
+#    comment's verdict marker. Scope by the run marker (issue
 #    comments carry no commit_id), so a prior run's verdict comment is ignored.
 if [ -z "$RUN_ID" ]; then
   echo "derive-review-verdict: no HEAD-scoped review verdict and GITHUB_RUN_ID is empty — cannot scope the comment fallback to this run; failing closed (incomplete)." >&2
@@ -426,22 +429,21 @@ case "$CMARKER" in
     emit incomplete false ;;
   REJECT) emit reject true ;;
   APPROVE) emit approve true ;;
-  none) ;;
+  none)
+    if [ -n "$CBODY" ]; then
+      echo "derive-review-verdict: this run's progress comment carries no prflow:review-verdict marker, so it records no delivered verdict." >&2
+    fi ;;
   *)
     echo "derive-review-verdict: marker parse returned an empty or unrecognized token — failing closed (incomplete)." >&2
     emit incomplete false ;;
 esac
 
-# Herestrings for the same SIGPIPE/pipefail reason as the review-body greps.
-if grep -qE "$REJECT_RE" <<<"$CBODY"; then
-  emit reject true
-fi
-if grep -qE "$APPROVE_RE" <<<"$CBODY"; then
-  emit approve true
-fi
+# Never read this comment's `## Verdict:` line: the engine writes it before delivery, and
+# post-review-verdict.sh stamps the marker only after a POSTED outcome, so an unmarked
+# comment records no delivered verdict.
 
 # 7. Nothing positively observed for HEAD -> incomplete (the PR #250 verdict-less
 #    stall lands here: a run-keyed progress comment frozen at "Verdict: (pending)"
-#    matches neither marker).
+#    carries no verdict marker).
 echo "derive-review-verdict: no verdict for HEAD (no HEAD-scoped review state and no run-keyed verdict comment for this run) — concluding incomplete." >&2
 emit incomplete false
