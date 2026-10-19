@@ -77,7 +77,7 @@ The `Status` line carries a glyph and a status word. The glyph tells you the sha
 | 💥 | The run did not reach a normal end | `Failed` |
 | 🛑 | The run was cancelled | `Cancelled` |
 
-Three of those glyphs — 🚀, 🎉 and 👎 — also appear as a reaction on the comment that started the run, so you can see a run's outcome without opening the workpad. When PRFlow must recover that triggering comment from the issue history, it checks every comment page before adding the finished or blocked reaction to the latest implementation request. `Failed` and `Cancelled` are written by a cloud backstop when a run dies or is cancelled, and they have no matching reaction.
+Three of those glyphs — 🚀, 🎉 and 👎 — also appear as a reaction on the comment that started the run, so you can see a run's outcome without opening the workpad. The finished or blocked reaction goes only on a comment the run's GitHub event file names, so a run with no such comment, normally every local run, gets neither; its workpad status still shows the outcome. `Failed` and `Cancelled` are written by a cloud backstop when a run dies or is cancelled, and they have no matching reaction.
 
 <Tip>
   A workpad that still shows a 🚀 status long after the run should have ended usually means the run stopped without writing its own terminal state. Open the `Run` link and read the job log.

@@ -8,7 +8,7 @@ combined decision question · 4 iterate on feedback · 5 file the new or widened
 assignment and implement-offer answers (`references/step-4-create.md`).
 
 Present the draft (its path at sub-step 3, or the body on a forced-render arm) before asking 3a's filing-decision
-question or its one-question follow-ups. Re-ask that question whole only where 3a says so. Nothing is asked once
+question or its one-question follow-ups. Re-ask that question only where 3a says so. Nothing is asked once
 sub-step 5 begins.
 
 **An interactive run creates only after the user explicitly approves the presented draft at 3a.**
@@ -94,7 +94,7 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    unaudited; no rounds left. Create?"*, *"Audit round 1: nothing fixed; final draft audited. Create?"* On a widen it
    also names the issue number and says approving replaces that issue's title and body.
 
-   **The call also asks *"Assign this issue to you?"* and, when the offer gate holds, whether to post
+   **The call also covers *"Assign this issue to you?"* and, when the offer gate holds, whether to post
    `/prflow:implement <issue_number>` on the issue.** Before each presentation's message, judge the gate: (a)
    the draft has no `## Dependencies` section with a `Blocked by #N` line and no `## 🚫 Blocked` section; (b) this read
    prints exactly `true`:
@@ -102,17 +102,26 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .workflows.prflow false
    ```
    A denied or failed read establishes no tier, whatever it printed; attempt no other config reader. When the gate
-   withholds the prompt, print a one-line reason naming the exact failed condition before the question: *declared
-   dependencies present*, *blocked decisions present*, *cloud implement tier disabled or unconfigured* (the read
-   succeeded without printing `true`; add that the alternative is to start `/prflow:implement` in a fresh session), or
-   *tier state unestablished* (the read was denied or failed). A one-question tool asks the assignment question, then
-   any gated offer, right after the *Create* election, before sub-step 5; any reply but yes, silence included, is no.
-   Answers count only with, or right after, that election; others are discarded and re-asked at the next ask.
+   withholds the prompt, print a one-line reason naming the exact failed condition before each ask of the filing
+   question: *declared dependencies present*, *blocked decisions present*, *cloud implement tier disabled or
+   unconfigured* (the read succeeded without printing `true`; add that the alternative is to start
+   `/prflow:implement` in a fresh session), or *tier state unestablished* (the read was denied or failed). A
+   one-question tool asks the assignment question, then any gated offer, right after the *Create* election, before
+   sub-step 5, whatever an earlier reply said; any reply but yes, silence included, is no. A multi-question tool
+   carries the latest answer to each, whatever election or reply it came with, to later calls; its call omits a
+   question whose answer the run clearly holds and asks one it does not: never given, its call failed, or what was
+   answered cannot be told. Its filing question's text names each carried answer the call does not ask, an implement
+   answer whose offer is withheld included, and that a reply can change it, e.g. *"Carried: assign yes, implement no
+   — say so to change."*
 
-   **A reply outside the options** is routed by what it asks for: a change request → *Change something first*; an
-   unambiguous approval of the draft as shown → *Create*; a decline of the offered round with nothing else → re-ask.
-   Anything else, and a silent non-response, is not an answer: re-ask this question in the final chat message and stop
-   (Step 2's silent-non-response rule) — never dispatch, create, or proceed on silence.
+   **On a multi-question tool, a reply that gives or changes an assignment or implement answer** sets it; the rest
+   of the reply elects an option it names, or one by the routing below, with that answer (*"Create, but don't assign
+   me"* files with no assignee), else re-ask, keeping the set answer. A reply whose assignment or implement answer
+   cannot be told elects nothing: re-ask, that question included unless the gate withholds it. **Another reply outside
+   the options** is routed by what it asks for: a change request → *Change something first*; an unambiguous approval
+   of the draft as shown → *Create*; a decline of the offered round with nothing else → re-ask. Anything else, and a
+   silent non-response, is not an answer and changes no carried answer: re-ask this question in the final chat
+   message and stop (Step 2's silent-non-response rule) — never dispatch, create, or proceed on silence.
 
    **A non-interactive run elects *Create* only when the unresolved must-revise count is zero and the latest
    `parse-acs.py` run read the criteria; otherwise it pauses for the user's explicit election.** It answers no to the

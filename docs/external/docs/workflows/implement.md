@@ -125,7 +125,7 @@ Ordinary branch and working-tree problems no longer stop the run. When the featu
 
 It stops early when the issue declares an open `Blocked by #N` dependency, or when it cannot establish whether that dependency is still open.
 
-Later stopping points include a bug it could not reproduce, an acceptance criterion that fails or cannot be established, a verification command the run is not permitted to execute, an instruction change with three failing versions of the case it was written for, and an unresolved Critical review finding. Before publishing, PRFlow also confirms the branch tip reached the remote; if a commit was made but never landed there, the run stops rather than publish a pull request whose description cites a commit the remote does not have.
+Later stopping points include a bug it could not reproduce, an acceptance criterion that fails or cannot be established, a verification command the run is not permitted to execute, an instruction change with three failing versions of the case it was written for, a read showing that a case the change exists to change, named in the issue or picked by the run, is already correct (or, when the issue names no such case, that every case it points to is), and an unresolved Critical review finding. Before publishing, PRFlow also confirms the branch tip reached the remote; if a commit was made but never landed there, the run stops rather than publish a pull request whose description cites a commit the remote does not have.
 
 <Accordion title="What to do about a Blocked run">
   Read the reason on the workpad first — it names the specific obstacle.
@@ -135,6 +135,7 @@ Later stopping points include a bug it could not reproduce, an acceptance criter
   - **An open dependency.** Close or unblock the prerequisite issue, then run again.
   - **A verification command that is not permitted.** Grant it in your tool-permission settings. See [Tool Permissions](/docs/configuration/tool-permissions).
   - **A motivating case that failed three versions.** The workpad's verification notes hold each version's results. Change the design the issue prescribes for that case, then run the command again.
+  - **A motivating case whose current outcome is already correct.** The workpad names the case or cases and the read that showed it. Change the case or the rule in the issue, then run the command again.
 
   Running the command again after the fix resumes the same workpad and the same branch. It does not start over.
 </Accordion>

@@ -56,7 +56,7 @@ Step 1 and the currency recheck below, not whole-codebase re-exploration.
 - Seed from `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`; read Step 1 evidence rather than re-derive it. Treat agent-written Markdown as best-effort evidence. Accept Step 1's two role headings with complete or degraded reports, including failure notes beside retained partial evidence. Apply Step 1's field and role-failure rules, carrying gaps and degradation into the entries they seed. An empty file, a missing or duplicated required role heading, or an unrecognized layout reruns Step 1, never partially parses it. An absent or unreadable file after Step 1 completed instead records `unestablished — Step 1 evidence artifact absent or unreadable`. A read-only sandbox uses the current inline stand-in under `references/fallback-read-only-sandbox.md`.
 - Use the investigator's supported constraints and premise corrections in clarification and the relevant evidence axes; feed conditional risks into the existing pre-mortem when their activating choice applies. Keep consequential unknowns explicit. A conditional risk alone creates no requirement for an unelected approach.
 - Axis floor. After writing the derivation, append a `## Evidence bundle` section to the same `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` artifact (in a read-only sandbox, to the same visible inline-in-chat block that stands in for it). The bundle records, per axis on the effective list, what the mechanism space under discussion touches, covering at minimum these generic axes: authoritative producers and the values they emit; consumers of each touched value or surface; execution environments (tiers, host OSes, degraded arms); persistence paths; lifecycle states and termination paths including retries and backstops; migration and coexistence surfaces (what is already deployed that the change must coexist with — this axis stays evidence collection; the *decisions* about supported combinations, transitions, mixed versions, and rollback are owned by the conditionally-loaded compatibility-and-rollout quality group, `references/quality-group-compatibility.md`, not settled here); and coupled tests and docs. The `at minimum` marker is deliberate — a consumer `## Evidence axes` section extends the list.
-- Entry form. Every axis has exactly one entry: one to three lines of checked facts, `N/A — checked <how>` when the named check shows it does not apply, or `unestablished — <why>` when a probe was unavailable, denied, failed enumeration below, or was superseded by an answer or revision. A repository fact uses `Verified:` with the executed command or file reference plus what it established; an externally verified fact uses `Per <URL>, checked <YYYY-MM-DD>: <fact>` under `references/quality-group-premises.md`. A repository entry claiming a complete population — consumers, producers or any other complete set, such as every member of a set the draft relies on — names the whole-tracked-tree search, patterns and scope covering the amended rule's input, its amended value and each value it moves items into. Exclude only named paths that cannot hold a member, such as a vendored plugin copy. Read every candidate and record found/read counts; no search makes the entry `unestablished — <population> not enumerated`, and an unread candidate makes it `unestablished — <population> not read`. Axes the mechanism space plainly does not touch may be batch-marked `N/A — checked: scope inference, <one line>`.
+- Entry form. Every axis has exactly one entry: one to three lines of checked facts, `N/A — checked <how>` when the named check shows it does not apply, or `unestablished — <why>` when a probe was unavailable, denied, failed enumeration below, or was superseded by an answer or revision. A repository fact uses `Verified:` with the executed command or file reference plus what it established, which is only what that output showed. Output is cut short when stopped before the full result, at minimum by your own command, a tool's result limit or a saved-output preview (a cap never reached cuts nothing), or when you cannot tell it is whole; an entry resting on the unshown part is `unestablished — <why>` unless you read that part uncut, or, for an entry claiming nothing else matches or a complete list of matching lines, a matching-line count from the same search with nothing cut (no cap, filter or preview) equals the lines seen. An externally verified fact uses `Per <URL>, checked <YYYY-MM-DD>: <fact>` under `references/quality-group-premises.md`. A repository entry claiming a complete population — consumers, producers or any other complete set, such as every member of a set the draft relies on — names the whole-tracked-tree search, patterns and scope covering the amended rule's input, its amended value and each value it moves items into. Exclude only named paths that cannot hold a member, such as a vendored plugin copy. Read every candidate and record found/read counts; no search makes the entry `unestablished — <population> not enumerated`, and an unread candidate makes it `unestablished — <population> not read`. Axes the mechanism space plainly does not touch may be batch-marked `N/A — checked: scope inference, <one line>`.
 - Carry relied-on bundle claims into the draft under `references/issue-template.md`'s *Technical Context* evidence forms for the Step 3.6 audit. The bundle itself stays in the derivation artifact, outside the audit dispatch.
 
 `## Evidence axes` forwarding. Inside this sub-pass, before writing the bundle, run this fence as written unless this run already ran it, and append any section headed exactly `## Evidence axes` to the generic axis floor; an extension without that heading contributes no consumer section, and the absent heading is breadcrumbed and reported:
@@ -129,20 +129,26 @@ How to ask:
   maintenance cost. Disclose every unestablished entry and what was ruled out by scope
   inference without checking. Present these in the approach question in plain words
   rather than axis names, entry labels or counts. Mark the simplest-reliable option
-  `(Recommended)`; when *Option check* below withholds that mark, apply these rules to the
-  other options, marking one or none.
+  `(Recommended)`.
 
   With no qualifying entry, run exactly one targeted probe on the most decision-relevant
   axis. If that too is unavailable or denied, disclose that no checked evidence supports
-  a recommendation and ask without `(Recommended)`. Ask a material unknown requirement
+  a recommendation and ask without `(Recommended)`. A non-interactive run whose approach
+  question carries no mark records it in `## 🚫 Blocked`. Ask a material unknown requirement
   as its own question; a heavier mechanism or missing, malformed, unreadable or unproduced
   evidence cannot establish it.
 
-  Other questions keep the one-line recommendation reason without the approach citation
-  and disclosure duties. At any question, however, a fact about current behavior is stated
-  only after reading what decides it, recording that read in the bundle's *Entry form*
-  and citing it. Separate proposed policy from current behavior; state a fact the read
-  cannot establish as not established.
+  Other questions keep the one-line recommendation reason and owe none of the
+  recommendation-evidence duties above, for example no bundle citation or
+  unestablished-entry list. One marking an option `(Recommended)` still names, with no
+  added read, each piece of evidence the run already read or recorded, the request (issue
+  body and comments read) included, against a recommended option or a premise the
+  question states, or in favor of an option the question does not recommend: briefly in
+  the option text it bears on, else in the background, and in full in the chat before the
+  call. At any question, however, a fact about current behavior is stated only after
+  reading what decides it, recording that read in the bundle's *Entry form* and citing it.
+  Separate proposed policy from current behavior; state a fact the read cannot establish
+  as not established.
 
 - **Option check.** Before every implementation-approach question — a first ask, a re-ask,
   one re-asked at a revision fork, and one a non-interactive run answers itself — dispatch
@@ -163,24 +169,25 @@ How to ask:
     that a read or probe could settle and no checked bundle entry establishes. A prediction
     of how a model will follow new text is not one; list a claim of unclear kind as unclear.
 
-  Each item quotes its source, or says `no entry`; an option or candidate with no item says
+  Tell it a read it cut short (stopped before the full result, at minimum by its own command, a tool's
+  result limit or a saved-output preview; a cap never reached cuts nothing) establishes only
+  what it showed: an item whose label or `no entry` rests on the part not shown is
+  `unestablished`, whatever kind of claim it is, and output it cannot tell is whole counts as
+  cut short. Each item quotes its source, or says `no entry`; an option or candidate with no item says
   `none`. Append the whole reply to the derivation artifact under a new `## Option check <n>`
   heading, `<n>` counting from 1, inside a code fence with each reply line indented four spaces
   so Step 4's helper neither takes one for the run's `Considered-and-rejected:` line nor reads
   one as a fence; a failed append follows `references/fallback-read-only-sandbox.md`. When
   the dispatch is unavailable, fails or is refused, or the reply leaves out an option or
   passed-over candidate, gives an item a missing or out-of-set tag or label, or neither a quoted
-  source nor `no entry`, or names a path it could not read, run the same check yourself,
+  source nor `no entry`, or names a path it could not read, run the same check yourself, its rules binding your own reads,
   record it the same way under a `## Option check <n> — not independent` heading, and say in
   the approach question that the independent check did not run.
 
   The approach question discloses each listed item with its option or candidate in plain
   words, short in the option text and longer in the chat before the call. A reason resting
   on an unestablished fact is stated as not established, there and in the
-  `Considered-and-rejected:` line. An option the reply shows relying on an unestablished
-  fact, by any tag but `against`, is not marked `(Recommended)`; an unclear item does not
-  remove the mark. A consumer extension's recommendation policy still overrides the mark, and the items are still disclosed. A
-  non-interactive run whose approach question carries no mark records it in `## 🚫 Blocked`.
+  `Considered-and-rejected:` line.
 
 - **Shown-gone defect.** When this run's Step 1 evidence positively shows every reported
   failure can no longer occur because its code, command or path is gone or behaves as
@@ -198,8 +205,7 @@ How to ask:
   reply's pick, is a resolved decision: a later pass judges the draft against it and never
   reopens it for a design that pass prefers. Before drafting or revising on evidence found
   after the pick — a finding or read meeting the *Definition of verified* in
-  `references/step-3-5-self-audit.md` (read it there if unloaded, or after a failed read the
-  first sentence of its `references/degradation-routing.md` row), the user's answer to the
+  `references/step-3-5-self-audit.md` (read it there if unloaded), the user's answer to the
   approach question, or a change the user requests later — ask the approach question again
   when that evidence shows, or leaves unclear whether it shows:
   - false a fact, cost, limit or coverage claim the question stated about any offered or

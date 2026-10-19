@@ -58,8 +58,7 @@ fixture in which the suppressed or lost input is *present*, except a removed out
 Desired Behavior states as accepted; **(b) scoped** — rewritten to the precise form the mechanism
 supports ("no *per-file* filename arguments", not "no filename arguments"), or, for a claim about
 current code that a read confirms under the *Definition of verified* in
-`references/step-3-5-self-audit.md` (read it there if unloaded, or after a failed read the first
-sentence of its `references/degradation-routing.md` row), every clause of the confirming text read,
+`references/step-3-5-self-audit.md` (read it there if unloaded), every clause of the confirming text read,
 kept as written;
 **(c) removed**; or **(d) stated as a heuristic** per the template's *Heuristics* rule, its accepted
 limit needing no fixture unless the change removes an outcome whose loss the Desired Behavior does

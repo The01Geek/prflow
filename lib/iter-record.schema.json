@@ -179,16 +179,6 @@
         "checklist_skipped": {"type": ["string", "null"]},
         "phase3_findings": {"type": ["array", "null"], "items": {"type": "object"}},
         "phase2_fails": {"type": ["array", "null"]},
-        "comparison": {
-          "type": ["object", "null"],
-          "properties": {
-            "shadow_total": {"type": ["integer", "null"]},
-            "overlap_with_iter_N": {"type": ["integer", "null"]},
-            "new": {"type": ["integer", "null"]},
-            "new_critical": {"type": ["integer", "null"]},
-            "new_important": {"type": ["integer", "null"]}
-          }
-        },
         "promoted_to_iter_next": {"type": ["boolean", "null"]},
         "shadow_synthesized": {"type": ["boolean", "null"]},
         "provenance_unestablished": {"type": ["boolean", "null"]}

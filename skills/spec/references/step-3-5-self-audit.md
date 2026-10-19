@@ -89,10 +89,9 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    that record absent, unreadable, not in the form Step 2's *Option check* requires, not covering
    the elected approach, or a subagent reply that check sends to your own check, list those items
    yourself under
-   `references/step-2-clarify.md`'s *Option check* (`references/degradation-routing.md`'s
-   clarification-fallback copy when that file did not load) and say so in the summary. An item or
+   `references/step-2-clarify.md`'s *Option check* and say so in the summary. An item or
    draft-stated limit meeting `references/step-2-clarify.md`'s *Settled approach* re-ask rule
-   (the fallback's *Settled approach* copy when that file did not load) reopens the approach
+   reopens the approach
    question. Each other item is handled by the draft, stated as an accepted limit, or stated as
    not established; revise any other under item 5.
 4. Sweep the draft's own unstated mechanism dependencies (mandatory). Beyond the *stated* premises

@@ -83,7 +83,7 @@ skimming more of them.
 
 In report-only mode the **duty floor bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. The floor bounds how much you must read; the whole tracked tree states only where you may look.
 
-Report every gap in the **Not established** field, with a one-clause reason each: a floor duty you did not carry out, and why; a floor duty you carried out but could not establish; and an internal-documentation page you located for this topic — through the index, a search or a size check — but did not read in full. A duty carried out with an empty result is established and not listed; a page you never located is not listed.
+Report every gap in the **Not established** field, with a one-clause reason each: a floor duty you did not carry out, and why; a floor duty you carried out but could not establish; and an internal-documentation page you located for this topic — through the index, a search or a size check — but did not read in full. A duty carried out with an empty result is established and not listed, unless its only evidence is cut-short output showing no hits (the bar below); a page you never located is not listed.
 
 The bar (apply it per carried-out duty). A duty is established only when **you can state its answer
 and cite the tool output you read it from.** Otherwise list it — a normal, expected outcome, not a
@@ -94,7 +94,14 @@ List the duty whenever any of these hold:
 - You inferred the answer from naming, structure, or a document rather than reading the code.
 - Your evidence is a search hit you did not open. A grep match proves a string exists, not that
   the code does what you say.
-- A search was truncated, capped or refused, or exited above 1, so absence of further hits proves nothing.
+- A search was refused or exited above 1, so absence of further hits proves nothing.
+- Your answer rests on the part of output cut short — stopped before the full result, at minimum
+  by your own command (a cap, filter, slice or partial-range read), a tool's result limit or a
+  saved-output preview; a cap the result never reached cut nothing. Cut output establishes only
+  what it showed, until you read the rest uncut, or, for a claim that nothing else matches or a
+  list of matching lines is complete, a matching-line count from the same search with nothing cut
+  (no cap, filter or preview) equals the lines you saw. That count never shows that a shown line or
+  value lacks something. Output you cannot tell is whole counts as cut short.
 - A file you needed was unreadable, absent, or binary.
 - The answer depends on a runtime or config value you could not resolve.
 - For the enumeration duties (sibling consumers and outputs; coupled sites and guards):
@@ -134,7 +141,8 @@ so line numbers are precise and useful here.
 
 Calibrate quantitative claims. Mark any count, size, percentage, or arithmetic total you did not
 read directly from tool output in this session as `(unverified estimate)`, and mark the same way a
-count derived from truncated or count-mode tool output. When a number *is* tool-derived, state what
+count derived from truncated or count-mode tool output; a matching-line count you use only to check
+that a listing is whole is a check, not a quantity. When a number *is* tool-derived, state what
 you measured and how you counted it, so the caller has a defined comparand to re-derive. This applies
 to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
 the report.

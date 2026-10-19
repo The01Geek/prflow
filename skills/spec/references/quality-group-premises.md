@@ -32,8 +32,7 @@
   negation). A `Verified:` premise asserts a **present-tense fact about the current tree**; a claim
   about the world *after* the change is written as an acceptance criterion, not a premise.
 - [ ] **Enclosing gates.** Under the *Definition of verified* in
-  `references/step-3-5-self-audit.md` (read it there if unloaded, or after a failed read the
-  first sentence of its `references/degradation-routing.md` row), a read confirms that the code
+  `references/step-3-5-self-audit.md` (read it there if unloaded), a read confirms that the code
   does X only with the enclosing gates, conditionals and defaults on the path to X read too; state a non-default precondition inside the claim. When X is one clause of a multi-clause rule or one step
   of an ordered procedure, also read each other clause of that rule and the steps whose order the
   claim depends on; the `Verified:` bullet quotes only the clause that makes the claim true; a

@@ -87,9 +87,10 @@ how each flow ends. Then:
    that pin it included — and locate where each reader's need is met after the change, on every
    arm. A reader left with no source is a defect; so is a guarantee the draft keeps in words but
    the change drops.
-2. **Added mechanisms.** Walk the motivating case and each named arm, then an empty or absent
-   input and an error exit. Two rules giving one case different outcomes, a case with no outcome,
-   or an obligation with no end condition is a defect. For an alleged contradiction, quote both
+2. **Added mechanisms.** Walk the motivating case, each named arm (a case class the draft's rule
+   wording distinguishes) and each arm the mechanism runs on, then an empty or absent input and an
+   error exit. Two rules giving one case different outcomes, a case with no outcome, or an
+   obligation with no end condition is a defect. For an alleged contradiction, quote both
    statements and derive their incompatible outcomes for one input and state; different
    responsibilities or awkward wording are no conflict.
 3. **Outcome.** Does the Desired Behavior, as the criteria pin it, deliver the Problem Statement's
