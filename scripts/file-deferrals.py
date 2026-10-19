@@ -182,10 +182,8 @@ def _deliverable_paths(source_issue: int) -> tuple[frozenset[str], str | None]:
     extractor = os.environ.get("DEVFLOW_DOC_NEEDED_EXTRACTOR") or str(EXTRACTOR_PATH)
     if _bl is None:
         return (frozenset(), "extractor-failed:launch-helper-unimportable")
-    # `bash` stays a literal here, not a shared resolver call: cloud_writer_deps.py
-    # verifies this file's declared exec edge from a statically resolvable binding.
-    bash = os.environ.get("DEVFLOW_BASH") or "bash"
     try:
+        bash = _bl.resolve_bash()
         argument = _bl.script_argument(Path(extractor), cwd=Path.cwd(), bash=bash)
         out = subprocess.run(
             [bash, argument], input=body, check=False,
