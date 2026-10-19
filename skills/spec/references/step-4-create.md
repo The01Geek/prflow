@@ -85,9 +85,10 @@ BODY
    appends the artifact's `Considered-and-rejected:` line and posts. Name its one stdout line (its docstring lists them)
    with any stderr, or that it printed none, in the final outcome, then continue to sub-step 5d whatever it printed.
 
-6. **Apply 3a's counted answers.** Runs only after the send succeeds and the URL has been reported; it asks nothing.
-   Per question, a no, an unanswered question or a discarded answer adds no assignee (reported as *issue filed,
-   no assignee added*) or posts no comment; a withheld offer posts none and is reported as withheld.
+6. **Apply the 3a answers held at, or given right after, the *Create* election.** Runs only after the send succeeds
+   and the URL has been reported; it asks nothing. Per question, a no or an unanswered question adds no assignee
+   (reported as *issue filed, no assignee added*) or posts no comment; an offer the gate withheld at the *Create*
+   presentation posts none, a carried yes included, and is reported as withheld.
    - **Assign — yes:** read the login with `gh api user --jq .login`, then
      `gh api -X POST repos/{owner}/{repo}/issues/<issue_number>/assignees -f "assignees[]=<login>"` — two commands,
      transcribing the printed login. Keep the literal `{owner}/{repo}` placeholders (never `$GITHUB_REPOSITORY`, which

@@ -9,8 +9,10 @@ event spanning several edits.)
 **Revision rule.** Before editing for a finding or user request, route a genuinely unresolved
 decision fork — including excluding a requested case or changing approved or prescribed-verbatim
 wording — through `references/step-2-clarify.md`'s **One decided behavior per fork** and
-clarification routes. Apply *Settled approach* in `references/step-2-clarify.md`, or its copy in
-`references/degradation-routing.md`'s clarification fallback if `step-2-clarify.md` did not load; a
+clarification routes. A fork a finding's fix raises about how a case is handled includes an option
+to leave that case uncovered: remove only the text that exists for that case and state the case as
+an accepted limit in each Desired Behavior sentence and criterion covering it. Apply *Settled
+approach* in `references/step-2-clarify.md`; a
 re-ask it requires goes through Step 2 before any edit for that finding. When the user keeps
 approved or prescribed-verbatim wording at a fork, append `kept at fork: "<the wording>"` to a
 `## Revision-delta record` section of this run's derivation artifact `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md`, creating the section on the first
@@ -18,21 +20,31 @@ line written (on a filesystem that refuses the append, follow
 `references/fallback-read-only-sandbox.md`); wording no such line quotes is not kept. Apply the
 routing rule below to the settled change, then run the verification steps on the edits.
 
-Apply `references/issue-template.md`'s *Brief / investigation-record routing* to the attacked text
-before composing a repair, whether or not the finding supplies one. Delete an attacked criterion the
-template's omit/merge/add rule refuses, with its Desired Behavior sentence unless the request names
-it or another criterion projects it. Move other attacked text the routing rule sends to the record,
-or delete it if refuted. When that resolves the finding, leave no replacement in the brief; do not
-replace a false incidental statement with a true incidental statement. For content the brief needs,
-repair the remaining defect by changing the existing statement before adding explanation; add only
-obligations needed to close that defect. Check places sharing the defect and route additions by the
-same template rule. Replace prose the revision makes false or supersedes, and consolidate copies
-serving no distinct role while retaining required projections, machine-consumer copies and
-load-bearing findings.
+Apply `references/issue-template.md`'s *Brief / investigation-record routing* to attacked text
+other than a case addition (below) before composing a repair, whether or not the finding supplies
+one. Delete an attacked criterion the template's omit/merge/add rule refuses, with its Desired
+Behavior sentence unless the request names it or another criterion projects it. Move other attacked
+text the routing rule sends to the record, or delete it if refuted. When that resolves the finding,
+leave no replacement in the brief; do not replace a false incidental statement with a true
+incidental statement. For content the brief needs, repair the remaining defect by changing the
+existing statement before adding explanation; add only obligations needed to close that defect.
+Check places sharing the defect and route additions by the same template rule. Replace prose the
+revision makes false or supersedes, and consolidate copies serving no distinct role while retaining
+required projections, machine-consumer copies and load-bearing findings.
 
-A finding that a heuristic lists, misses or wrongly decides a case is answered by restating its
-rule, failure direction or limit, never by adding the case, or refuted because the rule already
-decides the case correctly.
+A finding against a case addition — a case, clause, criterion or obligation you wrote in an earlier
+revision event of this run to answer a finding that a case was missing, unhandled or had no
+outcome, never text recording a user's answer or requested change — is answered by removing that
+addition, with each statement that exists only to serve it and that the request does not name, and
+stating the case as an accepted limit, even when a failure the change introduces requires the
+addition (the admissibility test's second origin). Only when removing it would drop a case the
+request names, repair the addition in place by the paragraph above's existing-statement repair. That
+paragraph's sibling check, false-prose replacement and consolidation apply to both answers. An
+addition that fixed a contradiction or a missing end condition is not a case addition, nor is a
+rewrite of first-draft text or text you cannot place or cannot tell is one. Against other text or
+an addition repaired in place, a finding that a heuristic lists, misses or wrongly decides a case is
+answered by restating its rule, failure direction or limit, never by adding the case, or refuted
+because the rule already decides the case correctly.
 
 The tests this rule applies, one line each, with `references/issue-template.md` their home:
 
@@ -75,7 +87,8 @@ behavior must remain unchanged. Check error paths and empty or absent inputs; gi
 an end condition. Apply Step 3.5 item 3's projection check: no Desired Behavior obligation remains
 `unmatched`. Every accepted limit (a case the mechanism knowingly leaves uncovered) is stated by
 each Desired Behavior sentence and criterion covering it; a user-decided narrowing is settled
-behavior, not a limit. A disagreement, missing end condition or unpropagated limit is a
+behavior, not a limit, except a case the user leaves uncovered through a fork's uncovered option,
+which is an accepted limit. A disagreement, missing end condition or unpropagated limit is a
 draft-consistency conflict. This reuses the existing checks on affected behavior; it does not re-run
 Step 3.5.
 3. Fix what point 2 finds inline under the revision rule, re-run the Step 3 no-options gate, and

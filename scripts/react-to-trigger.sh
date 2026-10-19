@@ -13,8 +13,10 @@
 # BEST-EFFORT: a failed/forbidden reaction must never block the run. By default,
 # every failure path warns to stderr and exits 0; the workflow step is additionally
 # `continue-on-error: true` as a second guard. Agent-side callers may pass
-# `--report-failure` to receive rc 1 after a reaction/comment-list API failure or an
-# unusable paginated comment response, and record it durably while still continuing.
+# `--report-failure` to receive rc 1 after a reaction API failure, a missing flag
+# value or an unknown argument, and record it durably while still continuing; every
+# other skip, such as an unknown --outcome, --outcome with --reaction or no resolved
+# comment, still exits 0.
 #
 # Reactions are an issue/comment-only API — a submitted *review*
 # (pull_request_review) has no reactions endpoint, so that path is skipped
@@ -37,12 +39,12 @@
 #                 +1 -1 laugh confused heart hooray rocket eyes.
 #   GH_TOKEN      token for `gh api`, set by the caller.
 #   GITHUB_EVENT_PATH  read only on the --outcome path (below): the event JSON whose
-#                 .comment.id resolves the triggering comment before the listing fallback.
+#                 .comment.id names the triggering comment.
 #
 # --outcome complete|blocked (agent-side CLI, issue #176): chooses the reaction itself
-# (complete->hooray, blocked->-1) and resolves the triggering comment itself (GITHUB_EVENT_PATH's
-# .comment.id, else the newest non-workpad implement-trigger comment on --issue N). Conflicts with
-# --reaction. Every value flag also accepts the `--flag=value` spelling: the implement fence uses
+# (complete->hooray, blocked->-1) and reacts on GITHUB_EVENT_PATH's .comment.id; with no usable
+# id it reacts nowhere and exits 0 with a notice naming --issue N. Conflicts with --reaction.
+# Every value flag also accepts the `--flag=value` spelling: the implement fence uses
 # `--outcome=complete` so a worktree-isolated local Claude Code session — whose guard refuses the bare
 # word `complete` — runs it, while the fence stays one leading-token call with no cloud-denied shape.
 #
@@ -153,41 +155,14 @@ if [ -n "$outcome" ]; then
     blocked)  REACTION=-1 ;;
     *) echo "::warning::react: unknown --outcome '$outcome' (expected complete|blocked); skipping acknowledgement." >&2; exit 0 ;;
   esac
-  # jq resolver: sourced here (not top-level) so the hot non-outcome path never pays the probe.
-  # shellcheck source=../lib/resolve-jq.sh
-  . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh"
-  # Prefer the event file GITHUB_EVENT_PATH names; else list the issue's comments and take the
-  # newest non-workpad /prflow:implement (or /devflow:implement) comment. Accept only an all-digits
-  # id both ways — a gh error body lands on stdout as a fake capture (issue #664).
+  # The event file is the only source: never fall back to searching the issue's comments, which
+  # reacts on whatever comment merely quotes the command (issue #2484). Accept only an all-digits id.
   cid=""
   if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
+    # jq resolver: sourced here so a run with no event file never pays the probe.
+    # shellcheck source=../lib/resolve-jq.sh
+    . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh"
     cid="$("$DEVFLOW_JQ" -r '.comment.id // empty' "$GITHUB_EVENT_PATH" 2>/dev/null || true)"
-    [ -n "$cid" ] && [ -z "${cid//[0-9]/}" ] || cid=""
-  fi
-  if [ -z "$cid" ]; then
-    outcome_err_file="$(mktemp 2>/dev/null)" || outcome_err_file=/dev/null
-    if ! comments_json="$("$DEVFLOW_GH" api --paginate "repos/$repo/issues/${ISSUE_NUMBER:-}/comments?per_page=100" 2>"$outcome_err_file")"; then
-      outcome_err="$(if [ -s "$outcome_err_file" ]; then printf '%s' "$(< "$outcome_err_file")"; else echo 'no error output captured'; fi)"
-      [ "$outcome_err_file" = /dev/null ] || rm -f "$outcome_err_file"
-      echo "::warning::react: could not list comments for issue '${ISSUE_NUMBER:-}'; skipping outcome acknowledgement: ${outcome_err//$'\n'/ }" >&2
-      if [ "$report_failure" = true ]; then
-        exit 1
-      fi
-      exit 0
-    fi
-    : > "$outcome_err_file"
-    if ! cid="$(printf '%s' "$comments_json" | "$DEVFLOW_JQ" -rs \
-      'if all(.[]; type == "array") then (add // []) else error("comment page is not an array") end
-       | map(select(((.body // "") | test("/(pr|dev)flow:implement")) and (((.body // "") | contains("flow:workpad")) | not))) | last | .id // empty' 2>"$outcome_err_file")"; then
-      outcome_err="$(if [ -s "$outcome_err_file" ]; then printf '%s' "$(< "$outcome_err_file")"; else echo 'no error output captured'; fi)"
-      [ "$outcome_err_file" = /dev/null ] || rm -f "$outcome_err_file"
-      echo "::warning::react: could not parse issue comment pages as arrays for issue '${ISSUE_NUMBER:-}'; skipping outcome acknowledgement: ${outcome_err//$'\n'/ }" >&2
-      if [ "$report_failure" = true ]; then
-        exit 1
-      fi
-      exit 0
-    fi
-    [ "$outcome_err_file" = /dev/null ] || rm -f "$outcome_err_file"
     [ -n "$cid" ] && [ -z "${cid//[0-9]/}" ] || cid=""
   fi
   if [ -z "$cid" ]; then

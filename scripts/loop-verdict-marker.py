@@ -152,21 +152,27 @@ warn on a top-level key outside it. `read`, `build-deferrals` and `install-recor
       unusable iter-N.json or a failed write is status "error" (exit 1) and removes an earlier
       manifest (one it cannot remove is named in the `reason`); a bad --iteration exit 2.
 
-  render-exit --run-root DIR --iteration N --result "<loop result>"
+  render-exit --run-root DIR --iteration N --result "<loop result>" [--contract 2]
               [--shadow-dispatch attempted|never|unestablished] [--not-verified GATE]...
       Loop Exit's mechanical half over iter-1..N.json. Selects the shadow evidence (the final
       record's `shadow_skipped` when it has no `shadow` block, honored only on a fresh
       iteration 1, else the latest `shadow` block), requires its recorded head to prefix HEAD
-      and, for a clean approve result, a block with no `promoted_to_iter_next` and zero new
-      Critical and Important findings, renders the `{shadow status}` phrase, and writes
-      DIR/loop-exit-coverage.md (the `## Coverage` section: the shadow sentence, then each
+      and, for a clean approve result, a block with no `promoted_to_iter_next`, a non-blank
+      string `verdict` not beginning `reject`, and `phase3_findings` and `phase2_fails` arrays whose
+      every row's deciding severity is below Important (a `phase3_findings` row `S-<k>` takes
+      the `calibrated_severity` of the record's last `severity-calibrated` row for `S-<k>`;
+      a label other than critical/important/major/suggestion/minor reads Critical; the
+      block's `comparison`, if any, is never read), renders the `{shadow status}` phrase, and
+      writes DIR/loop-exit-coverage.md (the `## Coverage` section: the shadow sentence, which
+      counts the rows by Critical, Important and below Important, then for an agreed clean
+      approve each new below-Important row, then any --not-verified gate line, then each
       checklist FAIL and INCONCLUSIVE item of the last non-promoted iteration that ran Phase
       1+2, read from its `engine-return-step1-iter-<k>.json`, else its record's `checklist`; a
       FAIL that iteration applied a fix to is marked `(fix applied)`; an iteration whose items
       cannot be read, its record included, gets a `not listed` line instead). A clean approve result
       whose final record holds no `park_calibration` object with an `evidence_comparisons`
       array is listed in `incomplete` and renders not verified. The --not-verified GATEs,
-      joined with "and", add a Coverage line after the shadow sentence and leave the shadow
+      joined with "and", make that gate line and leave the shadow
       status and the marker's coverage to the shadow. The marker grades the most recent entry's retained
       `evidence-<entry>/iter-<k>/` copy: a shadow copy that does not pass is passed over with a
       warning, the most recent step1 copy decides, and only a promoted iteration is walked back
@@ -174,7 +180,7 @@ warn on a top-level key outside it. `read`, `build-deferrals` and `install-recor
       "shadow_status","coverage_path","graded_iteration","graded_entry","incomplete",
       "warnings"} (exit 0; a non-pass grade is "evidence-missing" with no marker); an
       unwritable run root is "error" (exit 1); a bad --iteration or an unmappable --result
-      is "error" (exit 2).
+      is "error" (exit 2). --contract 2 changes no output; an older helper rejects it (exit 2).
 
   install-record --run-root DIR --iteration N
       Installs DIR/iter-<N>.json.draft over DIR/iter-<N>.json with os.replace. The draft is
@@ -1308,9 +1314,45 @@ def _sha_matches(recorded, head: str) -> bool:
             and head.lower().startswith(recorded.lower()))
 
 
+_RUNGS = ("critical", "important", "below")
+_SEVERITY_RUNG = {"critical": "critical", "important": "important", "major": "important",
+                  "suggestion": "below", "minor": "below"}
+
+
+def _shadow_rows(record: dict, block: dict) -> list[tuple] | None:
+    """(id, deciding severity, rung, summary) per new row of a shadow block — `phase3_findings` as
+    `S-<k>` by position, its severity the `calibrated_severity` of the record's last
+    `severity-calibrated` row for that id, else its own; then `phase2_fails` by checklist `id` —
+    or None when either array is not an array. A severity that is not a known label, or a row that
+    is not an object, takes the `unlabeled` rung, which counts as Critical."""
+    p3, p2 = block.get("phase3_findings"), block.get("phase2_fails")
+    if not (isinstance(p3, list) and isinstance(p2, list)):
+        return None
+    calibrated = {row.get("finding_id"): row.get("calibrated_severity")
+                  for row in _rows(record.get("fix_decisions"))
+                  if row.get("decision") == "severity-calibrated"
+                  and isinstance(row.get("finding_id"), str)}
+    rows = []
+    for fid, row, summary_key in ([(f"S-{i}", row, "description") for i, row in enumerate(p3, 1)]
+                                  + [(None, row, "claim_signature") for row in p2]):
+        if not isinstance(row, dict):
+            rows.append((fid or "id not recorded", None, "unlabeled", None))
+            continue
+        severity = calibrated[fid] if fid in calibrated else row.get("severity")
+        if fid is None:
+            fid = row.get("id") if isinstance(row.get("id"), str) and row.get("id") else "id not recorded"
+        rung = _SEVERITY_RUNG.get(severity.strip().lower(), "unlabeled") \
+            if isinstance(severity, str) else "unlabeled"
+        summary = row.get(summary_key)
+        summary = " ".join(summary.split()) if isinstance(summary, str) else ""
+        rows.append((fid, severity, rung, summary or "no summary recorded"))
+    return rows
+
+
 def _shadow_status(records: dict, n: int, head: str | None, result_token: str | None,
-                   dispatch: str) -> tuple[str, str]:
-    """(the {shadow status} phrase, the Coverage section's shadow sentence)."""
+                   dispatch: str) -> tuple[str, str, list[str]]:
+    """(the {shadow status} phrase, the Coverage section's shadow sentence, the Coverage lines
+    listing an agreed clean approve's new below-Important shadow items)."""
     unaudited = "the loop's tentative verdict stands but was not independently audited."
     final = records.get(n)
     skipped = final.get("shadow_skipped") if final else None
@@ -1318,57 +1360,65 @@ def _shadow_status(records: dict, n: int, head: str | None, result_token: str | 
         if n != 1 or final.get("restored_from") is not None:
             return ("shadow agreement not verified (an iteration-1 skip recorded on another iteration)",
                     (f"Shadow agreement NOT verified — the clean-iteration-1 skip applies only "
-                     f"to a fresh iteration 1; {unaudited}"))
+                     f"to a fresh iteration 1; {unaudited}"), [])
         if head and _sha_matches(skipped.get("head"), head):
             return ("shadow skipped, iteration 1 clean",
                     ("Shadow pass skipped — iteration 1 was clean; the caller's PR-level review "
-                     "is the independent pass."))
+                     "is the independent pass."), [])
         return ("shadow agreement not verified (HEAD moved after the skip)",
-                f"Shadow agreement NOT verified — HEAD is not the commit iteration 1 reviewed; {unaudited}")
+                f"Shadow agreement NOT verified — HEAD is not the commit iteration 1 reviewed; {unaudited}",
+                [])
     k, block = next(((k, records[k]["shadow"]) for k in range(n, 0, -1)
                      if records.get(k) and isinstance(records[k].get("shadow"), dict)), (None, None))
     if block is None:
         if result_token == "reject":
             return ("shadow agreement not verified",
-                    "Shadow pass did not run — final verdict was REJECT before convergence.")
+                    "Shadow pass did not run — final verdict was REJECT before convergence.", [])
         return ("shadow agreement not verified (shadow result not recorded)",
                 ("Shadow agreement NOT verified — the shadow result was not recorded; shadow "
-                 f"fan-out dispatched: {_DISPATCH_FACT[dispatch]}"))
+                 f"fan-out dispatched: {_DISPATCH_FACT[dispatch]}"), [])
     if block.get("coverage") != "full":
         reason = block.get("reason")
         reason = reason if isinstance(reason, str) and reason else "specific reason not recorded"
         return (f"shadow agreement not verified ({reason})",
-                f"Shadow agreement NOT verified — {reason}; {unaudited}")
+                f"Shadow agreement NOT verified — {reason}; {unaudited}", [])
     if not head or not _sha_matches(block.get("reviewed_sha"), head):
         return ("shadow agreement not verified (HEAD moved after the shadow)",
                 (f"Shadow agreement NOT verified — HEAD is not the commit the iteration-{k} "
-                 f"shadow reviewed; {unaudited}"))
+                 f"shadow reviewed; {unaudited}"), [])
     if block.get("dispatch_disposition") is not None or block.get("dispatch_mode") == "unavailable":
         return ("shadow agreement not verified (inline engine execution)",
                 (f"Shadow agreement NOT verified — the shadow engine ran inline in the informed "
-                 f"loop context; {unaudited}"))
-    cmp_ = block.get("comparison") if isinstance(block.get("comparison"), dict) else {}
-
-    def number(key):
-        v = cmp_.get(key)
-        return v if isinstance(v, int) and not isinstance(v, bool) else None
-    if result_token in _CLEAN_APPROVE_TOKENS and (
-            block.get("promoted_to_iter_next") is True
-            or number("new_critical") != 0 or number("new_important") != 0):
-        return ("shadow agreement not verified (the shadow's new findings are unresolved)",
-                (f"Shadow agreement NOT verified — the iteration-{k} shadow raised new Critical or "
-                 f"Important findings, or recorded no comparison; {unaudited}"))
+                 f"loop context; {unaudited}"), [])
+    rows = _shadow_rows(records[k], block)
     roster = block.get("reviewers_dispatched")
     roster = ", ".join(r for r in roster if isinstance(r, str)) if isinstance(roster, list) else "?"
-
-    def count(key):
-        v = number(key)
-        return "?" if v is None else str(v)
-    sentence = (f"Shadow ran with full reviewer coverage ({roster}). It raised "
-                f"{count('shadow_total')} findings; {count('overlap_with_iter_N')} were already in "
-                f"iteration {k}; {count('new')} were new ({count('new_critical')} Critical, "
-                f"{count('new_important')} Important).")
-    return "shadow agreed, full coverage", sentence
+    if rows is None:
+        sentence = f"Shadow ran with full reviewer coverage ({roster}); its new findings were not recorded."
+    else:
+        tally = {rung: sum(1 for row in rows if row[2] == rung) for rung in _RUNGS}
+        tally["critical"] += sum(1 for row in rows if row[2] == "unlabeled")
+        sentence = (f"Shadow ran with full reviewer coverage ({roster}). It raised {len(rows)} new "
+                    f"finding{'' if len(rows) == 1 else 's'} ({tally['critical']} Critical, "
+                    f"{tally['important']} Important, {tally['below']} below Important).")
+    if result_token not in _CLEAN_APPROVE_TOKENS:
+        return "shadow agreed, full coverage", sentence, []
+    verdict = block.get("verdict")
+    why = ("the shadow's new findings are unresolved" if block.get("promoted_to_iter_next") is True
+           else "the shadow's verdict was not recorded" if not (isinstance(verdict, str) and verdict.strip())
+           else "the shadow's verdict is REJECT" if verdict.strip().lower().startswith("reject")
+           else "the shadow's new findings were not recorded" if rows is None
+           else "the shadow's new findings are unresolved"
+           if any(r[2] in ("critical", "important") for r in rows)
+           else "the shadow's new findings include a row with no recognized severity"
+           if any(r[2] == "unlabeled" for r in rows)
+           else None)
+    if why:
+        return (f"shadow agreement not verified ({why})",
+                f"{sentence} Shadow agreement NOT verified — {why}; {unaudited}", [])
+    items = [f"- {fid}: new shadow finding ({severity.strip().lower()}) — {summary}"
+             for fid, severity, _rung, summary in rows]
+    return "shadow agreed, full coverage", sentence, items
 
 
 def _return_checklist(run_root: str, k: int) -> tuple[list | None, str]:
@@ -1481,22 +1531,23 @@ def _cmd_render_exit(args: argparse.Namespace) -> int:
     head = out.strip() if rc == 0 and isinstance(out, str) and _SHA40_RE.match(out.strip()) else None
     if head is None:
         warnings.append("HEAD unresolved; shadow agreement cannot be verified")
-    phrase, sentence = _shadow_status(records, args.iteration, head, token, args.shadow_dispatch)
+    phrase, sentence, shadow_items = _shadow_status(records, args.iteration, head, token,
+                                                    args.shadow_dispatch)
     incomplete = []
     final = records.get(args.iteration)
     pc = final.get("park_calibration") if final else None
     if token in _CLEAN_APPROVE_TOKENS and not (isinstance(pc, dict)
                                                and isinstance(pc.get("evidence_comparisons"), list)):
         incomplete.append("park_calibration")
+        shadow_items = []
         phrase = "shadow agreement not verified (park calibration not recorded)"
         sentence = ("Shadow agreement NOT verified — the park-calibration gate left no record; "
                     "the loop's tentative verdict stands but was not independently audited.")
-    sentences = [sentence]
     gate = " and ".join(g.strip() for g in args.not_verified or () if g.strip())
-    if gate:
-        sentences.append(f"{gate} NOT verified.")
+    gate_lines = [f"- {gate} NOT verified."] if gate else []
     items = _coverage_items(records, args.iteration, run_root, warnings)
-    coverage = "\n".join(["## Coverage", "", *(f"- {s}" for s in sentences), *items]) + "\n"
+    coverage = "\n".join(["## Coverage", "", f"- {sentence}", *shadow_items, *gate_lines,
+                          *items]) + "\n"
     coverage_path = f"{run_root}/loop-exit-coverage.md"
     try:
         with open(coverage_path, "w", encoding="utf-8", newline="\n") as fh:
@@ -1576,6 +1627,8 @@ def main(argv: list[str] | None = None) -> int:
     p_exit.add_argument("--iteration", required=True, type=int)
     p_exit.add_argument("--result", required=True)
     p_exit.add_argument("--shadow-dispatch", choices=sorted(_DISPATCH_FACT), default="unestablished")
+    p_exit.add_argument("--contract", choices=["2"], default=None,
+                        help="2: changes no output; an older helper rejects it")
     p_exit.add_argument("--not-verified", action="append", metavar="GATE",
                         help="a gate that did not complete (repeatable): a Coverage line; the marker is unchanged")
     p_exit.set_defaults(func=_cmd_render_exit)

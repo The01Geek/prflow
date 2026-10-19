@@ -84,8 +84,7 @@ justify a revision:
 - must-revise — a verified correctness, safety, implementability, unresolved-decision or
   load-bearing-premise defect; correctness includes a concrete failure to deliver the stated outcome
   within the decided scope and accepted limits; also a verified finding meeting
-  `references/step-2-clarify.md`'s *Settled approach* re-ask rule (`references/degradation-routing.md`'s
-  clarification-fallback copy when that file did not load);
+  `references/step-2-clarify.md`'s *Settled approach* re-ask rule;
 - advisory — a valid improvement a truthful, buildable issue does not need;
 - invalid — refuted, or not verifiable.
 

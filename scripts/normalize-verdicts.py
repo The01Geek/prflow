@@ -104,7 +104,8 @@ attempt file with an original ``agent_id``;
 ``defect: verdict_file_absent``), plus ``channel`` and ``helper_internal``, which are never
 re-dispatched. Delivery takes precedence over semantic retry, once per Phase 2 attempt.
 Its entry carries ``agent_id``, ``item`` and the same
-``verdict_file``; the engine asks that verifier to write its existing answer without re-verifying.
+``verdict_file``; the engine sends that verifier the delivery message in
+``skills/review/phases/phase-2-verification.md`` §2.2.
 Collect marks ``delivery: true`` without changing the attempt or source views. A usable
 reply is saved as ``delivery_answer``: it remains the grading source, and the file
 must agree on ``_DELIVERY_OPERANDS``. Otherwise the exclusive ``delivery_file_only: true``

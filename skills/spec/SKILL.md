@@ -67,8 +67,21 @@ until the run ends, assume the fix shipped as designed and failed: name the cons
 environment, input, state or later change that broke. Repeat when a candidate, answer or
 revision changes the design. Confirm a failure claim with a read before it shapes a
 recommendation, criterion or gotcha; call it unverified where no read can, and drop one
-the change cannot cause. Surface failures before the implementation-approach question
-where possible, while they can still change the design.
+the change cannot cause. Before the implementation-approach question, walk each
+motivating case and each named arm through every candidate. A motivating case is a
+reported input or run the request says the fix exists to change (when unsure, the case it
+describes); a named arm is a case class the candidate rule's wording distinguishes (both
+sides of its condition, each member of a "for every" range), walked with or without a
+motivating case; with neither, there is no walk. Name the outcome each should have: the
+requested change for a motivating case or an arm the request changes, else the arm's
+correct current outcome. Read the case's input, what produces it and whether it reaches
+the subject, and its current outcome, then derive the candidate's outcome. A case passes
+only when that is the outcome it should have and, for a motivating case, the read shows
+its current outcome wrong; anything else, a fact no read settles included, is a walk
+failure, never dropped as one the change cannot cause. The draft states each walk
+failure the chosen design keeps, labelled unverified where no read confirms it. Surface
+failures before the implementation-approach question where possible, while they can
+still change the design.
 
 ## Consumer skill extension (load first)
 
@@ -196,9 +209,9 @@ derivation — or, in a read-only sandbox, rely solely on the visible inline-in-
 re-posted in this turn and do not trust any on-disk file (it can only be a stale leftover).
 If the artifact is missing or you cannot confirm it is this run's, the requirements self-check
 was skipped — stop and run it now (Step 2) before drafting.
-This equally gates the `## Evidence bundle`: it must have an entry for every axis its header lists,
-and its header must pass Step 2's *Axis-list header* rule; otherwise stop and
-run the evidence-bundle sub-pass now before drafting.
+This equally gates the `## Evidence bundle`: it must have an entry for every axis its header lists
+and, unless `references/step-2-clarify.md` failed to load, its header must pass Step 2's *Axis-list header*
+rule; otherwise stop and run the evidence-bundle sub-pass before drafting.
 
 Draft the issue from the context you already hold — the documentation findings from Step 1
 (relevant files, current behavior) and the decisions from Step 2 — doing only targeted

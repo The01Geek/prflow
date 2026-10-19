@@ -11,11 +11,32 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## October 19, 2026
+
+- **`/prflow:spec` can recommend an approach option that rests on an unconfirmed fact.** The question still shows each such fact as not confirmed. (#2562)
+- **On Windows Git Bash, `/prflow:implement`'s issue audit and `/prflow:fix` can read a file as the base branch has it.** They now read it by commit ID, so git no longer answers "Not a valid object name". (#2790)
+
+## October 18, 2026
+
+- **`/prflow:review-and-fix` can list a shadow review's new low-severity findings in its `## Coverage` report, and can decide "shadow agreed, full coverage" from the findings the loop recorded.** A run no longer picks a route by hand for a shadow that adds only low-severity findings. (#2251)
+- **Spec's scope and side questions can name evidence against their recommended answer.** You can see what the run already read that argues against the recommended option before you choose it. (#2513)
+- **`/prflow:implement` passes the review-fix worker the digest of its latest prompt-extension check.** A Phase 3 base-update merge that edits the extension no longer stops the run at the worker's digest check. (#2564)
+- **Implement runs no longer put their 🎉 or 👎 reaction on an unrelated comment that only mentions the command.** (#2484)
+- **`/prflow:spec` can drop a case its own revision added and state the case as a limit, rather than patch it.** A fork question that fixing a finding raises about how to handle a case also offers to leave that case uncovered. (#2541)
+- **`/prflow:spec` and `/prflow:docs-verify --report-only` treat cut-short output as an incomplete search.** (#2369)
+- **`/prflow:review-and-fix` declines a Suggestion or Minor finding only for a listed reason, and a later fix can re-check an earlier decline.** (#2343)
+- **Local reviews can spend less time waiting on checklist verifiers.** A verifier asked to save its verdict is told to finish any check it is still running first. (#2519)
+- **`/prflow:spec` can keep your assignment and implementation answers across its approval prompts instead of discarding them.** A later prompt can show a kept answer, and you can change it before you approve. (#2664)
+- **`/prflow:spec` walks each motivating case and named rule arm before asking for the design, and `/prflow:implement` keeps replaying the cases an issue names instead of swapping one out.** (#2318)
+- **`/prflow:spec`'s failed reference-load fallbacks are shorter and report what they skip.** A run whose reference file fails to load no longer gets compact copies of that file's checks, such as the contract and premise checks, and says which coverage it lost. (#2521)
+- **Cloud review, review-and-fix, PR-description and retrospective runs' built-in `gh api` grant now covers only your own repository's endpoints.** The built-in list no longer grants `gh issue create`, `gh issue comment`, `gh pr comment`, `gh pr create`, `env` or `export`; re-run the installer to pick this up, and upgrade `prflow_version` first or together with it. (#2672)
+
 ## October 17, 2026
 
 - **`/prflow:review-and-fix <PR>` reviews a branch that carries unpushed local commits instead of stopping.** With `--push-each-iteration`, those earlier local commits are now reviewed with the PR and pushed with the first fix push. (#2068)
 - **Local `/prflow:implement` runs without a vendored plugin copy spend fewer tool calls in the intake, review-fix and finalization workers.** Intake and finalization no longer make a separate digest call, the three workers skip the vendored helper path once the run has found it missing, and the documentation and PR-description children are told the vendored folder is absent. (#2454)
 - **`/prflow:spec` can ask the implementation-approach question again after you pick, so you choose with the corrected facts instead of approving a patched design.** (#2539)
+- **The comment analyzer can grade an unchanged instruction line your change makes false as Critical.** (#2241)
 
 ## October 16, 2026
 

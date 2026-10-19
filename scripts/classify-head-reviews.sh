@@ -4,8 +4,8 @@
 # classify-head-reviews.sh PAYLOAD HEAD_SHA REVIEWER_LOGIN — reduce a reviews-API
 # payload to ONE line from a closed four-token vocabulary (issue #1250).
 #
-# THE QUESTION IT ANSWERS. `Bash(gh api:*)` is granted in every capability profile,
-# so a cloud run that cannot reach scripts/post-review-verdict.sh can still POST a
+# THE QUESTION IT ANSWERS. `gh api` is granted in every capability profile (the
+# command profile's rule only under `repos/{owner}/{repo}/`), so a cloud run that cannot reach scripts/post-review-verdict.sh can still POST a
 # real, merge-blocking pull-request review by calling the reviews endpoint directly —
 # a review GitHub records (it sets `reviewDecision`) but which carries NO
 # producer-emitted `prflow:review-verdict` marker, so none of PRFlow's

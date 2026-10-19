@@ -60,7 +60,7 @@ The focused documentation commands read their own files under the same rule: `do
 
 The command loads the file at the start of the run and appends its contents, word for word, to the end of its own instructions for that run only. Nothing is merged, summarized or rewritten.
 
-Long commands reload the file when they enter a new phase, so your instructions stay in effect through a run that lasts an hour. `/prflow:pr-description` is a single pass and loads it once.
+Long commands reload the file when they enter a new phase, so your instructions stay in effect through a run that lasts an hour. `/prflow:implement` also checks the file again when it merges your base branch just before review, so an extension change merged meanwhile applies to the review. `/prflow:pr-description` is a single pass and loads it once.
 
 Write the file as instructions, not as background reading. If you want a tool called, say so, because the agent acts on what the text tells it to do.
 

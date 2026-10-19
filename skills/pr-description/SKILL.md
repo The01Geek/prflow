@@ -240,10 +240,10 @@ Rules:
 
 - If an existing PR was found (Mode B): Update it directly via REST (repo-scope only — `gh pr edit --body` resolves the repo through org-scoped GraphQL and fails under a repo-scoped token). Write the full output, pre/post-marker content included, to a file under `.prflow/tmp/` with the file-write tool, then apply it with the lookup's PR number as a literal:
   ```bash
-  gh api --method PATCH "repos/{owner}/{repo}/pulls/<number>" -F body=@<file>
+  gh api repos/{owner}/{repo}/pulls/<number> --method PATCH -F body=@<file>
   ```
   Then read the body back with the same literal number and compare it with the file's contents, ignoring the trailing newline `--jq` appends. A non-zero exit from either call, or any other difference — `gh api` can exit 0 while the body came through as a literal `@path` or truncated — is a failed write: redo it once, and if it fails again, report the write as failed in your final message, naming the body file, quoting the stderr or mismatch, and stating whether the last read-back showed the body the lookup returned, or that no read-back succeeded:
   ```bash
-  gh api "repos/{owner}/{repo}/pulls/<number>" --jq .body
+  gh api repos/{owner}/{repo}/pulls/<number> --jq .body
   ```
 - **If no existing PR (Mode A):** Output the description as plain text for the caller to use when creating the PR.

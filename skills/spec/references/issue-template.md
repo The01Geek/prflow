@@ -303,8 +303,7 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   criterion whose first named unit of work is confirming — by reading the method body and every
   decorator or middleware on it — that no other permission check applies. A peer's report of a
   guard is not grounding: without the graded bullet and a read confirming it under the
-  *Definition of verified* in `references/step-3-5-self-audit.md` (read it there if unloaded, or
-  after a failed read the first sentence of its `references/degradation-routing.md` row), the claim
+  *Definition of verified* in `references/step-3-5-self-audit.md` (read it there if unloaded), the claim
   is an unverified premise, not an admissible criterion.
 - Reference project coding standards from `CLAUDE.md` if available.
 
