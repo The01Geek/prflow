@@ -12,18 +12,17 @@ reproducing it from a Git Bash prompt, and Linux-only CI cannot see it at all.
 `lib/normalize-path.sh` converts the same two forms and is the source of the two output
 spellings, but reaching it means starting the very shell whose argument is broken, so the
 conversion has to happen here. It decides the interpreter family from the live environment;
-this module runs before any bash exists and reads the family off the `DEVFLOW_BASH` value.
+this module runs before any bash exists and reads the family off the interpreter
+`resolve_bash` selects.
 
 Prefer `script_argument` with a `cwd`: a path relative to the working directory the subprocess
 is given carries no drive letter and is correct under every interpreter. `convert_absolute` is
 the residual for a target outside that directory.
 
-Disclosed residual. Family detection reads the `DEVFLOW_BASH` spelling, so an UNSET override
-leaves the bare literal `bash`, which is classified Git Bash / MSYS2. On a Windows host whose
-PATH `bash` is the WSL launcher that yields `/c/…`, which WSL cannot open. Nothing here can
-tell those apart without probing the interpreter, so the remedy is the selection boundary
-itself: set `DEVFLOW_BASH` to the interpreter you mean. The relative form `script_argument`
-prefers is unaffected, which is why it is the primary strategy and this is the residual.
+Unless `DEVFLOW_BASH` is non-empty, native Windows launches the first `bash.exe` in a fully
+qualified PATH entry, else the bare `bash`, which family detection reads as Git Bash whatever it
+resolves to.
+Set `DEVFLOW_BASH` to choose a bash explicitly.
 """
 
 from __future__ import annotations
@@ -32,9 +31,7 @@ import os
 import re
 from pathlib import Path
 
-#: The variable naming the bash the operator selected (issue #248). Read inline instead
-#: by `scripts/resolve-review-overrides.py`, whose declared exec edge a guard verifies from
-#: a statically resolvable binding; the resolution rule is the same.
+#: The variable naming the bash the operator selected (issue #248).
 BASH_ENV = "DEVFLOW_BASH"
 
 #: Matches a WSL interpreter by its own spelling — `wsl`, `wsl.exe`, or a path ending
@@ -42,9 +39,10 @@ BASH_ENV = "DEVFLOW_BASH"
 #: does not match and takes the `/<drive>` form.
 _WSL_INTERPRETER = re.compile(r"(?:^|[\\/])wsl(?:\.exe)?$", re.IGNORECASE)
 
-#: The System32 launcher spelling, matched separately so the rule above stays readable.
-_WSL_SYSTEM32_LAUNCHER = re.compile(
-    r"[\\/]windows[\\/]system32[\\/]bash(?:\.exe)?$", re.IGNORECASE
+#: The WSL `bash.exe` launcher or app-execution alias, matched by its `System32`, `Sysnative`
+#: or `WindowsApps` folder under any root, separately so the rule above stays readable.
+_WSL_LAUNCHER = re.compile(
+    r"[\\/](?:system32|sysnative|windowsapps)[\\/]bash(?:\.exe)?$", re.IGNORECASE
 )
 
 #: A leading Windows drive letter, parsed here rather than through `pathlib` so the rewrite
@@ -52,27 +50,44 @@ _WSL_SYSTEM32_LAUNCHER = re.compile(
 #: drive, so a drive-letter path would pass through unconverted on Linux CI (issue #430).
 _DRIVE_LETTER = re.compile(r"^([A-Za-z]):(.*)$", re.DOTALL)
 
+#: A fully qualified Windows path. Not `ntpath.isabs`: before Python 3.13 it also accepts `\bin`.
+_FULLY_QUALIFIED = re.compile(r"^(?:[A-Za-z]:|[\\/])[\\/]")
 
-def resolve_bash(env=None):
-    """Return the bash interpreter to launch: `$DEVFLOW_BASH` when set non-empty, else `bash`.
 
-    An override wins verbatim and is never probed, matching `lib/resolve-bin.sh`'s
-    contract for the same variable.
+def resolve_bash(env=None, os_name=None):
+    """Return the bash interpreter to launch.
+
+    A non-empty `$DEVFLOW_BASH` wins verbatim and is never probed, matching
+    `lib/resolve-bin.sh`'s contract for the same variable. Otherwise native Windows takes the
+    first fully qualified PATH entry in `env` (drive letter and root, or UNC; surrounding double
+    quotes dropped) holding a `bash.exe` file; everywhere else, or with no such entry, the bare
+    `bash`.
     """
     environ = os.environ if env is None else env
-    return environ.get(BASH_ENV) or "bash"
+    override = environ.get(BASH_ENV)
+    if override:
+        return override
+    if (os.name if os_name is None else os_name) == "nt":
+        # Not shutil.which: on Windows it can search the current directory first and accepts
+        # every PATHEXT extension, so a `bash.cmd` or a checkout's `bash.exe` could win.
+        for entry in environ.get("PATH", "").split(os.pathsep):
+            if entry[:1] == entry[-1:] == '"':
+                entry = entry[1:-1]
+            candidate = os.path.join(entry, "bash.exe")
+            if _FULLY_QUALIFIED.match(entry) and os.path.isfile(candidate):
+                return candidate
+    return "bash"
 
 
 def is_wsl_interpreter(bash):
     """Return True when `bash` names a WSL interpreter rather than a Git Bash / MSYS2 one.
 
-    The System32 `bash.exe` launcher counts: it is the standard WSL entry point on a Windows
-    host and the spelling an operator most often picks up as "a bash on PATH", and reading it
-    as Git Bash hands WSL a `/c/…` path it cannot open.
+    A `bash.exe` in System32, Sysnative or WindowsApps counts: reading it as Git Bash hands WSL
+    a `/c/…` path it cannot open.
     """
     spelling = str(bash).strip().strip('"')
     return bool(
-        _WSL_INTERPRETER.search(spelling) or _WSL_SYSTEM32_LAUNCHER.search(spelling)
+        _WSL_INTERPRETER.search(spelling) or _WSL_LAUNCHER.search(spelling)
     )
 
 

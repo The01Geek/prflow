@@ -1235,15 +1235,20 @@ def _decide(args):
 
 
 def _force_utf8_streams():
-    """Force stdin/stdout/stderr to UTF-8 on the entry path (issue #1762). The detail lines
-    carry em-dashes, so a non-UTF-8 runner would otherwise raise on print. Never called at
-    import — that would mutate an importing test's streams. Tolerates a stream with no
-    usable reconfigure."""
-    for _stream in (sys.stdin, sys.stdout, sys.stderr):
+    """Force stdin and stdout to UTF-8 on the entry path (issue #1762): a non-UTF-8 runner would
+    otherwise misread a reviews payload piped on stdin and raise printing the detail lines'
+    em-dashes. stdout also writes bare LF, so the lines post-review-verdict.sh splits off and
+    relays carry no CR. Never called at import — that would mutate an importing test's
+    streams. The newline is set apart from the encoding, so a stream refusing it keeps UTF-8."""
+    for _stream in (sys.stdin, sys.stdout):
         try:
             _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError, OSError):
+        except (AttributeError, TypeError, ValueError, OSError):
             pass
+    try:
+        sys.stdout.reconfigure(newline="\n")
+    except (AttributeError, TypeError, ValueError, OSError):
+        pass
 
 
 def main(argv=None):

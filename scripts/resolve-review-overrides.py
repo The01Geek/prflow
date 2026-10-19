@@ -381,9 +381,7 @@ def _config_get(config_get, config_file, dotted_key, warnings):
     # Give the subprocess NO cwd of its own: config-get.sh resolves config from
     # `git rev-parse --show-toplevel` in ITS cwd, so a script-dir cwd would read the plugin's
     # non-repo copy and drop every override silently.
-    # The `bash` head stays literal, not the shared helper: cloud_writer_deps.py verifies this
-    # file's declared exec edge from static bindings a helper call would leave nothing to read.
-    bash = os.environ.get("DEVFLOW_BASH") or "bash"
+    bash = _bl.resolve_bash()
     here = Path.cwd()
     cmd = [bash, _bl.script_argument(Path(config_get), cwd=here, bash=bash), dotted_key, ""]
     if config_file:
@@ -393,9 +391,9 @@ def _config_get(config_get, config_file, dotted_key, warnings):
             cmd, capture_output=True, text=True, encoding="utf-8", check=False
         )
     except OSError as exc:
-        # Name the interpreter, not just the script: after #365 the exec target that
-        # fails to spawn is `bash` (or $DEVFLOW_BASH), so a bogus DEVFLOW_BASH must not
-        # read as "cannot run config-get.sh".
+        # Name the interpreter, not just the script: the exec target that fails to spawn is
+        # the bash `resolve_bash` selected, so a bogus DEVFLOW_BASH must not read as
+        # "cannot run config-get.sh".
         warnings.append(f"cannot run {bash} {config_get}: {exc}")
         return ""
     if out.returncode != 0:

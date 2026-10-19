@@ -15,6 +15,7 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 - **`/prflow:spec` can recommend an approach option that rests on an unconfirmed fact.** The question still shows each such fact as not confirmed. (#2562)
 - **On Windows Git Bash, `/prflow:implement`'s issue audit and `/prflow:fix` can read a file as the base branch has it.** They now read it by commit ID, so git no longer answers "Not a valid object name". (#2790)
+- **On native Windows, PRFlow's Python helpers now launch the first `bash.exe` in a fully qualified `PATH` folder rather than a bare `bash`, and give a `bash.exe` in a `System32`, `Sysnative` or `WindowsApps` folder absolute paths in WSL's `/mnt/<drive>/…` form.** With no such `bash.exe` they launch `bash`. Set `DEVFLOW_BASH` to choose a bash explicitly. (#2792)
 
 ## October 18, 2026
 

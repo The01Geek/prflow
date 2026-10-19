@@ -378,11 +378,12 @@ def _config_read(key: str, default: str, config_path: str | None = None) -> str 
     helper = Path(__file__).resolve().parent / "config-get.sh"
     # Through bash, never the .sh path itself: Windows cannot exec a .sh ([WinError 193]);
     # `command` keeps Git Bash from glob-expanding a `*` default (issue #1353).
-    bash = os.environ.get("DEVFLOW_BASH") or "bash"
     if _bl is None:
+        bash = os.environ.get("DEVFLOW_BASH") or "bash"  # breadcrumb only: nothing launches
         r = subprocess.CompletedProcess(
             [], 127, stdout="", stderr=f"lib/bash_launch.py could not be imported ({_BL_IMPORT_ERROR})")
     else:
+        bash = _bl.resolve_bash()
         try:
             argument = _bl.script_argument(helper, cwd=Path.cwd(), bash=bash)
         except (ValueError, OSError) as e:  # OSError: cwd deleted or unreadable
@@ -526,12 +527,10 @@ def _authorized_human(login: str, repo: str | None, config_path: str | None) -> 
     if repo is None:
         return False, TRUST_FAILURE_PR_FIELDS
     script = Path(__file__).resolve().parent / "authorize-actor.sh"
-    # `bash` stays a literal here, not a shared resolver call: cloud_writer_deps.py
-    # verifies this file's declared exec edge from a statically resolvable binding.
-    bash = os.environ.get("DEVFLOW_BASH") or "bash"
     env = dict(os.environ, ACTOR=login, ALLOWED_BOTS="", ALLOWED_USERS=users, REPO=repo)
     verdict, cause = "", f"lib/bash_launch.py could not be imported ({_BL_IMPORT_ERROR})"
     if _bl is not None:
+        bash = _bl.resolve_bash()
         try:
             r = subprocess.run(
                 [bash, _bl.script_argument(script, cwd=Path.cwd(), bash=bash)],
