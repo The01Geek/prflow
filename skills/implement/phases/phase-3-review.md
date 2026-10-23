@@ -30,7 +30,7 @@ On exit 127 from that vendored literal, retry once through the portable anchor:
 
 Handle the printed token and its `route:` line per the implement-driven outcome routing. On `UPDATED <n>`, apply the root *Prompt-extension re-load at re-entry* rule before the PR title and body write below. `CONFLICT` remains model-owned: resolve it, verify it, complete the merge, push, apply that rule, then re-run the Phase 2.3.0 changed-contract sweep. `MERGE_IN_PROGRESS`, unresolved or suite-failed `CONFLICT`, and a `PUSH_REJECTED` failed-restore warning stop the run; `UP_TO_DATE`, `DISABLED`, `UNVERIFIED` and `PUSH_REJECTED` with the branch restored continue without the re-load check. Neither PR-opening helper mode resolves or aborts a merge.
 
-Use the Write tool to create `<run-scratch>/pr-title.txt` from the issue title and `<run-scratch>/pr-body.md` with:
+Use the Write tool to create `<run-scratch>/pr-title.txt` with a concise, action-oriented title describing the implemented change from the diff. Reuse the issue title only if it already describes that change. Write `<run-scratch>/pr-body.md` with:
 
 ```text
 Work in progress — automated review pending.

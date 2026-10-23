@@ -55,7 +55,7 @@ On `$PROGRESS_SURFACE` exactly `workpad`, seed nothing. Otherwise, in PR mode, r
 
 ### 0.4 Issue, acceptance criteria and the review brief
 
-`issue.number` is the related issue (`issue.source`: `override`, `pr-body`, `branch` or `none`); `issue_context` is the file at `issue.context` — its title and first 200 body lines (`unavailable` when unread, `none` without an issue). With an issue, resolve its acceptance criteria through the helper, which picks the workpad's mirror or the issue body; never read them off the issue body yourself:
+`issue.number` is the related issue (`issue.source`: `override`, `pr-body`, `branch` or `none`); `issue_context` is the file at `issue.context` — its title and first 200 body lines (`unavailable` when unread, `none` without an issue); read it only when Phase 0.5's stated-purpose judgment needs issue text the resolved criteria do not settle. With an issue, resolve its acceptance criteria through the helper, which picks the workpad's mirror or the issue body; never read them off the issue body yourself:
 
 ```bash
 .prflow/vendor/prflow/scripts/workpad.py acs-resolve <issue> --pr <pr-number> --criteria-out <run_dir>/criteria.json ; echo "acs-done"

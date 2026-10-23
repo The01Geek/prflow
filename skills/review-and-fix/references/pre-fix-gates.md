@@ -11,7 +11,7 @@ Before applying any fix, classify each finding in Step 2's effective fix set, so
    - Inconclusive → demote to advisory.
 
    Without WebFetch/WebSearch, demote each external-tool claim to advisory with `step25_classification: "tools_unavailable"`.
-3. List every advisory finding verbatim under the iteration report's `## Advisory Findings`, with its one-line reason (`refuted by {url}`, `inconclusive after web verification`, `over verification budget`). Advisory findings stay unfixed unless Step 2.6 reopens one, and turn a clean final APPROVE into `APPROVE WITH ADVISORY NOTES`. At demotion time append the row `{finding_id, decision: "advisory", source_file, claim_text, skip_category: "advisory-parked", evidence: <reason>, parking_evidence}` (root *Field rules*), whose `parking_evidence.source` is the refutation URL on a `web_refuted` demotion, else `null`.
+3. List every advisory finding verbatim under the iteration report's `## Advisory Findings`, with its one-line reason (`refuted by {url}`, `inconclusive after web verification`, `over verification budget`). Advisory findings stay unfixed unless Step 2.6 reopens one, and turn a clean final APPROVE into `APPROVE WITH ADVISORY NOTES`. At demotion time append the row `{finding_id, decision: "advisory", source_file, claim_text, skip_category: "advisory-parked", evidence: <reason>, step25_classification, parking_evidence}` (root *Field rules*), whose `parking_evidence.source` is the refutation URL on a `web_refuted` demotion, else `null`.
 
 ### Parked-class sweep (pre-shadow convergence gate)
 

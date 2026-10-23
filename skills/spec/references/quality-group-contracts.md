@@ -54,15 +54,15 @@ assertion covers each arm, element and mode it ranges over, except a set a crite
 routing*) a property criterion covers, which counts as stated, named and pinned for every site
 except one of which it is unclear whether the property covers it, and an
 **accepted-loss / suppression** claim ("X is silently dropped", "never surfaces Y") is pinned by a
-fixture in which the suppressed or lost input is *present*, except a removed outcome's loss the
-Desired Behavior states as accepted; **(b) scoped** — rewritten to the precise form the mechanism
+fixture in which the suppressed or lost input is *present*, except a removed outcome's loss a
+criterion carries as accepted; **(b) scoped** — rewritten to the precise form the mechanism
 supports ("no *per-file* filename arguments", not "no filename arguments"), or, for a claim about
 current code that a read confirms under the *Definition of verified* in
 `references/step-3-5-self-audit.md` (read it there if unloaded), every clause of the confirming text read,
 kept as written;
 **(c) removed**; or **(d) stated as a heuristic** per the template's *Heuristics* rule, its accepted
-limit needing no fixture unless the change removes an outcome whose loss the Desired Behavior does
-not state as accepted. The carve-out is **extensional, not grammatical**: exempt are only (i)
+limit needing no fixture unless the change removes an outcome whose loss no criterion carries as
+accepted. The carve-out is **extensional, not grammatical**: exempt are only (i)
 mandated-verbatim template boilerplate (`Blocked by #N` lines) and (ii) rule text the change ships
 as artifact content (a convention sentence the change adds to a file, quoted in the body). An
 acceptance-criterion or Desired-Behavior sentence is **never** exempt however imperative its
@@ -83,10 +83,13 @@ before→after outcome per input class, in each mode of the rule's surface that 
 it runs. The classes are those the before rule or the after rule distinguishes, crossed with each
 other and taken from the two rules' text and surface, never the request; classes whose outcome does
 not change may share one row, and a rule the change creates has "no rule" as every before cell. The
-Desired Behavior states each class whose outcome changes and each unchanged class the decided change
-reaches (the template's **omit/merge/add** reach test); the row of unchanged classes it does not
-reach goes to the investigation record, unless **omit/merge/add** finds the request unestablished,
-when the Desired Behavior states the whole mapping. An unreached unchanged class the request names
+mapping table is Desired Behavior's only statement of each class whose outcome changes and each
+unchanged class the decided change reaches (the template's **omit/merge/add** reach test); the row
+of unchanged classes it does not reach goes to the investigation record, unless **omit/merge/add**
+finds the request unestablished, when the table states the whole mapping. Desired Behavior prose
+states no class outcome a row states, and keeps the decided behavior no row maps, such as a term the
+rows use, a heuristic's rule and failure direction, and the mechanism still providing a removed
+outcome. An unreached unchanged class the request names
 is still covered by a preservation under **omit/merge/add**. Where the change lets evidence excuse a case
 from a rule or loosen, skip or demote its outcome, the mapping names that evidence and a class per
 state: for model-read prose, each state the template routes for an agent-read value; else exactly
@@ -100,9 +103,9 @@ base text disagrees with itself, quote each disagreeing line and state the confl
 about the change's effect — an accepted change, a limit, an unchanged outcome — is read from the
 mapping, and each changed rule's after column is a candidate criterion graded by the template's
 **omit/merge/add** rule, with the request changing the rule as its admissible origin; a criterion
-it adds or extends asserts each class the Desired Behavior states. An outcome the change removes
-names the existing mechanism that still provides it for every case it covered, or the Desired
-Behavior states the loss as accepted, which needs no fixture.
+it adds or extends asserts each class the table states. An outcome the change removes names the
+existing mechanism that still provides it for every case it covered, or a criterion carries the
+loss as an accepted limit, which needs no fixture.
 
 ### Backstop verification
 
@@ -132,6 +135,15 @@ pointed at by the criterion: the pointer covers every member and owes no floor, 
 statement, per-state criteria or per-member pin; the criterion names by name alone a member the
 change gives an outcome of its own, with that outcome, and restates nothing that file defines for
 the set (a member's definition or assigning condition, an order, a closure marker); when it is
-unclear whether the reader can follow the pointer, the set takes a form above. Any other enumeration
-carrying neither form is non-conforming.
+unclear whether the reader can follow the pointer, the set takes a form above. An operation the
+change builds that fails closed — it refuses or fails, rather than proceeding, on every input it
+cannot handle — has its fail-closed default stated once in its criteria: it refuses or fails,
+with any of its refusal or failure outcomes, on any input to which no other criterion gives an
+outcome. Each set of causes a criterion enumerates rather than points at for its refusal or failure is then an
+`at minimum` floor, never a closed set. An input another criterion gives its own outcome keeps
+that outcome, even where that outcome cannot be produced, so the default never covers an input a
+success criterion decides. Every other set the change defines takes either form, including the
+states such an operation reports (exit codes, status values) and the causes of an operation that
+does not fail closed or of which that is unclear.
+Any other enumeration carrying neither form is non-conforming.
 <!-- prflow:spec-ref step=quality-group-contracts file=skills/spec/references/quality-group-contracts.md end -->

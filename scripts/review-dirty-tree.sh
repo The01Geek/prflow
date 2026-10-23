@@ -67,8 +67,9 @@
 #     dispatch, printing one JSON line on stdout. Shadow entry-open first removes DIR-shadow;
 #     then entry-open deletes the entry's stale inputs
 #     and outputs — DIR/diff.patch, every DIR/batch-*.patch, iteration N's
-#     checklist-iter-N.json / verification-iter-N.json, DIR/verdicts/iter-N/, every
-#     DIR/p3-*.md, DIR/phase-log and the entry's DIR/engine-return-<entry>-iter-N.json — so
+#     checklist-iter-N.json / checklist-iter-N.items / verification-iter-N.json, DIR/verdicts/iter-N/, every
+#     DIR/p3-*.md, DIR/phase-log, DIR/verdict-body.md, DIR/verdict-draft.md,
+#     DIR/review-wp-draft.md and the entry's DIR/engine-return-<entry>-iter-N.json — so
 #     the entry's Phase 0.2 rebuilds the diff at HEAD and
 #     entry-close grades only what this entry wrote; then takes the `snapshot` to
 #     .prflow/tmp/review/dt-<s1|shadow>-N-{before,after,disabled}, writes the object ID to
@@ -449,19 +450,17 @@ cmd_entry_open() {
     python3 "$LOOP_IO" shadow-open --run-root "$r" || return $?
   fi
   # Freshness: the entry's Phase 0.2 rebuilds the diff at HEAD, and the entry's own checklist,
-  # item files, verification, verifier files, Phase 3 blocks, phase-log records, report and
-  # return file replace this iteration's, so entry-close grades only what this entry wrote.
+  # item files, verification, verifier files, Phase 3 blocks, phase-log records, report drafts,
+  # report and return file replace this iteration's, so entry-close grades only what this entry
+  # wrote.
   # Deleting an absent file is a no-op; deletion only.
   for f in "$r/diff.patch" "$r"/batch-*.patch "$r/checklist-iter-$n.json" "$r/checklist-iter-$n.items" \
            "$r/verification-iter-$n.json" "$r/verdicts/iter-$n" "$r"/p3-*.md "$r/phase-log" \
-           "$r/verdict-body.md" "$r/engine-return-$ENTRY_KIND-iter-$n.json"; do
+           "$r/verdict-body.md" "$r/verdict-draft.md" "$r/review-wp-draft.md" \
+           "$r/engine-return-$ENTRY_KIND-iter-$n.json"; do
     [ -e "$f" ] || continue
     rm -rf "$f"
     deleted="${deleted}${deleted:+$nl}${f#"$r"/}"
-  done
-  for f in "$r/diff.patch" "$r"/batch-*.patch "$r/checklist-iter-$n.json" "$r/checklist-iter-$n.items" \
-           "$r/verification-iter-$n.json" "$r/verdicts/iter-$n" "$r"/p3-*.md "$r/phase-log" \
-           "$r/verdict-body.md" "$r/engine-return-$ENTRY_KIND-iter-$n.json"; do
     [ -e "$f" ] && survivor="${f#"$r"/}"
   done
   if [ -n "$survivor" ]; then

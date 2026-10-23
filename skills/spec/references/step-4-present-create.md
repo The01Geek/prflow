@@ -7,8 +7,8 @@ combined decision question · 4 iterate on feedback · 5 file the new or widened
 (send and read-back, 5a label, 5b dependencies, 5c investigation record) · 5d scratch cleanup · 6 apply 3a's
 assignment and implement-offer answers (`references/step-4-create.md`).
 
-Present the draft (its path at sub-step 3, or the body on a forced-render arm) before asking 3a's filing-decision
-question or its one-question follow-ups. Re-ask that question only where 3a says so. Nothing is asked once
+Present the draft (its path in 3a's preview content, or the body on a forced-render arm) before or with 3a's
+filing-decision question and its one-question follow-ups. Re-ask that question only where 3a says so. Nothing is asked once
 sub-step 5 begins.
 
 **An interactive run creates only after the user explicitly approves the presented draft at 3a.**
@@ -17,7 +17,7 @@ and disengagement are not approval of that draft. Without confirmation, pause at
 A non-interactive run uses 3a's election rule below; every run presents before filing.
 
 1. **Present the draft — the working-draft file's path by default, body in chat only on request.** The working-draft
-   file is the default presentation, and its path is shown at sub-step 3. Print the full body in chat only when the user
+   file is the default presentation, and its path is shown in 3a's preview content. Print the full body in chat only when the user
    chooses *Print the full draft in chat* at 3a, or on a forced-render arm — a run whose working-draft file never landed
    (the draft is in your message), or a non-interactive run — each of which prints the body before 3a's question and
    offers no print answer. **When you do print it**, post the exact title, the full body — every section, verbatim, as
@@ -27,13 +27,28 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    the record bucket there (an empty file when empty), whatever `spec.investigation_record_enabled` is; redo both before
    each later presentation whose bucket changed. Never copy the derivation artifact into it. When the write or the
    leftover delete fails, take `references/fallback-read-only-sandbox.md`'s record section.
-3. **Present and obtain the filing election (3–3a).** On each presentation, render one message
-   in this order: the audit summary line with its disclosures, the quoted unfixed findings,
-   then the draft-path and record notes, then each decision settled on a second delegated reply,
-   one line each. Put 3a's first question last in the same reply.
-   On a forced-render arm, print sub-step 1's full render above this message.
+3. **Present and obtain the filing election (3–3a).** Each presentation rides inside 3a's question
+   call. 3a sets the filing question's text. The preview content is the draft-path
+   note, the audit summary line with its disclosures, the gate's withheld reason, the carried note,
+   the quoted unfixed findings, each standing draft-check report's rows,
+   the record note, each decision settled on a second delegated reply (one line each), each run's
+   choice (one line each, labelled as the run's choice), then each Step 3.5 summary not yet shown
+   in a presentation; count a preview on a call that drew no reply as not shown. A run's choice is
+   a decision the draft states, made in Step 2, while drafting or while revising, that the
+   ask-or-leave test does not leave to the implementer, the request does not state and no user
+   decision chose; a second-delegation decision keeps its own line and is not listed again. A user
+   decision is one the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` admits
+   (read it there if unloaded). Agent-written advice in the request, as that list defines it, does
+   not state a decision; the problem an agent-written body reports does.
+   When the question tool offers an option preview field, every 3a call puts that
+   same preview on every option of the filing question, in the format the field asks for (an HTML
+   fragment, not Markdown, where it asks for HTML); when it offers none, or refuses a call for its
+   preview, render the preview content as chat text before the call, re-sending a refused call
+   without previews.
+   A non-interactive run renders the whole presentation as chat text before filing.
+   On a forced-render arm, print sub-step 1's full render before the call.
    A re-ask within the same presentation — after *Print the full draft in chat*, a bare decline,
-   or a reply outside the options — does not repeat the message.
+   or a reply outside the options — does not repeat the chat text.
 
    The summary line is one of the root's non-degradable invariants: it renders on every presentation. At each
    presentation whose working-draft file landed, compute its digest:
@@ -55,24 +70,26 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    - the final-bytes phrase;
    - `degraded` when any round this run ran inline.
 
-   Round counts, round numbers and which round is latest, here and in 3a's question text, span the whole run; only
-   3a's round cap restarts. In the unresolved count, the quotes below and the question text's fixed count, a finding
+   Round counts, round numbers and which round is latest, here and in 3a's question text, span the whole run. In the
+   unresolved count, the preview's quotes and the question text's correction count, a finding
    against text that a redraft for a different option at a Step 2 *Settled approach* re-ask replaced counts as fixed.
 
    Render it as one line, e.g. *"Fresh-context audit: 2 rounds; latest verdict round: 0 must-revise, 2 advisory,
    1 invalid; 0 unresolved must-revise; final bytes audited."* With rounds run but no verdict round, the line
    omits the three counts and shows the unresolved count as `unavailable`. With no round run, the line reads
    `Fresh-context audit: not run; final bytes NOT audited` and that count is 0. Beside the line, disclose each
-   draft-check report still standing after its re-run (`references/step-3-6-audit.md`), or `draft checks not run` when
-   the working-draft file never landed.
+   draft-check report still standing after its re-run (`references/step-3-6-audit.md`) as one line naming its check and
+   what stands (its rows go in the preview content), each whole-draft walk `references/step-3-5-self-audit.md` item 1
+   could not render or read or rendered `unestablished`, as one line naming which, and `draft checks not run` when the
+   working-draft file never landed.
 
-   Below the line, quote each finding of the latest verdict round you did not fix, verbatim from that round's return,
-   beside your grade for it.
+   In the preview content, quote each finding of the latest verdict round you did not fix, verbatim from that round's
+   return, beside your grade for it.
 
-   Then render the draft-path note — *"Draft saved to `<absolute working-draft file path>` — title: `<title>`."* — and
-   the record note — *"Investigation record saved to `<absolute record file path>`."*, or *"Investigation record:
-   empty."* A run whose working-draft file never landed renders no draft-path note. State beside the summary line that
-   the title and the investigation record are outside the final-bytes check.
+   The draft-path note reads *"Draft saved to `<absolute working-draft file path>` — title: `<title>`."* and the record
+   note *"Investigation record saved to `<absolute record file path>`."*, or *"Investigation record: empty."* A run
+   whose working-draft file never landed has no draft-path note. State beside the summary line that the title and the
+   investigation record are outside the final-bytes check.
 
 3a. **Ask ONE combined decision question** through the runner's user-question tool
    (`AskUserQuestion` or its equivalent, as in Step 2). Its options, in this order, each appear
@@ -81,36 +98,37 @@ A non-interactive run uses 3a's election rule below; every run presents before f
 
    | Option | Present when | Choosing it |
    |---|---|---|
-   | **Run a fresh-context audit round** (no round run yet) / **Run one more fresh-context audit round** | the working-draft file landed, fewer than 3 rounds count toward the round cap (those started since the run began, or since the latest Step 2 *Settled approach* re-ask that ended on a different option), and the summary line reads `final bytes NOT audited` | load `references/step-3-6-audit-dispatch.md` and run one round, then present again |
+   | **Run one more fresh-context audit round (Recommended)** | an interactive run, the working-draft file landed, and the summary line reads `final bytes NOT audited` | load `references/step-3-6-audit-dispatch.md` and run one round, then present again |
    | **Print the full draft in chat** | not on a forced-render arm | post sub-step 1's render (title, full body, then the record), then re-ask this question without this option |
    | **Create (`<n>` unresolved must-revise)** | always | the user's explicit approval of the presented draft; go to sub-step 5 |
    | **Change something first** | always | sub-step 4 |
 
-   **The question text tells the user how the audit stands:** before the run's first round, that the draft is
-   unaudited; after one, only the latest round by its run-wide number, how many must-revise findings you fixed after
-   it (your statement after that round, verdict or not, with its findings sub-step 3 counts as fixed) and whether the
-   final draft was audited (sub-step 3's final-bytes phrase), then *Run another round?* when offered, or *no rounds
-   left* when 3 rounds count toward the cap and it is unaudited — e.g. *"Audit round 3 fixed 1 must-revise finding,
-   unaudited; no rounds left. Create?"*, *"Audit round 1: nothing fixed; final draft audited. Create?"* On a widen it
-   also names the issue number and says approving replaces that issue's title and body.
+   **The audit sentence** is `The draft is not audited. How would you like to proceed?` before the run's first round.
+   After one, it is built from the latest round this run started, `<n>` its run-wide number and `<m>` how many of its
+   must-revise findings you fixed (your statement after that round, with its findings sub-step 3 counts as fixed):
+   `No corrections` when `<m>` is 0, `1 correction` when 1, else `<m> corrections`; then ` applied after audit <n>`;
+   then `, which returned no verdict` when that round is not a verdict round; then `. How would you like to proceed?`
+   — e.g. `3 corrections applied after audit 3. How would you like to proceed?`. The question text holds nothing
+   else, except that on a widen it opens with `Creating replaces issue #<number>'s title and body.`, and a question
+   tool that takes free text only also carries the options in it.
 
    **The call also covers *"Assign this issue to you?"* and, when the offer gate holds, whether to post
-   `/prflow:implement <issue_number>` on the issue.** Before each presentation's message, judge the gate: (a)
+   `/prflow:implement <issue_number>` on the issue.** Before each presentation, judge the gate: (a)
    the draft has no `## Dependencies` section with a `Blocked by #N` line and no `## 🚫 Blocked` section; (b) this read
    prints exactly `true`:
    ```bash
    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .workflows.prflow false
    ```
    A denied or failed read establishes no tier, whatever it printed; attempt no other config reader. When the gate
-   withholds the prompt, print a one-line reason naming the exact failed condition before each ask of the filing
-   question: *declared dependencies present*, *blocked decisions present*, *cloud implement tier disabled or
+   withholds the prompt, the preview content carries a one-line reason naming the exact failed
+   condition: *declared dependencies present*, *blocked decisions present*, *cloud implement tier disabled or
    unconfigured* (the read succeeded without printing `true`; add that the alternative is to start
    `/prflow:implement` in a fresh session), or *tier state unestablished* (the read was denied or failed). A
    one-question tool asks the assignment question, then any gated offer, right after the *Create* election, before
    sub-step 5, whatever an earlier reply said; any reply but yes, silence included, is no. A multi-question tool
    carries the latest answer to each, whatever election or reply it came with, to later calls; its call omits a
    question whose answer the run clearly holds and asks one it does not: never given, its call failed, or what was
-   answered cannot be told. Its filing question's text names each carried answer the call does not ask, an implement
+   answered cannot be told. Its preview content names each carried answer the call does not ask, an implement
    answer whose offer is withheld included, and that a reply can change it, e.g. *"Carried: assign yes, implement no
    — say so to change."*
 
@@ -121,10 +139,12 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    the options** is routed by what it asks for: a change request → *Change something first*; an unambiguous approval
    of the draft as shown → *Create*; a decline of the offered round with nothing else → re-ask. Anything else, and a
    silent non-response, is not an answer and changes no carried answer: re-ask this question in the final chat
-   message and stop (Step 2's silent-non-response rule) — never dispatch, create, or proceed on silence.
+   message, with its question text and any preview content not yet rendered as chat text, and stop (Step 2's
+   silent-non-response rule) — never dispatch, create, or proceed on silence.
 
-   **A non-interactive run elects *Create* only when the unresolved must-revise count is zero and the latest
-   `parse-acs.py` run read the criteria; otherwise it pauses for the user's explicit election.** It answers no to the
+   **A non-interactive run elects *Create* only when the unresolved must-revise count is zero or `unavailable`
+   because no verdict round has run, no must-revise finding it graded from the latest round is left unfixed, and the
+   latest `parse-acs.py` run read the criteria; otherwise it pauses for the user's explicit election.** It answers no to the
    assignment and implement-offer questions.
 
 4. **Iterate on feedback.** Make each change the user asks for as a draft change (`references/step-3-6-audit.md`); a

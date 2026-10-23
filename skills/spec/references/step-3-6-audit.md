@@ -1,8 +1,8 @@
 <!-- prflow:spec-ref step=3.6 file=skills/spec/references/step-3-6-audit.md start -->
 
-### Step 3.6: Run the draft checks (audit rounds are elected at Step 4)
+### Step 3.6: Run the draft checks and each draft's first audit round
 
-Step 4 offers each audit round after the draft is on screen; a round's procedure is in `references/step-3-6-audit-dispatch.md`, loaded only when the user elects one. This step runs the draft checks.
+A round's procedure is in `references/step-3-6-audit-dispatch.md`; its user-decision list is read earlier wherever a pointer asks for it. This file runs the draft checks.
 
 #### Draft checks
 
@@ -20,6 +20,6 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 
 Read both typed JSON fields: the `acceptance_criteria` array and the boolean `acceptance_criteria_unreadable`. A missing or wrong-typed field, a non-zero exit, a refused invocation or unparseable stdout is no result. The criteria read when the flag is `false` and the array is non-empty. When the flag is `true`, keep the visible criteria and rewrite each one under the canonical heading as `- [ ] <criterion>` (backticks, bold paragraphs, numbered rows and prose are no substitute). When the flag is `false` and the array is empty, restore canonical checkbox criteria.
 
-Every draft change — a fix either check calls for, an audit round's must-revise fix, or a change the user asks for — is made in the working-draft file under `references/revision-delta.md`'s revision rule, then re-gated by the Step 3 no-options gate and **Revision-delta verification** before the checks run.
+Every draft change — a fix either check calls for, an audit round's must-revise fix, or a change the user asks for — is made in the working-draft file under `references/revision-delta.md`'s revision rule, then re-gated by the Step 3 no-options gate and **Revision-delta verification** before the checks run. After a round's must-revise fixes or a change the user asks for, run Step 3.5 item 5's whole-draft walk before the next presentation or round.
 
 <!-- prflow:spec-ref step=3.6 file=skills/spec/references/step-3-6-audit.md end -->

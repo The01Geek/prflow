@@ -22,16 +22,16 @@ The installer is review-first on an update: it previews by default, and it never
     Download the newer installer and pass the same new tag as the payload.
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.59.0/install.sh -o devflow-install.sh
+    curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.60.0/install.sh -o devflow-install.sh
     # read devflow-install.sh, then:
-    DEVFLOW_REF=v2.59.0 bash devflow-install.sh
+    DEVFLOW_REF=v2.60.0 bash devflow-install.sh
     ```
 
     On an existing installation this runs in dry-run mode. It does not intentionally change your repository, though it can create temporary files, and it does execute the script you downloaded. Read that file before you run it.
   </Step>
   <Step title="Apply It">
     ```bash
-    DEVFLOW_REF=v2.59.0 bash devflow-install.sh --apply
+    DEVFLOW_REF=v2.60.0 bash devflow-install.sh --apply
     ```
 
     This refreshes the managed workflows, the composite actions and the configuration schema. It backfills newly added configuration keys and preserves the values and arrays you already set.
@@ -83,6 +83,10 @@ Whenever it preserves your version, it writes the proposed replacement beside it
 </Warning>
 
 ## Keep the Workflow and the Version Pin Together
+
+The current workflow templates use the moving `anthropics/claude-code-action@v1` tag. The action can update independently of `prflow_version`, including between reruns of the same commit. Apply the refreshed workflows through the update steps above to replace an older action pin in your repository.
+
+The bundled Claude Code version and the model IDs behind `sonnet` and `haiku` can change with those releases. Cloud runs through a gateway (`base_url`) can fail if it does not serve the new IDs. Map those aliases to models your gateway serves with `ANTHROPIC_DEFAULT_SONNET_MODEL` and `ANTHROPIC_DEFAULT_HAIKU_MODEL` in the selected [provider's `env` map](/docs/configuration/providers).
 
 In a thin install, `prflow_version` in `.prflow/config.json` decides which plugin the installed workflows fetch at run time. The installer re-stamps an empty or SHA-shaped value, or the pin it recorded in `.prflow/install-manifest.json`, to the version it installed (never an older one, below), and preserves any other value you set by hand, such as a tag or a branch name. One exception: if your manifest predates this record, a release tag older than the one it last noted is advanced once. It never moves its own `vX.Y.Z` pin to an older `vX.Y.Z` release.
 

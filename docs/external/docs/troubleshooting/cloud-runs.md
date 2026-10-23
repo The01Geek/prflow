@@ -118,7 +118,7 @@ Merge the grant before you expect it in a run. The workflow reads these settings
 
 <Accordion title="Plugin vendoring fails">
 
-**Signal:** the run stops with an error of the form `::error::incomplete vendor: missing after materialization: <files>`, or an earlier loud failure naming an empty `prflow_version`.
+**Signal:** the run stops with an error of the form `::error::incomplete vendor: missing after materialization: <files>`, an earlier loud failure naming an empty `prflow_version`, or `install-state readiness refused: digest-mismatch:<component>`.
 
 Read the pin the run used:
 
@@ -127,6 +127,8 @@ jq -r '.prflow_version' .prflow/config.json
 ```
 
 In thin mode, `prflow_version` must be nonempty and must resolve to a tag, branch or commit in `The01Geek/prflow`. An empty pin fails loudly, to stop the installation drifting with a moving branch. A stale pin can also omit a helper that newer workflow bytes call.
+
+A branch pin such as `main` also drifts from `.prflow/install-state.json`, which records the digests of the vendored lint-provisioning helpers as installed. Once an upstream change touches one of them, every implement run stops at lint provisioning with `install-state readiness refused: digest-mismatch:<component>`.
 
 Re-run the installer with a current release tag and apply the update, so the workflow files and the runtime pin move together. If a locally edited workflow was preserved, merge its `.prflow-new` sidecar by hand — then **re-run the installer once more in apply mode** (`--apply`, or `DEVFLOW_APPLY=1` for a `curl | bash` invocation). Merging the sidecar changes the workflow's bytes, and for `.github/workflows/devflow-implement.yml` (or the `setup-project-env` action, or `.prflow/lint-manifest.json`) a stale `.prflow/install-state.json` marker makes the implement run refuse to start on every run until that re-apply rebinds the marker to the merged bytes.
 

@@ -26,12 +26,16 @@ carries the outcome; a usage error prints ``{"ok": false, …}`` and returns 2):
     prior    <work-dir> <PR> <N> [--exclude-comment <id>]
     prior-lines <work-dir>
 
-``carry`` reads the prior iteration's pair the fix loop's ``entry-close`` copied at the run root —
-``checklist-step1-iter-<N-1>.json`` joined by ``id`` with the verdict rows of
-``verification-step1-iter-<N-1>.json`` (the row wins); an unusable snapshot carries nothing. Only a
-prior PASS it reuses carries (``carry_items``); a FAIL, an INCONCLUSIVE and a PASS it cannot reuse do
+``carry`` reads the pair of iteration K, the newest earlier iteration that ran Step 1
+(``step1_iteration``), that the fix loop's ``entry-close`` copied at the run root —
+``checklist-step1-iter-<K>.json`` joined by ``id`` with the verdict rows of
+``verification-step1-iter-<K>.json`` (the row wins); an unusable snapshot carries nothing. K is N-1
+unless iteration N-1's record is promoted; then a walk that cannot reach K, or a K whose
+``diff_produced_at_head`` is not the ``<prior-head>`` commit, carries nothing. Only a
+prior PASS it reuses carries (``carry_items``: unchanged cited files, or unchanged cited lines, since
+the item's verdict head); a FAIL, an INCONCLUSIVE and a PASS it cannot reuse do
 not. An unreadable cached diff or changed-file set, or a citation reader or delivery check that
-cannot load, carries nothing. A prior PASS whose retained ``evidence-step1/iter-<N-1>/`` grade names
+cannot load, carries nothing. A prior PASS whose retained ``evidence-step1/iter-<K>/`` grade names
 it ``delivery-failed:`` is not carried (issue #2022).
 
 ``prior`` pages the PR's issue comments through gh and, newest first, takes the first
@@ -65,7 +69,7 @@ after the cap, so acceptance items never take a cap slot. It appends after them,
 id, each usable ``seeded.json`` item (see ``_read_seeds``). It removes the seed shortfall
 line after writing the checklist, when this entry's ``prior`` selected a report and every
 ``seeded.json`` item was usable. Before the merge it drops
-each new item that ``same_claim`` finds restating a carried or seeded item
+each new item that ``_restates`` a carried or seeded item
 (``counts.same_claim_dropped``); the carried item stays as carried. Before that it drops each
 unpaired batch ``absolute_claim`` item — one whose ``claim_provenance`` is not ``source_authored`` or
 whose ``source_excerpt`` is not a string with a non-whitespace character — listing its raw id and cause
@@ -100,8 +104,9 @@ no FAIL to label: ``ok`` is false with ``shadow_snapshot_unusable``, so the cons
 every shadow FAIL as new.
 
 ``same_claim`` is a mechanical identity, not a defect judgment: a distinct claim of the same
-category in the same file on overlapping lines is dropped as a restatement of the carried
-or seeded item (an accepted risk); ``same_claim_dropped_items[].carried_id`` names that item.
+category in the same file on overlapping lines is dropped as a restatement of a seeded item or
+an item carried by the whole-file rule (an accepted risk), never of a ``line_carried`` one;
+``same_claim_dropped_items[].carried_id`` names that item.
 """
 from __future__ import annotations
 
@@ -156,7 +161,7 @@ def _read_json(path):
         return "unreadable", None
     try:
         return "ok", json.loads(text)
-    except ValueError:
+    except (ValueError, RecursionError):
         return "unparseable", None
 
 
@@ -372,23 +377,300 @@ def tracked_at_head():
     return probe
 
 
-def _reusable(item, changed, tracked, errors=None):
-    """Whether a prior PASS is reused: every path its ``file_checked`` cites is a regular
-    file HEAD records under that exact spelling (``tracked``) and outside the changed-file set.
-    A non-string, ``""``, free text, a ``./``, ``..`` or absolute spelling, a symlink, a
-    directory (the collector admits one, but a fix may have changed a file under it), or any
-    changed or untracked path is not reused."""
+def _reusable_paths(item, tracked, errors=None):
+    """The paths a prior PASS's ``file_checked`` cites when each is a regular file HEAD records
+    under that exact spelling (``tracked``), else None. A non-PASS, a non-string, ``""``, free
+    text, a ``./``, ``..`` or absolute spelling, a symlink, a directory (the collector admits one,
+    but a fix may have changed a file under it), or any untracked path is not reused."""
     if item.get("verdict") != "PASS":
-        return False
+        return None
     paths = _carry_cited_paths(item.get("file_checked"), tracked, errors)
-    return bool(paths) and all(p not in changed and tracked(p) for p in paths)
+    return paths if paths and all(tracked(p) for p in paths) else None
 
 
-def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_errors=None, undelivered=None):
-    """Apply the carry rule and the tag table. Returns (carried, skipped_malformed); each item
-    whose citation split raised is appended to ``split_errors`` as ``"<id>: <exception>"``. Only a
-    non-``issue_acceptance`` PASS on an unchanged in-diff file that ``_reusable`` accepts and
-    ``undelivered(id)`` does not hold for (its verifier file landed) carries, reusing its verdict."""
+# ── carry: the line rule (issue #2353) ────────────────────────────────────────
+
+_LINE_ITEM = r"\d+(?:[-–]L?\d*)?"
+_LINE_LIST = rf"{_LINE_ITEM}(?:[ \t]*(?:(?:,[ \t]*)+(?:and[ \t]+)?|and[ \t]+|&[ \t]*){_LINE_ITEM})*"
+# The characters a token may end with; it may also start with `.` and hold `.` and brackets inside.
+_PATH_EDGE = r"\w\-~/\\+@!$%=^&*?"
+_REF_RE = re.compile(rf"(?i:\blines?)[ \t]+(?P<w>{_LINE_LIST})"
+                     rf"|\((?P<p>{_LINE_LIST})\)"
+                     rf"|#L(?P<h>{_LINE_ITEM})"
+                     rf"|(?<![{_PATH_EDGE}.]):(?P<c>{_LINE_LIST})"
+                     rf"|(?<![\w#/\\.\-])L(?P<b>{_LINE_ITEM})(?!\w|\.\w)"
+                     rf"|(?P<t>[{_PATH_EDGE}.](?:[{_PATH_EDGE}.()\[\]{{}}]*[{_PATH_EDGE}])?)(?::(?P<l>{_LINE_LIST}))?")
+_ATTACHED_RE = re.compile(rf"(?::|#L)(?P<l>{_LINE_LIST})")
+_ANCHOR_RE = re.compile(rf"(?::[ \t]*|#L)(?P<l>{_LINE_LIST})")  # file_checked: `path: 12` is an anchor
+
+
+def _ranges(text):
+    """[(lo, hi)] from a line list; ``hi`` is None for an open item (``12-``)."""
+    out = []
+    for lo, dash, hi in re.findall(r"(\d+)(?:([-–])L?(\d*))?", text):
+        if not dash:
+            out.append((int(lo), int(lo)))
+        elif hi:
+            out.append(tuple(sorted((int(lo), int(hi)))))
+        else:
+            out.append((int(lo), None))
+    return out
+
+
+def _suffixes(path):
+    """``path`` with ``\\`` read as ``/`` and a trailing ``.src`` dropped, and each tail after a ``/``."""
+    path = path.replace("\\", "/").removesuffix(".src")
+    out, cut = {path}, path.find("/")
+    while cut >= 0:
+        out.add(path[cut + 1:])
+        cut = path.find("/", cut + 1)
+    out.discard("")
+    return out
+
+
+def _namer(paths):
+    """A function giving the ``paths`` a written path names: with ``\\`` read as ``/`` and a
+    trailing ``.src`` dropped, one ends with the other at a ``/`` boundary."""
+    by_tail, by_whole = {}, {}
+    for path in paths:
+        whole = path.replace("\\", "/").removesuffix(".src")
+        by_whole.setdefault(whole, set()).add(path)
+        for tail in _suffixes(path):
+            by_tail.setdefault(tail, set()).add(path)
+
+    def named(written):
+        tails = _suffixes(written)
+        whole = written.replace("\\", "/").removesuffix(".src")
+        return set(by_tail.get(whole, ())).union(*(by_whole.get(t, ()) for t in tails))
+    return named
+
+
+def _spellings(text, paths):
+    """[(start, end)] of each place ``text`` spells one of ``paths`` — the whole path or a tail
+    after a ``/``, with ``\\`` read as ``/`` and an optional trailing ``.src`` — that is not part
+    of a longer name; where two overlap, the earlier and then the longer wins."""
+    flat, found = text.replace("\\", "/"), []
+    for spelling in {s for p in paths for s in _suffixes(p)}:
+        at = flat.find(spelling)
+        while at >= 0:
+            end = at + len(spelling) + (4 if flat.startswith(".src", at + len(spelling)) else 0)
+            before, after = flat[at - 1:at], flat[end:end + 2]
+            if not (before.isalnum() or before in ("_", ".", "-") and before) and not (
+                    after[:1].isalnum() or after[:1] in ("_", "-") and after[:1]
+                    or after[:1] == "." and after[1:2].isalnum()):
+                found.append((at, end))
+            at = flat.find(spelling, at + 1)
+    out, reach = [], 0
+    for start, end in sorted(found, key=lambda s: (s[0], -s[1])):
+        if start >= reach:
+            out.append((start, end))
+            reach = end
+    return out
+
+
+def _line_refs(text, default, named=lambda _written: (), spelled=(), attached=_ATTACHED_RE, weak=None):
+    """[(written path, [(lo, hi)])] the text cites: a path with its ``:`` or ``#L`` line list
+    (``[]`` when it has none), and each file-less ``:N…``, ``line N`` / ``lines N-M``, ``(N-M)``,
+    ``#LN`` or ``LN`` under the last path named before it, else ``default``, as is a line written
+    after a token that takes no line. ``weak`` gets the index of each ``(N-M)`` or ``LN``
+    reference (it may be a list item) and each line written after such a token. Every place
+    ``_spellings`` finds a path in ``spelled`` is a path. Any other path is a token ``named``
+    maps to a path, read whole or by its longest tail after a bracket (``f(x.py``), so a code
+    name such as ``item.get`` never takes a line. A path without a ``/``, ``\\`` or ``.`` that is not the
+    whole of a ``spelled`` path (the word ``test`` naming ``bin/test``) is cited but takes no later
+    line, and its own lines also go to the last path."""
+    events, masked = [], list(text)
+    for start, end in _spellings(text, spelled):
+        m = attached.match(text, end)
+        stop = m.end() if m else end
+        events.append((start, text[start:end], m and m.group("l"), True, False))
+        masked[start:stop] = "\0" * (stop - start)
+    for m in _REF_RE.finditer("".join(masked)):
+        events.append((m.start(), m.group("t"),
+                       next((g for g in m.group("w", "p", "h", "c", "b", "l") if g), None), False,
+                       bool(m.group("p") or m.group("b"))))
+    refs, last, full = [], None, {p.replace("\\", "/").removesuffix(".src") for p in spelled}
+    for _, token, lines, whole, listlike in sorted(events, key=lambda e: e[0]):
+        listlike = listlike or token is not None  # a line written after a token that names no path
+        if token is not None and not whole:
+            token = next((token[i:] for i in range(len(token))
+                          if (i == 0 or token[i - 1] in "()[]{}") and named(token[i:])), None)
+        if token is not None:
+            refs.append((token, _ranges(lines) if lines else []))
+            if any(ch in token for ch in "/\\.") or whole and token.replace("\\", "/").removesuffix(".src") in full:
+                last = token
+                continue
+        if lines:
+            if listlike and weak is not None:
+                weak.append(len(refs))
+            refs.append((last or default, _ranges(lines)))
+    return refs
+
+
+def _touches(hunks, lo, hi):
+    """Whether a `-U0` hunk replaces or deletes a line in ``lo..hi`` (``hi`` None: through the end
+    of the file) or adds lines directly before, inside or directly after it. Unlike
+    ``_map_range``, a pure insertion beside the range counts."""
+    top = float("inf") if hi is None else hi
+    for start, old, new in hunks:
+        end = start + old - 1 if old else start
+        if old and start <= top and lo <= end:
+            return True
+        if new > old and lo - 1 <= end and start <= top + (1 if old else 0):
+            return True
+    return False
+
+
+class LineCarry:
+    """The line rule's reads for one ``carry``, memoized: an origin iteration's verdict head
+    (``prior_head`` for ``prev``, the iteration carried from, else ``iter-<o>.json``'s
+    ``diff_produced_at_head``), the files changed
+    since a head, a file's `-U0` hunks from a head to HEAD, an item as the origin's retained
+    ``evidence-step1/iter-<o>/`` pair holds it, and a ``_namer`` over the files HEAD records.
+    Each returns (value, cause); value None, with a cause, on failure."""
+
+    def __init__(self, run_dir, prev, prior_head, changed):
+        self.run_dir, self.prev, self.prior_head = run_dir, prev, prior_head
+        self._heads, self._changed, self._hunks, self._origins = {}, {prior_head: (changed, None)}, {}, {}
+        self._files = None
+
+    def files(self):
+        if self._files is None:
+            try:
+                run = subprocess.run(["git", "ls-tree", "-r", "-z", "--name-only", "--full-tree", "HEAD"],
+                                     capture_output=True)
+            except OSError as exc:
+                self._files = None, f"git unavailable ({type(exc).__name__})"
+            else:
+                names = run.stdout.decode("utf-8", "surrogateescape").split("\0")
+                self._files = (_namer([n for n in names if n]), None) if run.returncode == 0 else (
+                    None, f"git ls-tree exited {run.returncode}")
+        return self._files
+
+    def head(self, origin):
+        if origin == self.prev:
+            return self.prior_head, None
+        if origin not in self._heads:
+            name = f"iter-{origin}.json"
+            status, doc = _read_json(os.path.join(self.run_dir, name))
+            if status != "ok" or not isinstance(doc, dict):
+                self._heads[origin] = None, f"{name} {status if status != 'ok' else 'root is ' + _shape(doc)}"
+            else:
+                sha, cause = _resolve_commit(doc.get("diff_produced_at_head"))
+                field = {"not-id": "is not a commit id", "unresolved": "does not resolve"}.get(cause)
+                self._heads[origin] = sha, field and f"{name} diff_produced_at_head {field}" or cause
+        return self._heads[origin]
+
+    def changed(self, head):
+        if head not in self._changed:
+            self._changed[head] = _changed_since(head)
+        return self._changed[head]
+
+    def hunks(self, head, path):
+        if (head, path) not in self._hunks:
+            hunks, cause = _path_hunks(head, "HEAD", path)
+            self._hunks[head, path] = hunks, cause if hunks is not None or cause else f"{path} diff has no hunk header"
+        return self._hunks[head, path]
+
+    def origin_item(self, origin, ident):
+        where = f"evidence-step1/iter-{origin}"
+        if origin not in self._origins:
+            items, cause = _join_snapshot_pair(
+                os.path.join(self.run_dir, where), None, origin,
+                names=(f"checklist-iter-{origin}.json", f"verification-iter-{origin}.json"))
+            self._origins[origin] = (None, f"{where} {cause}") if cause else (
+                {it["id"]: it for it in items if isinstance(it, dict) and isinstance(it.get("id"), str)}, None)
+        by_id, cause = self._origins[origin]
+        if by_id is None:
+            return None, cause
+        return (by_id[ident], None) if ident in by_id else (None, f"{where} holds no {ident}")
+
+
+def _verdict_lines(record):
+    """(lo, hi, has_end) of a verdict-time item, or None when its line fields are malformed."""
+    lo, end = record.get("source_line"), record.get("source_line_end", None)
+    if not _valid_line(lo):
+        return None
+    if "source_line_end" not in record:
+        return lo, lo, False
+    return (lo, end, True) if _valid_line(end) and end >= lo else None
+
+
+def _line_carry(item, record, head, changed, lines, fc_paths, where=None):
+    """(lines mapped to HEAD, None) when the line rule carries an eligible ``item``, else (None,
+    cause) — the cause None for an ordinary re-verification (a touched line, an unusable field
+    of a fresh item). ``record`` is the item as its verdict head saw it (``where`` names the
+    retained origin pair it came from, None when it is ``item``); ``changed`` the files changed
+    since ``head``; ``fc_paths`` the paths its ``file_checked`` cites."""
+    src = item["source_file"]
+    span, evidence, fc = _verdict_lines(record), record.get("evidence"), record.get("file_checked")
+    fc = "" if fc is None else fc
+    if span is None or not isinstance(evidence, str) or not evidence.strip() or not isinstance(fc, str):
+        return None, where and f"{where} line fields, evidence or file_checked malformed"
+    known, cause = lines.files()
+    if known is None:
+        return None, cause
+    near = _namer(changed | {src})
+
+    def named(written):
+        return near(written) | known(written)
+    tests = {src: [span[:2]]} if src in changed else {}
+    anchored, bare, lined, unlined = set(), set(), set(), set()
+    for text, cited in ((fc, True), (evidence, False)):
+        weak = []  # tested against the diff, but never the anchor or line a changed file needs
+        refs = _line_refs(text, src, named, changed | {src}, _ANCHOR_RE if cited else _ATTACHED_RE, weak)
+        for k, (written, ranges) in enumerate(refs):
+            for path in named(written) & changed:
+                tests.setdefault(path, []).extend(ranges)
+                if k in weak:
+                    continue
+                if cited:
+                    (anchored if ranges else bare).add(path)
+                else:
+                    (lined if ranges else unlined).add(path)
+    if (fc_paths & changed) - anchored or bare or unlined - lined:
+        return None, None
+    mapped = None
+    for path, ranges in tests.items():
+        hunks, cause = lines.hunks(head, path)
+        if hunks is None:
+            return None, cause
+        if any(_touches(hunks, lo, hi) for lo, hi in ranges):
+            return None, None
+        if path == src:
+            mapped = _map_range(hunks, *span[:2])
+    lo, hi = mapped or span[:2]
+    return {"source_line": lo, **({"source_line_end": hi} if span[2] else {})}, None
+
+
+def carry_items(prior_items, diff_paths, changed, prev, tracked, split_errors=None, undelivered=None,
+                lines=None):
+    """Apply the carry rule and the tag table to iteration ``prev``'s items. Returns (carried,
+    skipped_malformed). Only a
+    non-``issue_acceptance`` PASS on an in-diff file whose cited paths ``_reusable_paths`` accepts
+    and ``undelivered(id)`` does not hold for (its verifier file landed) carries, reusing its
+    verdict. With ``lines``, an item whose verdict head or the files changed since it cannot be
+    read is not carried, and its cause is appended to ``split_errors`` as ``"<id>: <cause>"``, as
+    is a raised citation split and a line-rule failure (for example an unreadable diff, HEAD file
+    list or origin record):
+
+    - Whole-file rule: its ``source_file`` and every ``file_checked`` path are unchanged since its
+      verdict head — ``changed`` (the set since ``prior_head``) without ``lines``, or when its
+      ``reused_from_iter`` (carried items only; 1 to ``prev`` - 1) is malformed.
+      It keeps its lines, or takes its verdict-time lines when its files changed since ``prior_head``.
+    - Line rule (``lines``, a ``LineCarry``): otherwise, a PASS that is not ``absolute_claim``,
+      repo-wide or line-anchored, whose verdict-time ``source_line`` is a positive integer and
+      ``source_line_end`` absent or an integer not below it, carries when no hunk from its verdict
+      head ``_touches`` its claim range, a ``file_checked`` anchor or an ``evidence`` line
+      (``_line_refs``) on a changed file — every mention of such a file in ``file_checked`` anchored
+      and every one the evidence names given a line, neither by a ``weak`` reference alone, the
+      evidence a non-blank string; only a written path that
+      names a changed file or one HEAD records is a path. It holds its verdict-time lines mapped
+      to HEAD and ``line_carried: true``; its ``file_checked`` and ``evidence`` keep their
+      verdict-head numbering, which the next iteration's line rule reads against that head.
+
+    Accepted limit: a PASS resting on a search or an absence can carry stale when a fix adds a
+    matching line it does not cite."""
     carried, malformed = [], 0
     for item in prior_items:
         if not isinstance(item, dict):
@@ -399,18 +681,72 @@ def carry_items(prior_items, diff_paths, changed, iteration, tracked, split_erro
         if not all(isinstance(v, str) and v for v in (ident, src, cat, sig)):
             malformed += 1
             continue
-        if cat == "issue_acceptance" or src not in diff_paths or src in changed:
+        if cat == "issue_acceptance" or src not in diff_paths:
             continue
         raised = []
-        reuse = _reusable(item, changed, tracked, raised) and not (undelivered and undelivered(ident))
+        paths = _reusable_paths(item, tracked, raised)
         if raised and split_errors is not None:
             split_errors.append(f"{ident}: _cited_paths raised {raised[0]}")
-        if not reuse:
+        if paths is None or (undelivered and undelivered(ident)):
             continue
+        cited = {src, *paths}
         origin = item.get("reused_from_iter")
         if isinstance(origin, bool) or not isinstance(origin, int) or origin < 1:
-            origin = iteration - 1
-        carried.append(dict(item, carried=True, reused_from_iter_prev=True, reused_from_iter=origin))
+            origin = prev
+        fresh = item.get("reused_from_iter_prev") is not True
+        verdict_iter = prev if fresh else origin  # the iteration whose head the line rule reads
+        head = since = cause = None
+        if lines is not None and (fresh or 1 <= origin < prev):
+            head, cause = lines.head(verdict_iter)
+            if head is not None:
+                since, cause = lines.changed(head)
+            if since is None:  # unchanged since prior_head proves nothing about its verdict head
+                if split_errors is not None:
+                    split_errors.append(f"{ident}: {cause}")
+                continue
+        elif lines is not None:
+            cause = f"reused_from_iter {item.get('reused_from_iter')!r} is not an iteration from 1 to {prev - 1}"
+        # A whole-file carry drops line_carried, so finalize matches it on lines again.
+        row = {k: v for k, v in item.items() if k != "line_carried"}
+        row.update(carried=True, reused_from_iter_prev=True, reused_from_iter=origin)
+        eligible = not (cat == "absolute_claim" or _is_repo_wide(sig) or _is_anchored(sig))
+        if since is None:
+            if cited & changed:
+                if cause and eligible and split_errors is not None:
+                    split_errors.append(f"{ident}: {cause}")
+                continue
+            carried.append(row)
+            continue
+        if cited & since and not eligible:
+            continue
+        record = item
+        if not fresh and (cited & since or cited & changed):
+            record, cause = lines.origin_item(origin, ident)
+            if record is not None and any(record.get(k) != item[k] for k in ("category", "source_file", "claim_signature")):
+                record, cause = None, f"evidence-step1/iter-{origin} {ident} is a different claim"
+        if record is None:
+            if split_errors is not None:
+                split_errors.append(f"{ident}: {cause}")
+            continue
+        where = None if fresh else f"evidence-step1/iter-{origin} {ident}"
+        if not cited & since:
+            if cited & changed:  # a later fix returned its files to their verdict-head content
+                span = _verdict_lines(record)
+                if span is None:
+                    if split_errors is not None:
+                        split_errors.append(f"{ident}: {where} line fields malformed")
+                    continue
+                row.pop("source_line_end", None)
+                row.update(source_line=span[0], **({"source_line_end": span[1]} if span[2] else {}))
+            carried.append(row)
+            continue
+        mapped, cause = _line_carry(item, record, head, since, lines, set(paths), where)
+        if mapped is None:
+            if cause and split_errors is not None:
+                split_errors.append(f"{ident}: {cause}")
+            continue
+        row.pop("source_line_end", None)
+        carried.append(dict(row, **mapped, line_carried=True, reused_from_iter=verdict_iter))
     return carried, malformed
 
 
@@ -427,15 +763,17 @@ def _read_items(path, label):
 
 
 def _join_snapshot_pair(run_dir, entry, n, labels=("checklist snapshot", "verification snapshot"),
-                        rowless=None):
-    """(items, cause): the ``entry`` snapshot pair of iteration ``n`` joined by id.
+                        rowless=None, names=None):
+    """(items, cause): the ``entry`` snapshot pair of iteration ``n`` (or the two files ``names``)
+    joined by id.
     Every verdict field comes from the item's verification row (a field the row lacks is
     dropped) — the row is the stored answer, which the item's copied ``verdict: "PASS"`` may predate —
     and an item with no row keeps no verdict field; its id is added to ``rowless`` when given."""
-    items, cause = _read_items(os.path.join(run_dir, f"checklist-{entry}-iter-{n}.json"), labels[0])
+    names = names or (f"checklist-{entry}-iter-{n}.json", f"verification-{entry}-iter-{n}.json")
+    items, cause = _read_items(os.path.join(run_dir, names[0]), labels[0])
     if cause:
         return None, cause
-    status, rows = _read_json(os.path.join(run_dir, f"verification-{entry}-iter-{n}.json"))
+    status, rows = _read_json(os.path.join(run_dir, names[1]))
     if status != "ok":
         return None, f"{labels[1]} {status}"
     if not isinstance(rows, list):
@@ -458,6 +796,27 @@ def _join_snapshot_pair(run_dir, entry, n, labels=("checklist snapshot", "verifi
     return joined, None
 
 
+def step1_iteration(run_dir, n):
+    """(K, iter-<K>.json's object, None): the walk from ``iter-<n-1>.json`` crosses each readable
+    ``loop_role: promoted`` record, a promoted iteration running no Step 1, and stops at K, the
+    first other record. When iter-<n-1>.json is not a readable promoted record, K is ``n - 1``
+    and its object is None if that file is missing, unreadable or not an object.
+    (None, None, cause) when a record the walk crosses into is missing, unreadable or not an
+    object, or every record down to iteration 1 is promoted."""
+    k, crossed = n - 1, False
+    while k >= 1:
+        name = f"iter-{k}.json"
+        status, doc = _read_json(os.path.join(run_dir, name))
+        if status != "ok" or not isinstance(doc, dict):
+            if not crossed:
+                return k, None, None
+            return None, None, f"{name} {status if status != 'ok' else 'root is ' + _shape(doc)}"
+        if doc.get("loop_role") != "promoted":
+            return k, doc, None
+        k, crossed = k - 1, True
+    return None, None, f"no iteration ran Step 1 (iter-1.json to iter-{n - 1}.json are promoted)"
+
+
 def op_carry(work, run_dir, iteration, prior_head):
     out_path = os.path.join(work, "carried.json")
     result = {"op": "carry", "ok": True, "out": out_path, "carried": 0, "prior": 0,
@@ -475,7 +834,17 @@ def op_carry(work, run_dir, iteration, prior_head):
 
     if iteration < 2:
         return none("iteration 1 has no predecessor")
-    items, cause = _join_snapshot_pair(run_dir, "step1", iteration - 1)
+    prev, record, cause = step1_iteration(run_dir, iteration)
+    if cause:
+        return none(cause)
+    if prev < iteration - 1:
+        (sha, why), (want, want_why) = _resolve_commit(record.get("diff_produced_at_head")), _resolve_commit(prior_head)
+        if why or want_why or sha != want:
+            field = {"not-id": "is not a commit id", "unresolved": "does not resolve"}
+            name, why = (f"iter-{prev}.json diff_produced_at_head", why) if why else ("prior_diff_head", want_why)
+            return none(f"{name} {field[why]}" if why in field else f"{name}: {why}" if why else
+                        f"iter-{prev}.json diff_produced_at_head is not the prior-head commit")
+    items, cause = _join_snapshot_pair(run_dir, "step1", prev)
     if cause:
         return none(cause)
     result["prior"] = len(items)
@@ -496,10 +865,10 @@ def op_carry(work, run_dir, iteration, prior_head):
     if cause or gate_cause:
         return none(cause or gate_cause)
     split_errors = []
-    retained = os.path.join(run_dir, "evidence-step1", f"iter-{iteration - 1}")
+    retained = os.path.join(run_dir, "evidence-step1", f"iter-{prev}")
     carried, malformed = carry_items(
-        items, diff_paths, changed, iteration, tracked_at_head(), split_errors,
-        lambda ident: gate(retained, iteration - 1, ident))
+        items, diff_paths, changed, prev, tracked_at_head(), split_errors,
+        lambda ident: gate(retained, prev, ident), LineCarry(run_dir, prev, prior_head, changed))
     result["skipped_malformed"] = malformed
     os.makedirs(work, exist_ok=True)
     _write_json(out_path, carried)
@@ -896,7 +1265,7 @@ def op_finalize(work, run_dir, iteration, batches):
     seeds, seeds_clean = _read_seeds(work, crumbs)
     # Drop restatements before the merge: a merged repo-wide row keeps one member's source_file, so
     # dropping it afterwards would also drop its members cited on other files.
-    restates = [any(same_claim(c, it, _same_lines) for c in carried + seeds) for it in other_items]
+    restates = [any(_restates(c, it) for c in carried + seeds) for it in other_items]
     restated = [dict(it, merged_from=[it["id"]]) for it, dup in zip(other_items, restates) if dup]
     fresh_items = [it for it, dup in zip(other_items, restates) if not dup]
     if batches > 1:
@@ -963,7 +1332,7 @@ def op_finalize(work, run_dir, iteration, batches):
     flagged = [f for f in flagged if f["id"] not in unshipped]
     anchors = carried + final[fresh - len(seeds):fresh]
     restated_items = [{"merged_from": it["merged_from"], "claim_signature": it.get("claim_signature"),
-                       "carried_id": next(c["id"] for c in anchors if same_claim(c, it, _same_lines))}
+                       "carried_id": next(c["id"] for c in anchors if _restates(c, it))}
                       for it in restated]
 
     checklist_path = os.path.join(run_dir, f"checklist-iter-{iteration}.json")
@@ -1042,6 +1411,13 @@ def same_claim(prior, current, line_map):
     return mapped is not None and mapped[0] <= b[3] and b[2] <= mapped[1]
 
 
+def _restates(anchor, item):
+    """Whether a fresh ``item`` restates a carried or seeded ``anchor``: ``same_claim`` over HEAD
+    lines, rule 1 alone for a ``line_carried`` anchor, so a fresh item about the changed lines
+    beside it is verified."""
+    return same_claim(anchor, item, _no_lines if anchor.get("line_carried") is True else _same_lines)
+
+
 def _same_lines(_path, lo, hi):
     return lo, hi
 
@@ -1083,24 +1459,35 @@ def _git_line_map(prior, current, paths, crumbs):
         return _same_lines, None
     hunks = {}
     for path in sorted(paths):
-        try:
-            diff = subprocess.run(["git", "--literal-pathspecs", "diff", "--no-color", "-U0",
-                                   "--inter-hunk-context=0", "--no-renames",
-                                   "--no-ext-diff", "--no-textconv", prior, current, "--", path],
-                                  capture_output=True)
-        except OSError as exc:
-            return None, f"git unavailable ({type(exc).__name__})"
-        except ValueError:  # a NUL byte in the path
-            return None, f"source_file {path!r} cannot be passed to git diff"
-        if diff.returncode != 0:
-            return None, f"git diff exited {diff.returncode} for {path}"
-        text = diff.stdout.decode("utf-8", "surrogateescape")
-        parsed = _hunks(text)
-        if not parsed and any(not line.startswith(_HEADER_ONLY) for line in text.splitlines()):
+        parsed, cause = _path_hunks(prior, current, path)
+        if cause:
+            return None, cause
+        if parsed is None:
             crumbs.append(f"git diff for {path} has no hunk header; rule 1 only for that file")
             continue
         hunks[path] = parsed
     return (lambda path, lo, hi: _map_range(hunks[path], lo, hi) if path in hunks else None), None
+
+
+def _path_hunks(prior, current, path):
+    """(hunks, None) for ``path``'s prior→current `-U0` diff; (None, cause) when it cannot be read,
+    and (None, None) when it prints more than headers yet no hunk (a binary diff)."""
+    try:
+        diff = subprocess.run(["git", "--literal-pathspecs", "diff", "--no-color", "-U0",
+                               "--inter-hunk-context=0", "--no-renames",
+                               "--no-ext-diff", "--no-textconv", prior, current, "--", path],
+                              capture_output=True)
+    except OSError as exc:
+        return None, f"git unavailable ({type(exc).__name__})"
+    except ValueError:  # a NUL byte in the path
+        return None, f"path {path!r} cannot be passed to git diff"
+    if diff.returncode != 0:
+        return None, f"git diff exited {diff.returncode} for {path}"
+    text = diff.stdout.decode("utf-8", "surrogateescape")
+    parsed = _hunks(text)
+    if not parsed and any(not line.startswith(_HEADER_ONLY) for line in text.splitlines()):
+        return None, None
+    return parsed, None
 
 
 def _state(item, key):

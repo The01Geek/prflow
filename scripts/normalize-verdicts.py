@@ -8,7 +8,7 @@ the parse contract and maps each answer to a stored verdict (*Stored verdicts* b
 Its own modes use the stdlib and the sibling ``verdict_report.py``'s severity ladder and path spelling, read no config and make no ``gh``/network/``git`` calls; the
 ``checklist`` route below is not bound by this.
 
-Contract. ``prepare``, ``collect``, ``render`` and ``reverify-add`` each require ``--contract 2``
+Contract. ``prepare``, ``collect``, ``render``, ``assemble`` and ``reverify-add`` each require ``--contract 2``
 and refuse a call without it as a usage error (exit 2). The check binds only these CLI calls: an
 in-process reader such as ``review-evidence-gate.py`` imports ``verdict_report`` and reads the
 stored artifact with no contract check.
@@ -47,14 +47,15 @@ these helper-owned keys, overwriting a generator-supplied value of any of them:
                               prior_ref or prior_evidence, rejected-finding.md for an item
                               carrying rejections
     disclosed, criteria_file  the disclosures reaching the item, and the criteria path (an
-                              issue_acceptance or disclosed item, and an item carrying prior_ref
-                              or prior_evidence when criteria.json is usable, below)
+                              issue_acceptance or disclosed item, and every item when
+                              criteria.json is usable, below)
     rejections                the counted rejection lines (*Rejections* below), on every item
                               but an issue_acceptance one
 
 criteria.json is read once and is usable as a non-empty list of ``{criterion: <integer>, text:
-<string>}`` objects. With an item carrying prior_ref or prior_evidence, a present file that is not
-usable adds a ``warnings`` line naming why; an absent file, Phase 0.4's no-criteria state, adds none.
+<string>}`` objects. With an item other than an issue_acceptance one, a present file that is not
+usable adds one ``warnings`` line naming why (no disclosure reaches an item then); an absent file,
+Phase 0.4's no-criteria state, adds none.
 
 Disclosures (PR mode): each line of the setup record's PR-body file, CR stripped, that starts at
 column 0 with ``Stricter than criterion ``. It counts only when it begins
@@ -170,13 +171,14 @@ names no blocker and the trusted file was not unreadable, and FAIL otherwise, th
 ``normalization_ineligible`` and an ``INVALID answer stored FAIL (<reason>): `` evidence prefix.
 
 ``checklist <op> …`` routes to the Phase 1 assembly in the sibling ``checklist_finalize.py``, and
-``render`` and ``reverify-add`` to Phase 4's reads in the sibling ``verdict_report.py`` (each
-documented there). They ride this helper because every cloud profile grants its leading token.
+``render``, ``assemble`` and ``reverify-add`` to Phase 4's reads and report assembly in the sibling
+``verdict_report.py`` (each documented there). They ride this helper because every cloud profile grants its leading token.
 
 Exit codes: 0 ok; 1 unsupported Python, a ``verdict_report.py`` beside this file that is missing
-or raises on import, or a prepare/collect error; 2 bad arguments, or a first word that is not
-``prepare``, ``collect``, ``wait``, ``checklist``, ``render`` or ``reverify-add`` (a newer
-subcommand included), with a ``status: usage`` line on stdout.
+or raises on import, or an error or refusal from ``prepare``, ``collect``, ``render``, ``assemble`` or
+``reverify-add``; 2 bad arguments, or a first word that is not one of those, ``wait`` or ``checklist``
+(a newer subcommand included). Stdout carries a ``status: usage`` line on exit 2, except from ``wait``
+and ``checklist``, which print their own JSON shape.
 """
 
 import itertools
@@ -1070,18 +1072,18 @@ def _rechecks(item):
     return "prior_ref" in item or "prior_evidence" in item
 
 
-def _recheck_criteria(lay, criteria, fresh, warnings):
-    """Whether re-check items get ``criteria_file``: ``criteria`` is usable (module docstring)."""
+def _criteria_usable(lay, criteria, fresh, warnings):
+    """Whether every item gets ``criteria_file``: ``criteria`` is usable (module docstring)."""
     entries, why = criteria
     if entries:
         return True
-    if any(_rechecks(it) for _, it in fresh) and os.path.lexists(lay["criteria"]):
+    if os.path.lexists(lay["criteria"]) and any(it.get("category") != "issue_acceptance" for _, it in fresh):
         warnings.append(f"criteria {lay['criteria']} unusable ({why or 'criteria_empty: an empty list'})"
-                        " -- re-check items get no criteria_file")
+                        " -- only issue_acceptance items get criteria_file")
     return False
 
 
-def _item_file(item, lay, base_keys, rules, disclosed, recheck_criteria, rejections):
+def _item_file(item, lay, base_keys, rules, disclosed, criteria_usable, rejections):
     out = {k: v for k, v in item.items() if k not in _ITEM_STATE_KEYS}
     out.update(base_keys, attempt=1)
     acceptance = item.get("category") == "issue_acceptance"
@@ -1100,7 +1102,7 @@ def _item_file(item, lay, base_keys, rules, disclosed, recheck_criteria, rejecti
         out["disclosed"] = disclosed
     if rejections:
         out["rejections"] = rejections
-    if acceptance or disclosed or (rechecks and recheck_criteria):
+    if acceptance or disclosed or criteria_usable:
         out["criteria_file"] = lay["criteria"]
     return _artifact_fields(out, _attempt_path(lay["verdicts"], item["id"], 1))
 
@@ -1145,8 +1147,8 @@ def prepare(checklist_file):
     rejections, uncounted = counted_rejections(pr, pr_state, lines)
     criteria = _criteria_entries(lay)
     records, reach = _disclosures(lines, criteria, fresh)
-    recheck_criteria = _recheck_criteria(lay, criteria, fresh, warnings)
-    files = [(i, _item_file(it, lay, base_keys, rules, reach.get(i, []), recheck_criteria, rejections))
+    criteria_usable = _criteria_usable(lay, criteria, fresh, warnings)
+    files = [(i, _item_file(it, lay, base_keys, rules, reach.get(i, []), criteria_usable, rejections))
              for i, it in fresh]
     failure = _write_item_files(lay["items"], files)
     if failure:
@@ -1715,7 +1717,7 @@ def _status_main(name, fn, argv):
 
 
 def _report_main(op, argv):
-    """Route ``render`` / ``reverify-add`` to the sibling ``verdict_report.py``; one JSON line out."""
+    """Route ``render`` / ``assemble`` / ``reverify-add`` to the sibling ``verdict_report.py``; one JSON line out."""
     try:
         import verdict_report
         out, rc = verdict_report.main(op, argv, _path_safe, _fresh_agent, _redirect)
@@ -1726,7 +1728,7 @@ def _report_main(op, argv):
     return rc
 
 
-_SUBCOMMANDS = ("prepare", "collect", "wait", "checklist", "render", "reverify-add")
+_SUBCOMMANDS = ("prepare", "collect", "wait", "checklist", "render", "assemble", "reverify-add")
 
 
 def main(argv=None):
@@ -1740,6 +1742,7 @@ def main(argv=None):
         print("       normalize-verdicts.py wait --verdicts-dir <dir> --expect <name>... --deadline <seconds> [--idle <seconds>]")
         print(f"       normalize-verdicts.py collect --contract {CONTRACT} --checklist <run-dir>/checklist-iter-<N>.json")
         print(f"       normalize-verdicts.py render <run-dir> <N> --contract {CONTRACT} --threshold <t> [--capped-file <path>] [--prior <work-dir>] [--skipped intentional|failure]")
+        print(f"       normalize-verdicts.py assemble <run-dir> <N> --contract {CONTRACT} --draft <path> --out <path>")
         print(f"       normalize-verdicts.py reverify-add <run-dir> <N> <item-id> --contract {CONTRACT} --threshold <t> --counter-reading-file <path>")
         return 0
     if argv and argv[0] == "checklist":
@@ -1748,7 +1751,7 @@ def main(argv=None):
         return _status_main(argv[0], prepare if argv[0] == "prepare" else collect, argv[1:])
     if argv and argv[0] == "wait":
         return _wait_main(argv[1:])
-    if argv and argv[0] in ("render", "reverify-add"):
+    if argv and argv[0] in ("render", "assemble", "reverify-add"):
         return _report_main(argv[0], argv[1:])
     # Any other first word, a subcommand a newer helper serves included, is a usage refusal, so
     # a caller ahead of this vendored copy never reads a result. stdout as well as stderr:

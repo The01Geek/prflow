@@ -28,7 +28,7 @@ Use exactly the literals the orchestrator supplies:
 
 - `ISSUE_NUMBER` / `ARGUMENTS` — your sole implement-origin signal, binding the `review-and-fix` invocation's `progress_surface = workpad`; never re-derive it from the public `--issue` argument, the workpad's existence or PR mode.
 - `DRAFT_PR` — the Phase 3.1 draft-PR result: a `number` and its `draft_pr_disposition` (`numbered`/`empty-brackets`/`absent`). You, not the parent, take the omit-the-token arm from that disposition.
-- `FEATURE_BRANCH` — the recorded feature branch (also on the workpad `**Branch:**` row).
+- `FEATURE_BRANCH` — the recorded feature branch.
 - `DISPATCH_ID`, the literal `run_id` / `run_attempt` fields, `TIER`, and `DEVFLOW_APP_ID`. Missing run facts are `unestablished`, never guessed.
 - `REPO_ROOT`, `SKILL_DIR`, `WORKPAD`, the workpad invocation ladder, and `SCRIPTS`. Root every artifact at this checkout. Substitute `SKILL_DIR` for the runner-reported skill-base placeholder in the relocated procedure. A `SCRIPTS` outside `.prflow/vendor/prflow/` settles that folder absent, as above, before any vendored rung runs; one under it, or none, settles nothing by itself.
 - `IMPLEMENT_EXTENSION_LOAD` — the parent's observed load state, last observed digest if available, exact pending notes, and the trusted `DEVFLOW_PROMPT_EXTENSION_ROOT` value when set. Also receive the actionable prior decisions and corrections (with sources) and active user constraints the orchestrator carried forward, and the canonical issue/workpad references.

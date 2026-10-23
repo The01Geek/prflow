@@ -15,39 +15,34 @@ rule `references/issue-template.md` states for it counts as the file. A `check-v
 such a read. An item no such read covers and confirms is unverified, whatever you recall; close it
 with a targeted `Read` or `Grep`, never a full re-exploration.
 
-1. Re-read the rendered draft end-to-end as an adversarial reviewer whose job is to find what is
-   wrong or missing, not to admire what is right.
+1. Walk the draft as its auditor will. Render the audit's walk:
+
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-audit-prompt.py checklist
+   ```
+
+   The render is complete only when its first line begins `render-status:` and its last line is
+   exactly `render-end:`; otherwise read `references/audit-prompt-template.md` and follow its
+   `checklist` blocks. Follow the walk over the whole draft with your own targeted reads, as if
+   someone else wrote it; each defect it finds is a finding
+   for item 5. Where the walk excuses what a drafting rule requires, such as an unpinned universal
+   claim, the rule governs. A walk you could not render or read, or whose render shows `unestablished`,
+   is disclosed beside Step 4's audit summary line.
 2. Verify each load-bearing claim, file reference, and acceptance criterion against the code. Every
    named file/path exists as named; every "the code currently does X" claim is confirmed by reading
    the code that does X; every AC is checked to be assertable against the code surface it names.
    Match the verification method to the claim class, by the clauses below; mechanical claims,
-   recorded-input facts, occurrence counts and coupled-site lists, data-entity changes and replaced
-   gates are verified against the rules `references/issue-template.md` states for them.
+   recorded-input facts, guard claims, occurrence counts and coupled-site lists, data-entity changes
+   and replaced gates are verified against the rules `references/issue-template.md` states for them;
+   a criterion one of those rules makes inadmissible is a flaw item 5 fixes.
 
    Evaluate the assembled draft against the premises and contracts triggers in
    `skills/spec/SKILL.md`'s advanced quality-guidance routing table. At this pass, treat any
    internal code-behavior premise as uncertain premises-group applicability, even when the draft
-   identifies no gated path. For these two groups, load any reference required by that routing and
+   identifies no gated path, and any universal claim about the system under change outside
+   `## 🚫 Blocked` as uncertain contracts-group applicability. For these two groups, load any reference required by that routing and
    not already loaded; re-apply each loaded group's rules to verified reads, preserving
    each rule's applicability condition.
-
-   Guard-claim grounding (mandatory). Read **Guard claims** in `references/issue-template.md`'s
-   Acceptance Criteria section. A criterion resting on such a claim not verified under that rule and
-   the definition above is treated as an
-   **unverified premise to resolve before the draft is presented** — reported and revised under item
-   5's revise-and-re-gate loop, never accepted on a peer's say-so whether one peer reported the
-   guard or two.
-
-   Universal-quantifier sweep (mandatory): scan every universal claim the assembled draft asserts
-   about the system under change outside `## 🚫 Blocked`, found by what it asserts, never by keyword
-   alone, and confirm each is grounded under **Universal claims** in
-   `references/quality-group-contracts.md` (loaded per *Reference routing* if absent). A universal
-   claim the draft keeps that describes existing behavior needs verifying under the definition
-   above, with every clause of the text that confirms it read when that text has more than one,
-   whichever way that section grounds it; one about current code so verified counts as scoped under
-   that section, and one not so verified is ungrounded. Rewrite or ground any ungrounded quantifier in item
-   5's revision; in approved or prescribed-verbatim wording, route that decision fork through
-   `references/revision-delta.md`'s *Revision rule*.
 
    Request-origin sweep (mandatory). A criterion's admissibility test is stated once in
    `references/issue-template.md`'s Acceptance Criteria contract (**omit/merge/add**); read it there
@@ -57,7 +52,7 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    recorded in this run's derivation artifact — never the drafted issue restating them back. When
    this run cannot establish the request from that artifact — the unestablished-request case that
    rule defines — record that state in the summary and report each criterion and named assertion
-   that rests on no change-introduced failure. Otherwise report each guarantee nobody asked for that
+   that rests on no change-introduced failure and carries no accepted limit. Otherwise report each guarantee nobody asked for that
    the rule omits, including the plausible, individually defensible one (a startup-time
    validation, a "no such module exists" negative, a proof-of-extensibility stub), a preservation
    the change does not reach, and one the project's guidance already requires of every change. Except
@@ -79,21 +74,29 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    author-owned criteria under item 5 and re-check before creation.
 
    Check the draft against `references/issue-template.md`'s `Relevant files` and
-   **Multi-state contracts** rules and the body against its rule for text with more than one clause,
-   arm or ordered step, and apply its **AC mutual consistency — reconcile shared cases** rule to
-   `## Acceptance Criteria`, `## Desired Behavior` and `## Implementation Notes`.
+   **Multi-state contracts** rules; check the whole body, Technical Context and Documentation
+   Needed included, against its **One-home rule** in *Brief / investigation-record routing* and its
+   rule for text with more than one clause, arm or ordered step; and apply its **AC mutual
+   consistency — reconcile shared cases** rule to `## Acceptance Criteria`, `## Desired Behavior`
+   and `## Implementation Notes`.
 
-   When this run reached an implementation-approach question, a self-answered one included, check
-   the draft, the record bucket and the `Considered-and-rejected:` line against the elected option's
-   items in the latest *Option check* record and each rejection reason it marked not established; with
-   that record absent, unreadable, not in the form Step 2's *Option check* requires, not covering
-   the elected approach, or a subagent reply that check sends to your own check, list those items
-   yourself under
-   `references/step-2-clarify.md`'s *Option check* and say so in the summary. An item or
-   draft-stated limit meeting `references/step-2-clarify.md`'s *Settled approach* re-ask rule
-   reopens the approach
-   question. Each other item is handled by the draft, stated as an accepted limit, or stated as
-   not established; revise any other under item 5.
+   Check the draft, the record bucket and the `Considered-and-rejected:` line against the recorded
+   facts the root's Step 3 lists as drafting inputs. When this run reached an
+   implementation-approach question, a self-answered one included, also check them against each
+   rejection reason the latest *Option check* record marked not established. After a fork re-ask
+   (`references/step-2-clarify.md`'s *Mechanism-choosing fork*) that no later approach re-ask
+   followed, also check the draft against the latest approach question's not-established rejection
+   reasons as the run still holds them, check the line and record bucket against those reasons
+   instead of the fork's record, and say in the summary that they were compared only from what it
+   holds and how many it held. With the
+   latest record absent, unreadable, not in the form Step 2's *Option check* requires, not covering the elected
+   approach, or a subagent reply that check sends to your own check, list the elected option's items
+   yourself under `references/step-2-clarify.md`'s *Option check*, say so in the summary, and still
+   compare the other recorded facts Step 3 lists. Name in the summary each record you could not
+   read and so did not compare. An item, fact or draft-stated limit meeting
+   `references/step-2-clarify.md`'s *Settled approach* rule takes the re-ask that rule orders.
+   Each other item or fact lands in the draft as the root's Step 3 lands a drafted fact; revise any
+   other under item 5.
 4. Sweep the draft's own unstated mechanism dependencies (mandatory). Beyond the *stated* premises
    checked in step 2, name each in-repo capability the mechanism assumes and the behavior its
    consumer needs: a helper's exit code, a resolver's output shape, a gate's semantics. Include
@@ -166,12 +169,14 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    proving it exists at the consuming site; when drafting cannot establish that binding, the draft
    carries an implementer-obligation AC naming the binding as work, never an unbound role
    description that expands to nothing at implement time.
-5. Load `references/revision-delta.md` and apply its revision rule before editing for each finding.
+5. With any decision question this step asks, report item 6's summary of the audit so far.
+   Load `references/revision-delta.md` and apply its revision rule before editing for each finding.
    Fix the flaw yourself now (a request-origin report under an unestablished request is not a flaw)
    unless that rule routes a decision to the user; never present a fixable flaw as a question on
    an unrevised draft. Re-run the Step 3 no-options gate on the revision and
-   run **Revision-delta verification**.
-6. Report the outcome in your next message as a summary: each finding and what was revised for it;
+   run **Revision-delta verification**. After any revision, walk the whole revised draft once under
+   item 1, since a fix can break text it never touched; revise what it finds, with no further walk.
+6. Report the outcome with the run's next question as a summary: each finding and what was revised for it;
    each check left unfinished and each checked item left unverified, by locator; each dependency not
    established and why; the request as unestablished when the request-origin sweep recorded that
    state; and, when Step 2's loader-failure arm fired, the evidence axes as floor-only-degraded. A

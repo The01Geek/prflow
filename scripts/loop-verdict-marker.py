@@ -182,7 +182,7 @@ warn on a top-level key outside it. `read`, `build-deferrals` and `install-recor
       unwritable run root is "error" (exit 1); a bad --iteration or an unmappable --result
       is "error" (exit 2). --contract 2 changes no output; an older helper rejects it (exit 2).
 
-  install-record --run-root DIR --iteration N
+  install-record --run-root DIR --iteration N [--contract 2]
       Installs DIR/iter-<N>.json.draft over DIR/iter-<N>.json with os.replace. The draft is
       refused when it starts with a UTF-8 BOM, is not UTF-8 JSON parsing to an object, repeats a key, has an `iter` other
       than the integer N, or fails the schema; and, when the installed iter-<N>.json is not
@@ -192,16 +192,61 @@ warn on a top-level key outside it. `read`, `build-deferrals` and `install-recor
       does not parse to an object is not compared (a warning). Prints {"status":"ok","path","warnings"} (exit 0),
       {"status":"refused","path":<draft>,"violations":[{"path":<JSON path>,"message"}]} (exit 1,
       neither file changed), {"status":"error","reason"} for a missing or unreadable draft, an
-      unreadable schema or a failed replace (which adds "warnings") (exit 1), or a bad
+      unreadable schema, a failed replace or (--contract 2) a record nested too deeply to
+      merge (which add "warnings") (exit 1), or a bad
       --iteration (exit 2).
+
+      --contract 2 installs a merged record instead of the draft as written; an older helper
+      rejects the flag (exit 2). The draft's bytes are checked as above; the iter, schema and
+      held-key/held-row checks run on the merged record, which is also refused at the path of
+      each number JSON cannot represent (such as 1e999). The merge cannot remove an installed
+      top-level key outside the schema, nor a value in an installed row no draft row merges
+      into (no string `finding_id` it alone holds among the seeded and installed rows) other
+      than a `fix_decision` the stamp sets, so a refusal at either says no edit clears it. Only after they pass is it written to
+      DIR/iter-<N>.json.merged and replaced in; the draft is then removed, or kept with a
+      warning when removal fails. A failed write or replace leaves the draft unchanged. The merged record is built in this order:
+        Base: the installed record the no-flag path would compare (absent or older than
+          loop-setup.json: none; unreadable or not parsing to an object: none, with a warning
+          that its keys are not kept).
+        Overlay: every draft key but `phase3_findings` merges into the base: two objects merge
+          key by key at every depth; any other draft value replaces the base's; a key or nested
+          key the draft lacks keeps its value.
+        Seed, unless the merged `loop_role` is `promoted`: DIR/engine-return-step1-iter-<N>.json,
+          when it is a JSON object not older than loop-setup.json (one it cannot stat: used),
+          supplies `phase3_findings` (an array), `phase3_failed_agents` (an array) and
+          `diff_produced_at_head` (a string); the last two fill only a key neither the base nor
+          the draft holds. A return that is absent, unreadable, not JSON, not an object or too
+          old, or a key it lacks or holds with the wrong type, leaves that key unseeded with a
+          `warnings` entry naming it (for the last two, also noting a base or draft that holds
+          it); a non-object return row is skipped with a `warnings` entry
+          naming its 1-based position.
+          A seeded row copies the return row except `agents` and `corroboration`, with
+          `finding_id` `F-<position>` (1-based in the return's array, whatever the row held),
+          `agent` the row's own else the first of its `agents`, and `corroboration_count` the
+          row's own else its `corroboration`. No other return key is copied.
+        Rows: `phase3_findings` layers the seeded rows, then the base's, then the draft's. A row
+          whose string `finding_id` matches exactly one row of the layers below merges into it
+          as the overlay merges objects; any other row (a new, missing, non-string or shared id)
+          is appended unless an identical row is already below. A draft `phase3_findings` of null
+          is ignored with a `warnings` entry, and one that is neither an array nor null replaces
+          the key (which the schema then refuses). A base one that is neither an array nor null
+          is kept unless the seed or the draft holds an array; then the layered rows replace it,
+          with a `warnings` entry.
+        Stamp: each `phase3_findings` row whose string `finding_id` names a `fix_decisions` row
+          (an object with that string `finding_id`) gets `fix_decision`: `applied` when any such
+          row is `applied`; otherwise from the last one, `pushed_back` for `pushed_back` with
+          `skip_category` `claim-quality`, `advisory` or `severity-calibrated` for those
+          decisions, and `deferred` for any other (or no) decision. Other rows keep their value.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime
 import importlib.util
 import json
+import math
 import os
 import re
 import subprocess
@@ -596,6 +641,10 @@ def _id_counts(rows) -> dict:
     return counts
 
 
+_NO_EDIT_CLEARS = "no edit clears this refusal, which counts toward the direct-Write fallback"
+_IN_DRAFT = "; write it within range in the draft"
+
+
 def _held_violations(draft: dict, installed: dict, name: str, props: dict) -> list:
     """What the draft drops of the installed record: a top-level key, or id-bearing rows."""
     out = []
@@ -604,8 +653,7 @@ def _held_violations(draft: dict, installed: dict, name: str, props: dict) -> li
         if key not in draft and key not in props:
             out.append({"path": path, "message": f"the installed {name} holds {key}, a key outside "
                         "the iteration-record schema, so no draft can install over it; keep the "
-                        "draft without it: no edit clears this refusal, which counts toward the "
-                        "direct-Write fallback"})
+                        f"draft without it: {_NO_EDIT_CLEARS}"})
             continue
         if key not in draft:
             out.append({"path": path, "message": f"the installed {name} holds {key}; a rewrite "
@@ -670,55 +718,271 @@ def _cmd_install_record(args: argparse.Namespace) -> int:
                    for key in duplicates]
     if obj is not _MISSING and not isinstance(obj, dict):
         violations.append({"path": "$", "message": f"is a JSON {_json_type(obj)}, not an object"})
+    merged = None
+    stuck: list = []
     if isinstance(obj, dict):
-        _schema_violations(obj, schema, "$", violations)
+        setup = os.path.join(args.run_root, "loop-setup.json")
+        installed = _compared_record(target, setup, warnings, args.contract == "2")
+        if args.contract == "2":
+            try:
+                obj = merged = _merged_record(obj, installed, args.run_root, n, setup, warnings, stuck)
+                try:  # the dump alone, whose ValueError is allow_nan=False's non-finite number
+                    payload = (json.dumps(merged, indent=2, allow_nan=False) + "\n").encode("utf-8")
+                except ValueError:
+                    violations += [{"path": path, "message": "is a number JSON cannot represent "
+                                    f"(such as 1e999){_IN_DRAFT}"}
+                                   for path in _non_finite_paths(merged) or ["$"]]
+            except RecursionError:
+                _emit_json({"status": "error", "reason": f"iter-{n}.json not installed (a record "
+                            "nested too deeply to merge); the draft is unchanged",
+                            "warnings": warnings})
+                return 1
+        props = schema["properties"]
+        # The merge keeps an installed key outside the schema whatever the draft holds, so it
+        # is checked as one the draft drops: the held check says no edit clears it.
+        checked = obj if merged is None or installed is None else {
+            k: v for k, v in obj.items() if k in props or k not in installed}
+        _schema_violations(checked, schema, "$", violations)
         mismatch = _iter_mismatch(obj, n)
         if mismatch and not any(v["path"] == "$.iter" for v in violations):
             violations.append({"path": "$.iter", "message": mismatch})
-        installed = _compared_record(target, os.path.join(args.run_root, "loop-setup.json"),
-                                     warnings)
         if installed is not None:
-            violations += _held_violations(obj, installed, f"iter-{n}.json", schema["properties"])
+            violations += _held_violations(checked, installed, f"iter-{n}.json", props)
+        for v in violations:
+            if any(v["path"] != keep and (v["path"] == p or v["path"].startswith((p + ".", p + "[")))
+                   for p, keep in stuck):
+                v["message"] = v["message"].replace(_IN_DRAFT, "") + (
+                    f", in a row of the installed iter-{n}.json that no draft row merges into: "
+                    f"{_NO_EDIT_CLEARS}")
     if violations:
         _emit_json({"status": "refused", "path": posix_path(draft), "violations": violations})
         return 1
+    staged = draft if merged is None else target + ".merged"
     try:
-        os.replace(draft, target)
+        if merged is not None:
+            with open(staged, "wb") as fh:
+                fh.write(payload)
+        os.replace(staged, target)
     except OSError as e:
-        _emit_json({"status": "error", "reason": f"iter-{n}.json not installed ({_os_reason(e)})",
-                    "warnings": warnings})
+        unchanged = ""
+        if merged is not None:
+            unchanged = "; the draft is unchanged"
+            try:
+                os.remove(staged)
+            except OSError:
+                pass  # best effort: the error below already reports the failed install
+        _emit_json({"status": "error", "reason": f"iter-{n}.json not installed ({_os_reason(e)})"
+                    f"{unchanged}", "warnings": warnings})
         return 1
+    if merged is not None:
+        try:
+            os.remove(draft)
+        except OSError as e:
+            warnings.append(f"iter-{n}.json installed; iter-{n}.json.draft not removed "
+                            f"({_os_reason(e)}), so an install without a fresh draft merges it again")
     _emit_json({"status": "ok", "path": posix_path(target), "warnings": warnings})
     return 0
 
 
-def _compared_record(target: str, setup: str, warnings: list) -> dict | None:
+def _compared_record(target: str, setup: str, warnings: list, merged: bool = False) -> dict | None:
     """The installed record a draft must keep, or None: absent, older than loop-setup.json (an
-    earlier invocation's), or unreadable or not a JSON object (named in `warnings`). A
-    loop-setup.json it cannot stat leaves the record compared."""
-    name = os.path.basename(target)
-    try:
-        with open(target, "rb") as fh:
-            raw = fh.read()
-            installed_mtime = os.fstat(fh.fileno()).st_mtime_ns
-    except FileNotFoundError:
-        return None
-    except OSError as e:
-        warnings.append(f"the installed {name} is unreadable ({_os_reason(e)}); not compared")
-        return None
-    try:
-        if installed_mtime < os.stat(setup).st_mtime_ns:
-            return None
-    except OSError:
-        pass  # no usable loop-setup.json: compare, the stricter direction
-    try:
-        installed = json.loads(raw, parse_constant=_reject_json_constant)
-    except (ValueError, UnicodeError, RecursionError):
-        installed = None
-    if not isinstance(installed, dict):
-        warnings.append(f"the installed {name} is not a JSON object; not compared")
-        return None
+    earlier invocation's), or any other reason `_run_root_object` gives (named in `warnings`,
+    which under `merged` adds that its keys are lost). A loop-setup.json it cannot stat leaves
+    the record compared."""
+    installed, why = _run_root_object(target, setup)
+    if why not in ("", _ABSENT, _OLDER):
+        lost = "; not merged, so the record keeps none of its keys" if merged else ""
+        warnings.append(f"the installed {os.path.basename(target)} {why}; not compared{lost}")
     return installed
+
+
+_ABSENT = "is absent"
+_OLDER = "is older than loop-setup.json"
+
+
+def _run_root_object(path: str, setup: str) -> tuple[dict | None, str]:
+    """(the JSON object at `path`, '') or (None, why): `is absent`, `is older than
+    loop-setup.json` (one it cannot stat: never), `is unreadable (…)`, `is nested too deeply to
+    parse`, `is not valid JSON` or `is not a JSON object (…)`."""
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+            mtime = os.fstat(fh.fileno()).st_mtime_ns
+    except FileNotFoundError:
+        return None, _ABSENT
+    except OSError as e:
+        return None, f"is unreadable ({_os_reason(e)})"
+    try:
+        if mtime < os.stat(setup).st_mtime_ns:
+            return None, _OLDER
+    except OSError:
+        pass  # no usable loop-setup.json: read the file (for a compare, the stricter direction)
+    try:
+        value = json.loads(raw, parse_constant=_reject_json_constant)
+    except RecursionError:
+        return None, "is nested too deeply to parse"
+    except (ValueError, UnicodeError):
+        return None, "is not valid JSON"
+    if not isinstance(value, dict):
+        return None, f"is not a JSON object (a JSON {_json_type(value)})"
+    return value, ""
+
+
+_SEEDED = (("phase3_findings", list, "an array"), ("phase3_failed_agents", list, "an array"),
+            ("diff_produced_at_head", str, "a string"))
+
+
+def _merged_record(draft: dict, base: dict | None, run_root: str, n: int, setup: str,
+                   warnings: list, stuck: list) -> dict:
+    """install-record --contract 2's record: base, overlay, seed, rows and stamp, as the module
+    docstring states; `stuck` gets (JSON path, path the stamp can still clear or None) for each
+    base row no draft row can merge into."""
+    record = copy.deepcopy(base) if base is not None else {}
+    base_rows = record.pop("phase3_findings", _MISSING)
+    draft_rows = draft.get("phase3_findings", _MISSING)
+    if draft_rows is None:
+        warnings.append("the draft's phase3_findings is null; ignored, so no row is dropped")
+        draft_rows = _MISSING
+    _merge_into(record, {k: v for k, v in draft.items() if k != "phase3_findings"})
+    seed = {} if record.get("loop_role") == "promoted" \
+        else _return_seed(run_root, n, setup, warnings, record)
+    for key in ("phase3_failed_agents", "diff_produced_at_head"):
+        if key in seed and key not in record:
+            record[key] = seed[key]
+    if draft_rows is not _MISSING and not isinstance(draft_rows, list):
+        record["phase3_findings"] = draft_rows
+    elif "phase3_findings" in seed or isinstance(base_rows, list) or isinstance(draft_rows, list):
+        if base_rows not in (_MISSING, None) and not isinstance(base_rows, list):
+            warnings.append(f"the installed iter-{n}.json holds phase3_findings as a JSON "
+                            f"{_json_type(base_rows)}, not an array; replaced by the merged rows")
+        layers = [seed.get("phase3_findings", [])] + [
+            rows if isinstance(rows, list) else [] for rows in (base_rows, draft_rows)]
+        record["phase3_findings"] = rows = _layer_rows(layers)
+        # A draft row merges only into the one row below it with its string finding_id.
+        below, base_ids = {id(r) for r in layers[0] + layers[1]}, {id(r) for r in layers[1]}
+        ids = [r.get("finding_id") if isinstance(r, dict) else None for r in rows if id(r) in below]
+        for i, r in enumerate(rows):
+            fid = r.get("finding_id") if isinstance(r, dict) else None
+            if id(r) in base_ids and not (isinstance(fid, str) and ids.count(fid) == 1):
+                # The stamp still rewrites the fix_decision of a row with a string id.
+                stuck.append((f"$.phase3_findings[{i}]",
+                              f"$.phase3_findings[{i}].fix_decision" if isinstance(fid, str) else None))
+    elif base_rows is not _MISSING:
+        record["phase3_findings"] = base_rows
+    _stamp(record)
+    return record
+
+
+def _merge_into(base: dict, draft: dict) -> None:
+    """Merge `draft` into `base` in place: two objects merge key by key at every depth; any other
+    draft value replaces the base's."""
+    for key, value in draft.items():
+        if isinstance(base.get(key), dict) and isinstance(value, dict):
+            _merge_into(base[key], value)
+        else:
+            base[key] = value
+
+
+def _non_finite_paths(value) -> list:
+    """The JSON path of each number in `value` that JSON cannot represent (an overflowed 1e999),
+    in document order; iterative, so a deep record cannot overflow the stack."""
+    out, stack = [], [("$", value)]
+    while stack:
+        path, item = stack.pop()
+        if isinstance(item, float) and not math.isfinite(item):
+            out.append(path)
+        elif isinstance(item, dict):
+            stack.extend(reversed([(_key_path(path, k), v) for k, v in item.items()]))
+        elif isinstance(item, list):
+            stack.extend(reversed([(f"{path}[{i}]", v) for i, v in enumerate(item)]))
+    return out
+
+
+def _layer_rows(layers: list) -> list:
+    """Each layer's rows over the rows of the layers below it: a row whose string `finding_id`
+    matches exactly one row below merges into that row; any other row is appended unless an
+    identical row is already below."""
+    out: list = []
+    for layer in layers:
+        below = list(out)
+        held = {json.dumps(r, sort_keys=True, ensure_ascii=False) for r in below}
+        for row in layer:
+            fid = row.get("finding_id") if isinstance(row, dict) else None
+            hits = [r for r in below if isinstance(r, dict) and r.get("finding_id") == fid] \
+                if isinstance(fid, str) else []
+            if len(hits) == 1:
+                _merge_into(hits[0], row)
+            elif json.dumps(row, sort_keys=True, ensure_ascii=False) not in held:
+                out.append(row)
+    return out
+
+
+def _return_seed(run_root: str, n: int, setup: str, warnings: list, record: dict) -> dict:
+    """The seedable keys of `engine-return-step1-iter-<n>.json`, each finding row in its record
+    shape; a `warnings` entry for each key or row left unseeded, noting a key `record` (the base
+    and draft, `phase3_findings` aside) already holds."""
+    name = f"engine-return-step1-iter-{n}.json"
+
+    def unseeded(key: str, why: str) -> None:
+        held = "; the record already holds it" if key in record else ""
+        warnings.append(f"{key} not seeded: {name} {why}{held}")
+
+    value, why = _run_root_object(os.path.join(run_root, name), setup)
+    if value is None:
+        for key, _, _ in _SEEDED:
+            unseeded(key, why)
+        return {}
+    seed = {}
+    for key, kind, label in _SEEDED:
+        held = value.get(key, _MISSING)
+        if isinstance(held, kind):
+            seed[key] = held
+        elif held is _MISSING:
+            unseeded(key, f"has no {key}")
+        else:
+            unseeded(key, f"holds a JSON {_json_type(held)}, not {label}")
+    if "phase3_findings" in seed:
+        rows = []
+        for i, row in enumerate(seed["phase3_findings"], 1):
+            if isinstance(row, dict):
+                rows.append(_seeded_row(row, i))
+            else:
+                warnings.append(f"phase3_findings row {i} not seeded: {name} holds a JSON "
+                                f"{_json_type(row)} there, not an object")
+        seed["phase3_findings"] = rows
+    return seed
+
+
+def _seeded_row(row: dict, position: int) -> dict:
+    """A Step 1 return row in the record's shape: `finding_id` F-<position>, `agent` (else the
+    first of `agents`) and `corroboration_count` (else `corroboration`)."""
+    seeded = {"finding_id": f"F-{position}"}
+    seeded.update((k, v) for k, v in row.items() if k not in ("finding_id", "agents", "corroboration"))
+    agents = row.get("agents")
+    if row.get("agent") is None and isinstance(agents, list) and agents:
+        seeded["agent"] = agents[0]
+    if row.get("corroboration_count") is None and row.get("corroboration") is not None:
+        seeded["corroboration_count"] = row["corroboration"]
+    return seeded
+
+
+def _stamp(record: dict) -> None:
+    """Set each `phase3_findings` row's `fix_decision` from the `fix_decisions` rows naming it."""
+    named: dict = {}
+    for row in _rows(record.get("fix_decisions")):
+        if isinstance(row.get("finding_id"), str):
+            named.setdefault(row["finding_id"], []).append(row)
+    for row in _rows(record.get("phase3_findings")):
+        rows = named.get(row["finding_id"]) if isinstance(row.get("finding_id"), str) else None
+        if not rows:
+            continue
+        last = rows[-1].get("decision")
+        if any(r.get("decision") == "applied" for r in rows):
+            row["fix_decision"] = "applied"
+        elif last == "pushed_back" and rows[-1].get("skip_category") == "claim-quality":
+            row["fix_decision"] = "pushed_back"
+        else:
+            row["fix_decision"] = last if last in ("advisory", "severity-calibrated") else "deferred"
 
 
 def _chain_binds(bound: str, head: str) -> tuple[bool | None, str]:
@@ -1638,6 +1902,8 @@ def main(argv: list[str] | None = None) -> int:
                             "and install it over iter-<N>.json")
     p_inst.add_argument("--run-root", required=True)
     p_inst.add_argument("--iteration", required=True, type=int)
+    p_inst.add_argument("--contract", choices=["2"], default=None,
+                        help="2: merge the draft with the installed record and the Step 1 return")
     p_inst.set_defaults(func=_cmd_install_record)
 
     args = parser.parse_args(argv)

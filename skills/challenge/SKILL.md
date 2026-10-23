@@ -35,7 +35,7 @@ Honor returned instructions. Empty output with exit 0 means no customization. If
 - Challenge unnecessary scope, abstractions, and speculative future needs. Check existing controls before recommending new machinery.
 - Look for existing tools, helpers, patterns, and conventions before proposing custom solutions. Apply best practices where they fit; challenge precedent when evidence warrants it.
 - Consider focused refactoring: remove duplication, indirection, and special cases while preserving required behavior. Weigh simplification against migration cost and regression risk; avoid unrelated cleanup or forced abstractions.
-- Compare doing less, reusing, refactoring, or solving the root cause. Prefer the simplest sufficient option; do not force an alternative.
+- Compare doing less, reusing, refactoring, solving the root cause, or moving the work to another stage, component or owner, such as an earlier step that decides it once and records it. Prefer the simplest sufficient option; do not force an alternative.
 - Scrutinize alternatives equally: verify new factual claims, costs, risks, and what would change the recommendation.
 - Require each defect to name the affected claim or location, concrete trigger, failure mechanism, consequence, evidence, and actionable remedy. Rank by demonstrated impact; separate defects, optional improvements, and unsupported claims.
 - On follow-up, verify prior defects are resolved and inspect changes for new ones; an attempted fix is not resolution.

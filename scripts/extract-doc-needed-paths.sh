@@ -27,9 +27,10 @@
 #     LLM-drafted `## Implementation Notes` section, and the real issue #304 body,
 #     uses; issue #309 — a `### Documentation Needed` level-3 heading, issue
 #     #380 — OR a plain `- Documentation Needed —` list item, issue #506) and the
-#     next peer item: for a list-item opener (bold or plain), a same-indentation
-#     label-and-em-dash item closes even when its label is not bold — but the plain
-#     opener line itself never counts as that closing peer. A top-level
+#     next peer item: for a list-item opener (bold or plain), a top-level
+#     label-and-em-dash item or plain label bullet (issue #2477) closes even when
+#     its label is not bold — but the opener line itself never counts as that
+#     closing peer. A top-level
 #     bold peer, the next `## ` heading, or (for a
 #     heading-opened scope) the next level-3+ heading also closes (or EOF).
 #     A `### Documentation Needed` heading only opens inside `## Implementation
@@ -349,6 +350,10 @@ run_stage_a() {
   # points, outside punctuation) is preserved as before.
   function dn_bold_label(line) { return (line ~ /^(- )?\*\*Documentation Needed([.:]| ?—)?\*\*/) }
   function dn_plain_opener(line) { return (line ~ /^- Documentation Needed( ?—|[.:]|[[:space:]]*$)/) }
+  # dn_label_bullet(line) — a plain label bullet (issue #2477). Do not reuse
+  # dn_plain_opener()'"'"'s boundary-free separator group or admit `.` in the label:
+  # `- README.md: …` and `- CHANGELOG.md` are deliverables and would close the scope.
+  function dn_label_bullet(line) { return (line ~ /^- [A-Z][A-Za-z ]*((—|[.:])([[:space:]]|$)|[[:space:]]*$)/) }
   BEGIN { prev_blank = 1; in_fence = 0 }   # start-of-file is a paragraph boundary
   # Fence tracking (issue #644) — the FIRST thing, before any scope arm, from the
   # top of the body (a fence can open before any scope opener). A GFM fence
@@ -472,13 +477,13 @@ run_stage_a() {
     entered_scope = 1
     entered_section = 1
   }
-  # A list-item scope ends at its next same-level plain peer: the label-and-em-dash
-  # shape used by issue prose (recognizing plain colon peers is outside the #2131
-  # punctuation fix). Items with a backtick before the em dash, indented items, and
-  # wrapped lines remain inside the Documentation Needed scope. The accepted bold
-  # and plain Documentation Needed openers are excluded here — via the same
-  # functions the opener arms match — so an opener never closes its own scope.
-  state == 2 && list_scope && /^- [^`]* — / && !dn_bold_label($0) && !dn_plain_opener($0) {
+  # A list-item scope ends at its next same-level plain peer: a `- <label> — ` item
+  # with no backtick before the em dash, or a plain label bullet (dn_label_bullet,
+  # issue #2477). Other plain top-level items, indented items and wrapped lines remain
+  # inside the Documentation Needed scope. The accepted bold and plain
+  # Documentation Needed openers are excluded here — via the same functions the
+  # opener arms match — so an opener never closes its own scope.
+  state == 2 && list_scope && (/^- [^`]* — / || dn_label_bullet($0)) && !dn_bold_label($0) && !dn_plain_opener($0) {
     state = 1
     list_scope = 0
   }

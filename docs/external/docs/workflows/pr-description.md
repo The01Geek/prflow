@@ -5,7 +5,7 @@ description: "Write or refresh a structured pull request body from the current b
 
 Use this workflow when a pull request body no longer matches the code it describes.
 
-It updates an existing pull request body and never edits branch files. When no pull request exists yet, it prints the finished description instead of creating one.
+It updates an existing pull request body and reconciles its title with the implemented change. An accurate title stays; a title describing the original problem or an outdated scope is rewritten to describe the solution. It never edits branch files. When no pull request exists yet, it prints the finished description instead of creating one.
 
 ## Run It
 

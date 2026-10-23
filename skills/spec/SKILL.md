@@ -17,7 +17,7 @@ reached. Change tracker only when the one in use stops working. A tracker proble
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2); a shown-gone *No change* choice ends the run here
 - [ ] 3. Draft the issue and pass the no-options gate (Step 3)
 - [ ] 4. Self-audit the draft against the code, revise, and re-pass the no-options gate (Step 3.5)
-- [ ] 5. Run the draft checks on the working draft (Step 3.6)
+- [ ] 5. Run the draft checks and each draft's first audit round (Step 3.6)
 - [ ] 6. Present the issue and obtain Step 4's filing election, then create it (sub-steps 1–5)
 - [ ] 7. After filing succeeds, apply 3a's assignment and implement-offer answers (Step 4, sub-step 6)
 
@@ -36,11 +36,11 @@ No run abbreviates or skips a step before it ends: at a created, widened or paus
 
 | **Excuse** | **Why it does not hold** |
 | --- | --- |
-| "This ticket is trivial; a lighter pass is fine" | Triviality is a claim the pipeline tests; the self-audit and audit catch the one-line ticket that was not trivial. |
+| "This ticket is trivial; a lighter pass is fine" | Triviality is a claim your self-audit tests; the one-line ticket that was not trivial is yours to catch. |
 | "I'll abbreviate but say so" / "properly-ish, given time pressure" | Announcing an abbreviation does not authorize it: a shortened pipeline is not a pipeline. Run the step, or record what genuinely cannot be resolved in the Blocked section. |
 | "The docs-verify dispatch is expensive" | Cost is not a gate. Step 1 grounds every later claim; skipping it drafts blind. |
 | "No user is available" | The absence of a user does not excuse an artifact no user is needed for; self-answer from the issue's own material where the run is non-interactive and continue. |
-| "The draft is solid; skip more grounding, or the audit offer" | Confidence in the draft is what the later steps test. The audit round is the user's election wherever Step 4 offers it; on a run that asks for approval of its draft at Step 4, never skip the draft checks or the summary line. |
+| "The draft is solid; skip more grounding, or the audit round" / "the audit will catch it" | The draft is yours, and confidence comes from your own walk, not the audit's: the audit confirms quality and a defect your reads could have found is yours to find first. Step 3.6 sets when a draft's first round runs; a further round is the user's election wherever Step 4 offers it; on a run that asks for approval of its draft at Step 4, never skip the draft checks or the summary line. |
 | "Render the draft and report, to be efficient" | Rendering and reporting is not creating. |
 | "The design is simple; nothing it touches can break" | Simple designs break their consumers too. Run the pre-mortem rule; the self-audit and audit run only after the user has chosen the design. |
 
@@ -78,10 +78,10 @@ correct current outcome. Read the case's input, what produces it and whether it 
 the subject, and its current outcome, then derive the candidate's outcome. A case passes
 only when that is the outcome it should have and, for a motivating case, the read shows
 its current outcome wrong; anything else, a fact no read settles included, is a walk
-failure, never dropped as one the change cannot cause. The draft states each walk
-failure the chosen design keeps, labelled unverified where no read confirms it. Surface
-failures before the implementation-approach question where possible, while they can
-still change the design.
+failure, never dropped as one the change cannot cause. The draft states each failure
+the chosen design keeps, walk failures included, labelled unverified where no read
+confirms it. Surface failures before the implementation-approach question where
+possible, while they can still change the design.
 
 ## Consumer skill extension (load first)
 
@@ -134,10 +134,27 @@ These five hold on every path, including every degraded arm above, and are load-
 Invoking `/prflow:spec` requests subagent dispatch at Step 1's discovery and risk peers,
 Step 2's option check and delegated-reply research helper (whichever step asks the question) and Step 3.6's
 fresh-context auditor, satisfying any injected "do not call the AgentTool unless the user
-requested it" condition there and nowhere else. It changes no degradation arm above: a dispatch that fails, is
-unavailable, or is refused still degrades onto its named fallback, and nothing blocks issue creation.
-At each site, dispatch a synchronous non-fork subagent; a launch acknowledgment is not its result,
-so on one, end the turn and resume on its completion. Step 1 waits for both roles to return or fail.
+requested it" condition there and nowhere else. Dispatch or native result collection that fails, is
+unavailable, or is refused takes the site's existing fallback; report the failure.
+Each dispatch the run makes, an extension's included, is a non-fork subagent; hold its completed
+result or confirmed failure before dependent work or a final response. When one replies with its whole
+result, use that reply and do not also read a file holding it, unless the step's own rule names which
+of the two it reads or the step must write into that file. In Claude Code's interactive main
+conversation, on a launch acknowledgment, do only work that neither needs the result nor repeats
+anything the subagent's prompt delegates, then end the turn and resume on that subagent's completion
+notification (no other notification is its result). Otherwise (inline result, headless `claude -p`,
+nested run, Codex or any other runner, or unsure) never end the turn with one pending; collect it
+natively. Step 1 waits for both roles; on the Claude Code arm, a notification with the other peer
+pending ends the turn again.
+Every subagent prompt the run writes, except Step 3.6's fixed item list, carries this shell rule: in
+a Bash command, never name files or paths with a wildcard pattern (for example `*.yml` or
+`scripts/*.json`); name them literally, or narrow a search with `rg -t <type>` before `--` (`-t md`;
+confirm a typed no-match without `-t`) or with a literal directory path; a pattern given to a Glob or
+Grep tool stays allowed. Run each Bash read or search as its own call, and never type a word starting
+with `=` in a Bash command (for example `echo ===`). Run `gh` from the working checkout without `--repo`;
+pass `--repo` only for a repository your dispatch, or a reference you are following, names. Never
+read a filtered result (for example `gh … 2>&1 | grep <term>`) as a match or as "no match" unless
+the unfiltered command succeeded; filter `gh` JSON with its own `--jq`, no outer pipe.
 
 ## Prerequisites
 
@@ -151,10 +168,16 @@ Extract the topic from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
 later step binds one. Run `mkdir -p .prflow/tmp/spec/<slug>` first, treating any stderr from it as its failure
-signal; a write or delete at or under `.prflow/` that fails or is refused routes this evidence
-artifact and this registry entry onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
-Delete any `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`, then register this run through
-the run-directory registry:
+signal; a write or delete you or a script you run make at or under `.prflow/` that fails or is refused routes this evidence
+record and this registry entry onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
+The Step 1 record is the index `issue-step1-<slug>.md` plus the role files
+`issue-step1-discovery-<slug>.md` and `issue-step1-risk-<slug>.md`, all under `.prflow/tmp/spec/<slug>/`;
+a dispatch or step given the record by path gets all three paths, made absolute from the working directory.
+Delete all three:
+```bash
+rm -f "<absolute index path>" "<absolute discovery role file path>" "<absolute risk role file path>"
+```
+Then register this run through the run-directory registry:
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/cleanup-spec-run.sh --register-slug <slug> --topic "<one line from the user story, reduced to letters, digits, spaces and . , : - _ / only>" --root .
 ```
@@ -162,27 +185,51 @@ The helper reads no environment variable, writes the run's `run-meta.json`, and 
 `registered=` line; read the line you received. A run that received `registered=no` never invokes
 `--resolve-slug` later and treats a lost slug as unestablished (the title-derived fallback in *Runner setup*).
 
-Dispatch two independent peers in parallel:
+When the request names an existing issue in this repository, have the helper fetch it once, comments included, into
+the story file, `<absolute story path>` being `.prflow/tmp/spec/<slug>/issue-story-<slug>.md` made absolute:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py issue-body --issue <n> --with-comments --out <absolute story path>
+```
+On a `CACHED` line, read that file rather than fetching the issue again, and give both peers the
+request as the user typed it plus that path, telling them to fetch the issue only when their read of
+the file fails. Any other output, or none, passes no story file, never taking the sandbox arm: say
+so, and each peer reads the issue itself.
 
-- Discovery: `/prflow:docs-verify --report-only --lead docs <topic>` with the user story, retaining its whole-repository search and six-duty floor.
-- Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path and established user constraints/decisions. Supply no preferred design or other peer's conclusions.
+Dispatch two independent peers in parallel; when Step 1 is already on that sandbox arm, dispatch them as it says instead:
 
-Write `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md` with both role headings:
-- **Discovery**: **Doc verdict and location**, **Relevant files** and **Not established**; omit **Current behavior**.
-- **Risk investigation**: retain the concise report with **Constraints and premise corrections**, **Conditional risks**, **Not established** and **Scope examined**.
+- Discovery: a subagent holding a file-write tool (on Claude Code, `general-purpose`) running `/prflow:docs-verify --report-only --report-file .prflow/tmp/spec/<slug>/issue-step1-discovery-<slug>.md --lead docs <topic>` with the user story, retaining its whole-repository search and six-duty floor, and also measuring each file it reports against any size or count limit a guard holds that file to, and searching the history of the topic's text when a finding depends on it.
+- Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path, established user constraints/decisions (never agent-written advice, as the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` defines it; read it there if unloaded), the risk role file's absolute path as its report file, and the paths of files the session saved before Step 1 as a record of the reported failure (a downloaded job log, a failing run's output). Pass paths only, never file content or a conclusion drawn from a file; never pass the session's own transcript or this run's other `.prflow/tmp/spec/<slug>/` files, the story file excepted, as evidence. Supply no preferred design or other peer's conclusions.
+
+Each peer writes its whole report to its role file with its file-write tool, never a shell
+redirect, and replies with the path; one that cannot write says so and replies with its whole
+report, a peer's own failed write never taking the sandbox arm. Both dispatches give this evidence
+form: each fact the report relies on as its locator with the text its read returned, quoted, and
+each whole-tree search as its command, scope and found/read counts.
+
+After both return or fail, read once, whole, each role file that exists and is non-empty, whatever
+its peer replied. Into an absent or empty role file write the peer's reply, the risk report kept
+concise; a reply giving a path and no report is instead a role failure, its failure note naming the
+replied path when that names another file, which you leave in place. Required fields:
+- **Discovery**: **Doc verdict and location**, **Current behavior**, **Relevant files** and **Not established**.
+- **Risk investigation**: **Constraints and premise corrections**, **Conditional risks**, **Not established** and **Scope examined**.
 
 For both roles, mark missing, empty, malformed or unreadable required fields
-`unestablished — <reason>`; retain usable evidence. `none` denotes no findings after inspection.
+`unestablished — <reason>`, writing the marker into the role file in place of the field it rejects; retain usable evidence. `none` denotes no findings after inspection.
 A risk report with no identifiable inspected evidence is a role failure, with scope
 `unestablished — <reason>`; field gaps alone do not invalidate grounded partial evidence.
 Only discovery or inline recovery supplies the doc verdict; values outside
 `RELIABLE`/`UNRELIABLE`/`ABSENT` are `unestablished`.
 
 Missing or wholly unusable reports also count as role failures. Name failed roles, failure kinds
-and coverage gaps in chat and under their headings beside partial evidence. Risk failure continues
-from discovery. If discovery fails, perform bounded inline discovery with its six-duty floor,
-degraded, with unanswered duties or verdict `unestablished`. Never substitute risk evidence
-for discovery or present partial coverage as whole. If the artifact is unavailable, carry the entire
+and coverage gaps in chat and in the failed role's file beside partial evidence. Risk failure continues
+from discovery. If discovery fails, perform bounded inline discovery with its six-duty floor, the
+discovery dispatch's added duties and the evidence form, degraded, with unanswered duties or verdict `unestablished`, and write it to the discovery role file
+marked degraded. Every role file exists after Step 1 unless its write took the sandbox arm. Never substitute risk evidence
+for discovery or present partial coverage as whole.
+
+Then write the index with the role headings **Discovery** and **Risk investigation**, under each
+the role file's absolute path, its delivery (`written by peer`, `written from reply` or `failed`)
+and the role's failure kinds; it holds no report text. If the record is unavailable, carry the entire
 record through `references/fallback-read-only-sandbox.md`'s Step 1 arm; no failure ends the run.
 
 Duplicate-issue check (read-only, before Step 2's first question). Search titles and bodies across
@@ -191,8 +238,8 @@ with apostrophes as `\u0027`:
 `gh api 'repos/{owner}/{repo}/issues?state=open&per_page=100' --paginate --jq '.[] | select(has("pull_request") | not) | select((.title + "\n" + (.body // "") | ascii_downcase) | contains("<term-1>") or contains("<term-2>")) | {number,title}'`.
 For an issue the request names for refinement, also read
 `gh api 'repos/{owner}/{repo}/issues/<n>/timeline?per_page=100' --paginate --jq '.[] | select(.event=="cross-referenced") | .source.issue | {number,title,url,pull_request}'`.
-Check each source's repository and type; read plausible same-repository matches and the named issue
-with `gh api repos/{owner}/{repo}/issues/<n>` to compare mechanisms and establish current state.
+Check each source's repository and type; read the named issue from the story file when one was passed, its `url` giving the type;
+read plausible same-repository matches, and the named issue otherwise or when that read fails, with `gh api repos/{owner}/{repo}/issues/<n>` to compare mechanisms and establish current state.
 A refused, failed or incomplete retrieval leaves that source unestablished, not empty;
 retain results from successful sources and disclose the gap. A reference alone neither
 adds scope nor authorizes changing another issue. Widen only an open non-PR issue the
@@ -213,18 +260,52 @@ This equally gates the `## Evidence bundle`: it must have an entry for every axi
 and, unless `references/step-2-clarify.md` failed to load, its header must pass Step 2's *Axis-list header*
 rule; otherwise stop and run the evidence-bundle sub-pass before drafting.
 
-Draft the issue from the context you already hold — the documentation findings from Step 1
-(relevant files, current behavior) and the decisions from Step 2 — doing only targeted
-verification reads where a specific claim needs confirming.
-Do not re-explore the whole codebase or re-emit the findings into your draft; reference them by pointer
-(the Step 1 record is `.prflow/tmp/spec/<slug>/issue-step1-<slug>.md`).
+Draft the issue from Step 1's documentation findings (relevant files, current behavior), Step 2's
+decisions and these recorded facts when they bear on the chosen approach:
+
+- the Step 1 record's constraints, premise corrections and **Not established** entries, and its
+  conditional risks only when the design keeps their triggering choice (record:
+  the index and role files Step 1 names);
+- the derivation artifact's derived edge cases;
+- from every *Option check* record this run made, the chosen option's items and each item whose
+  claim the draft repeats, whichever option it is about, reading each earlier record, as Step 2's
+  record rule selects it, from its file and any part of it that exists only in chat from what the run
+  still holds of it; treat one you cannot place under that rule as a record you cannot read;
+- the pre-mortem failures the design keeps, as the pre-mortem rule requires, and those it
+  remedies by a decided change.
+
+Bundle claims the draft relies on follow Step 2's "Carry relied-on bundle claims into the draft"
+rule. Place each issue the bundle's overlapping-open-issues entry names: leave the issue being
+widened out of its own body and name one a recorded user scope answer absorbs only as absorbed; put a
+prerequisite the user confirmed under `## Dependencies`; make every other one a `Related work: #N`
+bullet; state whatever that entry marks unestablished as not established. As a heuristic, a fact bears on the approach when it is about the chosen option, a choice
+the design keeps, a requirement the derivation derived or a claim the draft repeats; draft one you
+cannot tell bears on it as an accepted limit or not established (limit: a fact never written down
+can still be lost). A record you cannot read gets an in-chat breadcrumb naming it and the failure
+kind, and the draft states as not established that it went unread; an earlier chat-only *Option
+check* record's items the run no longer holds are instead stated, outside the criteria, as having gone unread.
+
+Each drafted fact lands as handled, an accepted limit (in the criterion `references/issue-template.md`'s
+*Accepted limits* names), not established or, for those unread items alone, as stated above,
+keeping the record's triggering condition, strength and every actor or phase it
+names; a fact about the spec run is never an accepted limit. One that existing behavior
+already handles without a design change adds no criterion or Testing Strategy case; one the design
+remedies by a decided change is handled, its remedy in Desired Behavior and graded for a criterion
+under `references/issue-template.md`'s omit/merge/add rule. A kept failure under the pre-mortem
+rule is an accepted limit or not established, labelled as that rule says. Draft an item a record
+labels `unclear` or `unestablished`, or a **Not established** entry, as handled only once a read
+settles it, else as an accepted limit or not established. Check a request or derivation claim the draft repeats
+against the premise corrections and the evidence bundle first, and state a contradicted one in its
+corrected form. State each drafted fact's outcome; never copy the Step 1 record wholesale. The records
+are leads, not your understanding: before drafting, read the code the chosen design changes
+yourself.
 
 Before composing the draft prose, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it (an issue is change-describing prose).
 Per this skill's degrade-never-terminate contract, a failed load emits a breadcrumb naming the file and the failure kind and you draft without it.
 
 Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the self-check, and autolink hygiene, on every entry into this step. Key rules:
 
-- No-options gate (run before showing the draft): re-read the rendered body against the no-options rule (*Core principle*). If you find an unresolved decision, delete it when the ask-or-leave test leaves it to the implementer; otherwise either ask the user now, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
+- No-options gate (run before showing the draft): re-read the rendered body against the no-options rule (*Core principle*). If you find an unresolved decision, delete it when the ask-or-leave test leaves it to the implementer; otherwise either ask the user now through Step 2's clarification routes, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
 - Advanced quality-guidance routing: evaluate these triggers against facts already held
   (the request, Step 2 evidence bundle and assembled draft). Load a group only when its
   trigger fires or applicability is uncertain, under *Reference routing*. A failed required
@@ -251,9 +332,11 @@ Re-read and retry once a failed write or edit that is not a permission refusal o
 
 Load `references/step-3-5-self-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
-### Step 3.6: Run the draft checks (audit rounds are elected at Step 4)
+### Step 3.6: Run the draft checks and each draft's first audit round
 
 Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
+
+Before the first presentation of each draft whose working-draft file landed — the first draft, or a redraft for a different option at a Step 2 *Settled approach* re-ask — run that draft's first round after the draft checks, on every run, following `references/step-3-6-audit-dispatch.md`. A later change to the same draft runs a round only when the user elects one at Step 4.
 
 ### Step 4: Review with the user, then create
 

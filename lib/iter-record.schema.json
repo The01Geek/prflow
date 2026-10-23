@@ -64,8 +64,8 @@
           },
           "corroboration_count": {"type": ["integer", "null"]},
           "shadow_finding_id": {"type": ["string", "null"], "description": "Conditional, shadow-promoted iterations: the shadow return's F-<k> this row came from."},
-          "step25_classification": {"type": ["string", "null"], "description": "codebase | web_confirmed | web_refuted | web_inconclusive | over_budget | tools_unavailable."},
-          "fix_decision": {"type": ["string", "object", "null"], "description": "applied | pushed_back | deferred | advisory | severity-calibrated."}
+          "step25_classification": {"type": ["string", "null"], "description": "Older records only; now on the finding's fix_decisions row."},
+          "fix_decision": {"type": ["string", "object", "null"], "description": "applied | pushed_back | deferred | advisory | severity-calibrated; stamped by install-record --contract 2."}
         }
       }
     },
@@ -82,6 +82,7 @@
           "claim_text": {"type": ["string", "null"]},
           "skip_category": {"type": ["string", "null"]},
           "evidence": {"type": ["string", "null"]},
+          "step25_classification": {"type": ["string", "null"], "description": "codebase | web_confirmed | web_refuted | web_inconclusive | over_budget | tools_unavailable."},
           "parking_evidence": {
             "type": ["object", "null"],
             "properties": {

@@ -645,14 +645,166 @@ def _branch_setup_record(**fields: object) -> None:
     print(" ".join(parts), flush=True)
 
 
-def _checkout_branch(branch: str) -> tuple[bool, str]:
-    fetched = _run_git(["fetch", "origin", branch])
-    if fetched.returncode != 0:
-        return (False, (fetched.stderr or fetched.stdout).strip())
-    checked = _run_git(["checkout", branch])
+WORKTREE_LIVE = "branch-live-in-other-worktree"
+_UNESTABLISHED = "git-state-unestablished"
+_OID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
+
+
+def _full_history() -> bool:
+    """True once the repository is established not shallow, deepening it at most once."""
+    shallow = _is_shallow()
+    if shallow:
+        if _run_git(["fetch", "--unshallow", "origin"]).returncode != 0:
+            return False
+        shallow = _is_shallow()
+    return shallow is False
+
+
+def _is_ancestor(older: str, newer: str) -> bool | None:
+    """`merge-base --is-ancestor`: True/False, or None for any exit but 0 or 1."""
+    probe = _run_git(["merge-base", "--is-ancestor", older, newer])
+    return {0: True, 1: False}.get(probe.returncode)
+
+
+def _local_branch_sha(branch: str) -> tuple[bool, str] | None:
+    """(exists, sha) for `refs/heads/<branch>`, or None when either is unknown.
+
+    `show-ref` exits 1 for a malformed name as for an absent one, so the name is
+    screened first; reading "unknown" as "absent" would let the create arm act.
+    A leading `-` is screened too: `git checkout <branch>` would parse it as an option.
+    """
+    ref = f"refs/heads/{branch}"
+    if branch.startswith("-") or _run_git(["check-ref-format", ref]).returncode != 0:
+        return None
+    probe = _run_git(["show-ref", "--verify", "--quiet", ref])
+    if probe.returncode == 1:
+        return (False, "")
+    if probe.returncode != 0:
+        return None
+    sha = _run_git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    value = sha.stdout.strip()
+    return (True, value) if sha.returncode == 0 and _OID.fullmatch(value) else None
+
+
+def _branch_rebased_or_bisected_elsewhere(branch: str) -> bool | None:
+    """Whether another worktree is rebasing or bisecting `branch`, or None if unreadable.
+
+    The porcelain listing shows such a worktree as `detached`, yet git still
+    refuses to check the branch out here; these are the state files git reads.
+    """
+    common = _run_git(["rev-parse", "--git-common-dir"])
+    own = _run_git(["rev-parse", "--git-dir"])
+    if common.returncode != 0 or own.returncode != 0 or not common.stdout.strip():
+        return None
+    try:
+        root = Path(common.stdout.strip()).resolve()
+        here = Path(own.stdout.strip()).resolve()
+        linked = root / "worktrees"
+        admin = [root, *(sorted(linked.iterdir()) if linked.is_dir() else [])]
+        for directory in admin:
+            if directory.resolve() == here:
+                continue
+            for name in ("rebase-merge/head-name", "rebase-apply/head-name"):
+                state = directory / name
+                if (state.is_file() and state.read_text(encoding="utf-8").strip()
+                        == f"refs/heads/{branch}"):
+                    return True
+            bisect = directory / "BISECT_START"
+            if bisect.is_file() and bisect.read_text(encoding="utf-8").strip() == branch:
+                return True
+    except (OSError, UnicodeDecodeError):
+        return None
+    return False
+
+
+def _checkout_branch(
+    branch: str, *, base: str, pr_head: str | None = None
+) -> tuple[bool, str]:
+    """Land `branch` at its fetched remote tip, or stop. Returns (landed, reason).
+
+    A same-named local branch moves to the tip only when every commit it holds
+    beyond the tip is reachable from an `origin` remote-tracking ref, a stale
+    one included. Landing is judged by re-reading refs, never by git's exit status: a failing
+    `post-checkout` hook exits non-zero after the branch has landed. `pr_head` (the PR-adopted arm's
+    `headRefOid`) must be the tip or an ancestor of it before anything moves.
+    """
+    listing = _run_git(["worktree", "list", "--porcelain"])
     current = _run_git(["branch", "--show-current"])
-    landed = current.returncode == 0 and current.stdout.strip() == branch
-    return (landed, (checked.stderr or checked.stdout).strip())
+    if listing.returncode != 0 or current.returncode != 0:
+        return (False, _UNESTABLISHED)
+    lines = listing.stdout.splitlines()
+    if f"branch refs/heads/{branch}" in lines and current.stdout.strip() != branch:
+        return (False, WORKTREE_LIVE)
+    if "detached" in lines:
+        busy = _branch_rebased_or_bisected_elsewhere(branch)
+        if busy is None:
+            return (False, _UNESTABLISHED)
+        if busy:
+            return (False, WORKTREE_LIVE)
+
+    tip_ref = f"refs/remotes/origin/{branch}"
+    if _run_git(["fetch", "origin", f"+refs/heads/{branch}:{tip_ref}"]).returncode != 0:
+        return (False, "branch-fetch-failed")
+    if not _full_history():
+        return (False, _UNESTABLISHED)
+    tip_read = _run_git(["rev-parse", "--verify", "--quiet", f"{tip_ref}^{{commit}}"])
+    tip = tip_read.stdout.strip()
+    if tip_read.returncode != 0 or not _OID.fullmatch(tip):
+        return (False, _UNESTABLISHED)
+
+    if pr_head is not None:
+        if not _OID.fullmatch(pr_head):
+            return (False, _UNESTABLISHED)
+        if _run_git(["cat-file", "-e", f"{pr_head}^{{commit}}"]).returncode != 0:
+            return (False, "fetched-tip-lacks-pr-head")
+        contained = _is_ancestor(pr_head, tip)
+        if contained is None:
+            return (False, _UNESTABLISHED)
+        if not contained:
+            return (False, "fetched-tip-lacks-pr-head")
+
+    local = _local_branch_sha(branch)
+    if local is None:
+        return (False, _UNESTABLISHED)
+    exists, local_sha = local
+    if not exists:
+        command, expected, unchanged = ["checkout", "-b", branch, tip_ref], tip, None
+    else:
+        keeps = _is_ancestor(tip, local_sha)
+        if keeps is None:
+            return (False, _UNESTABLISHED)
+        if keeps:
+            command, expected, unchanged = ["checkout", branch], local_sha, None
+        else:
+            behind = _is_ancestor(local_sha, tip)
+            if behind is None:
+                return (False, _UNESTABLISHED)
+            if not behind:
+                base_ref = f"refs/remotes/origin/{base}"
+                if _run_git(["fetch", "origin", f"+refs/heads/{base}:{base_ref}"]).returncode != 0:
+                    return (False, _UNESTABLISHED)
+                own = _run_git(["rev-list", f"refs/heads/{branch}", "--not", "--remotes=origin"])
+                if own.returncode != 0:
+                    return (False, _UNESTABLISHED)
+                if own.stdout.strip():
+                    return (False, "local-branch-diverged")
+            command, expected, unchanged = ["checkout", "-B", branch, tip_ref], tip, local_sha
+
+    _run_git(command)
+    after = _local_branch_sha(branch)
+    now = _run_git(["branch", "--show-current"])
+    if not (after == (True, expected) and now.returncode == 0
+            and now.stdout.strip() == branch):
+        if unchanged is not None and after == (True, unchanged):
+            return (False, "move-refused")
+        return (False, "checkout-refused")
+
+    # `merge` first, so a failed write never leaves a `remote=origin` this helper
+    # wrote beside a `merge` that still names another branch, such as the base.
+    for key, value in (("merge", f"refs/heads/{branch}"), ("remote", "origin")):
+        if _run_git(["config", f"branch.{branch}.{key}", value]).returncode != 0:
+            return (False, "upstream-not-set")
+    return (True, "")
 
 
 _FORK_SUFFIX_LIMIT = 5
@@ -741,13 +893,8 @@ def _branch_freshness(base: str) -> str:
     fetched = _run_git(["fetch", "origin", f"+refs/heads/{base}:{base_ref}"])
     if fetched.returncode != 0:
         return "unverified"
-    shallow = _is_shallow()
-    if shallow is None:
+    if not _full_history():
         return "unverified"
-    if shallow:
-        deepened = _run_git(["fetch", "--unshallow", "origin"])
-        if deepened.returncode != 0 or _is_shallow() is not False:
-            return "unverified"
     count = _run_git(["rev-list", "--count", f"HEAD..{base_ref}"])
     value = count.stdout.strip()
     if count.returncode != 0 or not value.isdigit():
@@ -755,10 +902,7 @@ def _branch_freshness(base: str) -> str:
     return "fresh" if value == "0" else f"behind-{value}"
 
 
-def _worktree_path(branch: str, diagnostic: str) -> str | None:
-    match = re.search(r"(?:worktree at|checked out at) ['\"]?([^'\"\n]+)", diagnostic)
-    if match:
-        return match.group(1).strip()
+def _worktree_path(branch: str) -> str | None:
     listing = _run_git(["worktree", "list", "--porcelain"])
     current_path = None
     for line in listing.stdout.splitlines():
@@ -773,18 +917,18 @@ def _branch_setup_checkout_stop(
     *, branch: str, diagnostic: str, arm: str, base: str,
     selected_pr: object | None = None,
 ) -> int:
-    conflict = "already used by worktree" in diagnostic or "already checked out at" in diagnostic
+    conflict = diagnostic == WORKTREE_LIVE
     _branch_setup_record(
         outcome="stop",
-        stop_kind="branch-live-in-other-worktree" if conflict else "resume-precheck-checkout-did-not-land",
+        stop_kind=WORKTREE_LIVE if conflict else "resume-precheck-checkout-did-not-land",
         arm="harness-worktree-switch" if conflict else arm,
         base=base,
         branch=branch or "n/a",
         freshness="n/a",
         verdict_b="not-run",
         selected_pr=selected_pr,
-        worktree_path=_worktree_path(branch, diagnostic) if conflict else None,
-        reason=diagnostic or "checkout-did-not-land",
+        worktree_path=_worktree_path(branch) if conflict else None,
+        reason=diagnostic,
     )
     return BLOCKED_EXIT
 
@@ -923,7 +1067,12 @@ def _branch_setup_recover(args: argparse.Namespace, action: str) -> int:
 
 
 def branch_setup(args: argparse.Namespace) -> int:
-    """Own Phase 1.4's deterministic reads and branch operations; never merge."""
+    """Own Phase 1.4's deterministic reads and branch operations; never merge.
+
+    A same-named local branch is moved to the fetched remote tip only when every
+    commit it holds beyond that tip is on an `origin` remote-tracking ref (see
+    `_checkout_branch`).
+    """
     recover = getattr(args, "recover", None)
     if recover:
         return _branch_setup_recover(args, recover)
@@ -955,13 +1104,18 @@ def branch_setup(args: argparse.Namespace) -> int:
             reason="duplicate-workpad-branch-records",
         )
         return BLOCKED_EXIT
-    fields = "number,headRefName,createdAt,closingIssuesReferences,isCrossRepository"
+    fields = "number,headRefName,headRefOid,createdAt,closingIssuesReferences,isCrossRepository"
+    # Drop fork rows before the body-query gate, so a fork-only head result still
+    # runs the body query.
+    def same_repo(rows: list[dict]) -> list[dict]:
+        return [row for row in rows if row.get("isCrossRepository") is not True]
+
     head_rows: list[dict] = []
     head_resolved = True
     if workpad_branch:
         queried = _gh_pr_rows(["--head", workpad_branch, "--state", "open", "--json", fields])
         head_resolved = queried is not None
-        head_rows = queried or []
+        head_rows = same_repo(queried or [])
     body_rows: list[dict] = []
     body_resolved = True
     if not head_rows and head_resolved:
@@ -969,7 +1123,7 @@ def branch_setup(args: argparse.Namespace) -> int:
             "--search", f"{args.issue} in:body", "--state", "open", "--json", fields,
         ])
         body_resolved = queried is not None
-        body_rows = queried or []
+        body_rows = same_repo(queried or [])
     if not head_resolved or not body_resolved:
         failed_query = "head" if not head_resolved else "body"
         _branch_setup_record(
@@ -989,7 +1143,8 @@ def branch_setup(args: argparse.Namespace) -> int:
     if selected is not None:
         arm = "PR-adopted"
         branch = str(selected.get("headRefName") or "")
-        landed, diagnostic = _checkout_branch(branch)
+        landed, diagnostic = _checkout_branch(
+            branch, base=args.base, pr_head=str(selected.get("headRefOid") or ""))
         if not landed:
             return _branch_setup_checkout_stop(
                 branch=branch,
@@ -1022,7 +1177,7 @@ def branch_setup(args: argparse.Namespace) -> int:
                     return BLOCKED_EXIT
                 if not prior_prs:
                     branch = workpad_branch
-                    landed, diagnostic = _checkout_branch(branch)
+                    landed, diagnostic = _checkout_branch(branch, base=args.base)
                     if not landed:
                         return _branch_setup_checkout_stop(
                             branch=branch,
@@ -1730,7 +1885,6 @@ _SWEEP_EXACT_TEMPLATES = (
     "devflow-docgate-extractor-err-{issue}.txt",
     "issue-claim-audit-record-{issue}.md",
     "issue-claim-projection-{issue}.json",
-    "audit-versioning-policy-{issue}.md",
     "sweep-evidence-{issue}.json",
 )
 # The 2 wildcard families. The captured digit run is `-`-delimited on both sides,
@@ -1855,9 +2009,9 @@ def _scratch_remove_file(top: str, target: str) -> int:
 def _sweep_flat_leftovers(scratch_dir: str, issue: str) -> None:
     """Remove this run's own flat pre-folder leftovers from the scratch root.
 
-    Best-effort and scoped: only the closed 20-name set carrying exactly `issue`
-    is removed (18 exact templates + the 2 wildcard families), top-level files
-    only. A sibling issue's leftovers, the fixed-name files, and every excluded
+    Best-effort and scoped: only the closed name set carrying exactly `issue`
+    is removed (the `_SWEEP_EXACT_TEMPLATES` names + the wildcard families),
+    top-level files only. A sibling issue's leftovers, the fixed-name files, and every excluded
     shared path carry a different name and are never candidates.
     """
     exact = {template.format(issue=issue) for template in _SWEEP_EXACT_TEMPLATES}
@@ -1974,6 +2128,8 @@ def scratch_issue(args: argparse.Namespace) -> int:
 # through the model's Write tool (which can corrupt the cached body). Byte capture
 # is deliberate: capture_output with no encoding= keeps `\r\n` and non-ASCII
 # untranslated, unlike _gh_issue_view's text-mode decode, so the cache round-trips exactly.
+# --with-comments (issue #2864) instead renders title, state, url, body and every
+# comment as multi-line Markdown: spec's story file, which a Read can page by line.
 def _issue_body_out_offender(top: str, out: str) -> "str | None":
     """A refusal reason for an --out that escapes .prflow/tmp, or None when safe.
 
@@ -2034,20 +2190,36 @@ def _write_bytes_atomic(out: str, data: bytes) -> None:
         raise
 
 
-def _fetch_issue_body_bytes(issue: str) -> "tuple[bytes | None, str]":
-    """The issue body as raw bytes (or None when gh could not answer) and gh's last
-    stderr as a diagnostic string for the caller's failure breadcrumb. No encoding= on
-    stdout, so the bytes gh printed reach --out untranslated (the byte-exactness contract)."""
+def _render_issue_story(raw: bytes) -> "bytes | None":
+    """gh's title/state/url/body/comments JSON as Markdown, or None when it is unusable."""
     try:
-        result = subprocess.run(
-            [GH, "issue", "view", issue, "--json", "body", "-q", ".body"],
-            capture_output=True, env=fresh_gh_env(),
-        )
+        data = json.loads(raw.decode("utf-8", "replace"))
+        parts = [f"# {data['title']}\n\nState: {data['state']}\nURL: {data['url']}\n\n{data['body'] or ''}\n"]
+        for comment in data["comments"]:
+            author = (comment.get("author") or {}).get("login") or "unknown"
+            parts.append(f"\n## Comment by {author}, {comment.get('createdAt') or ''}\n\n{comment.get('body') or ''}\n")
+        # Inside the try: a lone surrogate in the JSON fails the encode (a ValueError).
+        return "".join(parts).encode("utf-8")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def _fetch_issue_body_bytes(issue: str, with_comments: bool = False) -> "tuple[bytes | None, str]":
+    """The issue body as raw bytes, or with_comments the rendered story (None when gh
+    could not answer or printed unusable JSON), and a diagnostic string for the caller's
+    failure breadcrumb. No encoding= on stdout, so without with_comments the bytes gh
+    printed reach --out untranslated (the byte-exactness contract)."""
+    query = ["--json", "title,state,url,body,comments"] if with_comments else ["--json", "body", "-q", ".body"]
+    try:
+        result = subprocess.run([GH, "issue", "view", issue, *query], capture_output=True, env=fresh_gh_env())
     except OSError as exc:
         return None, str(exc)
     if result.returncode != 0:
         return None, result.stderr.decode("utf-8", "replace").strip()
-    return result.stdout, ""
+    if not with_comments:
+        return result.stdout, ""
+    story = _render_issue_story(result.stdout)
+    return (story, "") if story is not None else (None, "gh printed unusable issue JSON")
 
 
 def issue_body_cmd(args: argparse.Namespace) -> int:
@@ -2095,11 +2267,11 @@ def issue_body_cmd(args: argparse.Namespace) -> int:
             )
             print("UNAVAILABLE write", flush=True)
             return UNAVAILABLE_EXIT
-    body, fetch_diag = _fetch_issue_body_bytes(issue)
+    body, fetch_diag = _fetch_issue_body_bytes(issue, args.with_comments)
     if body is None:
-        # Retry whenever the first fetch returned None — a non-zero gh exit or an
-        # OSError (gh unlaunchable) alike.
-        body, fetch_diag = _fetch_issue_body_bytes(issue)
+        # Retry whenever the first fetch returned None — a non-zero gh exit, an
+        # OSError (gh unlaunchable) or, with --with-comments, unusable JSON alike.
+        body, fetch_diag = _fetch_issue_body_bytes(issue, args.with_comments)
     if body is None:
         detail = f" ({fetch_diag})" if fetch_diag else ""
         print(
@@ -2227,6 +2399,7 @@ def main(argv=None) -> int:
     issue_body_parser = subparsers.add_parser("issue-body")
     issue_body_parser.add_argument("--issue")
     issue_body_parser.add_argument("--out", required=True)
+    issue_body_parser.add_argument("--with-comments", action="store_true")
     issue_body_parser.set_defaults(func=issue_body_cmd)
 
     # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
