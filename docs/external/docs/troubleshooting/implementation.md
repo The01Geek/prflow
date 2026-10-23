@@ -140,7 +140,9 @@ Then start the run again. Untracked files do not trigger this stop; only tracked
 
 <Accordion title="The feature branch is checked out in another worktree">
 
-**Symptom:** the run stops as Blocked and reports that the branch is checked out in another linked worktree. The underlying git error reads `fatal: '<branch>' is already used by worktree at '<path>'`. Older git versions word it `already checked out at`.
+**Symptom:** branch setup reports that the branch is checked out in another linked worktree (`branch-live-in-other-worktree`), naming that worktree's path when it can be read. The run does not switch into that worktree. It continues on the branch it was started on when that branch belongs to this issue, and otherwise on a new branch cut from the base. If that recovery also stops, the run ends Blocked.
+
+A worktree in the middle of a rebase or bisect of the branch counts too. `git worktree list` shows that worktree as detached and the report names no path; finish or abort the rebase or bisect there to free the branch.
 
 List your worktrees and find the one holding the branch:
 
@@ -149,16 +151,45 @@ git worktree list
 ```
 
 <Warning>
-This is a terminal stop, not a switch. PRFlow shares the working tree it was started in and cannot move into another one, so it refuses rather than continuing on the wrong branch. It makes no change to your history when it stops.
+PRFlow shares the working tree it was started in and cannot move into another one, so the run never uses the branch the other worktree holds. A run that cut a new branch leaves the other worktree's branch and its commits untouched.
 </Warning>
 
-Resolve it yourself, then start the run again:
+To have the run use that branch, free it, then start the run again:
 
 ```bash
 git worktree remove <path>
 ```
 
 Finish and remove the other worktree, or move its work elsewhere. Use `git worktree remove --force` only when you are sure that worktree holds nothing you want.
+
+</Accordion>
+
+<Accordion title="A resumed branch cannot be brought to its pushed commits">
+
+**Symptom:** a resumed run stops as Blocked during branch setup, and the workpad reflection reads `Branch setup stopped: landing stopped, no recovery: resume-precheck-checkout-did-not-land; <reason>`.
+
+When a run resumes an open pull request, or a branch an earlier run pushed, it brings your local branch of the same name to the commits already pushed for it: it moves the branch only when no commit is lost, and keeps a branch that already contains those commits as it is. When it cannot do this safely, or cannot set the branch to track its pushed branch, it stops instead of continuing on the wrong commits, unless the cause is another worktree holding the branch (see the previous section). The `<reason>` names the cause:
+
+- `local-branch-diverged`: Your local branch holds commits that are on no branch fetched from `origin`, and the pushed branch holds commits your local branch lacks.
+- `move-refused`: The move was refused and your local branch is still where it was, typically because an uncommitted or untracked file in your working tree would be overwritten.
+- `branch-fetch-failed`: The branch could not be fetched from the remote.
+- `fetched-tip-lacks-pr-head`: The fetched branch does not contain the pull request's head commit, for example after a force-push during setup.
+- `checkout-refused`, `git-state-unestablished` or `upstream-not-set`: Git refused the checkout; a repository state the check needs could not be established (for example, a git read failed, a shallow clone could not be deepened, or the base branch could not be fetched); or the branch could not be set to track its own remote branch.
+
+Compare your local branch with the pushed one:
+
+```bash
+git fetch origin +refs/heads/<branch>:refs/remotes/origin/<branch>
+git log --oneline --left-right <branch>...origin/<branch>
+```
+
+Lines marked `<` are commits only your local branch has; lines marked `>` are commits only the pushed branch has.
+
+<Warning>
+For `local-branch-diverged`, `move-refused`, `branch-fetch-failed` and `fetched-tip-lacks-pr-head`, your local branch is left where it was. With `upstream-not-set`, the branch was already checked out at the pushed commits, or ahead of them, and only its tracking setting failed.
+</Warning>
+
+Keep any local-only commits you want on a branch of your own, commit or stash conflicting files, then start the run again. A fetch failure or a force-push during setup usually clears on a plain re-run.
 
 </Accordion>
 

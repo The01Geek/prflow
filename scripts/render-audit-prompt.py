@@ -36,8 +36,9 @@ Contract (issue #600):
   ``_abs_path``).
 - Modes, complete by construction: the dispatch arms ``file`` (a subagent
   auditor) and ``inline`` (the degraded in-context audit), plus ``checklist``
-  (the consumer dimensions alone). Both dispatch arms fill ``{RETURN_PATH}`` from the
-  working directory (``return_path``); no argument check shapes that directory part.
+  (the walk and consumer dimensions, for the drafter's self-audit). Both dispatch
+  arms fill ``{RETURN_PATH}`` from the working directory (``return_path``); no
+  argument check shapes that directory part.
 - Output contract: stdout's FIRST line is ``render-status:`` with a value from
   the closed set {appended, absent, unestablished}; stdout's LAST line is the
   fixed terminal marker ``render-end:`` on every full render, so a truncated
@@ -454,7 +455,7 @@ def render_dispatch(
     ext_path: Path,
 ) -> str:
     """Assemble a full render for a dispatch arm (``mode`` in _DISPATCH_ARMS) or
-    the consumer dimensions alone (``mode == "checklist"``). ``mode`` doubles as the
+    the walk and consumer dimensions alone (``mode == "checklist"``). ``mode`` doubles as the
     block-selection token."""
     if mode in _DISPATCH_ARMS and not draft_path:
         raise RenderError(f"--draft-path is required for the {mode} arm")

@@ -2,7 +2,7 @@
 
 #### 2.0 Resume-idempotency gate — procedure
 
-You reached this because `phase2_resume.resume_kind` is `in-flight` or `terminal-re-trigger`, before §2.0's compact-state checks ran. Follow it only once they pass; a failed check discards it for §2.1 discovery. Conjunct (c) reads the Phase 1 audit reader's printed output, which carries exact actionable prior decisions/corrections plus the worker's superseding assumptions, external-fact results, and wrongly excluded surfaces. When Phase 1.6's reuse gate fired there is no such output: the adopted audit supplies an **empty actionable set** in its place (a clean audit is the only one reuse adopts), and every audit-output site below reads that empty set.
+You reached this because `phase2_resume.resume_kind` is `in-flight` or `terminal-re-trigger`, before §2.0's compact-state checks ran. Follow it only once they pass; a failed check discards it for §2.1 discovery. Conjunct (c) reads the Phase 1 audit reader's printed output, which carries exact actionable prior decisions/corrections plus the worker's superseding assumptions, external-fact results, and wrongly excluded surfaces.
 
 Fire the gate when, and only when, all three conjuncts hold:
 

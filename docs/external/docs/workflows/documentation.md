@@ -5,7 +5,7 @@ description: "Keep developer docs, public docs and release notes in step with th
 
 Use this guide to pick the PRFlow documentation command that matches what you need.
 
-PRFlow has seven documentation commands. One is a router that runs three of the others in sequence; the rest do one job each. Every command except the report-only mode described below can edit files, and none of them commits.
+PRFlow has seven documentation commands. One is a router that runs three of the others in sequence; the rest do one job each. Every command except the report-only mode described below can edit files (that mode writes only a report file you ask for), and none of them commits.
 
 ## Pick a Command
 
@@ -85,11 +85,11 @@ The locations themselves come from `docs.internal` (default `docs/internal/`) an
     ```
   </Step>
   <Step title="Read the report">
-    Nothing is edited, committed or pushed. The working tree is unchanged when the run finishes.
+    Nothing is edited, committed or pushed. The working tree is unchanged when the run finishes, apart from the report file when you ask for one (see below).
   </Step>
 </Steps>
 
-The report is compact — kept under 1,000 words — and names four fields:
+The report names four fields:
 
 - **Doc verdict and location** — one of `RELIABLE`, `UNRELIABLE` or `ABSENT`, together with the internal-doc location the run resolved. It describes the internal documentation only, a wrong default in a schema or a stale code comment being reported under current behavior instead. It is returned by default and under `--lead docs`; a `--lead code` run does not return it.
 - **Relevant files** — the files that implement the topic, marked to show the minimum set someone must read, with file and line references for the entry points, guards and writers.
@@ -97,6 +97,14 @@ The report is compact — kept under 1,000 words — and names four fields:
 - **Not established** — what the run reports it did not do or establish: each duty it skipped or could not establish, and each internal-documentation page it located but did not read in full, with a one-clause reason each; `none` when nothing qualifies. This includes, for example, a duty whose answer rests on lines that a search the run piped through `head` never printed, when the run neither read those lines in full nor counted the matches with nothing cut.
 
 You can steer where the run starts. `--lead docs` reads the internal documentation first (from its index) before turning to the code; `--lead code` starts from the code and treats documentation as supporting evidence. With no `--lead`, the run reads documentation then code and returns the doc verdict.
+
+To keep the report as a file instead of chat text, add `--report-file` with a path under `.prflow/tmp/`, written relative (as below) or absolute. The run writes the report there, makes no other change and replies with the path. If it cannot write the file, it says so and returns the whole report as text.
+
+```text
+/prflow:docs-verify --report-only --report-file .prflow/tmp/retry-report.md retry handling
+```
+
+`--report-file` works only with `--report-only`. The run refuses to start when `--report-file` is given without `--report-only`, without a path or more than once, or when the path contains a `..` segment or does not resolve inside the working directory's `.prflow/tmp/`.
 
 <Tip>
   `ABSENT` means no internal document covers the topic. If the documentation location itself could not be read, the run says so instead — an absence it could not establish is not an established absence.

@@ -592,7 +592,7 @@ def _handoff_resolves_to(handoff_file, expected_hf, offending, mismatch_note):
 def _count_prior_decisions(arr):
     """Size of `prior_decisions` minus the run's own `authorized-workpad-decision` items (issue
     #1528); null for a non-list. Never validate the authority vocabulary here: an unknown or
-    malformed item must count, so the Phase 1.6 reuse gate fails toward re-running the audit."""
+    malformed item must count, so an item whose authority cannot be confirmed is never left out."""
     if not isinstance(arr, list):
         return None
     return sum(1 for item in arr if not (

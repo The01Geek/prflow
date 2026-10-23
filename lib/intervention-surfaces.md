@@ -23,7 +23,7 @@ boundary. The shipped review engine's own deferral point is exactly this surface
 
 ### Knowledge / convention surfaces
 
-- **`CLAUDE.md`** at repo root — durable, agent-loaded conventions. Use sparingly: every rule here is loaded on every run. Strengthen an existing rule before adding a new one.
+- **`AGENTS.md` or `CLAUDE.md`** at repo root — durable, agent-loaded conventions. Use sparingly: every rule here is loaded on every run. Strengthen an existing rule before adding a new one.
 - **`docs/internal/<feature>.md`** — feature-specific technical context the implementing agent is told to consult first; if Claude missed one, the docs may be missing or stale.
 - **`docs/external/`** — user-facing docs. Less common as an intervention surface but valid when the failure is documentation drift.
 - **Lint rules** (`phpcs.xml.dist`, ESLint configs, etc.) — encode mechanical conventions where a human-readable rule won't reliably stick.

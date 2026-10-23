@@ -9,7 +9,7 @@ wrote (it tries each, and one it cannot remove is ``status: error``), then reads
 and writes:
 
 - one report piece per ``PIECES`` key, ``checklist-<key>-iter-<N>.md`` (``run_details`` is spelled
-  ``run-details`` in the name), which Phase 4 pastes whole. ``critical``, ``important`` and
+  ``run-details`` in the name), which ``assemble`` splices into the report. ``critical``, ``important`` and
   ``suggestion`` each hold the headline and Evidence block of the FAILs of that grade (``_grade``);
   ``informational`` holds those of the INCONCLUSIVE rows; ``run_details`` holds the tally line and
   the Passed list. A piece with nothing to hold is an empty file;
@@ -39,6 +39,22 @@ that grade is the lower of the two, and is in ``reject_ids`` at or above the thr
 ``verification_shortfall`` is JSON null (a row without that key counts); ``none_verified`` is true when there is at least one row and
 every row is INCONCLUSIVE.
 
+``normalize-verdicts.py assemble <run-dir> <N> --contract 2 --draft <path> --out <path>`` writes the
+Phase 4 report from the engine's draft: each token line — a line that is exactly
+``{{prflow-piece:<key>}}`` for a ``PIECES`` key, or ``{{prflow-compliance}}`` — is replaced by that
+piece file's bytes (nothing for an empty piece), or by ``<run-dir>/issue-compliance.md`` when its
+first line is ``## Issue Compliance``; any other compliance file of exactly one line (trailing blank lines
+ignored) adds nothing at its token line and lands as a ``- `` item directly after the
+``run_details`` bytes, or at the output's end when the draft has no ``run_details`` token. Every other line is copied
+unchanged; the draft and each spliced file lose a leading BOM, a spliced file not ending in a newline gets one, and
+spliced bytes are never scanned for tokens. It prints
+``{"status": "ok", "out"}`` (exit 0), or ``{"status": "error", "reason"}`` naming every cause found
+(exit 1) with the output unwritten: an unknown or twice-named key; a missing or unreadable
+piece file, or an unreadable compliance file, whether or not the draft names it; a non-empty piece with no
+token; a compliance token with no
+file, or a file with no token; a compliance file of any other
+shape; a draft that is unreadable, empty or not UTF-8; a failed output write. A non-UTF-8 file reads as unreadable.
+
 ``normalize-verdicts.py reverify-add <run-dir> <N> <item-id> --contract 2 --threshold <t> --counter-reading-file <path>``
 registers a Phase 4.1 dispute, its one-sentence counter-reading read from that UTF-8 file: it checks the
 item is verified by an agent, stored FAIL at or above the threshold and not yet disputed in this entry,
@@ -52,7 +68,7 @@ from it), and adds a ``dispute`` entry, the
 It takes no lock: when two calls on one inputs file overlap, the later write can drop the other's
 registration, and ``collect``, which reads only registered disputes, then keeps that item's stored FAIL.
 
-Both subcommands require ``--contract 2`` and refuse a call without it as a usage error.
+Each subcommand requires ``--contract 2`` and refuses a call without it as a usage error.
 """
 import json
 import os
@@ -66,6 +82,10 @@ SEVERITIES = ("critical", "important", "suggestion")
 CAP_GRADES = ("important", "suggestion")
 # The report pieces ``render`` writes: one per severity group, one of INCONCLUSIVE rows, one for Run details.
 PIECES = (*SEVERITIES, "informational", "run_details")
+PIECE_TOKEN = "{{prflow-piece:%s}}"
+COMPLIANCE_TOKEN = "{{prflow-compliance}}"
+_TOKEN = re.compile(r"\{\{prflow-(?:piece:([^{}]*)|(compliance))\}\}")
+COMPLIANCE_HEADING = "## Issue Compliance"
 VERDICTS = ("PASS", "FAIL", "INCONCLUSIVE")
 # The verdict contract ``--contract`` must name; normalize-verdicts.py's prepare and collect read it too.
 CONTRACT = "2"
@@ -83,6 +103,7 @@ def _paths(run_dir, n):
             "items": j(run_dir, f"checklist-iter-{n}.items"),
             "pieces": {k: j(run_dir, f"checklist-{k.replace('_', '-')}-iter-{n}.md") for k in PIECES},
             "retired": j(run_dir, f"checklist-section-iter-{n}.md"),
+            "compliance": j(run_dir, "issue-compliance.md"),
             "record": j(run_dir, f"checklist-render-iter-{n}.json"),
             "verdicts": j(run_dir, "verdicts", f"iter-{n}")}
 
@@ -481,6 +502,108 @@ def render(run_dir, n, threshold, capped_file, prior_dir, skipped=None):
     return out, 0
 
 
+# ── report assembly ─────────────────────────────────────────────────────────
+
+def _read_raw(path):
+    """(text, None) for a readable UTF-8 file with its line endings kept and a leading BOM dropped;
+    else (None, reason)."""
+    try:
+        with open(path, encoding="utf-8-sig", newline="") as fh:
+            return fh.read(), None
+    except FileNotFoundError:
+        return None, "missing"
+    except UnicodeDecodeError:
+        return None, "unreadable (not UTF-8)"
+    except OSError as e:
+        return None, f"unreadable ({type(e).__name__})"
+
+
+def _compliance_shape(text):
+    """``("heading", text)`` when the file's first line is the compliance heading, ``("line", line)``
+    for exactly one line ignoring trailing blank lines, else ``(None, reason)``."""
+    lines = text.split("\n")
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines:
+        return None, "empty"
+    if lines[0].rstrip("\r") == COMPLIANCE_HEADING:
+        return "heading", text
+    if len(lines) == 1:
+        return "line", lines[0].rstrip("\r")
+    return None, f"more than one line without {COMPLIANCE_HEADING} as its first line"
+
+
+def _spliced(text):
+    return text if not text or text.endswith("\n") else text + "\n"
+
+
+def assemble(run_dir, n, draft_path, out_path):
+    """Write the report (see the module docstring): ``(output dict, exit code)``."""
+    p = _paths(run_dir, n)
+    errors = []
+    draft, why = _read_raw(draft_path)
+    if draft is None:
+        errors.append(f"draft {why}")
+    elif not draft.strip():
+        errors.append("draft empty")
+    pieces = {}
+    for key in PIECES:
+        pieces[key], why = _read_raw(p["pieces"][key])
+        if why:
+            errors.append(f"piece {key} {why}")
+    compliance = None
+    compliance_exists = os.path.lexists(p["compliance"])
+    if compliance_exists:
+        text, why = _read_raw(p["compliance"])
+        if text is None:
+            errors.append(f"issue-compliance.md {why}")
+        else:
+            compliance = _compliance_shape(text)
+            if compliance[0] is None:
+                errors.append(f"issue-compliance.md {compliance[1]}")
+    seen = {}
+    out = []
+    for line in re.split(r"(?<=\n)", draft or ""):
+        m = _TOKEN.fullmatch(line.rstrip("\r\n"))
+        if not m:
+            out.append(line)
+            continue
+        if m.group(2):
+            key = "compliance"
+        elif m.group(1) in pieces:
+            key = m.group(1)
+        else:
+            errors.append(f"unknown key {m.group(1)!r}")
+            continue
+        seen[key] = seen.get(key, 0) + 1
+        if key == "compliance":
+            if compliance is not None and compliance[0] == "heading":
+                out.append(_spliced(compliance[1]))
+        else:
+            out.append(_spliced(pieces[key] or ""))
+            if key == "run_details" and compliance is not None and compliance[0] == "line":
+                out.append(f"- {compliance[1]}\n")
+    if compliance is not None and compliance[0] == "line" and not seen.get("run_details"):
+        if "".join(out)[-1:] not in ("", "\n"):
+            out.append("\n")
+        out.append(f"- {compliance[1]}\n")
+    if draft is not None:
+        errors += [f"key {key!r} named twice" for key, count in seen.items() if count > 1]
+        errors += [f"non-empty piece {key} has no token" for key in PIECES if pieces[key] and not seen.get(key)]
+        if seen.get("compliance") and not compliance_exists:
+            errors.append("compliance token with no issue-compliance.md")
+        if compliance_exists and not seen.get("compliance"):
+            errors.append("issue-compliance.md with no compliance token")
+    if not errors:
+        try:
+            _write_atomic(out_path, "".join(out))
+        except OSError as e:
+            errors.append(f"output write failed ({e})")
+    if errors:
+        return {"status": "error", "reason": "; ".join(errors)}, 1
+    return {"status": "ok", "out": out_path}, 0
+
+
 # ── re-verification registration ────────────────────────────────────────────
 
 def reverify_add(path_safe, fresh_agent, redirect, run_dir, n, item_id, threshold, counter_reading):
@@ -565,26 +688,31 @@ def _flags(argv, names):
 
 
 def main(op, argv, path_safe, fresh_agent, redirect):
-    """Run ``render`` or ``reverify-add``; returns ``(output dict, exit code)``. ``path_safe``,
-    ``fresh_agent`` and ``redirect`` are ``reverify_add``'s."""
+    """Run ``render``, ``assemble`` or ``reverify-add``; returns ``(output dict, exit code)``.
+    ``path_safe``, ``fresh_agent`` and ``redirect`` are ``reverify_add``'s."""
     if op == "render":
         pos, flags, err = _flags(argv, ("--contract", "--threshold", "--capped-file", "--prior", "--skipped"))
         usage = (f"render <run-dir> <N> --contract {CONTRACT} --threshold {'|'.join(SEVERITIES)} "
                  "[--capped-file <path>] [--prior <phase1-work-dir>] [--skipped intentional|failure]")
+    elif op == "assemble":
+        pos, flags, err = _flags(argv, ("--contract", "--draft", "--out"))
+        usage = f"assemble <run-dir> <N> --contract {CONTRACT} --draft <path> --out <path>"
     else:
         pos, flags, err = _flags(argv, ("--contract", "--threshold", "--counter-reading-file"))
         usage = (f"reverify-add <run-dir> <N> <item-id> --contract {CONTRACT} "
                  f"--threshold {'|'.join(SEVERITIES)} --counter-reading-file <path>")
-    want = 2 if op == "render" else 3
+    want = 3 if op == "reverify-add" else 2
     if err is None and flags.get("--contract") != CONTRACT:
         err = f"--contract {CONTRACT} is required"
     if err is None and (len(pos) != want or not pos[1].isascii() or not pos[1].isdigit() or int(pos[1]) < 1):
         err = "wrong positional arguments"
-    if err is None and flags.get("--threshold") not in SEVERITIES:
+    if err is None and op == "assemble" and not (flags.get("--draft") and flags.get("--out")):
+        err = "--draft and --out are required"
+    if err is None and op != "assemble" and flags.get("--threshold") not in SEVERITIES:
         err = f"--threshold must be one of {'|'.join(SEVERITIES)}"
     if err is None and op == "render" and flags.get("--skipped") not in (None, *_SKIPPED):
         err = "--skipped must be intentional or failure"
-    if err is None and op != "render":
+    if err is None and op == "reverify-add":
         path = flags.get("--counter-reading-file")
         reading, why = _read_text(path) if path is not None else (None, "is required")
         reading = _one_line(reading)
@@ -595,5 +723,7 @@ def main(op, argv, path_safe, fresh_agent, redirect):
     if op == "render":
         return render(pos[0], int(pos[1]), flags["--threshold"], flags.get("--capped-file"),
                       flags.get("--prior"), flags.get("--skipped"))
+    if op == "assemble":
+        return assemble(pos[0], int(pos[1]), flags["--draft"], flags["--out"])
     return reverify_add(path_safe, fresh_agent, redirect, pos[0], int(pos[1]), pos[2],
                         flags["--threshold"], reading)

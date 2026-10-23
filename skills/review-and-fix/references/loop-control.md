@@ -68,7 +68,7 @@ Route on its `status`: `ok` → proceed. `mismatch` → stop and report `head_re
 
 ### Step 1: Run the Review Engine
 
-Run the *Engine entry* below with `<entry>` `step1`. A promoted iteration (Step 2.6) runs no Step 1. On `fanned-out`, fold the return's `phase3_findings`, `phase3_failed_agents` and `diff_produced_at_head` into the fused `iter-<N>.json` write.
+Run the *Engine entry* below with `<entry>` `step1`. A promoted iteration (Step 2.6) runs no Step 1.
 
 ### Engine entry (Step 1 and the Step 2.6 shadow)
 
@@ -80,7 +80,7 @@ Run the *Engine entry* below with `<entry>` `step1`. A promoted iteration (Step 
    .prflow/vendor/prflow/scripts/review-dirty-tree.sh entry-open --contract 3 --run-root <run-root> --entry <entry> --iteration <N>
    ```
 
-   It deletes the diff cache, phase log, `verdict-body.md`, this entry's previous return and this iteration's checklist, verification, verifier and Phase 3 files, snapshots the tree, records HEAD; on a `step1` entry at N ≥ 2 its `prior` carries iter-`<N-1>`'s reviewed head and prior-findings file; log each `prior.warnings` line and `Fix-delta handoff: {P} prior Phase 3 findings passed to the engine.`, `{P}` is `prior.count` when `prior.findings` is a path, else 0. `status: ok` → dispatch. Else → the failure route.
+   It deletes the diff cache, phase log, `verdict-body.md`, the report drafts, this entry's previous return and this iteration's checklist, verification, verifier and Phase 3 files, snapshots the tree, records HEAD; on a `step1` entry at N ≥ 2 its `prior` carries the reviewed head of the newest earlier iteration that ran Step 1, and the prior-findings file; log each `prior.warnings` line and `Fix-delta handoff: {P} prior Phase 3 findings passed to the engine.`, `{P}` is `prior.count` when `prior.findings` is a path, else 0. `status: ok` → dispatch. Else → the failure route.
 2. Dispatch an **Agent-tool subagent**, `subagent_type: prflow:review-engine`, to invoke the `/prflow:review` engine in its fresh context, with exactly this prompt, placeholders substituted and nothing added (`none` where a value is absent; the shadow passes neither `prior_` operand):
 
    ```text
@@ -142,7 +142,7 @@ Evaluate only at iteration 1: where Step 2 sends a non-REJECT verdict to Step 2.
 
 Iteration 1 is clean only when every operand below is established from `iter-1.json` and the engine return; an unestablished operand is not clean:
 
-- The engine verdict is non-REJECT, `criterion_exempt` lists nothing (absent: none), `diff_profile.checklist_skipped` is not `"failure"`, `phase3_failed_agents` is `[]`, and `checklist` holds no `FAIL`, and each `INCONCLUSIVE` in it has `category` `issue_acceptance` in `engine-return-step1-iter-1.json`'s `checklist`.
+- The engine verdict is non-REJECT, `criterion_exempt` lists nothing (absent: none) and `phase3_failed_agents` is `[]`; in `engine-return-step1-iter-1.json`, `diff_profile.checklist_skipped` is not `"failure"`, `checklist` holds no `FAIL`, and each `INCONCLUSIVE` in it has `category` `issue_acceptance`.
 - Every non-Phase-4-demoted `phase3_findings` entry is below Important — by its `severity`, or the `calibrated_severity` of its `severity-calibrated` row. A Critical or Important that was fixed, pushed back, deferred or parked is not clean.
 - After a fix commit, `reference_reads.fix_delta` is `verified` with outcome `clean`, `refixed` or `pushed_back`; complete D rows across all attempts establish only below-Important effective severities (`fix-delta-gate.md`); zero findings requires an established verified gate return.
 - The parked-class sweep, when it ran, completed (`not_completed: null`) with no promotable sibling.

@@ -1492,7 +1492,7 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@8cf3482550831fb35a4fc3fbf7ca139cf8028b4c # v1.0.233 (CLI 2.1.281)
+        uses: anthropics/claude-code-action@v1
         env:
           # Keep dispatched work foregrounded so the headless run can collect it before exiting.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"

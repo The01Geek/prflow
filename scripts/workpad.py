@@ -5905,7 +5905,7 @@ _REVIEW_WAIVED_KEY = _REVIEW_WAIVED_KEY_PREFIX + 'human'
 
 
 # Reuse records survive inherited-checkpoint stripping because they bind inputs.
-# Resolve live issue/file digests and git identities before crediting a match;
+# Resolve the live issue digest and git identities before crediting a match;
 # unreadable inputs remain unestablished.
 _PLAN_INPUTS_KEY_PREFIX = 'plan-inputs:'
 _PLAN_INPUTS_MARKER_RE = re.compile(
@@ -5923,25 +5923,6 @@ _REUSABLE_REVIEW_VERDICTS = (
 _REUSABLE_REVIEW_CHECKLISTS = ('complete', 'skipped-intentional')
 _SHA40_RE = re.compile(r'\A[0-9a-f]{40}\Z')
 _SHA256_HEX_RE = re.compile(r'\A[0-9a-f]{64}\Z')
-# The audit-inputs family (issue #689): `capability` is the one field a caller
-# supplies by value, so it is validated against a closed vocabulary before it is
-# written — a value carrying whitespace would silently truncate the whitespace-
-# delimited marker row.
-_AUDIT_INPUTS_KEY_PREFIX = 'audit-inputs:'
-_AUDIT_INPUTS_MARKER_RE = re.compile(
-    _MARKER_NS_RE + r'checkpoint audit-inputs:([^\s]+?) -->'
-)
-_AUDIT_CAPABILITY_KEYS = frozenset(
-    f'{_t}.{_s}' for _t in ('local', 'cloud')
-    for _s in ('present', 'absent', 'unestablished'))
-_AUDIT_INPUTS_FIELDS = (
-    'issue-digest', 'ac-digest', 'capability', 'policy-digest', 'merge-base')
-_AUDIT_INPUTS_MAX_LEN = (3 * 64 + 40 + max(map(len, _AUDIT_CAPABILITY_KEYS))
-                         + len(_AUDIT_INPUTS_FIELDS) - 1)
-# The audit checked its claims (Pass 1 enumerations, Pass 7 negatives) against the
-# tree at its merge-base, so a record stays reusable only while the base has moved
-# at most this many commits past it; further drift re-runs the audit.
-_AUDIT_REUSE_MAX_BASE_DRIFT = 3
 
 
 def _reuse_issue_digest(issue):
@@ -5954,24 +5935,6 @@ def _reuse_issue_digest(issue):
     except (subprocess.CalledProcessError, OSError) as e:
         return None, f'the issue body could not be read ({e})'
     text = (r.stdout or '').replace('\r\n', '\n').rstrip('\n')
-    return hashlib.sha256(text.encode('utf-8')).hexdigest(), None
-
-
-def _reuse_file_digest(path):
-    """(sha256-hex, None) of a file's text, or (None, reason) (issue #689).
-
-    Canonicalized exactly as `_reuse_issue_digest` — CRLF→LF and a dropped
-    trailing newline — so the digest a Windows-authored artifact records equals
-    the one a POSIX runner checks. An absent, unreadable, or non-UTF-8 file is a
-    reason, never a digest, so an unresolvable input reads `unestablished`."""
-    if not path:
-        return None, 'no file path was given'
-    try:
-        with open(path, encoding='utf-8') as f:
-            text = f.read()
-    except (OSError, UnicodeDecodeError) as e:
-        return None, f'{path} could not be read ({e})'
-    text = text.replace('\r\n', '\n').rstrip('\n')
     return hashlib.sha256(text.encode('utf-8')).hexdigest(), None
 
 
@@ -6046,71 +6009,11 @@ def _parse_reusable_review_payload(payload: str):
             'verdict': verdict, 'checklist': checklist, 'roster': members}
 
 
-def _parse_audit_inputs_payload(payload):
-    """(record, None) for a well-formed stored audit payload, else (None, reason).
-
-    Never raises. `reason` is a specific breadcrumb per shape: `payload-missing`,
-    `payload-not-a-string:<type>`, `payload-empty`, `payload-whitespace`,
-    `payload-over-length`, `field-count-<n>`, `<field>-empty`,
-    `<field>-not-sha256` / `merge-base-not-sha40`, `capability-out-of-vocabulary`."""
-    if payload is None:
-        return None, 'payload-missing'
-    if not isinstance(payload, str):
-        return None, f'payload-not-a-string:{type(payload).__name__}'
-    if not payload:
-        return None, 'payload-empty'
-    if any(ch.isspace() for ch in payload):
-        return None, 'payload-whitespace'
-    if len(payload) > _AUDIT_INPUTS_MAX_LEN:
-        return None, 'payload-over-length'
-    fields = payload.split(':')
-    if len(fields) != len(_AUDIT_INPUTS_FIELDS):
-        return None, f'field-count-{len(fields)}'
-    for name, value in zip(_AUDIT_INPUTS_FIELDS, fields):
-        if not value:
-            return None, f'{name}-empty'
-        if name == 'capability':
-            if value not in _AUDIT_CAPABILITY_KEYS:
-                return None, 'capability-out-of-vocabulary'
-        elif name == 'merge-base':
-            if not _SHA40_RE.match(value):
-                return None, 'merge-base-not-sha40'
-        elif not _SHA256_HEX_RE.match(value):
-            return None, f'{name}-not-sha256'
-    issue_digest, ac_digest, capability, policy_digest, merge_base = fields
-    return {'issue_digest': issue_digest, 'ac_digest': ac_digest,
-            'capability': capability, 'policy_digest': policy_digest,
-            'merge_base': merge_base}, None
-
-
-def _reuse_base_drift(recorded, current, repo_root):
-    """(commit-count, None) the base moved from `recorded` to `current`,
-    (None, 'not-ancestor') when `recorded` is not an ancestor of `current`, or
-    (None, reason) when git cannot answer (issue #689)."""
-    def _git(argv):
-        return subprocess.run(['git', *argv], cwd=repo_root, capture_output=True,
-                              encoding='utf-8')
-    try:
-        anc = _git(['merge-base', '--is-ancestor', recorded, current])
-        if anc.returncode == 1:
-            return None, 'not-ancestor'
-        if anc.returncode != 0:
-            return None, f'git merge-base --is-ancestor exited {anc.returncode}'
-        cnt = _git(['rev-list', '--count', f'{recorded}..{current}'])
-    except OSError as e:
-        return None, f'git could not run ({e})'
-    out = (cnt.stdout or '').strip()
-    if cnt.returncode != 0 or not out.isdigit():
-        return None, f'git rev-list --count exited {cnt.returncode}'
-    return int(out), None
-
-
 def _reuse_record(progress_content: str, kind: str):
     """('ok', record) | ('absent'|'duplicate'|'malformed', None) for one family.
 
     Only tail-anchored producer rows count, as for the review-coverage family."""
     pattern = (_PLAN_INPUTS_MARKER_RE if kind == 'plan'
-               else _AUDIT_INPUTS_MARKER_RE if kind == 'audit'
                else _REUSABLE_REVIEW_MARKER_RE)
     payloads = list(_review_coverage_marker_rows(progress_content, pattern))
     if not payloads:
@@ -6121,22 +6024,17 @@ def _reuse_record(progress_content: str, kind: str):
         if not _SHA256_HEX_RE.match(payloads[0]):
             return 'malformed', None
         return 'ok', {'digest': payloads[0]}
-    if kind == 'audit':
-        # A malformed audit payload returns its breadcrumb in the record slot.
-        record, reason = _parse_audit_inputs_payload(payloads[0])
-        return ('ok', record) if record else ('malformed', reason)
     record = _parse_reusable_review_payload(payloads[0])
     return ('ok', record) if record else ('malformed', None)
 
 
-def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root, *,
-                    audit_inputs=None):
+def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root):
     """Return (result, detail, record) for current-input reuse.
     Results distinguish match, absent, duplicate, malformed, incomplete, mismatch
-    and unestablished. Audit digests/base are resolved here; unreadable is no match."""
+    and unestablished; an unreadable input is no match."""
     state, record = _reuse_record(progress_content, kind)
     if state != 'ok':
-        return state, (record if isinstance(record, str) else ''), None
+        return state, '', None
     if kind == 'review':
         unticked = _unticked_review_rows(progress_content)
         if unticked:
@@ -6152,42 +6050,6 @@ def _reuse_evaluate(progress_content: str, kind: str, issue, repo_root, *,
             return 'mismatch', 'head', record
         if candidate['merge_base'] != record['merge_base']:
             return 'mismatch', 'merge-base', record
-    if kind == 'audit':
-        ac_digest, aerr = _reuse_file_digest((audit_inputs or {}).get('ac_file'))
-        if aerr is not None:
-            return 'unestablished', aerr, None
-        policy_digest, perr = _reuse_file_digest(
-            (audit_inputs or {}).get('policy_file'))
-        if perr is not None:
-            return 'unestablished', perr, None
-        capability = (audit_inputs or {}).get('capability')
-        if not capability:
-            # A missing capability operand is an unresolved input, not a changed
-            # one — the same fail-closed `unestablished` shape the two file digests
-            # take above, so a forgotten operand never reads as a genuine capability
-            # change (mismatch).
-            return 'unestablished', 'no capability key was given', None
-        if digest != record['issue_digest']:
-            return 'mismatch', 'issue-body', record
-        if ac_digest != record['ac_digest']:
-            return 'mismatch', 'resolved-ac', record
-        if capability != record['capability']:
-            return 'mismatch', 'capability', record
-        if policy_digest != record['policy_digest']:
-            return 'mismatch', 'versioning-policy', record
-        candidate, err = _reuse_candidate('HEAD', repo_root)
-        if err is not None:
-            return 'unestablished', err, None
-        if candidate['merge_base'] != record['merge_base']:
-            drift, derr = _reuse_base_drift(
-                record['merge_base'], candidate['merge_base'], repo_root)
-            if derr == 'not-ancestor':
-                return 'mismatch', 'merge-base', record
-            if derr is not None:
-                return 'unestablished', derr, None
-            if drift > _AUDIT_REUSE_MAX_BASE_DRIFT:
-                return 'mismatch', 'base-drift', record
-        return 'match', '', record
     if digest != record['digest']:
         return 'mismatch', 'issue-body', record
     return 'match', '', record
@@ -6211,12 +6073,13 @@ def _strip_marker_rows(content: str, pattern) -> str:
 
 
 def cmd_reuse_check(args):
-    """Answer whether a recorded plan, review or audit is reusable now (issue #616).
+    """Answer whether a recorded plan or review is reusable now (issue #616).
 
     Exit 0 on a match, 1 when there is nothing reusable (absent, duplicate,
-    malformed, incomplete, mismatch), 2 when the answer is unestablished (workpad,
-    issue body, git, or an audit input file unreadable). Prints one `reuse-check:`
-    line; never prints the body."""
+    malformed, incomplete, mismatch), 2 when the answer is unestablished: the workpad or
+    issue body is unreadable, or, for `review`, the base-branch config or git is.
+    Prints one `reuse-check:` line, except that a failed GitHub repository or
+    comment lookup exits 2 with only a stderr error; never prints the body."""
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
         'reuse-check', _repo_full(api_fail_code=2), args.issue, marker,
@@ -6227,20 +6090,11 @@ def cmd_reuse_check(args):
         print(f'reuse-check: kind={args.kind} result=unestablished '
               'reason=workpad-unreadable')
         sys.exit(2)
-    audit_inputs = None
-    if args.kind == 'audit':
-        audit_inputs = {
-            'ac_file': getattr(args, 'ac_file', None),
-            'capability': getattr(args, 'capability', None),
-            'policy_file': getattr(args, 'versioning_policy_file', None),
-        }
     result, detail, record = _reuse_evaluate(
-        content, args.kind, args.issue, _repo_root(), audit_inputs=audit_inputs)
+        content, args.kind, args.issue, _repo_root())
     line = f'reuse-check: kind={args.kind} result={result}'
     if result == 'mismatch':
         line += f' field={detail}'
-    elif result == 'malformed' and detail:
-        line += f' reason={detail}'
     elif result == 'incomplete':
         line += f' unticked={detail.replace(" ", "-")}'
     elif result == 'unestablished':
@@ -6267,7 +6121,6 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_SWEEP_EVIDENCE_KEY_PREFIX, '`--record-sweep-evidence`'),
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
     (_PLAN_INPUTS_KEY_PREFIX, '`--record-plan-inputs`'),
-    (_AUDIT_INPUTS_KEY_PREFIX, '`--record-audit-inputs`'),
     (_REUSABLE_REVIEW_KEY_PREFIX, '`--record-reusable-review`'),
     (_REVIEW_WAIVED_KEY_PREFIX, '`--review-waived-by`'),
     (_PRIOR_STATUS_MARKER_KEY_PREFIX, '`reset-resume-status` (issue #137)'),
@@ -6753,7 +6606,6 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'record_resume_point', None),
         getattr(args, 'record_verification_evidence', False),
         getattr(args, 'record_plan_inputs', False),
-        getattr(args, 'record_audit_inputs', None),
         getattr(args, 'record_reusable_review', None),
         getattr(args, 'adopt_reusable_review', False),
         getattr(args, 'resolve_doc_reflection', None),
@@ -7656,50 +7508,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f'workpad.py: plan-inputs record not written — {_pi_err}\n')
             reuse_skip_notes.append(
                 'plan-inputs record not written — the issue body did not resolve')
-    # Audit-inputs record (issue #689): `clean-complete` writes one row; the
-    # `not-reusable` arm carries no operand and only strips (below), exactly like
-    # `--invalidate-completion-evidence`. A missing or out-of-vocabulary operand or
-    # an unresolvable input skips the row with a note naming it, as the plan-inputs
-    # write-time skip does, so a bad operand never fails the auditor's one audit-end
-    # update; the strip still runs, so no stale clean record survives.
-    record_audit_inputs = getattr(args, 'record_audit_inputs', None)
-    audit_inputs_payload = None
-    if record_audit_inputs == 'clean-complete':
-        _ai_cap = getattr(args, 'audit_capability', None)
-        _ai_ac_file = getattr(args, 'audit_ac_file', None)
-        _ai_pol_file = getattr(args, 'audit_versioning_policy_file', None)
-        _ai_missing = [flag for flag, val in (
-            ('--audit-ac-file', _ai_ac_file), ('--audit-capability', _ai_cap),
-            ('--audit-versioning-policy-file', _ai_pol_file)) if not val]
-        _ai_issue = _ai_ac = _ai_pol = _ai_mb = None
-        if _ai_missing:
-            _ai_which = f"{', '.join(_ai_missing)} was not given"
-            _ai_err = _ai_which
-        elif _ai_cap not in _AUDIT_CAPABILITY_KEYS:
-            _ai_which = '--audit-capability is outside its vocabulary'
-            _ai_err = f'--audit-capability {_ai_cap!r} is not one of ' + ', '.join(
-                sorted(_AUDIT_CAPABILITY_KEYS))
-        else:
-            _ai_which = 'the issue body did not resolve'
-            _ai_issue, _ai_err = _reuse_issue_digest(args.issue)
-            if _ai_err is None:
-                _ai_which = 'the --audit-ac-file resolved-AC artifact did not resolve'
-                _ai_ac, _ai_err = _reuse_file_digest(_ai_ac_file)
-            if _ai_err is None:
-                _ai_which = 'the --audit-versioning-policy-file did not resolve'
-                _ai_pol, _ai_err = _reuse_file_digest(_ai_pol_file)
-            if _ai_err is None:
-                _ai_which = 'the merge-base with the base branch did not resolve'
-                _ai_cand, _ai_err = _reuse_candidate(
-                    'HEAD', getattr(args, 'repo_root', None) or _repo_root())
-                _ai_mb = _ai_cand['merge_base'] if _ai_err is None else None
-        if _ai_err is not None:
-            sys.stderr.write(
-                f'workpad.py: audit-inputs record not written — {_ai_err}\n')
-            reuse_skip_notes.append(f'audit-inputs record not written — {_ai_which}')
-        else:
-            audit_inputs_payload = (
-                f'{_ai_issue}:{_ai_ac}:{_ai_cap}:{_ai_pol}:{_ai_mb}')
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     # #1984: `environment-denial` must be corroborated by a recorded `missing` roster
@@ -8023,12 +7831,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                    f'{_checkpoint_marker(_PLAN_INPUTS_KEY_PREFIX + plan_inputs_digest)}')
         progress_notes.append(_pi_row)
         _producer_reserved_rows.add(_pi_row)
-    if audit_inputs_payload:
-        _ai_row = (
-            f'Audit-inputs recorded (issue body {audit_inputs_payload[:12]}…) '
-            f'{_checkpoint_marker(_AUDIT_INPUTS_KEY_PREFIX + audit_inputs_payload)}')
-        progress_notes.append(_ai_row)
-        _producer_reserved_rows.add(_ai_row)
     if reusable_review_payload:
         _rr_origin = ':'.join(filter(None, (
             os.environ.get('GITHUB_RUN_ID'),
@@ -8154,18 +7956,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             heading, content = sections[idx]
             sections[idx] = (heading, _strip_sweep_evidence_marker_rows_for_run(
                 content, sweep_evidence_run_identity))
-
-    # Audit-inputs strip (issue #689): recording either arm — clean-complete
-    # (replace) or not-reusable (invalidate) — strips a prior audit-inputs row
-    # before the clean-complete row is appended in the note block below. Runs on its
-    # own condition, like the completion-evidence strip above, so a `not-reusable`
-    # call with no other mutation still clears the row.
-    if record_audit_inputs:
-        idx = _find_section(sections, 'Progress')
-        if idx is not None:
-            heading, content = sections[idx]
-            sections[idx] = (
-                heading, _strip_marker_rows(content, _AUDIT_INPUTS_MARKER_RE))
 
     if progress_notes:
         idx = _find_section(sections, 'Progress')
@@ -8564,30 +8354,19 @@ def _build_parser():
 
     s = sub.add_parser(
         'reuse-check',
-        help='Decide whether a recorded Plan (plan), review (review) or issue-claim '
-             'audit (audit) is reusable now (issue #616): the plan-inputs, '
-             'reusable-review or audit-inputs row must be the only one, well formed, '
-             'and match the live issue body (and, for review, HEAD and its merge-base '
-             'with the configured base branch, with every Review row before the AC '
-             'gate ticked; for audit, the --ac-file, --capability and '
-             '--versioning-policy-file operands, and a base that moved at most '
-             f'{_AUDIT_REUSE_MAX_BASE_DRIFT} commits past the recorded merge-base). '
-             'Prints one "reuse-check:" line. '
+        help='Decide whether a recorded Plan (plan) or review (review) is reusable '
+             'now (issue #616): the plan-inputs or reusable-review row must be the '
+             'only one, well formed, and match the live issue body (and, for review, '
+             'HEAD and its merge-base with the configured base branch, with every '
+             'Review row before the AC gate ticked). '
+             'Prints one "reuse-check:" line unless the GitHub repository or '
+             'comment lookup fails. '
              'Exits 0 match / 1 nothing reusable (absent, duplicate, malformed, '
              'incomplete, mismatch) / 2 unestablished. Never prints the body.',
     )
     s.add_argument('issue', type=int)
-    s.add_argument('kind', choices=('plan', 'review', 'audit'))
+    s.add_argument('kind', choices=('plan', 'review'))
     s.add_argument('--marker', default=None, help=_marker_help)
-    s.add_argument('--ac-file', default=None, metavar='PATH',
-                   help='(audit) The resolved-AC artifact to digest and compare against '
-                        'the recorded audit-inputs row (issue #689).')
-    s.add_argument('--capability', default=None, metavar='KEY',
-                   help='(audit) The current run-fact capability key <tier>.<app-id-state> '
-                        'to compare against the recorded row (issue #689).')
-    s.add_argument('--versioning-policy-file', default=None, metavar='PATH',
-                   help='(audit) The versioning-policy file to digest and compare against '
-                        'the recorded row (issue #689).')
     s.set_defaults(func=cmd_reuse_check)
 
     s = sub.add_parser(
@@ -9123,27 +8902,6 @@ def _build_parser():
                         '(issue #616). It survives --strip-inherited-checkpoints. An '
                         'unreadable issue body removes the old row and writes a note '
                         'instead.')
-    u.add_argument('--record-audit-inputs', choices=('clean-complete', 'not-reusable'),
-                   default=None,
-                   help='Record the issue-claim audit reuse row (issue #689). '
-                        'clean-complete writes one "audit-inputs" row binding the audit '
-                        'to the live issue body, the resolved-AC artifact, the capability '
-                        'key, the versioning policy and the merge-base with the base '
-                        'branch (needs --audit-ac-file, --audit-capability, '
-                        '--audit-versioning-policy-file); a missing or invalid operand or '
-                        'an unreadable input removes the old row and writes a note '
-                        'instead. not-reusable '
-                        'strips any recorded row and writes none. Survives '
-                        '--strip-inherited-checkpoints.')
-    u.add_argument('--audit-ac-file', default=None, metavar='PATH',
-                   help='The resolved-acceptance-criteria artifact whose digest the '
-                        '--record-audit-inputs clean-complete row records (issue #689).')
-    u.add_argument('--audit-capability', default=None, metavar='KEY',
-                   help='The run-fact capability key <tier>.<app-id-state> the audit was '
-                        'made under (issue #689); validated against its closed vocabulary.')
-    u.add_argument('--audit-versioning-policy-file', default=None, metavar='PATH',
-                   help='The file holding the VERSIONING_POLICY value whose digest the '
-                        '--record-audit-inputs clean-complete row records (issue #689).')
     u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
                    help='The reviewed head SHA the review-coverage record is derived '
                         'from (issue #1510), stamped as the record\'s as-of anchor '

@@ -16,11 +16,15 @@ Resolve the verdict-severity threshold first:
 `critical`, `important` or `suggestion`; otherwise it is `critical`, and `Run details` quotes the
 read's stderr when it exited non-zero, else the value it printed. The ladder is `critical` >
 `important` > `suggestion`; "at or above the threshold" reads down it. On a local denial of a
-path-invoked `.py` helper in this phase, take Phase 2's `python3 <resolved helper path>` rung.
+path-invoked `.py` helper in this phase, re-run it as `python3 <resolved helper path>`.
 
 A run-directory file this phase Writes for a helper may still hold an earlier pass's bytes. When
 that Write is refused or fails, run `rm -f` on its path and run the step without that input: no
 Deferrals match (note it in `Run details`), no re-verification of that FAIL, no `--capped-file`.
+
+With `$WP` set on a run that goes on to 4.4, 4.1 writes no `verdict-body.md`: Phase 0.3.5's rewrite
+produces `review-wp.md` in its place, and 4.4 produces `verdict-body.md` when that comment write
+failed.
 
 ### 4.0 Deferrals (PR mode only)
 
@@ -72,10 +76,12 @@ to `.prflow/tmp/review/<slug>/<run-id>/capped-iter-<N>.txt`, then run:
 Omit `--capped-file` when nothing is capped; pass `--prior` with Phase 1's `<work-dir>` only on a
 PR-mode run that is not the Step 2.6 shadow; pass `--skipped intentional|failure` in place of the
 artifacts when Phase 1+2 did not run. On `status: ok` each entry of its `pieces` names a file `path`
-and the `count` and `ids` of the items it shows with an Evidence block; paste a file whole where the
-report order names its piece, copy `warnings` into `Run details`, and hold `reject_ids`,
-`carried_ids`, `shortfall_ids`, `none_verified`, `prior_lines` and `prior_shortfall` for 4.2. On any
-other output a one-line note opening `## Code Review Findings` quotes what it printed; read
+and the `count` and `ids` of the items it shows with an Evidence block; write the report as a draft
+whose token lines stand for the pieces (*Draft and assemble* below), copy `warnings` into
+`Run details`, and hold `reject_ids`, `carried_ids`, `shortfall_ids`, `none_verified`, `prior_lines`
+and `prior_shortfall` for 4.2. On any other output Write the report by hand to
+`.prflow/tmp/review/<slug>/<run-id>/verdict-body.md` and paste no piece file (one on disk may be an
+earlier render's): a one-line note opening `## Code Review Findings` quotes what it printed; read
 `reject_ids` from `verification-iter-<N>.json` and `checklist-iter-<N>.json`: each stored FAIL at or
 above the threshold (a missing or unknown severity reads `critical`; the evidence gate honors only
 caps `render` recorded, so weigh none as capped) and each the carried carve-out names; a FAIL whose
@@ -86,7 +92,26 @@ Read
 and follow it for the verdict summary and the narrative you write; the agents' finding text is
 theirs. GitHub links `#<n>` to issue n: write ordinals and counts as words ("item 2").
 
-Assemble the report in this order; a section a prompt or reviewer extension asks for goes after
+**Draft and assemble** (after a `status: ok` `render` only). Write the report's draft to
+`.prflow/tmp/review/<slug>/<run-id>/verdict-draft.md`: everything you author, in the order below,
+with one line holding only the token `{{prflow-piece:<key>}}` wherever that order places a piece
+and one line holding only `{{prflow-compliance}}` where item 4 places the `issue-compliance.md`
+file. Then run:
+
+```bash
+.prflow/vendor/prflow/scripts/normalize-verdicts.py assemble .prflow/tmp/review/<slug>/<run-id> <N> --contract 2 --draft .prflow/tmp/review/<slug>/<run-id>/verdict-draft.md --out .prflow/tmp/review/<slug>/<run-id>/verdict-body.md
+```
+
+`status: ok` → the written file is the report. `status: error` → fix the draft by the printed
+`reason` and run it once more; a second `status: error`, or no `status: ok` or `status: error` line
+once the root's helper-call rule has run its forms, takes the stop path: Write the report by hand to
+that `--out` path, each piece file whole where its token would stand, a heading-led
+`issue-compliance.md` whole as `## Issue Compliance` and a one-line one in Run details; a file you
+cannot read, or a compliance file of neither shape or one item 4 keeps out, stays out, and a one-line note opening
+`## Code Review Findings` reads
+`assemble refused: <the last reason, else what it printed>; left out: <each file kept out, else none>`.
+
+Compose the report in this order; a section a prompt or reviewer extension asks for goes after
 `## Issue Compliance`. Keep every heading, the `Coverage shortfall:` line and every verdict-driving
 item at column 0 outside any `<details>` block; open each `<details>` block with a blank line after
 `<summary>` and before `</details>`, and inside one keep lines starting `</details>` indented and
@@ -101,9 +126,9 @@ naming which and how.
 2. `## Code Review Findings`. First any note directed here (such as Phase 3's
 `did not return results.` line), visible and unheaded. Then the groups `### 🔴 Critical`,
 `### 🟠 Important / Major`, `### 🟡 Suggestion / Minor` and
-`### ℹ️ Informational — Deferred`, in that order, each holding its findings, then its piece
-(`critical`, `important`, `suggestion`, `informational`) when that piece has a `count` above 0; omit
-a group with neither. Each finding is a numbered item, restarting at 1 per group, with no icon,
+`### ℹ️ Informational — Deferred`, in that order, each holding its findings, then its piece's token
+line (`critical`, `important`, `suggestion`, `informational`) when that piece has a `count` above 0;
+omit a group with neither. Each finding is a numbered item, restarting at 1 per group, with no icon,
 agent name or severity word:
 `1. {description naming its file, its instance list inline} (raised by N/{agents that returned results} agents)`;
 corroborated findings (N ≥ 2) first. A Suggestion or Informational group with no verdict-driving
@@ -129,16 +154,19 @@ bearing a carve-out marker never moves.
 `No related issue found — requirement compliance not checked.` On the source
 `resolver-unavailable` the section is
 `The acceptance-criteria resolver could not be invoked (<Phase 0.4's reason>); neither the workpad nor the issue body was examined, so this PR was reviewed WITHOUT a resolved specification.`
-Otherwise, when Phase 0.4 stored no `compliance-out:` line, it is the `issue-compliance.md` file the
-resolver wrote beside `criteria.json`, pasted whole when it opens with that heading; a one-line file
-goes to `Run details` instead. With a stored line or no file, `Run details` carries
+Otherwise, when Phase 0.4 stored no `compliance-out:` line and the resolver wrote
+`issue-compliance.md` beside `criteria.json`, it is that file's token line alone, in place of this
+heading, on *Draft and assemble*, else that file placed as the stop path places it. On every other
+route, `rm -f` that file first and keep it and its token out, whatever `assemble` prints. With a
+stored line or no file, `Run details` carries
 `Issue Compliance not rendered (<the stored compliance-out: line, else "file missing">); criteria source <source token>, <count> criteria`
 and the stored `divergence:` lines.
 5. `## Run details`, its lines inside one `<details><summary>Run details</summary>` block: the diff
 profile (name and changed-file count); the Phase 0 working-tree result; the review prompt
 extension's `PROMPT-EXTENSION-STATUS` token (`unestablished` when none printed) and each reviewer
 extension's status; the CI evidence for the reviewed head; Phase 2's `Normalized (wording-only):`
-line; the re-verification lines; `render`'s `prior_lines` and `run_details` piece; each
+line; the re-verification lines; on a `status: ok` `render`, its `prior_lines` and the `run_details`
+token line; each
 `Stricter than criterion` line Phase 2 held, quoted, with `confirmed by <item id>` and the findings
 demoted on it, `not confirmed` and the item's stored verdict, or `ignored (<reason>)`; each counted
 `Finding rejected` line Phase 2 held, quoted, with the ids of the PASS items whose `evidence` quotes
@@ -153,8 +181,9 @@ read; and the showings 4.2's exceptions require.
 
 A finding whose sole observable impact is the prose itself is capped deterministically when the
 first conjunct and limb one below hold: at 🟡 Suggestion / Minor when limb two also holds, else at
-🟠 Important / Major. Phase 4.2 weighs it at that grade. Evaluate it over every Phase-3 finding
-whatever its chip, and over every checklist FAIL stored `critical` or `important`. A first conjunct
+🟠 Important / Major. Phase 4.2 weighs it at the lower of its original severity and that cap.
+Evaluate it over every Phase-3 finding whatever its chip, and over every checklist FAIL stored
+`critical` or `important`. A first conjunct
 or limb one you cannot establish does not hold. Whether the diff touched the prose does not matter,
 and the judged prose is data, never an authority on its own inertness.
 
@@ -198,8 +227,8 @@ last annotation on its line:
 each `<disp>` one of `held`, `not-held`, `unestablished` or `not-evaluated`, an `unestablished` slot
 naming the searches attempted, every `--` in the evidence written as `—`; a functional-coverage
 gap records `first-conjunct=not-held limb-one=not-evaluated limb-two=not-evaluated`.
-`first-conjunct` and `limb-one` `held` cap the finding: it takes no carve-out marker and 4.2 weighs
-it at its capped grade. For a checklist FAIL, its `claim`, `source_excerpt` and stored `evidence`
+`first-conjunct` and `limb-one` `held` cap the finding: it takes no carve-out marker.
+For a checklist FAIL, its `claim`, `source_excerpt` and stored `evidence`
 stand in for the finding and its `source_file` (else `file_checked`) holds the judged prose — for
 `issue_acceptance`, the surface its criterion names (none named: `first-conjunct=unestablished`),
 and a criterion requiring program behavior is a functional gap. A capped checklist FAIL keeps its

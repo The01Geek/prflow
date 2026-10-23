@@ -6,7 +6,7 @@ argument-hint: <issue-number>
 
 # /pr-description — Generate or Update PR Description
 
-Generate a structured PR description by analyzing the current branch's changes against the base branch. When an existing PR is found, merges new content with human-added content instead of replacing it.
+Generate a structured PR description from the branch diff. For an existing PR, reconcile its title and merge the body with human-added content.
 
 Input: `$ARGUMENTS` is an optional GitHub issue number. If provided, include a "Resolves #N" link.
 
@@ -115,6 +115,8 @@ The deferral read is best-effort — never fail the run on a missing or unparsea
 ## Step 2: Generate the PR Description
 
 Read the shared writing standard before composing. The PR description is change-describing prose, so read `lib/writing-standard.md` — reached through the portable skill-directory anchor as `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` — and follow it when you write the summary and body below. A failed load emits a breadcrumb naming the file and the failure kind, and you compose the description without it.
+
+For an existing PR, keep a title that accurately describes the implemented change. Otherwise, replace it with a concise, action-oriented title grounded in the current diff, describing the solution rather than the original problem.
 
 ### Mode A: No existing PR (or empty body)
 
@@ -238,12 +240,12 @@ Rules:
 
 ## Step 3: Apply the Description
 
-- If an existing PR was found (Mode B): Update it directly via REST (repo-scope only — `gh pr edit --body` resolves the repo through org-scoped GraphQL and fails under a repo-scoped token). Write the full output, pre/post-marker content included, to a file under `.prflow/tmp/` with the file-write tool, then apply it with the lookup's PR number as a literal:
+- If an existing PR was found (including an empty body): Update it via repo-scoped REST. With the file-write tool, write the full body, pre/post-marker content included, and the intended title (without a trailing newline) to separate files under `.prflow/tmp/`, then apply them with the lookup's PR number as a literal:
   ```bash
-  gh api repos/{owner}/{repo}/pulls/<number> --method PATCH -F body=@<file>
+  gh api repos/{owner}/{repo}/pulls/<number> --method PATCH -F body=@<body-file> -F title=@<title-file>
   ```
-  Then read the body back with the same literal number and compare it with the file's contents, ignoring the trailing newline `--jq` appends. A non-zero exit from either call, or any other difference — `gh api` can exit 0 while the body came through as a literal `@path` or truncated — is a failed write: redo it once, and if it fails again, report the write as failed in your final message, naming the body file, quoting the stderr or mismatch, and stating whether the last read-back showed the body the lookup returned, or that no read-back succeeded:
+  Read back the title and body with the same literal number and compare the JSON values with the files. A non-zero exit or mismatch is a failed write: retry once, then report any remaining failure with the file paths, stderr or mismatch, and the last observed title/body state (or that no read-back succeeded).
   ```bash
-  gh api repos/{owner}/{repo}/pulls/<number> --jq .body
+  gh api repos/{owner}/{repo}/pulls/<number> --jq '{title,body}'
   ```
 - **If no existing PR (Mode A):** Output the description as plain text for the caller to use when creating the PR.

@@ -1,9 +1,9 @@
 <!-- prflow:spec-ref step=3.6-dispatch file=skills/spec/references/step-3-6-audit-dispatch.md start -->
 
-### One audit round (elected at Step 4)
+### One audit round
 
-A round is one fresh-context auditor reading the whole working-draft file. Run it only on the user's
-election at Step 4 sub-step 3a.
+A round is one fresh-context auditor reading the whole working-draft file. Run one only as Step 3.6's
+first round or on the user's election at Step 4 sub-step 3a.
 
 #### Dispatch
 
@@ -23,7 +23,7 @@ git hash-object --no-filters "<absolute working-draft file path>"
 rm -f "<absolute return-file path>"
 ```
 
-Dispatch one synchronous, non-fork, fresh-context subagent whose prompt carries exactly these items,
+Dispatch one non-fork, fresh-context subagent whose prompt carries exactly these items,
 the last two only when they exist:
 
 - the absolute working-draft file path;
@@ -36,10 +36,15 @@ the last two only when they exist:
 - on a run that will widen an issue under Step 1's widen rule, one line naming that issue's number
   as the issue this draft replaces;
 - each decision the user made this run — every answer a user-question call returned and every change
-  the user requested — and each decision settled on a second delegated reply. State the choice,
+  the user requested, in a question reply or in plain chat — and each decision settled on a second
+  delegated reply. A user decision covers only what the user's answer or requested change states: a
+  picked option's own text, or the user's words for a free-text reply. Apart from those
+  second-delegation decisions, never list a choice the run settled itself, nor agent-written advice
+  (a `/prflow:challenge` result, an audit return, or a mechanism, direction or design an agent
+  proposes in the issue body or a comment), even when it sits in the request. State the choice,
   identifying a delegated decision as the run's choice after the user delegated it, never the finding
-  or audit round that prompted it. Mark an approach pick that a later *Settled approach* re-ask
-  ended on a different option as replaced by that later pick, and one a re-ask ended with no
+  or audit round that prompted it. Mark an approach pick, a fork re-ask's included, that a later *Settled approach* re-ask
+  ended on a different option as replaced by that later pick, and one a *Settled approach* re-ask ended with no
   option chosen as not a settled decision, its approach question in `## 🚫 Blocked`.
 
 Add no reasoning, verdict or opinion about the draft. The round has started once a dispatch call
@@ -93,6 +98,7 @@ State in your reply whether the round is a verdict round (if not, why), whether 
 must-revise findings you fixed; Step 4 reads the latest verdict round from that statement. Fix each
 must-revise finding you confirm as a draft change (`references/step-3-6-audit.md`). Advisory
 findings reach the draft only through Step 4's *Change something first*. Write no ledger, record,
-evidence or coverage file. Return to Step 4 sub-step 2 and present the draft again.
+evidence or coverage file. After a draft's first round, continue to Step 4; after an elected round,
+return to Step 4 sub-step 2 and present the draft again.
 
 <!-- prflow:spec-ref step=3.6-dispatch file=skills/spec/references/step-3-6-audit-dispatch.md end -->

@@ -1,7 +1,7 @@
 <!-- prflow:review-ref phase=4.4 file=skills/review/phases/phase-4-4-github-post.md start -->
 ### 4.4 Record the verdict as a formal GitHub review (PR mode only)
 
-Only `post-review-verdict.sh` posts the verdict; compose no verdict marker. When `$WP` is set and the latest Phase 4 comment write succeeded, pass that comment's body `.prflow/tmp/review/<slug>/<run-id>/review-wp.md` as `<body-file>` (the helper posts a short stub instead when it finds the progress comment); otherwise Write the full Phase 4.1 report to `.prflow/tmp/review/<slug>/<run-id>/verdict-body.md` with the Write tool and pass that, running `rm -f` on that path when the Write is refused or fails so no earlier report is posted. Then run:
+Only `post-review-verdict.sh` posts the verdict; compose no verdict marker. When `$WP` is set and the latest Phase 4 comment write succeeded, pass that comment's body `.prflow/tmp/review/<slug>/<run-id>/review-wp.md` as `<body-file>` (the helper posts a short stub instead when it finds the progress comment); otherwise pass `.prflow/tmp/review/<slug>/<run-id>/verdict-body.md`, produced now as Phase 4.1 produces it when 4.1 skipped it, running `rm -f` on that path when it is left unwritten so no earlier report is posted. Then run:
 
 ```bash
 .prflow/vendor/prflow/scripts/post-review-verdict.sh "$PR_NUMBER" "REJECT" <body-file> "$PR_HEAD_SHA" "$MARKER" .prflow/tmp/review/<slug>/<run-id>

@@ -81,9 +81,8 @@
 #
 # MODE=announce writes ONLY a `::warning::` naming which dependency withheld the
 # request (test, lint, or both) and touches no network. The calling job runs it on
-# the step-level branch where a dependency did NOT conclude `success`, so a red
-# `lint` — not a required status check, hence a mergeable PR — is announced instead
-# of skipped in silence.
+# the step-level branch where a dependency did NOT conclude `success`, so the
+# withheld review request is announced instead of skipped in silence.
 set -uo pipefail
 
 _PCRT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

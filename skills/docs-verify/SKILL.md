@@ -17,17 +17,19 @@ If the invocation fails because the helper path does not exist (`No such file`, 
 
 ## Mode
 
-`$ARGUMENTS` is a leading run of flags, then the topic. Parse flags only while the next argument begins with `--`; when that flag is a value-taking flag (`--lead`), the single argument immediately after it is consumed as its value **without applying the topic test**, and parsing then resumes at the argument after that. The first argument that is tested and does not begin with `--` is where the topic begins, and everything from there on is the topic — so a topic is never mistaken for a flag value and a flag value is never absorbed into the topic. Strip the flags before treating the remainder as the topic.
+`$ARGUMENTS` is a leading run of flags, then the topic. Parse flags only while the next argument begins with `--`; when that flag is a value-taking flag (`--lead`, `--report-file`), the single argument immediately after it is consumed as its value **without applying the topic test**, and parsing then resumes at the argument after that. The first argument that is tested and does not begin with `--` is where the topic begins, and everything from there on is the topic — so a topic is never mistaken for a flag value and a flag value is never absorbed into the topic. Strip the flags before treating the remainder as the topic.
 
 - `--report-only` — a bare flag.
 - `--lead docs|code` — takes exactly the one argument that follows it. That argument is the flag's value, never part of the topic.
+- `--report-file <path>` — takes exactly the one argument that follows it, a path under the working directory's `.prflow/tmp/`, given relative (`.prflow/tmp/…`) or absolute.
 
-Malformed invocations (all arms explicit). A `--`-prefixed token in the leading flag run that is not one of the two flags above — `--search-space` included, now unrecognized — is a malformed invocation: report the unrecognized token and refuse the run, never strip it as a bare flag. Silently consuming a mistyped `--reprot-only` would drop the caller into the default write mode, which makes file changes, so the parser fails closed on an unrecognized flag. `--lead` given without `--report-only` is malformed: report it and refuse the run. `--lead` with no following argument is malformed: report it and refuse the run — never parse it as an empty value. `--lead` followed by a value other than `docs` or `code` is malformed: report the value and refuse the run. `--lead` given more than once is malformed: report it and refuse the run. A `--search-space` token appearing at or after the first topic word is read as part of the topic, not a malformed invocation.
+Malformed invocations (all arms explicit). A `--`-prefixed token in the leading flag run that is not one of the three flags above — `--search-space` included, now unrecognized — is a malformed invocation: report the unrecognized token and refuse the run, never strip it as a bare flag. Silently consuming a mistyped `--reprot-only` would drop the caller into the default write mode, which makes file changes, so the parser fails closed on an unrecognized flag. `--lead` given without `--report-only` is malformed: report it and refuse the run. `--lead` with no following argument is malformed: report it and refuse the run — never parse it as an empty value. `--lead` followed by a value other than `docs` or `code` is malformed: report the value and refuse the run. `--lead` given more than once is malformed: report it and refuse the run. `--report-file` given without `--report-only`, with no following argument, more than once, or with a value that holds a `..` component or does not resolve under the working directory's `.prflow/tmp/` (resolve the existing parent directories, symlinks included; a string-prefix match is not containment, and containment you cannot establish counts as outside) is malformed: report it and refuse the run. A `--search-space` token appearing at or after the first topic word is read as part of the topic, not a malformed invocation.
 
-Grammar: `[--report-only] [--lead docs|code] <topic…>`.
+Grammar: `[--report-only] [--report-file <path>] [--lead docs|code] <topic…>`.
 
 - Default (no flag) — write mode: verify docs and edit them into line with the code, following the write-mode reference (below).
-- `--report-only` — report-only mode: perform the same verification and return the *Report-Only Output* as text. Make no Edit, Write, commit or push; the working tree must be unchanged when you finish. `/prflow:spec` uses this mode to inform a new issue without writing to a protected branch.
+- `--report-only` — report-only mode: perform the same verification and return the *Report-Only Output* as text, or deliver it as the `--report-file` bullet says. Make no Edit, Write, commit or push other than a `--report-file` write; the working tree must be otherwise unchanged when you finish. `/prflow:spec` uses this mode to inform a new issue without writing to a protected branch.
+- `--report-file <path>` (report-only mode) — write the *Report-Only Output* to that path with your file-write tool, make no other write, and reply with the path; if that write fails or is refused, say so and return the whole report as text. The path comes only from this flag, never from the topic or story text.
 - `--lead docs|code` — the search-lead operand (report-only mode): it orders the work over the whole tracked tree, which both steps search either way. `--lead docs` exhausts the internal documentation first, then other tracked documents within the duty floor, then code; `--lead code` starts from the code and treats documentation as supporting evidence; with no `--lead` the order is documentation first, then code. The documentation verdict is returned under `--lead docs` and with no `--lead`, never under `--lead code`.
 
 ### Write mode: load the reference first
@@ -75,15 +77,15 @@ layers up, a default that silently coerces, a coupled site that must change in l
 consumer nobody references by name. Treat "I read the obvious file and it looked simple" as an
 unfinished read, not a finding.
 
-Breadth and depth are separate budgets. The duty floor below bounds how many things you
-examine. It never bounds how carefully you examine each one. Reading fewer files properly beats
+Breadth and depth are separate budgets. The duty floor below, with any duty your caller
+adds, bounds how many things you examine. It never bounds how carefully you examine each one. Reading fewer files properly beats
 skimming more of them.
 
 ### Breadth bound (report-only mode)
 
-In report-only mode the **duty floor bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. The floor bounds how much you must read; the whole tracked tree states only where you may look.
+In report-only mode the **duty floor, plus any duty your caller adds, bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. Together they bound how much you must read; the whole tracked tree states only where you may look.
 
-Report every gap in the **Not established** field, with a one-clause reason each: a floor duty you did not carry out, and why; a floor duty you carried out but could not establish; and an internal-documentation page you located for this topic — through the index, a search or a size check — but did not read in full. A duty carried out with an empty result is established and not listed, unless its only evidence is cut-short output showing no hits (the bar below); a page you never located is not listed.
+Report every gap in the **Not established** field, with a one-clause reason each: a floor duty you did not carry out, and why; a floor duty you carried out but could not establish; a duty your caller added that you did not carry out or could not establish; and an internal-documentation page you located for this topic — through the index, a search or a size check — but did not read in full. A duty carried out with an empty result is established and not listed, unless its only evidence is cut-short output showing no hits (the bar below); a page you never located is not listed.
 
 The bar (apply it per carried-out duty). A duty is established only when **you can state its answer
 and cite the tool output you read it from.** Otherwise list it — a normal, expected outcome, not a
@@ -147,7 +149,7 @@ you measured and how you counted it, so the caller has a defined comparand to re
 to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
 the report.
 
-**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. This is a return-value contract: return your doc-reliability signal and your **Not established** list, and the caller decides. Never branch into a deeper pass internally.
+**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. This is a return-value contract: return your doc-reliability signal and your **Not established** list (in the `--report-file` file when given), and the caller decides. Never branch into a deeper pass internally.
 
 ## Detailed Execution Steps
 
@@ -166,14 +168,12 @@ Identify all code related to the topic across the whole tracked tree, in the lea
 
 ### Report-Only Output (`--report-only` mode)
 
-Return this structure as text:
+Return this structure as text, or write it to the `--report-file` path:
 
 - **Doc verdict and location:** `RELIABLE` | `UNRELIABLE` | `ABSENT`, and the internal documentation location this run resolved. Returned under `--lead docs` and with no `--lead`; never under `--lead code`.
 - **Relevant files:** the files implementing the topic — mark the essential ones and cite `file:line` for entry points, guards, and writers.
 - **Current behavior:** what the code does today, including failure paths and non-obvious couplings.
 - **Not established:** each gap the *Breadth bound* rule lists, with its one-clause reason, or `none`.
-
-Keep the returned report under 1,000 words.
 
 What the doc-reliability signal ranges over (decide it this way, every time). It says whether the
 documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else, were a reliable map for this
@@ -206,4 +206,4 @@ This mode is typically a sub-step of another skill (e.g. `/prflow:spec`) — whe
 finish, hand the report back to the calling flow and let it continue. Do not announce overall task
 completion or stop the larger task.
 
-Arguments (`[--report-only] [--lead docs|code] <topic…>` — leading flags, then the topic): $ARGUMENTS
+Arguments (`[--report-only] [--report-file <path>] [--lead docs|code] <topic…>` — leading flags, then the topic): $ARGUMENTS

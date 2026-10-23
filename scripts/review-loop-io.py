@@ -72,7 +72,8 @@ Subcommands:
                  out). On the shadow a non-string
                  `phase3_failed_agents` element is a failed reviewer, not a malformed return.
     prior        `--run-root DIR --iteration N`, run by `entry-open` for a step1 entry at
-                 N >= 2: iter-<N-1>.json's `diff_produced_at_head` and
+                 N >= 2: the `diff_produced_at_head` of the newest earlier iteration that
+                 ran Step 1 (iter-<N-1>.json's unless that record is promoted) and
                  `prior-findings-iter-N.json` (iter-<N-1>'s findings plus each earlier
                  record's unapplied ones, tagged `iter`).
 
@@ -683,6 +684,7 @@ def _remove(path):
     if path.is_dir() and not path.is_symlink():
         shutil.rmtree(path)
     else:
+        # On Windows os.unlink removes a directory symlink too (CPython's Py_DeleteFileW).
         path.unlink(missing_ok=True)
 
 
@@ -852,8 +854,9 @@ def _unknown_key_warnings(record, name):
 
 
 def prior_inputs(run_root, iteration):
-    """The N≥2 primary entry's carry-forward from the earlier iteration records: iter-<N-1>'s
-    reviewed head and the prior-findings file (iter-<N-1>'s every finding plus each earlier
+    """The N≥2 primary entry's carry-forward from the earlier iteration records: the reviewed head
+    of K, the newest earlier iteration that ran Step 1 (checklist_finalize.py's step1_iteration),
+    and the prior-findings file (iter-<N-1>'s every finding plus each earlier
     record's unapplied ones, tagged with their iteration)."""
     warnings, findings = [], []
     prev, why = _json_object(run_root / f'iter-{iteration - 1}.json')
@@ -881,11 +884,21 @@ def prior_inputs(run_root, iteration):
             if k < iteration - 1:
                 item['iter'] = k
             findings.append(item)
-    head = prev.get('diff_produced_at_head') if prev else None
-    # A promoted iteration runs no Step 1, so its record carries no reviewed head.
-    promoted = prev is not None and prev.get('loop_role') == 'promoted' and head is None
-    if prev is not None and not promoted and not (isinstance(head, str) and HEX40_RE.match(head)):
-        warnings.append(f'iter-{iteration - 1}.json diff_produced_at_head {head!r} is not a 40-hex '
+    k, rec = iteration - 1, prev
+    if prev is not None and prev.get('loop_role') == 'promoted':
+        # Never hoist this import: a load failure there would stop every subcommand.
+        step = 'load'
+        try:
+            from checklist_finalize import step1_iteration
+            step = 'walk the iteration records'
+            k, rec, why = step1_iteration(str(run_root), iteration)
+        except (Exception, SystemExit) as exc:
+            rec, why = None, f'checklist_finalize.py could not {step} ({type(exc).__name__}: {exc})'
+        if why:
+            warnings.append(f'{why}; no reviewed head carried')
+    head = rec.get('diff_produced_at_head') if rec else None
+    if rec is not None and not (isinstance(head, str) and HEX40_RE.match(head)):
+        warnings.append(f'iter-{k}.json diff_produced_at_head {head!r} is not a 40-hex '
                         'commit; no reviewed head carried')
         head = None
     path = None
