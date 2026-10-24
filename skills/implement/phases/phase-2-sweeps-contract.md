@@ -75,7 +75,7 @@ A failed read, or a condition you cannot establish, leaves the finding unapplied
 - Adds a value to an enumerated set (a new enum/string-union member, status, kind, or verdict value — *or a member of a doc-enumerated configuration set: a workflow trigger list (the `on:` event set), a config-key set, a permissions list*) → run 2.3.0b.
 - Removes a value from an enumerated set (an enum/string-union member, status, kind, or verdict value — *or a member of a doc-enumerated configuration set: a workflow trigger list, a config-key set, a permissions list*) → run 2.3.0d (describing-prose reconciliation sweep). A rename is not this arm — it is an addition and a removal at once, and §2.3.0d's precedence assigns it to 2.3.0b alone.
 - Changes what an already-stated rule, call sequence or claim means — weakening a universal (softening, scoping or removing it) is one such change; so are strengthening it, changing a condition or outcome, reordering a sequence, and an added sentence or member that changes when, whether or in what order it applies → run 2.3.0d.
-- Adds or hardens a guard, predicate, validator, or coverage invariant (in code), or the deliverable is policy-stating agent-executed prose (a `SKILL.md`, `phases/*.md`, or `references/*.md` command block) → run 2.3.0c (operand-trace sweep).
+- Adds or hardens a guard, predicate, validator, or coverage invariant (in code), or ships agent-executed prose stating a policy → run 2.3.0c (operand-trace sweep).
 - Adds a collection output with ordering, dedup, or aggregation logic (a sorted list, a deduped set, a grouped or counted tally, a tie-broken ranking) → run 2.3.7 (collection-cardinality sweep).
 - Always, whatever the diff's shape → run 2.3.3 (convention), 2.3.4 (boundary-assumption), 2.3.4a (self-authored-claim reconciliation), 2.3.4b (coverage-claim enumeration), 2.3.5 (simplification & efficiency), 2.3.6 (error-handling & silent-failure).
 
@@ -137,9 +137,9 @@ Predicate. Fires when the change adds a value to an enumerated value set. The se
 
 **Procedure:** `<skill-dir>/references/sweep-2-3-0b-enum-enumeration.md`, read under the gated-procedure protocol above.
 
-#### 2.3.0c Operand-trace sweep (mandatory whenever the diff adds or hardens a guard, predicate, validator, or coverage invariant in code, or ships agent-executed imperative prose stating a policy)
+#### 2.3.0c Operand-trace sweep (mandatory whenever the diff adds or hardens a guard, predicate, validator, or coverage invariant in code, or ships agent-executed prose stating a policy)
 
-Predicate. Two authoritative triggers — run it when either fires. (a) Code trigger: the diff adds or hardens a guard, predicate, validator, or coverage invariant. (b) Prose-policy trigger: the diff's deliverable is a `SKILL.md`, `phases/*.md`, or `references/*.md` command block stating a policy the agent must execute.
+Predicate. Two authoritative triggers — run it when either fires. (a) Code trigger: the diff adds or hardens a guard, predicate, validator, or coverage invariant. (b) Prose-policy trigger: the diff ships agent-executed prose stating a policy, wherever that prose lives.
 
 **Procedure:** `<skill-dir>/references/sweep-2-3-0c-operand-trace.md`, read under the gated-procedure protocol above.
 

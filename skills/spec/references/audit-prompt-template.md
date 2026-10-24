@@ -145,11 +145,14 @@ the walk.
 
 <!-- render-block: file inline -->
 **Findings.** Report only what clears this bar: the exact draft text attacked, the concrete case
-(input and state) in which it fails, the wrong outcome, and the read that shows it (path and what
-it says). Grade each `defect` — a correctness, safety, implementability, unresolved-decision or
+(input and state) in which it fails and the wrong outcome — for a false statement, the fact your
+read shows instead — and the read that shows it (path and what it says). Grade each `defect` — a correctness, safety, implementability, unresolved-decision or
 load-bearing-premise failure, correctness including a concrete failure to deliver the stated
-outcome within the decided scope and accepted limits — or `note`, a simpler design or an unneeded
-obligation from the walk's outcome step. Report no
+outcome within the decided scope and accepted limits, a factual statement your read contradicts
+even when the design does not rest on it, and demanded behavior your reads show incompatible with a
+governing requirement they show applies (a rule citation or an omitted routine implement-time duty
+shows neither) — or `note`, a simpler design or an unneeded obligation from the walk's outcome
+step. Report no
 wording, formatting or placement remarks, no implementation detail decidable at implement time,
 and no replacement text: name the defect, and say "delete" when deleting the attacked text
 resolves it and the rest of the draft still carries every obligation it stated. One defect per

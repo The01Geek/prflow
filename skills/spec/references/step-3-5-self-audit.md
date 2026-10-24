@@ -175,7 +175,7 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    unless that rule routes a decision to the user; never present a fixable flaw as a question on
    an unrevised draft. Re-run the Step 3 no-options gate on the revision and
    run **Revision-delta verification**. After any revision, walk the whole revised draft once under
-   item 1, since a fix can break text it never touched; revise what it finds, with no further walk.
+   item 1, since a fix can break text it never touched; revise what it finds and run **Revision-delta verification** on those repairs, with no further walk.
 6. Report the outcome with the run's next question as a summary: each finding and what was revised for it;
    each check left unfinished and each checked item left unverified, by locator; each dependency not
    established and why; the request as unestablished when the request-origin sweep recorded that
@@ -183,7 +183,6 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    check that found nothing needs no line. With nothing to report: "self-audit: no findings, nothing
    unverified, no revisions needed".
 
-Only a draft that has survived this step — revised and re-gated if anything was found — proceeds to
-Step 3.6.
+Progression to an audit follows the root's *Audit preparation* prerequisite.
 
 <!-- prflow:spec-ref step=3.5 file=skills/spec/references/step-3-5-self-audit.md end -->
