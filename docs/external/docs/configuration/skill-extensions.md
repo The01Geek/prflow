@@ -101,7 +101,7 @@ Expected result on the next `/prflow:implement` run: the workpad's `Skill extens
 <Accordion title="Two headings the spec extension treats specially">
   `/prflow:spec` reads two headings in `.prflow/skill-extensions/spec.md` by name, in addition to using the whole file as instructions.
 
-  A section headed exactly `## Audit dimensions` is added to the standard audit checklist. PRFlow applies it to its own draft before the first audit round, and each audit round's auditor receives it too. Use it to teach the drafter and the auditor the assumptions your issues must respect. When PRFlow cannot apply it to its own draft, for example because its self-audit instructions failed to load, it says so and the audit rounds still apply it; the file as a whole still applies as instructions.
+  A section headed exactly `## Audit dimensions` is added to the standard audit checklist. PRFlow applies it to its own draft before the first audit round, and each audit round's auditor receives it too. Use it to teach the drafter and the auditor the assumptions your issues must respect. See [Approval Points](/docs/workflows/spec#approval-points) for audit preparation.
 
   A section headed exactly `## Evidence axes` is passed to the pass that gathers evidence before the draft is written. Use it to name the kinds of evidence a draft must cover for your repository.
 

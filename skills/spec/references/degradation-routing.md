@@ -5,7 +5,7 @@ This file is read only after a reference load fails. The root's *Reference routi
 loaded and the boundary-marker contract every load is accepted under; this table maps references to their load triggers
 and failed-load fallbacks.
 
-When a read made only to apply a rule another file points at fails, continue without that rule at whatever step the read happens and report the reduced coverage; a term that rule defines keeps its everyday meaning (*verified* means a read this run made confirms the item). The rows below serve the step that loads a file as its own reference.
+Apply the root's *Audit preparation* prerequisite on every degraded route below. When a read made only to apply a rule another file points at fails, continue without that rule at whatever step the read happens and report the reduced coverage; a term that rule defines keeps its everyday meaning (*verified* means a read this run made confirms the item). The rows below serve the step that loads a file as its own reference.
 
 | Load trigger | File | Degraded behavior on a failed load |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ When a read made only to apply a rule another file points at fails, continue wit
 | Step 3 drafting entry | `references/issue-template.md` | Continue Step 3 from the user story, the Step 1 findings and any draft, re-gate the draft under the root's no-options rule, and report the reduced drafting coverage in chat |
 | Step 3.5 entry | `references/step-3-5-self-audit.md` | Check the draft's load-bearing claims and file references against the code inline and report the self-audit as reduced in chat |
 | Any revise-and-re-gate site | `references/revision-delta.md` | Continue the revision from the user story, the Step 1 findings and the draft: revise the draft for the finding, re-gate the revised draft under the root's no-options rule, and report in chat that `references/revision-delta.md` was unavailable |
-| Step 3.6 entry, or a draft change needs the draft checks | `references/step-3-6-audit.md` | Run no draft check or whole-draft walk, disclose `draft checks and whole-draft walk not run` beside Step 4's audit summary line, and continue |
+| Step 3.6 entry, or a draft change needs the draft checks | `references/step-3-6-audit.md` | Run no draft check or whole-draft walk, disclose `draft checks and whole-draft walk not run` beside Step 4's audit summary line, and continue subject to the root's *Audit preparation* prerequisite |
 | Step 3.6 runs a draft's first round, or the user elects an audit round at Step 4 sub-step 3a | `references/step-3-6-audit-dispatch.md` | Run the round inline, fix each defect you confirm as a draft change (`references/step-3-6-audit.md`), mark the audit summary line degraded, and continue to Step 4's presentation; the round has no verdict |
 | Step 4 entry | `references/step-4-present-create.md` | Render the full draft in chat with the audit summary line and, on an interactive run, ask for approval and wait for it; create only as the root's non-degradable invariants allow, by loading `references/step-4-create.md` (its row below on a failed load); report the assignment and implement-offer questions as not asked (failed load) and, when the run creates nothing, the issue as not filed |
 | Step 4 sub-step 5 | `references/step-4-create.md` | Apply [filing fallback](#filing-fallback) below. |

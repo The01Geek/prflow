@@ -11,6 +11,21 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## October 24, 2026
+
+- **Spec states each motivating case's expected result as what the changed instructions decide for it.** For a change to instructions a model follows, the issue names the deciding instruction, can disqualify a case the changed instructions do not decide as the change requires, and says whether a replayed case needs its original run's context. (#3071)
+- **Spec can weigh removing or reusing a repeatedly repaired design element before repairing it again.** (#3145)
+- **`/prflow:spec`'s approach question keeps a cost comparison when it shortens one into an option's text.** The short text still says whether the option adds or saves cost compared with current behavior, in which cases, and what remains uncertain. (#3138)
+- **Spec audit grading spells out when a false statement or a policy conflict in a draft is a defect.** (#3111)
+- **After its second option check, `/prflow:spec` can still remove a proposed part of an option when its reads show every reason for that part false.** The approach question says each removal was not re-checked. (#3099)
+- **Spec audits and non-interactive filing require completed draft preparation.** (#3162)
+- **`/prflow:review-and-fix` can keep a deferred fix-delta finding deferred when the shadow pass raises it again at the same or a lower severity.** The shadow pass now recognizes that re-raise as the deferral instead of starting an extra iteration. (#2529)
+- **Background `/prflow:spec` sessions enter their own worktree before discovery starts.** Discovery and risk agents' report writes are no longer refused partway through, and the run's records stay in one checkout. (#3019)
+- **Fix passes compare a prose rule with the other rules deciding its inputs before changing it.** (#3161)
+- **`/prflow:spec` can apply an audit suggestion that deletes text or moves it to the investigation record.** The approval question counts each applied one among the corrections. (#3020)
+- **`/prflow:spec` re-reads each `Blocked by` prerequisite issue before asking you to file.** It compares the issue's title, body, and open or closed state and close reason with what the design used, and revisits the design before presenting when a change affects it. (#2908)
+- **When an issue `/prflow:spec` drafts asks the implementing run to replay or test with a recorded input spec read, such as a retained payload or transcript, it quotes that input's deciding fields.** The quote is JSON-encoded; a long input is quoted near the failure and cited for the rest. (#2317)
+
 ## October 23, 2026
 
 - **`/prflow:spec` checks its own draft the way the auditor will before any audit round.** After fixing a round's findings, it re-checks the whole draft, not only its edits. (#3170)

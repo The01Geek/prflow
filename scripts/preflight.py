@@ -2308,6 +2308,56 @@ def issue_body_cmd(args: argparse.Namespace) -> int:
     return PROCEED_EXIT
 
 
+DOC_NEEDED_DRAFT_ERROR_EXIT = 2
+
+
+def doc_needed_paths(args: argparse.Namespace) -> int:
+    """Print the Documentation Needed extractor's unfiltered paths for a draft.
+
+    Exit 0 is a successful extraction (stdout verbatim, possibly empty), 2 an
+    unusable draft, UNAVAILABLE_EXIT a failed extraction or usage error; a
+    failure never prints an empty success. Never honour the allowlist here: it
+    would let the environment hide the candidates under review.
+    """
+    try:
+        raw = Path(args.body_file).read_bytes()
+    except OSError as exc:
+        print(f"preflight.py: doc-needed-paths: draft unusable (unreadable: {exc})", file=sys.stderr)
+        return DOC_NEEDED_DRAFT_ERROR_EXIT
+    try:
+        body = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        print("preflight.py: doc-needed-paths: draft unusable (is not valid UTF-8)", file=sys.stderr)
+        return DOC_NEEDED_DRAFT_ERROR_EXIT
+    if not body.strip():
+        print("preflight.py: doc-needed-paths: draft unusable (empty or whitespace-only)", file=sys.stderr)
+        return DOC_NEEDED_DRAFT_ERROR_EXIT
+    env = {k: v for k, v in os.environ.items() if k != "DEVFLOW_DOC_NEEDED_ALLOWLIST"}
+    try:
+        import bash_launch as _bl
+
+        bash = _bl.resolve_bash(env)
+        extractor = Path(__file__).resolve().parent / "extract-doc-needed-paths.sh"
+        argument = _bl.script_argument(extractor, cwd=Path.cwd(), bash=bash)
+        out = subprocess.run(
+            _bl.command([bash, argument]), input=body.encode("utf-8"),
+            capture_output=True, env=env, check=False,
+        )
+    except (ImportError, OSError, ValueError) as exc:
+        print(f"preflight.py: doc-needed-paths: extraction failed (launch: {type(exc).__name__}: {exc})", file=sys.stderr)
+        return UNAVAILABLE_EXIT
+    sys.stderr.write(out.stderr.decode("utf-8", errors="replace"))
+    if out.returncode != 0:
+        print(f"preflight.py: doc-needed-paths: extraction failed (extractor exit {out.returncode})", file=sys.stderr)
+        return UNAVAILABLE_EXIT
+    try:
+        sys.stdout.write(out.stdout.decode("utf-8"))
+    except UnicodeDecodeError:
+        print("preflight.py: doc-needed-paths: extraction failed (non-UTF-8 extractor output)", file=sys.stderr)
+        return UNAVAILABLE_EXIT
+    return PROCEED_EXIT
+
+
 def lint_changed(args: argparse.Namespace) -> int:
     # Delegated to the lint_changed sibling module (issue #1389): the changed-file
     # advisory lint layer, kept out of this file so its git-enumeration, base64url,
@@ -2401,6 +2451,10 @@ def main(argv=None) -> int:
     issue_body_parser.add_argument("--out", required=True)
     issue_body_parser.add_argument("--with-comments", action="store_true")
     issue_body_parser.set_defaults(func=issue_body_cmd)
+
+    doc_needed_parser = subparsers.add_parser("doc-needed-paths")
+    doc_needed_parser.add_argument("--body-file", required=True)
+    doc_needed_parser.set_defaults(func=doc_needed_paths)
 
     # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
     # Advisory changed-file and repository-wide lint, selected through the

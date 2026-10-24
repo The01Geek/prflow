@@ -36,6 +36,12 @@ line written (on a filesystem that refuses the append, follow
 
 **Repair.** When no decision remains for the user, amend the affected statements and add only
 obligations needed for the fix or requested change; add no reason clause the vanish test would remove.
+When the current and earlier findings you hold show the same design element, first-draft text
+included, repeatedly repaired and support a concrete removal or reuse of it, weigh that candidate
+before repairing it again: it is simpler only when it keeps the requested behavior and recorded
+decisions and constraints and leaves less work overall, never when it moves required handling
+elsewhere. A simpler candidate takes the decision test above like any other fix; recurrence adds no
+re-ask. Otherwise, repair as above.
 
 For each finding you fix, search the draft and every file the finding cites
 for other instances of the defect by its identifiers, literal text and subject words, read the hit

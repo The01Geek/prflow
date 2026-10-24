@@ -275,8 +275,10 @@ How to ask:
   current-behavior fact the question states still needs the read *Approach evidence* requires.
 
   The approach question discloses each returned item with every option or candidate it bears on
-  in plain words, short in the option text and longer in the chat before the call. An item
-  given either read above, and a reason resting on it, is stated as not established, there and, outside a fork re-ask, in
+  in plain words, short in the option text and longer in the chat before the call, a cost
+  comparison's short form saying whether the option adds or saves cost against current behavior,
+  in which cases and under what condition, and what stays uncertain, as its settle read and
+  answer leave it. An item given either read above, and a reason resting on it, is stated as not established, there and, outside a fork re-ask, in
   the `Considered-and-rejected:` line, only when that read failed, was refused, was cut short or
   came back whole neither confirming nor refuting it, or no single read can settle it; a reason
   resting on any other unestablished fact is stated so too, and an item with a `Settled:` line
@@ -297,11 +299,19 @@ How to ask:
   claim cites and that source gives another; (3) otherwise disclose it in the approach question. Disclosing an
   item before the pick surfaces that failure while the design can still change. After the
   cap, the second check's items included, for any reason but a new user answer, change no
-  option's mechanism and add, drop or swap no option: still make answer 2's corrections,
-  saying in the question that the corrected text was not re-checked, and disclose each item
-  answer 1 would answer, and each failure you find yourself after the cap, naming the
-  motivating case or user answer it bears on; answer the items of a check a new user answer
-  required after the cap the same way. The timing, claim-check, answer and cap rules bind each
+  option's mechanism and add, drop or swap no option, except to remove a proposed component
+  from an option other than a mechanism-choosing fork's exclusion option when a read's
+  returned text, or a cited source read whole, shows every reason supporting it false by
+  answer 2's test, at least one, and the remaining
+  option passes the pre-mortem rule's walk in `SKILL.md` of every motivating case and named
+  arm of the option as offered, at least one, the removal contradicting no recorded user
+  answer or constraint and adding or substituting no mechanism. Still make answer 2's
+  corrections and correct
+  the reasons a removal affects, saying in the question that the corrected text and each
+  removal were not re-checked, and disclose each item answer 1 would answer, and each
+  failure you find yourself after the cap, naming the motivating case or user answer it
+  bears on; answer the items of a check a new user answer required after the cap the same
+  way. The timing, claim-check, answer and cap rules bind each
   check before an approach question, a re-ask's included: the dispatch and your own check in
   its place. Each re-ask is a new approach question with its own cap. An item against a mechanism-choosing
   fork's exclusion option takes answer 3 alone, before and after the cap.

@@ -75,13 +75,18 @@ sides of its condition, each member of a "for every" range), walked with or with
 motivating case; with neither, there is no walk. Name the outcome each should have: the
 requested change for a motivating case or an arm the request changes, else the arm's
 correct current outcome. Read the case's input, what produces it and whether it reaches
-the subject, and its current outcome, then derive the candidate's outcome. A case passes
+the subject, and its current outcome, then derive the candidate's outcome, for text a
+model follows, from the clause of the candidate's text, changed or left as is, whose
+condition the case's input meets (its deciding clause, as
+`references/issue-template.md`'s Testing Strategy defines it). A case passes
 only when that is the outcome it should have and, for a motivating case, the read shows
 its current outcome wrong; anything else, a fact no read settles included, is a walk
 failure, never dropped as one the change cannot cause. The draft states each failure
 the chosen design keeps, walk failures included, labelled unverified where no read
 confirms it. Surface failures before the implementation-approach question where
 possible, while they can still change the design.
+
+**Audit preparation.** Before offering or dispatching an audit, finish the full current-draft review under `references/step-3-5-self-audit.md`, apply its confirmed findings, and verify the repairs and affected statements under `references/revision-delta.md`. Use your reads of the current draft and required sources, applied edits and completed verification to establish this; a tracker tick, disclosed gap or findings list does not establish it. For an unfinished or unestablished part, pause the audit route and name the reason, including unreadable required sources or instructions and a finding awaiting a user decision. Finish that work first; when it cannot finish before presentation, run no round, disclose the reason beside Step 4's audit summary line, and present. Review the inline body when the working-draft file never landed. A missing helper alone does not pause the route when the required review and verification can otherwise finish.
 
 ## Consumer skill extension (load first)
 
@@ -111,11 +116,11 @@ rules in `## Runner setup` below and read it with the runner's file-read tool �
 accepted only when the file's first line is its `start` boundary marker and its last line is the
 matching `end` marker, each naming that file's own path, with exactly one of each.
 
-A reader that returns a file in pages — a partial-view notice with an `offset`/`limit` continuation — has not damaged it: page forward until no continuation is offered or a page adds nothing new, then apply the marker rule to the assembled whole document, and breadcrumb the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice is the `truncated read` case below. Every load failure degrades, and no failure arm terminates the run. On an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an in-chat breadcrumb naming the file and the failure kind, then continue on that file's degraded behavior. The five non-degradable invariants stated below hold on every degraded arm.
+A reader that returns a file in pages — a partial-view notice with an `offset`/`limit` continuation — has not damaged it: page forward until no continuation is offered or a page adds nothing new, then apply the marker rule to the assembled whole document, and breadcrumb the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice is the `truncated read` case below. Subject to *Audit preparation*, every load failure takes its degraded behavior without ending the run: emit an in-chat breadcrumb naming the file and failure kind for an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read. The five non-degradable invariants stated below hold on every degraded arm.
 
 Each failed load's degraded behavior is in `references/degradation-routing.md`: load it (per the boundary-marker rule above) only when a reference load fails. A condition-triggered fallback loads from the path its call site names.
 
-If `references/degradation-routing.md` itself fails to load, its routing row is unavailable for the reference that needed it: proceed inline for that step, using the user story and the Step 1 findings, disclose the reduced coverage in chat, and do not terminate the run. The five non-degradable invariants below still hold.
+If `references/degradation-routing.md` itself fails to load, proceed inline for that step from the user story and Step 1 findings, subject to *Audit preparation*, and disclose the reduced coverage in chat. The five non-degradable invariants below still hold.
 
 ## Non-degradable invariants
 
@@ -164,6 +169,13 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 
 ### Step 1: Assess current state (read-only)
 
+Before Step 1's first write or dispatch, call EnterWorktree when `python3 -c "import os; print(os.environ.get('CLAUDE_JOB_DIR') or 'unset')"`
+prints a path (a Claude Code background session) and `git rev-parse --path-format=absolute --git-dir --git-common-dir`
+then prints just two lines, both the same path (the shared checkout). Any other result skips the call; unless python3 printed `unset`
+or git two different paths (a worktree), tell the user what the probe printed and that the run continues in this checkout without isolating. If EnterWorktree is unavailable or fails, report what
+it returned, skip every Step 1 write and delete, the story-file fetch included, and take
+`references/fallback-read-only-sandbox.md`'s Step 1 arm.
+
 Extract the topic from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
@@ -198,7 +210,7 @@ so, and each peer reads the issue itself.
 Dispatch two independent peers in parallel; when Step 1 is already on that sandbox arm, dispatch them as it says instead:
 
 - Discovery: a subagent holding a file-write tool (on Claude Code, `general-purpose`) running `/prflow:docs-verify --report-only --report-file .prflow/tmp/spec/<slug>/issue-step1-discovery-<slug>.md --lead docs <topic>` with the user story, retaining its whole-repository search and six-duty floor, and also measuring each file it reports against any size or count limit a guard holds that file to, and searching the history of the topic's text when a finding depends on it.
-- Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path, established user constraints/decisions (never agent-written advice, as the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` defines it; read it there if unloaded), the risk role file's absolute path as its report file, and the paths of files the session saved before Step 1 as a record of the reported failure (a downloaded job log, a failing run's output). Pass paths only, never file content or a conclusion drawn from a file; never pass the session's own transcript or this run's other `.prflow/tmp/spec/<slug>/` files, the story file excepted, as evidence. Supply no preferred design or other peer's conclusions.
+- Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path, established user constraints/decisions (never agent-written advice, as the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` defines it; read it there if unloaded), the risk role file's absolute path as its report file, and the paths, made absolute against the checkout the session started in, of files it saved before Step 1 as a record of the reported failure (a downloaded job log, a failing run's output). Pass paths only, never file content or a conclusion drawn from a file; never pass the session's own transcript or this run's other `.prflow/tmp/spec/<slug>/` files, the story file excepted, as evidence. Supply no preferred design or other peer's conclusions.
 
 Each peer writes its whole report to its role file with its file-write tool, never a shell
 redirect, and replies with the path; one that cannot write says so and replies with its whole
@@ -336,7 +348,7 @@ Load `references/step-3-5-self-audit.md` per the *Reference routing* rules above
 
 Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
-Before the first presentation of each draft whose working-draft file landed — the first draft, or a redraft for a different option at a Step 2 *Settled approach* re-ask — run that draft's first round after the draft checks, on every run, following `references/step-3-6-audit-dispatch.md`. A later change to the same draft runs a round only when the user elects one at Step 4.
+Before the first presentation of each draft whose working-draft file landed — the first draft, or a redraft for a different option at a Step 2 *Settled approach* re-ask — run that draft's first round after the draft checks and *Audit preparation*, following `references/step-3-6-audit-dispatch.md`. A later change to the same draft runs a round only when the user elects one at Step 4.
 
 ### Step 4: Review with the user, then create
 
