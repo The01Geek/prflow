@@ -115,8 +115,8 @@ Clear, descriptive, action-oriented, and scoped to one feature/fix (e.g., "Add P
 results"). If you are tempted to write "and" joining two features, the issue should have been split
 in Step 2 — ask the user to split first.
 
-Exception: if the scope-split decision is itself unresolved because the user disengaged (it is the
-first item in `## 🚫 Blocked`), a neutral multi-feature title is acceptable. Do not silently pick one
+Exception: if the scope-split decision is itself unresolved (it is the first item in
+`## 🚫 Blocked`), a neutral multi-feature title is acceptable. Do not silently pick one
 feature to satisfy the title rule.
 
 ### Dependencies (include only when a prerequisite is still open at drafting time)
@@ -394,7 +394,7 @@ governs the **Approach**, **Code Patterns**, and **Testing Strategy** bullets; t
   fact or deleting a useful starting point. The block admits file and function references only: a
   behavior decision, a library choice, or a mechanism fork written inside it is non-conforming —
   delete it when the ask-or-leave test leaves it to the implementer, otherwise resolve it with the
-  user, and on user disengagement it lands in `## 🚫 Blocked`, never as prose in this block. A file
+  user, and left unresolved it lands in `## 🚫 Blocked`, never as prose in this block. A file
   reference here cites the symbol or section, not a `file:line` anchor; a file holding sites a
   property criterion covers is named without them.
 - **Code Patterns** — patterns already used in this codebase to mirror.

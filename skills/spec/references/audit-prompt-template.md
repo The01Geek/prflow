@@ -1,3 +1,4 @@
+<!-- prflow:spec-ref step=audit-prompt-template file=skills/spec/references/audit-prompt-template.md start -->
 <!--
 SPDX-FileCopyrightText: 2026 Daniel Radman
 SPDX-License-Identifier: MIT
@@ -165,3 +166,4 @@ explanation:
 - `VERDICT: FILE` — no defect; notes alone do not require revision of a truthful, buildable issue.
 - `VERDICT: DRAFT-UNREADABLE` — you could not read the draft file; return no findings.
 <!-- render-block-end -->
+<!-- prflow:spec-ref step=audit-prompt-template file=skills/spec/references/audit-prompt-template.md end -->

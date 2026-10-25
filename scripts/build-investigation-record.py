@@ -13,14 +13,22 @@ config-get.sh resolves it. A withheld record is neither assembled nor posted.
 
 Then the assembly, rewriting <record-file> as: the marker line; the file's prior content (its
 first non-blank line removed when that line is the marker); then the derivation artifact's
-`Considered-and-rejected:` line (the first outside a code fence, else the first inside one). A
-leading BOM is dropped from both files. The trigger tokens `/prflow:`, `/devflow:` and `@claude`,
-in any letter case, are broken with U+200B. A record over 65,536 written UTF-8 bytes, a
-conservative bound on GitHub's 65,536-character comment limit, is oversize. Run it once per
-written bucket: a re-run appends the `Considered-and-rejected:` line again and posts a second
-comment. An empty --derivation argument reads no artifact (state `unestablished`). <record-file> is
-rewritten before the post is attempted, so a posted, gh-unavailable or post-failed outcome, or an
-internal error after that point, leaves it rewritten.
+`Considered-and-rejected:` line (the first outside a code fence, else the first inside one),
+posted from its prefix. Outside a fence the line may be indented with spaces or tabs and may start
+with one `-`, `*` or `+` marker and whitespace; inside one it starts at column 0; a line with other
+text before the prefix is never taken. A line taken outside a fence also takes each following line
+until the text so far, ignoring trailing whitespace and any closing brackets, quotes, `*` or `_`,
+ends in `.`, `!` or `?`, or the next line is blank, starts after any indent with ``` or ~~~, is a
+heading, a list item or another line taken outside a fence, or the file ends. An extended line is
+posted as one line, its pieces trimmed and joined with single spaces. When the derivation supplies
+a line, each prior-content line outside a fence that the outside-fence shape takes is dropped,
+that physical line only. A leading BOM is dropped from both files. The trigger tokens `/prflow:`,
+`/devflow:` and `@claude`, in any letter case, are broken with U+200B. A record over 65,536
+written UTF-8 bytes, a conservative bound on GitHub's 65,536-character comment limit, is oversize.
+Run it once per written bucket: a re-run posts a second comment. An empty --derivation argument
+reads no artifact (state `unestablished`). <record-file> is rewritten before the post is
+attempted, so a posted, gh-unavailable or post-failed outcome, or an internal error after that
+point, leaves it rewritten.
 
 Last the post: `gh api --method POST repos/{owner}/{repo}/issues/<n>/comments -F body=@<record-file>`,
 with gh resolved as DEVFLOW_GH, else `gh`.
@@ -83,6 +91,9 @@ OVERSIZE, RECORD_UNREADABLE, WRITE_FAILED, GH_UNAVAILABLE, POST_FAILED, USAGE, I
                    'internal-error'))
 _TRIGGER_RE = re.compile(r'(/(?=prflow:|devflow:)|@(?=claude))', re.IGNORECASE)
 _FENCE_RE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
+_SHAPE_RE = re.compile(r'[ \t]*(?:[-*+][ \t]+)?(?=' + re.escape(CONSIDERED) + ')')
+_SENTENCE_END_RE = re.compile('[.!?][)\\]}"\'’”*_]*$')
+_JOIN_STOP_RE = re.compile(r'[ \t]*(?:```|~~~|#{1,6}(?:[ \t]|$)|(?:[-*+]|[0-9]+[.)])[ \t])')
 
 
 def _cause(exc):
@@ -136,35 +147,57 @@ class _Fence:
         return self._open is not None
 
 
-def _scan(lines, as_text):
-    """One pass over the artifact, with the fence openers at the indexes in `as_text` read as text.
+def _fence_flags(lines, unclosed=lambda index: None):
+    """Return each line's in-fence flag, each opener that never closes read as text and passed to `unclosed`."""
+    as_text = set()
+    while True:
+        fence, flags, opened_at = _Fence(), [], None
+        for index, line in enumerate(lines):
+            was_open = fence.is_open
+            flags.append(index not in as_text and fence.feed(line))
+            if fence.is_open and not was_open:
+                opened_at = index
+        if not fence.is_open:
+            return flags
+        unclosed(opened_at)
+        as_text.add(opened_at)
 
-    Return (considered lines by in-fence flag, index of an unclosed opener or None).
-    """
-    considered = {}
-    fence = _Fence()
-    opened_at = None
-    for index, line in enumerate(lines):
-        was_open = fence.is_open
-        in_fence = index not in as_text and fence.feed(line)
-        if fence.is_open and not was_open:
-            opened_at = index
-        if _bare(line).startswith(CONSIDERED):
-            considered.setdefault(in_fence, line if line.endswith('\n') else line + '\n')
-    return considered, opened_at if fence.is_open else None
+
+def _start(line, in_fence):
+    """Return where a taken line's prefix starts, or None when the line is not taken."""
+    if in_fence:
+        return 0 if line.startswith(CONSIDERED) else None
+    m = _SHAPE_RE.match(line)
+    return m.end() if m else None
+
+
+def _join(lines, index, start, extend):
+    """Return the taken line at `index` from its prefix, extended by the join rule when `extend`."""
+    pieces = [lines[index][start:]]
+    for line in lines[index + 1:] if extend else ():
+        if (_SENTENCE_END_RE.search(pieces[-1].rstrip()) or not line.strip() or _JOIN_STOP_RE.match(_bare(line))
+                or _SHAPE_RE.match(line)):
+            break
+        pieces.append(line)
+    if len(pieces) == 1:
+        return pieces[0] if pieces[0].endswith('\n') else pieces[0] + '\n'
+    return ' '.join(piece.strip() for piece in pieces) + ('\r\n' if pieces[-1].endswith('\r\n') else '\n')
 
 
 def _parse(text):
     """Return the derivation artifact's considered line or None, naming each unclosed fence opener on stderr."""
     lines = _lines(text)
-    as_text = set()
-    while True:
-        considered, unclosed = _scan(lines, as_text)
-        if unclosed is None:
-            break
-        _warn(f'derivation line {unclosed + 1} opens a code fence that never closes; it is read as text')
-        as_text.add(unclosed)
-    return considered.get(False, considered.get(True))
+    flags = _fence_flags(lines, lambda index: _warn(
+        f'derivation line {index + 1} opens a code fence that never closes; it is read as text'))
+    taken = {}
+    for index, (line, in_fence) in enumerate(zip(lines, flags)):
+        start = _start(line, in_fence)
+        if start is not None:
+            taken.setdefault(in_fence, (index, start))
+    for in_fence in (False, True):
+        if in_fence in taken:
+            return _join(lines, *taken[in_fence], extend=not in_fence)
+    return None
 
 
 def _neutralize(text):
@@ -180,7 +213,6 @@ def build(record_path, derivation_path):
     first = next((i for i, line in enumerate(lines) if line.strip()), None)
     if first is not None and lines[first].strip() == MARKER:
         del lines[first]
-    prior = ''.join(lines)
 
     derivation = _read_text(derivation_path, 'derivation') if derivation_path else None  # '' is a planned skip.
     if derivation is None:
@@ -188,6 +220,9 @@ def build(record_path, derivation_path):
     else:
         considered = _parse(derivation.removeprefix('\ufeff'))
         state = 'present' if considered else 'absent'
+    if considered is not None:
+        lines = [line for line, in_fence in zip(lines, _fence_flags(lines)) if in_fence or _start(line, False) is None]
+    prior = ''.join(lines)
     if considered is None and not prior.strip():
         return EMPTY
 

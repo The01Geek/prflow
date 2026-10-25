@@ -11,7 +11,7 @@ Definition of Ready — every item below must have a single, decided answer befo
   criteria for completeness and correctness; clarify the delta and conflicts.
 - [ ] **Problem & beneficiary** — who hits this pain and why it matters. (Not "users want export" — *which* users, doing *what*, blocked *how*.)
 - [ ] **Single coherent scope** — the issue is exactly one feature/fix. If the story bundles two or more ("export results *and* notify when ready"), ask the user whether to split; default to one issue per feature. Also ask when one feature's change spans several parts that could each ship alone as a useful PR, each with its own entry point or arm and its own criteria; default to one issue per part. On a non-interactive run, this case keeps one issue and records the recommended split in the investigation record.
-- [ ] **One decided behavior per fork** — every fork in the story the ask-or-leave test does not leave to the implementer has *one* chosen answer. Before drafting or revising, compare scope with the captured request and scope answers in this run's derivation artifact (or its inline fallback); record there each user scope answer with the reason the question stated, a re-asked question's answer replacing it, and each constraint the user states, which counts as a user answer. Excluding a requested case requires explicit agreement; reuse a prior answer covering it and retain the case on refusal. Ask with the case, behavior left unresolved and known tracking status. Challenge or audit advice, tracking links and general filing approval supply no agreement. A missing, malformed, unreadable or unproduced request or recorded answer supplies none either. Unresolved exclusions follow this step's clarification, silence and disengagement routes; a non-interactive run records the scope question in `## 🚫 Blocked`. Removing explanation while retaining requested behavior is not an exclusion. Apply `references/issue-template.md`'s `Related work: #N` bullet to agreed exclusions; agreement to exclude authorizes no follow-up issue creation.
+- [ ] **One decided behavior per fork** — every fork in the story the ask-or-leave test does not leave to the implementer has *one* chosen answer. Before drafting or revising, compare scope with the captured request and scope answers in this run's derivation artifact (or its inline fallback); record there each user scope answer with the reason the question stated, a re-asked question's answer replacing it, and each constraint the user states, which counts as a user answer. Excluding a requested case requires explicit agreement; reuse a prior answer covering it and retain the case on refusal. Ask with the case, behavior left unresolved and known tracking status. Challenge or audit advice, tracking links and general filing approval supply no agreement. A missing, malformed, unreadable or unproduced request or recorded answer supplies none either. Unresolved exclusions follow this step's clarification and silence routes; a non-interactive run records the scope question in `## 🚫 Blocked`. Removing explanation while retaining requested behavior is not an exclusion. Apply `references/issue-template.md`'s `Related work: #N` bullet to agreed exclusions; agreement to exclude authorizes no follow-up issue creation.
 - [ ] **Solution-space expansion before convergence.** Before the implementation-approach
   question, derive alternatives from the checked behavior or failure path and the existing
   owner of its rule or value. When
@@ -345,8 +345,7 @@ How to ask:
 
   Evidence showing false, or leaving unclear, the reason recorded with a scope answer
   asks that scope question again before any edit for that evidence, stating the corrected
-  reason. The exemptions this step gives a *Settled approach* re-ask do not cover this re-ask:
-  it takes this step's clarification routes, a non-interactive run recording it in
+  reason. It takes this step's clarification routes, a non-interactive run recording it in
   `## 🚫 Blocked`.
   An answer recorded with no reason, or with the corrected reason after such a re-ask,
   triggers none.
@@ -370,9 +369,8 @@ How to ask:
   requested outcome a change within the option delivers, and any other defect fixable within
   it, unless the fix would decide a choice the Revision rule in `references/revision-delta.md`
   sends to the user. An approach re-ask refreshes the affected bundle entries, runs
-  *Option check* and states the corrected fact in the question. Ask it even after "just
-  create it" and with the question budget spent; its reply takes the usual routes, a delegated
-  reply's research and second ask included, none counting toward the budget.
+  *Option check* and states the corrected fact in the question. Its reply takes the usual
+  routes, a delegated reply's research and second ask included.
 
   From the rule firing until the approach re-ask ends, the pick is unconfirmed. A reply
   keeping the chosen mechanism and changing only a component or sub-choice within it is the
@@ -398,8 +396,8 @@ How to ask:
   revision fork — ask it as the implementation-approach question again (a fork re-ask), each
   option the chosen approach plus one of the fork's choices, its check's passed-over candidates
   being only the fork's own choices. Its passed-over choices, and any rejection reason its check
-  corrects or states as not established, are disclosed only in the fork question. A fork first
-  reached after disengagement or with the budget spent goes to `## 🚫 Blocked`. A reply keeping the chosen approach with one of the fork's choices is the same
+  corrects or states as not established, are disclosed only in the fork question. A reply
+  keeping the chosen approach with one of the fork's choices is the same
   option, and drafting or revising continues as usual; with no option chosen, keep the current
   design and record the fork in `## 🚫 Blocked`; a delegating or unclear reply takes *Delegated
   replies*' routes first, as a first reply; a reply rejecting the chosen approach for another, or a clear one you
@@ -412,25 +410,19 @@ How to ask:
   answered or made irrelevant, reconsider affected prerequisites, and ask the next ready
   questions. Preserve unrelated settled decisions; continue until readiness is satisfied.
 - **Silence.** A question-tool timeout, `No response after 60s`, or the user stepping away
-  is no reply and never counts toward the budget. Pause and re-ask in the final chat
+  is no reply. Pause and re-ask in the final chat
   message; do not proceed, draft, guess or record Blocked.
-- Cap clarification at ~18 answered questions, independent of batching. Classify each
-  reply and record any decision it settles before checking the budget; each reply counts
-  as one answered question, except a reply to a *Settled approach* re-ask or to a question
-  its reply routes ask. At the limit, send every still-open item to disengagement, with no
-  research helper or re-ask other than that re-ask and its reply routes.
 
 **Delegated replies (interactive runs).** Apply these routes to questions asked through
-this step's clarification routes, whichever step asks them, including the disengagement
-pushback. Continue other open questions under *How to ask*.
+this step's clarification routes, whichever step asks them. Continue other open questions
+under *How to ask*.
 
 - **Recognize.** A reply delegates when it leaves the choice to the run because the user
   cannot or will not choose: for example, "you decide", "your call", "I don't know" or
   "not sure". Answer a question back and re-ask; on rejection of the offered options,
   rethink them and ask again. An unclear first reply takes the delegation route. An
   unclear reply to a re-asked question gets one more re-ask without a new helper; another
-  unclear reply puts the item in `## 🚫 Blocked`. Thus an intended "stop asking" may cost
-  a research pass and a re-ask; "just create it" takes disengagement directly.
+  unclear reply puts the item in `## 🚫 Blocked`.
 - **User-only fact.** When the answer depends on the user's plans, customers, deadlines
   or business constraints that repository or public sources cannot establish, put the
   item in `## 🚫 Blocked` without a helper or re-ask. This includes choices depending on
@@ -472,19 +464,5 @@ pushback. Continue other open questions under *How to ask*.
   pick. Existing re-ask triggers still apply; delegation after such a re-ask starts at
   the first-delegation route again. A delegation settles only its own question, never
   draft approval, exclusion of a requested case, or a later question.
-
-**Disengagement.** Its two entries are "just create it" and a budget exhausted by explicit
-answers with facts still missing.
-
-Push back once when disengagement leaves the issue unbuildable: no decided scope or the
-core behavior fork still open. Say the issue would be filed blocked and ask through the
-runner's user-question tool whether it is one feature or several and its defining behavior. Route that reply as above; an answer
-continues clarification and a second explicit disengagement proceeds below. Peripheral
-forks go to Blocked without this pushback.
-
-On disengagement, stop asking, except a *Settled approach* re-ask and its reply routes,
-and draft from what is decided. Put each unresolved
-Definition-of-Ready item in `## 🚫 Blocked — resolve before implementation` as a direct
-question with one line explaining why it blocks work, following the template.
 
 <!-- prflow:spec-ref step=2 file=skills/spec/references/step-2-clarify.md end -->
