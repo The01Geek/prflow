@@ -140,7 +140,7 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
      which the drafter states: inside this issue's scope, an implementer-obligation AC naming adding
      the capability as new work (stating the build, not implying a confirmation); outside scope,
      re-derive the mechanism under item 5. For that unresolved scope question, these dispositions
-     override the ask-or-leave test: ask through Step 2's clarification routes; on disengagement or
+     override the ask-or-leave test: ask through Step 2's clarification routes; on
      a non-interactive run, record the question with its one-line reason in `## 🚫 Blocked`, even
      when the underlying choice is routine implementer judgment. An absent determination never
      expands the issue's scope without that expansion being written down.

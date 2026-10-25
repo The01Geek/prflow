@@ -92,7 +92,7 @@ rows use, a heuristic's rule and failure direction, and the mechanism still prov
 outcome. An unreached unchanged class the request names
 is still covered by a preservation under **omit/merge/add**. Where the change lets evidence excuse a case
 from a rule or loosen, skip or demote its outcome, the mapping names that evidence and a class per
-state: for model-read prose, each state the template routes for an agent-read value; else exactly
+state: for model-read prose, each state the template routes for an agent-policy criterion's value; else exactly
 four, complete by construction: missing; malformed or wrong-type; produced by a step that did not
 run; unreadable. Each such class keeps its before outcome unless the request names that state; a
 created rule's mapping states each outcome. Each before cell of an existing rule's row whose

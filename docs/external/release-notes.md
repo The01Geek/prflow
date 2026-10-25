@@ -11,6 +11,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## October 25, 2026
+
+- **`/prflow:spec` can fall back to reading its audit-prompt template directly.** The template now carries the boundary markers the reference load rule requires. (#3178)
+
 ## October 24, 2026
 
 - **Spec states each motivating case's expected result as what the changed instructions decide for it.** For a change to instructions a model follows, the issue names the deciding instruction, can disqualify a case the changed instructions do not decide as the change requires, and says whether a replayed case needs its original run's context. (#3071)
@@ -25,6 +29,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 - **`/prflow:spec` can apply an audit suggestion that deletes text or moves it to the investigation record.** The approval question counts each applied one among the corrections. (#3020)
 - **`/prflow:spec` re-reads each `Blocked by` prerequisite issue before asking you to file.** It compares the issue's title, body, and open or closed state and close reason with what the design used, and revisits the design before presenting when a change affects it. (#2908)
 - **When an issue `/prflow:spec` drafts asks the implementing run to replay or test with a recorded input spec read, such as a retained payload or transcript, it quotes that input's deciding fields.** The quote is JSON-encoded; a long input is quoted near the failure and cited for the rest. (#2317)
+- **`/prflow:challenge` judges a change against the user's goal and challenges its linked issue as part of the proposal.** It challenges what the change actually alters first, checks whether anyone relies on behavior the change removes or suppresses, and asks the user when a fact only they hold could change the verdict. (#3218)
+- **The `/prflow:spec` investigation record can now post a bulleted, indented or wrapped rejected-candidates line whole.** (#3114)
+- **`/prflow:spec` offers to trigger `/prflow:implement` only when `workflows.prflow` is set to `true`.** A list value such as `["true"]` is now treated as unset, so the offer stays off. (#3180)
+- **`/prflow:spec` has no clarification question limit.** Replying "just create it" no longer stops the remaining questions. (#3143)
 
 ## October 23, 2026
 

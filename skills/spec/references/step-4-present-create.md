@@ -12,8 +12,8 @@ filing-decision question and its one-question follow-ups. Re-ask that question o
 sub-step 5 begins.
 
 **An interactive run creates only after the user explicitly approves the presented draft at 3a.**
-Step 2's resolved decisions, an earlier "just create it" / "you decide", the rough user story,
-and disengagement are not approval of that draft. Without confirmation, pause at todo 6.
+Step 2's resolved decisions, an earlier "just create it" / "you decide" and the rough user
+story are not approval of that draft. Without confirmation, pause at todo 6.
 A non-interactive run uses 3a's election rule below; every run presents before filing.
 
 1. **Present the draft — the working-draft file's path by default, body in chat only on request.** The working-draft
@@ -126,7 +126,7 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    the draft has no `## Dependencies` section with a `Blocked by #N` line and no `## 🚫 Blocked` section; (b) this read
    prints exactly `true`:
    ```bash
-   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .workflows.prflow false
+   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh --scalar .workflows.prflow false
    ```
    A denied or failed read establishes no tier, whatever it printed; attempt no other config reader. When the gate
    withholds the prompt, the preview content carries a one-line reason naming the exact failed
