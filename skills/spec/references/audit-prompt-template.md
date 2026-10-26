@@ -147,7 +147,13 @@ the walk.
 <!-- render-block: file inline -->
 **Findings.** Report only what clears this bar: the exact draft text attacked, the concrete case
 (input and state) in which it fails and the wrong outcome — for a false statement, the fact your
-read shows instead — and the read that shows it (path and what it says). Grade each `defect` — a correctness, safety, implementability, unresolved-decision or
+read shows instead — and the read that shows it (path and what it says). Output is cut short when
+stopped before the full result — at minimum by your own command, a tool's result limit or a
+saved-output preview; a cap the result never reached cuts nothing — or when you cannot tell it is
+whole. A finding resting on the part not shown clears this bar only once you read that part uncut,
+or, for a claim that nothing else matches or that a list of matching lines is complete, a
+matching-line count from the same search with nothing cut (no cap, filter or preview) equals the
+lines you saw. Grade each `defect` — a correctness, safety, implementability, unresolved-decision or
 load-bearing-premise failure, correctness including a concrete failure to deliver the stated
 outcome within the decided scope and accepted limits, a factual statement your read contradicts
 even when the design does not rest on it, and demanded behavior your reads show incompatible with a

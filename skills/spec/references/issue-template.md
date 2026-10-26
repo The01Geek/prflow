@@ -66,7 +66,13 @@ it as a change the issue makes.
 
 **One-home rule.** A rule or term definition has one home: the section or named rule where the tree
 states it, in the site's file or another, or, for one the change creates or amends, the place the
-change puts it. A citation names that section or rule, and its file too when that differs from the
+change puts it. Before homing a term the change creates or amends, search each existing file the
+issue names for the term as the draft writes it, matching across line breaks: a hit whose
+surrounding text gives the term another sense makes it a term the change amends, placed and stated
+by this rule's other sentences, unless the draft uses a different word; with no such hit, the rule
+applies unchanged. Name in chat as unchecked each such file the run cannot search or read, or whose
+search output is cut short.
+A citation names that section or rule, and its file too when that differs from the
 site's (for example "as `references/step-2-clarify.md`'s *Option check* defines it"). When the tree
 states the rule in more than one place, Desired Behavior names the one place the issue treats as
 the home, and every citation uses it. A rule or definition the change creates is stated in the

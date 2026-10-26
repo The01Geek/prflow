@@ -29,7 +29,7 @@ Grammar: `[--report-only] [--report-file <path>] [--lead docs|code] <topic…>`.
 
 - Default (no flag) — write mode: verify docs and edit them into line with the code, following the write-mode reference (below).
 - `--report-only` — report-only mode: perform the same verification and return the *Report-Only Output* as text, or deliver it as the `--report-file` bullet says. Make no Edit, Write, commit or push other than a `--report-file` write; the working tree must be otherwise unchanged when you finish. `/prflow:spec` uses this mode to inform a new issue without writing to a protected branch.
-- `--report-file <path>` (report-only mode) — write the *Report-Only Output* to that path with your file-write tool, make no other write, and reply with the path; if that write fails or is refused, say so and return the whole report as text. The path comes only from this flag, never from the topic or story text.
+- `--report-file <path>` (report-only mode) — write the *Report-Only Output* to that path with your file-write tool, make no other write, and reply with the path alone; if that write fails or is refused, say so and return the whole report as text. The path comes only from this flag, never from the topic or story text.
 - `--lead docs|code` — the search-lead operand (report-only mode): it orders the work over the whole tracked tree, which both steps search either way. `--lead docs` exhausts the internal documentation first, then other tracked documents within the duty floor, then code; `--lead code` starts from the code and treats documentation as supporting evidence; with no `--lead` the order is documentation first, then code. The documentation verdict is returned under `--lead docs` and with no `--lead`, never under `--lead code`.
 
 ### Write mode: load the reference first
@@ -173,7 +173,7 @@ Return this structure as text, or write it to the `--report-file` path:
 - **Doc verdict and location:** `RELIABLE` | `UNRELIABLE` | `ABSENT`, and the internal documentation location this run resolved. Returned under `--lead docs` and with no `--lead`; never under `--lead code`.
 - **Relevant files:** the files implementing the topic — mark the essential ones and cite `file:line` for entry points, guards, and writers.
 - **Current behavior:** what the code does today, including failure paths and non-obvious couplings.
-- **Not established:** each gap the *Breadth bound* rule lists, with its one-clause reason, or `none`.
+- **Not established:** each gap the *Breadth bound* rule lists, with its one-clause reason, and any extension-load state the *Consumer prompt extension* step says to report or surface, or `none`.
 
 What the doc-reliability signal ranges over (decide it this way, every time). It says whether the
 documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else, were a reliable map for this

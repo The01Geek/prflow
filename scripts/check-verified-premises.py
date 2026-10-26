@@ -93,8 +93,16 @@ _MARKER = re.compile(
 _BACKTICKED = re.compile(r'`([^`\n]+)`')
 
 # A double-quoted sentence (ASCII or typographic). Single quotes are excluded:
-# they appear in shell commands far more than as premise delimiters.
-_QUOTED = re.compile(r'["“]([^"“”]{8,})["”]')
+# they appear in shell commands far more than as premise delimiters. A quote
+# preceded by a backslash neither opens nor closes one.
+_QUOTED = re.compile(r'(?<!\\)["“]((?:\\"|[^"“”]){8,})(?<!\\)["”]')
+
+# The same with each backslash literal, except that a quote mark after a
+# backslash still never opens a quotation.
+_QUOTED_LITERAL = re.compile(r'(?<!\\)["“]([^"“”]{8,})["”]')
+
+_ESCAPED_QUOTE = '\\"'
+_UNESCAPE_NOTE = '; resolved only with \\" unescaped to ": '
 
 # Per-fragment floor for an elided quotation, so short words match nothing.
 _MIN_FRAGMENT = 8
@@ -108,6 +116,7 @@ _QUOTE_RULE = (
     'plain text (a matching pair of ASCII " or typographic “ ” enclosing at least '
     'eight characters); a backtick span inside the quotation is part of the quoted '
     'sentence, and a double-quote inside such a span neither opens nor closes it, '
+    'nor does a backslash-escaped \\", '
     'or — in a bullet that cites a repository path and no double-quoted sentence — '
     'a backticked literal of at least eight characters that is not path-shaped')
 
@@ -183,6 +192,21 @@ def normalize(text: str) -> str:
 
 
 _TERMINAL_PUNCT = '.:;,!?'
+
+_RUN_MARK = '\x01'
+_RUN_END = '\x02'
+
+# Do not loosen the lookbehind (a word character other than a standalone `_`):
+# a run starting inside a long punctuation or ` _` run makes the pattern
+# quadratic.
+_LINE_BREAK_RUN = re.compile(
+    r'(?<=\w)(?<!(?<!\w)_)([' + re.escape(_TERMINAL_PUNCT) + r']?)'
+    r'(?:[^\w\n]|(?<!\w)_(?!\w))*\n'
+    r'[^\w\n]*')
+
+_GLUED_PREFIX = '(?:[A-Za-z]{1,2}["\'])?'
+
+_QUOTE_JOIN = re.compile(r'[^\w ]*(?: [^\w ]*)+')
 
 
 def _find_fragment(haystack: str, fragment: str, cursor: int, last: bool) -> int:
@@ -276,6 +300,26 @@ def parse_bullets(body: str) -> list:
             for rest in (body[m.end():] for m in _MARKER.finditer(body))]
 
 
+def _quotations(span: str, pattern: re.Pattern) -> tuple:
+    """`(quotes, ranges)` that `pattern` delimits in `span`."""
+    # Same-length mask keeps match offsets aligned, so a backtick span inside a
+    # quotation stays quoted (#326).
+    masked = _BACKTICKED.sub(lambda m: '\x00' * (m.end() - m.start()), span)
+    quotes, ranges = [], []
+    for m in pattern.finditer(masked):
+        raw = span[m.start(1):m.end(1)]
+        # A quotation that is exactly one backtick span opens no quotation.
+        if _BACKTICKED.fullmatch(raw.strip()):
+            continue
+        # A backtick- or `\"`-bearing quotation under the normalized floor is dropped.
+        if (('`' in raw or _ESCAPED_QUOTE in raw) and len(normalize(
+                raw.replace(_ESCAPED_QUOTE, '"'))) < _MIN_CODE_LITERAL):
+            continue
+        quotes.append(raw)
+        ranges.append((m.start(1), m.end(1)))
+    return quotes, ranges
+
+
 def classify(span: str) -> tuple:
     """Return `(handle, paths, quotes, code_literals)` for one bullet span.
 
@@ -283,20 +327,7 @@ def classify(span: str) -> tuple:
     of at least `_MIN_CODE_LITERAL` chars; kept apart from `quotes` because
     `recheck` grades them only when the bullet quotes no sentence.
     """
-    # Same-length mask keeps match offsets aligned, so a backtick span inside a
-    # quotation stays quoted (#326).
-    masked = _BACKTICKED.sub(lambda m: '\x00' * (m.end() - m.start()), span)
-    quotes, quote_ranges = [], []
-    for m in _QUOTED.finditer(masked):
-        raw = span[m.start(1):m.end(1)]
-        # A quotation that is exactly one backtick span opens no quotation.
-        if _BACKTICKED.fullmatch(raw.strip()):
-            continue
-        # A backtick-bearing quotation under the normalized floor is dropped.
-        if '`' in raw and len(normalize(raw)) < _MIN_CODE_LITERAL:
-            continue
-        quotes.append(raw)
-        quote_ranges.append((m.start(1), m.end(1)))
+    quotes, quote_ranges = _quotations(span, _QUOTED)
 
     paths, commands, code_literals = [], [], []
     for m in _BACKTICKED.finditer(span):
@@ -335,12 +366,13 @@ def _with_absent(detail: str, absent: list) -> str:
 
 
 def _read_cited(paths: list, root: Path) -> tuple:
-    """Read each cited path's normalized text. Returns `(readable, skipped, unread)`.
+    """Read each cited path. Returns `(readable, sources, skipped, unread)`:
+    `readable` maps a path to its normalized text, `sources` to its raw text.
 
     A directory is collected, not returned early, so the verdict never depends
     on citation order.
     """
-    readable, skipped, unread = {}, [], []
+    readable, sources, skipped, unread = {}, {}, [], []
     for cited in paths:
         rel = cited.bare
         target = root / rel
@@ -348,11 +380,85 @@ def _read_cited(paths: list, root: Path) -> tuple:
             skipped.append(f'{rel} (directory)')
             continue
         try:
-            readable[rel] = normalize(target.read_text(
-                encoding='utf-8', errors='replace'))
+            sources[rel] = target.read_text(encoding='utf-8', errors='replace')
         except OSError as exc:
             unread.append(f'{rel} (unreadable: {exc})')
-    return readable, skipped, unread
+            continue
+        readable[rel] = normalize(sources[rel])
+    return readable, sources, skipped, unread
+
+
+def _fragments(quote: str) -> list:
+    """A quotation's normalized, non-empty elision fragments."""
+    return [f for f in (normalize(part) for part in _ELISION.split(quote)) if f]
+
+
+def _short_elided(fragments: list, elided: bool) -> bool:
+    """True when an elided quotation has a fragment under `_MIN_FRAGMENT`."""
+    return elided and any(len(f) < _MIN_FRAGMENT for f in fragments)
+
+
+def _fragments_resolve(fragments: list, readable: dict) -> bool:
+    """True when the fragments occur in order, non-overlapping, in one file."""
+    for haystack in readable.values():
+        cursor = 0
+        for index, fragment in enumerate(fragments):
+            found = _find_fragment(haystack, fragment, cursor,
+                                   index == len(fragments) - 1)
+            if found == -1:
+                break
+            cursor = found + len(fragment)
+        else:
+            return True
+    return False
+
+
+def _quote_resolves(quote: str, readable: dict) -> bool:
+    """True when `quote` resolves verbatim, as `recheck` grades a hit."""
+    fragments = _fragments(quote)
+    return (bool(fragments)
+            and not _short_elided(fragments, _ELISION.search(quote) is not None)
+            and _fragments_resolve(fragments, readable))
+
+
+def _line_break_view(text: str) -> str:
+    """Normalized `text` with each line-break run, but its kept
+    `_TERMINAL_PUNCT` character, replaced by its non-space characters between
+    `_RUN_MARK` and `_RUN_END`."""
+    return normalize(_LINE_BREAK_RUN.sub(
+        lambda m: (m.group(1) + _RUN_MARK + ''.join(m.group(0)[len(m.group(1)):].split())
+                   + _RUN_END), text))
+
+
+def _line_break_resolves(quote: str, views: list) -> bool:
+    """True when `quote` occurs in a line-break view, each `_QUOTE_JOIN` in it
+    matching itself or a run and any `_GLUED_PREFIX` after it. A run matches a
+    join whose characters other than spaces, `"` and `\\` it all carries, so a
+    quotation writing other characters at the break (`>` against `<`) misses;
+    a join's leading `_TERMINAL_PUNCT` character must precede the run.
+
+    Mirrors `_find_fragment`'s terminal-punctuation and word-boundary rules.
+    """
+    fragment = normalize(quote)
+    core = fragment.rstrip(_TERMINAL_PUNCT) or fragment
+    pieces = _QUOTE_JOIN.split(core)
+
+    def run(join: str) -> str:
+        kept = join[0] if join[0] in _TERMINAL_PUNCT else ''
+        carried = dict.fromkeys(c for c in join[len(kept):] if c not in ' "\\')
+        # One lookahead per distinct character keeps a miss linear; an ordered
+        # gap per character backtracks exponentially over a long run.
+        return (re.escape(kept + _RUN_MARK)
+                + ''.join(f'(?=[^{_RUN_END}]*{re.escape(c)})' for c in carried)
+                + f'[^{_RUN_END}]*' + re.escape(_RUN_END) + _GLUED_PREFIX)
+
+    pattern = re.escape(pieces[0]) + ''.join(
+        f'(?:{re.escape(join)}|{run(join)}){re.escape(piece)}'
+        for join, piece in zip(_QUOTE_JOIN.findall(core), pieces[1:]))
+    if core != fragment:
+        pattern += r'(?![^\W_])'
+    compiled = re.compile(pattern)
+    return any(compiled.search(view) for view in views)
 
 
 def _literal_resolves(literal: str, readable: dict) -> bool:
@@ -405,7 +511,7 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
             're-derive the premise from (' + _QUOTE_RULE + '): '
             + ','.join(p.bare for p in paths), disclosed_absent)
 
-    readable, skipped, unread = _read_cited(paths, root)
+    readable, sources, skipped, unread = _read_cited(paths, root)
 
     if unread:
         # An unopenable citation was never adjudicated, so it cannot refute.
@@ -426,20 +532,20 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
         for lit in code_literals:
             if _literal_resolves(lit, readable):
                 continue
-            if '\\"' in lit and _literal_resolves(lit.replace('\\"', '"'), readable):
+            if _ESCAPED_QUOTE in lit and _literal_resolves(
+                    lit.replace(_ESCAPED_QUOTE, '"'), readable):
                 unescaped.append(lit)
             else:
                 missed.append(lit)
         skip_note = ('; not adjudicated: ' + ','.join(skipped)) if skipped else ''
         if unescaped:
-            skip_note += ('; resolved only with \\" unescaped to ": '
-                          + ' | '.join(unescaped))
+            skip_note += _UNESCAPE_NOTE + ' | '.join(unescaped)
         if not missed:
             if located:
                 return 'unestablished', _with_absent(
                     'a backticked literal resolves, but the bullet cites a '
                     'location inside the file that was not adjudicated: '
-                    + ','.join(located), disclosed_absent)
+                    + ','.join(located) + skip_note, disclosed_absent)
             return 'holds', _with_absent(
                 'every backticked literal resolves in ' + ','.join(readable)
                 + skip_note, disclosed_absent)
@@ -450,50 +556,61 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
             disclosed_absent)
 
     unresolved, elided_unresolved, unadjudicable = [], [], []
+    unescaped, line_broken, views = [], [], None
     for quote in quotes:
         elided = _ELISION.search(quote) is not None
-        fragments = [f for f in (normalize(part)
-                                 for part in _ELISION.split(quote)) if f]
+        fragments = _fragments(quote)
         if not fragments:
             # Only emphasis and whitespace: nothing to search, so it decides
             # nothing (else a present path alone would mint `holds`).
             unadjudicable.append(quote)
             continue
-        if elided and any(len(f) < _MIN_FRAGMENT for f in fragments):
+        if _short_elided(fragments, elided):
             # A short elided fragment matches almost any file: a false `holds`.
             elided_unresolved.append(quote)
             continue
-        # Fragments must occur in order, non-overlapping, in one file.
-        resolved = False
-        for haystack in readable.values():
-            cursor, ok = 0, True
-            for index, fragment in enumerate(fragments):
-                found = _find_fragment(haystack, fragment, cursor,
-                                       index == len(fragments) - 1)
-                if found == -1:
-                    ok = False
-                    break
-                cursor = found + len(fragment)
-            if ok:
-                resolved = True
-                break
-        if resolved:
+        if _fragments_resolve(fragments, readable):
             continue
+        plain = quote.replace(_ESCAPED_QUOTE, '"')
+        if plain != quote:
+            # Verbatim first, so a source that really holds `\"` needs no note.
+            fragments = _fragments(plain)
+            if (fragments and not _short_elided(fragments, elided)
+                    and _fragments_resolve(fragments, readable)):
+                unescaped.append(quote)
+                continue
+        if not elided:
+            # Never `holds`: a run can hide a character the quotation omits.
+            if views is None:
+                views = [_line_break_view(text) for text in sources.values()]
+            if any(_line_break_resolves(form, views)
+                   for form in dict.fromkeys((quote, plain))):
+                line_broken.append(quote)
+                continue
         # An elided quotation is not verbatim, so its miss never refutes.
         (elided_unresolved if elided else unresolved).append(quote)
 
-    if not unresolved and not elided_unresolved and not unadjudicable:
+    notes = ('; not adjudicated: ' + ','.join(skipped)) if skipped else ''
+    if unescaped:
+        notes += _UNESCAPE_NOTE + ' | '.join(unescaped)
+
+    if not (unresolved or elided_unresolved or unadjudicable or line_broken):
         if located:
-            return 'unestablished', (
+            return 'unestablished', _with_absent(
                 'quoted sentence(s) resolve, but the bullet cites a location '
-                'inside the file that was not adjudicated: ' + ','.join(located))
-        detail = 'every quoted sentence resolves in ' + ','.join(readable)
-        if skipped:
-            detail += '; not adjudicated: ' + ','.join(skipped)
-        return 'holds', _with_absent(detail, disclosed_absent)
+                'inside the file that was not adjudicated: ' + ','.join(located)
+                + notes, disclosed_absent)
+        return 'holds', _with_absent(
+            'every quoted sentence resolves in ' + ','.join(readable) + notes,
+            disclosed_absent)
 
     if not unresolved:
         reasons = []
+        if line_broken:
+            reasons.append(
+                'a quotation occurs only across a line break carrying source '
+                'syntax, which can hide characters the quotation omits: '
+                + ' | '.join(line_broken))
         if elided_unresolved:
             reasons.append(
                 'an ELIDED quotation did not resolve as a whole; an elided '
@@ -504,8 +621,16 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
                 'a quotation carried no adjudicable text once markdown '
                 'emphasis and whitespace were normalized away, so it was '
                 'never searched for: ' + ' | '.join(unadjudicable))
-        return 'unestablished', '; '.join(reasons)
+        if located:
+            reasons.append('the bullet cites a location inside the file that '
+                           'was not adjudicated: ' + ','.join(located))
+        return 'unestablished', _with_absent('; '.join(reasons) + notes,
+                                             disclosed_absent)
 
+    if line_broken:
+        notes = ('; occurs only across a line break: ' + ' | '.join(line_broken)
+                 + notes)
+    notes = _with_absent(notes, disclosed_absent)
     # Only a strong path that was actually read can license a refutation; a
     # skipped directory adjudicated nothing.
     adjudicated_strong = [p.bare for p in paths
@@ -513,34 +638,47 @@ def recheck(handle: str, paths: list, quotes: list, code_literals: list,
     # Extra double-quote delimiters (outside backtick spans) mean a quotation
     # could not be delimited whole, so a miss refuses rather than refutes (#1866).
     stripped = _BACKTICKED.sub(' ', span)
-    quote_delims = sum(stripped.count(ch) for ch in ('"', '“', '”'))
-    truncated_quote = quote_delims > 2 * len(quotes)
+    quote_marks = sum(stripped.count(ch) for ch in ('"', '“', '”'))
+    truncated_quote = quote_marks - stripped.count(_ESCAPED_QUOTE) > 2 * len(quotes)
     if adjudicated_strong and truncated_quote:
         return 'unestablished', (
             'a quoted premise could not be delimited whole — the span carries a '
             'double-quote character inside the quotation, so the match is a '
             'fragment, not the premise (' + _QUOTE_RULE + '): '
-            + ' | '.join(unresolved))
+            + ' | '.join(unresolved) + notes)
+    # A sentence ending in a literal backslash reads as an escape and runs on to
+    # the next quotation, so re-read with each backslash literal. Only a re-read
+    # that pairs every quote mark, so it skips no stale quotation, and resolves
+    # every quotation spares the bullet a refutation.
+    literal = (_quotations(span, _QUOTED_LITERAL)[0]
+               if adjudicated_strong and _ESCAPED_QUOTE in stripped else [])
+    if 2 * len(literal) != quote_marks:
+        literal = []
+    literal_missed = [q for q in literal if not _quote_resolves(q, readable)]
+    if literal and not literal_missed:
+        return 'unestablished', (
+            'a quotation resolves only with each \\" before a closing quote read '
+            'as a literal backslash, so the escape is ambiguous: '
+            + ' | '.join(literal) + notes)
+    if literal_missed:
+        notes = ('; read with each backslash literal, still missing: '
+                 + ' | '.join(literal_missed) + notes)
     if adjudicated_strong:
         detail = ('quoted sentence no longer occurs in ' + ','.join(readable)
                   + ': ' + ' | '.join(unresolved))
         if unadjudicable:
             detail += ('; not adjudicated (no searchable text): '
                        + ' | '.join(unadjudicable))
-        if skipped:
-            detail += '; not adjudicated: ' + ','.join(skipped)
-        return 'refuted', _with_absent(detail, disclosed_absent)
+        return 'refuted', detail + notes
     if any(p.strength == 'strong' for p in paths):
         # A strong path was cited but none was searchable.
-        detail = ('quoted sentence does not occur in ' + ','.join(readable)
-                  + ', and no strong cited path was searchable, so the miss is '
-                    'not evidence of a stale premise: ' + ' | '.join(unresolved))
-        if skipped:
-            detail += '; not adjudicated: ' + ','.join(skipped)
-        return 'unestablished', detail
+        return 'unestablished', (
+            'quoted sentence does not occur in ' + ','.join(readable)
+            + ', and no strong cited path was searchable, so the miss is '
+              'not evidence of a stale premise: ' + ' | '.join(unresolved) + notes)
     return 'unestablished', (
         'quoted sentence does not occur in the cited span(s), none of which is '
-        'a strong path claim: ' + ','.join(readable))
+        'a strong path claim: ' + ','.join(readable) + notes)
 
 
 def _graded_spans(body: str) -> list:

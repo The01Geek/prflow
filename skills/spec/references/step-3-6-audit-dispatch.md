@@ -42,7 +42,7 @@ the last two only when they exist:
   second-delegation decisions, never list a choice the run settled itself, nor agent-written advice
   (a `/prflow:challenge` result, an audit return, or a mechanism, direction or design an agent
   proposes in the issue body or a comment), even when it sits in the request. State the choice,
-  identifying a delegated decision as the run's choice after the user delegated it, never the finding
+  identifying a delegated decision as one the run made after the user delegated it, never the finding
   or audit round that prompted it. Mark an approach pick, a fork re-ask's included, that a later *Settled approach* re-ask
   ended on a different option as replaced by that later pick, and one a *Settled approach* re-ask ended with no
   option chosen as not a settled decision, its approach question in `## 🚫 Blocked`.
@@ -97,8 +97,8 @@ justify a revision:
 - invalid — refuted, or not verifiable.
 
 State in your reply whether the round is a verdict round (if not, why), whether it ran inline, its
-`draft-object-id:` value, each finding quoted verbatim from the return with your grade, and which
-findings you fixed, each with its grade; Step 4 reads the latest verdict round from that statement.
+`draft-object-id:` value, and each finding by a short reference only, such as its heading, with
+your grade and whether you fixed it; Step 4 reads the latest verdict round from that statement.
 Fix each must-revise finding you confirm as a draft change (`references/step-3-6-audit.md`). Also
 fix, with no user change request, each advisory finding whose fix the *Revision rule* in
 `references/revision-delta.md` makes by deleting attacked text or moving it to the investigation

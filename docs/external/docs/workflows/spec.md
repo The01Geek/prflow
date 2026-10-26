@@ -5,7 +5,7 @@ description: "Turn a rough request into a grounded GitHub issue with decided beh
 
 Use this workflow when you want work recorded rather than built now. Invoke it as `/prflow:spec` (the preferred name) or `/prflow:create-issue` (a permanent alias) — both run the same pipeline.
 
-It creates one issue or [widens an open issue](#widening-an-existing-issue) that covers the work. Interactive runs require your approval of the final draft; [non-interactive filing](#non-interactive-filing) has narrower conditions. Unresolved decisions remain visible in the draft. When the initial code and documentation checks show every reported failure is gone, choosing *No change — file nothing* ends the run with that evidence and no issue.
+It creates one issue or [widens an open issue](#widening-an-existing-issue) that covers the work. Interactive runs require your approval of the final draft; [non-interactive filing](#non-interactive-filing) has narrower conditions. Unresolved decisions remain visible in the draft. At any implementation-approach question you can choose *No change — file nothing*: the run ends with nothing written to GitHub, gives its evidence and names any open issue it leaves for you. PRFlow recommends it only when checked evidence positively shows every reported failure is gone.
 
 ## Run It
 
@@ -34,11 +34,13 @@ In an interactive session:
 
     Also before the approach question, PRFlow walks each option through each reported case your request says the fix exists to change and, for a proposed rule, each case class the rule's own wording distinguishes, for example both sides of a condition it states. It reads each case's facts, and for instructions a model follows it reads a case's outcome from the instruction that decides it. It reports a case that fails the walk, for example one the option would not fix or would wrongly change, where possible while you can still pick a different design.
 
+    When the evidence claims a complete set of readers for something the change removes or alters, for example a value, text, call or file write, PRFlow follows what that change outputs through the values and steps that carry it onward to the code and instructions that read it, and records each path.
+
     PRFlow drafts the issue from the facts it recorded earlier in the run that bear on the approach you picked, including risks, premise corrections, edge cases and option-check facts, for example a risk your chosen design keeps. Each lands in the draft as handled, as an accepted limit or as not established, keeping, for example, the conditions and phases the record names; a failure the chosen design keeps, such as a case that failed the walk above, is marked unverified when no read confirms it. Option-check facts come from every check the run made and can still read, not only the last. A claim from your request or from PRFlow's recorded analysis of it that the draft repeats, and that the premise corrections or recorded evidence contradict, appears in its corrected form. The self-audit then checks the draft against those facts it can read, unless its instructions fail to load.
 
     Other questions that mark an option `(Recommended)` also name evidence PRFlow already read or recorded that argues against that option, against a premise the question states, or for an option it does not recommend, for example a comment on your issue, so you can weigh it before you choose. PRFlow does not read anything new to find it.
 
-    Questions wait for answers that determine whether or how they should be asked. Independent, ready questions can share a batch. For a bug report, PRFlow collects the trigger, actual and expected behavior, and environment.
+    A question can wait for another answer, for example your approach choice, that decides, or leaves PRFlow unable to tell whether it decides, whether the question applies or what its options say or lead to. Independent, ready questions can share a batch. For a bug report, PRFlow collects the trigger, actual and expected behavior, and environment.
 
     PRFlow also asks which meaning you intend when a word in your request means something different in the repository docs or code it has read, or could name more than one thing there, and the difference changes, or may change, what gets built. It does not ask when your request already states its meaning and names the repository meaning it replaces. A word that means the same thing in your request and your repository costs no question.
 
@@ -89,7 +91,7 @@ After creation you get the new issue's URL, and the `PRFlow` label is applied wh
 PRFlow splits its output into two artifacts, and you will see both.
 
 - **The issue body** is the implementer's brief. It holds only what a competent implementer cannot safely work out on their own: the problem, the desired behavior, non-obvious scope decisions, the acceptance criteria, real hazards and dependencies. It is the only channel implement takes acceptance criteria from.
-- **The investigation record** is posted as a comment on the created or widened issue. It holds the narrative PRFlow sorted out of the body while drafting: supporting evidence, audit history, lower-severity hazards, rejected alternatives and anything the repository would rediscover during implementation anyway. When the run passed over heavier approaches, PRFlow adds one `Considered-and-rejected:` line counting them. A record over 65,536 bytes, or one that cannot be built or saved, is not posted.
+- **The investigation record** is posted as a comment on the created or widened issue. It holds the narrative PRFlow sorted out of the body while drafting: supporting evidence, audit history, lower-severity hazards, rejected alternatives and anything the repository would rediscover during implementation anyway. When the run passed over heavier approaches, PRFlow adds one `Considered-and-rejected:` line counting them. When PRFlow revises the draft, it also replaces record text the revision makes false or supersedes. A record over 65,536 bytes, or one that cannot be built or saved, is not posted.
 
 So a newly created issue normally has one comment on it already. That comment is PRFlow's, and nothing is missing from the body because of it.
 
@@ -153,6 +155,8 @@ Every limit the issue accepts, such as a case the change knowingly leaves uncove
 
 A criterion that lists existing members of a set, for example every file that reads a value, marks the list `at minimum` unless PRFlow searched the whole repository for those members and read every match. When an answer or revision changes the design, PRFlow repeats that search with the new terms or stops treating its result as complete; it never reuses the earlier result as-is.
 
+Before deciding where a term the draft creates or redefines is defined, PRFlow searches the existing files the issue names for that term. If one of them already gives the term a different meaning, the draft treats it as a term the change redefines, or uses a different word. PRFlow names in chat any such file it could not read or fully search.
+
 This matters beyond the draft: the acceptance criteria are what an implement run verifies at the end. An issue with no criteria gets a run with nothing to check at that gate. See [Implement an Issue](/docs/workflows/implement).
 
 ## Widening an Existing Issue
@@ -162,6 +166,8 @@ PRFlow searches open-issue titles and bodies for related mechanisms, then reads 
 PRFlow widens an open issue only when your request names it or you choose it from the duplicate check. A non-interactive run never widens an issue you did not name; if it files a new issue, it names the suspected duplicate in its outcome.
 
 An interactive widen asks approval to replace the named issue's title and body. After the filing election, PRFlow replaces both in one request; criteria belong in the body, not a comment. Its outcome reports whether the stored title and body match the approved draft, or that it did not compare them. It then applies the `PRFlow` label, tries to register the new body's `## Dependencies` as blocked-by links and reports failures, and posts the investigation record, as it does for a new issue. Links declared only by the old body remain and are disclosed.
+
+A widen treats the existing body as your request: the refined issue keeps its requirements, but PRFlow may reword its criteria or merge duplicates into new ones. To keep exact wording, say so during the run; PRFlow then asks before changing it.
 
 A widen asks the same assignment and implementation questions as a new issue.
 

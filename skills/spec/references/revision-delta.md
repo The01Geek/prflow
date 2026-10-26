@@ -51,9 +51,9 @@ fails, is refused, returns cut-short output or has no search tool to run on, dis
 revision's unverified reach at its next presentation: the Step 3.5 summary, the statement under
 `references/step-3-6-audit-dispatch.md`'s *After the round*, or beside Step 4's audit summary line,
 whether or not a draft-check report still stands.
-Route additions by the same template rule. Replace prose the revision makes false or supersedes, and
-consolidate copies serving no distinct role while retaining required projections, machine-consumer
-copies and load-bearing findings. Then run the verification steps on the edits.
+Route additions by the same template rule. Replace prose in the draft or record bucket that the
+revision makes false or supersedes, and consolidate copies serving no distinct role while retaining
+required projections, machine-consumer copies and load-bearing findings. Then run the verification steps on the edits.
 
 A finding against a case addition — a case, clause, criterion or obligation you wrote in an earlier
 revision event of this run to answer a finding that a case was missing, unhandled or had no
@@ -108,8 +108,8 @@ nothing unverified.
 template's **AC mutual consistency — reconcile shared cases** rule to each addition, change or
 removal and every statement whose meaning depends on it; a deletion an auditor proposes takes the
 same check as your own edit. When a condition, outcome, exception, premise or universal claim
-changes or is refuted, search the draft for every statement relying on it and reconcile them
-together. Cover the finding's or request's triggering case and an existing case whose
+changes or is refuted, search the draft and record bucket for every statement relying on it and
+reconcile them together. Cover the finding's or request's triggering case and an existing case whose
 behavior must remain unchanged. Check error paths and empty or absent inputs; give each obligation
 an end condition. Apply Step 3.5 item 3's projection check: no Desired Behavior obligation remains
 `unmatched`. Every accepted limit (a fact about the finished change's behavior the issue keeps: a

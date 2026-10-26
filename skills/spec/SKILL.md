@@ -14,7 +14,7 @@ status change with each slot pending, in progress or completed, keeping the stat
 reached. Change tracker only when the one in use stops working. A tracker problem never ends the run.
 
 - [ ] 1. Run Step 1's arm and write its evidence artifact
-- [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2); a shown-gone *No change* choice ends the run here
+- [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2); a *No change* choice ends the run
 - [ ] 3. Draft the issue and pass the no-options gate (Step 3)
 - [ ] 4. Self-audit the draft against the code, revise, and re-pass the no-options gate (Step 3.5)
 - [ ] 5. Run the draft checks and each draft's first audit round (Step 3.6)
@@ -30,7 +30,7 @@ use — the task tool or the inline checklist — and name any tracking tool tha
 
 ## Iron Law
 
-No run abbreviates or skips a step before it ends: at a created, widened or paused issue, at a stop a step documents, or at a *No change — file nothing* choice under Step 2's shown-gone rule.
+No run abbreviates or skips a step before it ends: at a created, widened or paused issue, at a stop a step documents, or at a *No change — file nothing* choice.
 
 ## Rationalizations
 
@@ -60,7 +60,7 @@ Every decision the test does not leave to the implementer must be resolved by as
 user before drafting. A decision settled on a second delegated reply counts as
 resolved by the user; remaining unresolved decisions go into one explicit Blocked section.
 
-**The no-options rule.** The body states one decided behavior per fork: no alternative, open question or deferred choice is written outside `## 🚫 Blocked`, and a premise flagged `— assumption, confirm before implementing` is a fact to confirm, not an open choice. Every acceptance criterion is one concrete, unconditional assertion, and the ask-or-leave test decides what is left out. Wording the user approved, or the issue prescribes verbatim (quoted as text to add to a file), is never reworded silently: this overrides every other rule, sweep and standard, the writing standard included, and changing it is a decision fork asked of the user.
+**The no-options rule.** The body states one decided behavior per fork: no alternative, open question or deferred choice is written outside `## 🚫 Blocked`, and a premise flagged `— assumption, confirm before implementing` is a fact to confirm, not an open choice. Every acceptance criterion is one concrete, unconditional assertion, and the ask-or-leave test decides what is left out. Wording the user approved this run, or the issue prescribes verbatim as text to add to a file, changes only by a decision fork asked of the user, overriding every other rule, sweep and standard; a widened issue's body is request text, not approved wording.
 
 **The pre-mortem rule — hold it for the rest of the run.** From Step 2's first candidate
 until the run ends, assume the fix shipped as designed and failed: name the consumer,
@@ -111,7 +111,7 @@ it is not read. Exit 0, no output: proceed unchanged.
 ## Reference routing
 
 The per-step procedures and the conditional fallback arms live in `references/`, loaded at their
-trigger. Build a reference's path from this skill's directory per the *Portable helper anchor*
+trigger and never before it; waiting on a subagent triggers nothing. Build a reference's path from this skill's directory per the *Portable helper anchor*
 rules in `## Runner setup` below and read it with the runner's file-read tool — never a new shell invocation. A load is
 accepted only when the file's first line is its `start` boundary marker and its last line is the
 matching `end` marker, each naming that file's own path, with exactly one of each.
@@ -213,7 +213,7 @@ Dispatch two independent peers in parallel; when Step 1 is already on that sandb
 - Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path, established user constraints/decisions (never agent-written advice, as the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` defines it; read it there if unloaded), the risk role file's absolute path as its report file, and the paths, made absolute against the checkout the session started in, of files it saved before Step 1 as a record of the reported failure (a downloaded job log, a failing run's output). Pass paths only, never file content or a conclusion drawn from a file; never pass the session's own transcript or this run's other `.prflow/tmp/spec/<slug>/` files, the story file excepted, as evidence. Supply no preferred design or other peer's conclusions.
 
 Each peer writes its whole report to its role file with its file-write tool, never a shell
-redirect, and replies with the path; one that cannot write says so and replies with its whole
+redirect, and replies with the path alone; one that cannot write says so and replies with its whole
 report, a peer's own failed write never taking the sandbox arm. Both dispatches give this evidence
 form: each fact the report relies on as its locator with the text its read returned, quoted, and
 each whole-tree search as its command, scope and found/read counts.
@@ -259,7 +259,7 @@ request names or the user chose to widen (Step 2); follow no recursive reference
 
 ### Step 2: Clarify until the Definition of Ready is met
 
-Load `references/step-2-clarify.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
+Load `references/step-2-clarify.md` per the *Reference routing* rules above and follow it exactly.
 
 ### Step 3: Draft the issue and pass the no-options gate
 
@@ -315,7 +315,7 @@ yourself.
 Before composing the draft prose, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it (an issue is change-describing prose).
 Per this skill's degrade-never-terminate contract, a failed load emits a breadcrumb naming the file and the failure kind and you draft without it.
 
-Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the self-check, and autolink hygiene, on every entry into this step. Key rules:
+Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the self-check, and autolink hygiene. Key rules:
 
 - No-options gate (run before showing the draft): re-read the rendered body against the no-options rule (*Core principle*). If you find an unresolved decision, delete it when the ask-or-leave test leaves it to the implementer; otherwise either ask the user now through Step 2's clarification routes, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
 - Advanced quality-guidance routing: evaluate these triggers against facts already held
@@ -342,17 +342,17 @@ Re-read and retry once a failed write or edit that is not a permission refusal o
 
 ### Step 3.5: Self-audit the draft against the code (mandatory, before the user sees it)
 
-Load `references/step-3-5-self-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
+Load `references/step-3-5-self-audit.md` per the *Reference routing* rules above and follow it exactly.
 
 ### Step 3.6: Run the draft checks and each draft's first audit round
 
-Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
+Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly.
 
 Before the first presentation of each draft whose working-draft file landed — the first draft, or a redraft for a different option at a Step 2 *Settled approach* re-ask — run that draft's first round after the draft checks and *Audit preparation*, following `references/step-3-6-audit-dispatch.md`. A later change to the same draft runs a round only when the user elects one at Step 4.
 
 ### Step 4: Review with the user, then create
 
-Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
+Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly.
 
 ## Runner setup
 

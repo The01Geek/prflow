@@ -45,7 +45,7 @@ flowchart TD
 
     Three gates can stop the run here, before any code is written:
 
-    - **A declared open dependency.** If the issue declares a dependency on another issue that is still open, or if the state of that dependency cannot be established, the run stops as `Blocked`. This check runs before branch work, so a blocked run leaves no new branch behind.
+    - **A declared open dependency or unsettled decisions.** If the issue declares a dependency on another issue that is still open, if the state of that dependency cannot be established, or if the issue body still has a `## 🚫 Blocked` section, the run stops as `Blocked`. This check runs before branch work, so a blocked run leaves no new branch behind.
     - **A claim in the issue that does not match the repository.** PRFlow checks the issue's claims about the codebase against the current tree before it treats them as instructions. It also checks that the acceptance criteria represent every independently testable outcome the issue describes. An uncovered outcome sends the issue back for refinement instead of being guessed at.
     - **A workpad already marked `Blocked`.** PRFlow surfaces the recorded cause instead of continuing through it.
   </Step>
