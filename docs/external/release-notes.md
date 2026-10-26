@@ -11,9 +11,31 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## October 26, 2026
+
+- **`/prflow:spec` more reliably re-checks the whole draft after audit fixes or a change you ask for, before showing it to you again.** (#3274)
+
 ## October 25, 2026
 
 - **`/prflow:spec` can fall back to reading its audit-prompt template directly.** The template now carries the boundary markers the reference load rule requires. (#3178)
+- **`/prflow:spec` and `/prflow:implement` refute fewer true `Verified:` quotations that carry `\"`-escaped inner quotes or that a string join or comment splits across source lines.** (#2579)
+- **`/prflow:spec`'s audit prompt tells the auditor not to report a finding that rests on search output it never saw.** (#2829)
+- **`/prflow:docs-verify --report-file` replies with only the saved report's path.** The two research helpers `/prflow:spec` starts with do the same. (#2941)
+- **`/prflow:spec`'s approach question covers each option's recurring cost.** Options can be compared by what each adds to or saves from later runs or uses of the changed system. (#2636)
+- **`/prflow:spec` more reliably removes scope and acceptance criteria you never asked for.** Its check now compares the draft with your story, any issue the story names, and your answers to its questions. (#3174)
+- **`/prflow:spec`'s re-asked question after research can offer an option in the form the research favors, including one the original menu lacked.** (#2830)
+- **Spec asks fewer questions whose options another answer makes wrong or moot.** Fewer questions are re-asked after you pick the approach. (#2882)
+- **`/prflow:spec`'s report after each audit round is shorter.** It names each finding briefly, with its grade and whether it was fixed. (#2865)
+- **When `/prflow:spec` refines an existing issue, it may reword or merge the issue's acceptance criteria while keeping their requirements.** (#3105)
+- **When `/prflow:spec` revises a draft, it now also corrects text in the investigation record (the comment it posts on the issue) that the revision makes false or outdated.** (#3115)
+- **`/prflow:spec` checks each term its draft creates or redefines against the files the issue names.** If one of them already uses the term with another meaning, the draft states the change of meaning or uses a different word. (#2723)
+- **`/prflow:spec` can end with nothing filed at any implementation-approach question.** Choosing *No change — file nothing* ends the run with no GitHub writes and names any open issue it leaves for you to park, label or close. (#2759)
+- **`/prflow:spec`'s early risk research treats a past run's log or record as proof of current behavior only when it confirms which version produced it and what has changed since.** Otherwise it reports the link as not established. (#2550)
+- **Implement stops before branch work on an issue that still has its spec `## 🚫 Blocked` section.** The stop names the remedy: settle each open question in the issue, remove the section, then run again. (#3172)
+- **Before you pick an approach, `/prflow:spec` can trace a value, text or file the change alters to the code and instructions that read it.** It no longer searches only for the changed name. (#2391)
+- **PRFlow's review no longer drops a defect just because the checked text matches an acceptance criterion's wording.** A criterion excuses a defect only when its words cover the whole case. (#2810)
+- **`/prflow:implement` no longer adds an "Issue-claim audit: clean" note to the workpad when its check of the issue finds nothing.** (#2914)
+- **`/prflow:spec` records each scope answer you give in full: the option's text with its description, or your own words.** The draft's scope is checked against what you chose, not a paraphrase. (#3141)
 
 ## October 24, 2026
 

@@ -40,7 +40,7 @@ For a path a view lacks, Read or Grep `inventory.json` for that path and each le
 
 A verdict milder than a `dispute` line's `Disputed: FAIL (<severity>)` (a PASS, an INVALID, or a lower severity) states in `evidence` what that FAIL's evidence got wrong; a `Counter-reading` is a claim to check against the code, never evidence.
 
-**Findings.** A concrete defect you establish while checking this claim that your verdict does not represent, such as one outside a correct PASS's scope, goes in `findings`; the verdict still grades only the claim. A finding needs an input FAIL above would count and, on an eligible item, a broken requirement from a source the FAIL verdict lists. An uncertain case, a scope qualification, a `grading_rules` pass reason, or a defect a `rejections` line or `criteria_file` settles is not a finding. Search no further than the claim takes you.
+**Findings.** A concrete defect you establish while checking this claim that your verdict does not represent, such as one outside a correct PASS's scope, goes in `findings`; the verdict still grades only the claim. A finding needs an input FAIL above would count and, on an eligible item, a broken requirement from a source the FAIL verdict lists. An uncertain case, a scope qualification, a `grading_rules` pass reason, or a defect a `rejections` line settles is not a finding. A usable criterion in `criteria_file` settles a defect only under FAIL's whole-case placement test, also counting behavior its words require as inside those words. This criterion exclusion does not settle a defect showing an authored statement those words require untrue at the head, in whole or in part. Search no further than the claim takes you.
 
 ## Output
 

@@ -11,7 +11,7 @@ Definition of Ready — every item below must have a single, decided answer befo
   criteria for completeness and correctness; clarify the delta and conflicts.
 - [ ] **Problem & beneficiary** — who hits this pain and why it matters. (Not "users want export" — *which* users, doing *what*, blocked *how*.)
 - [ ] **Single coherent scope** — the issue is exactly one feature/fix. If the story bundles two or more ("export results *and* notify when ready"), ask the user whether to split; default to one issue per feature. Also ask when one feature's change spans several parts that could each ship alone as a useful PR, each with its own entry point or arm and its own criteria; default to one issue per part. On a non-interactive run, this case keeps one issue and records the recommended split in the investigation record.
-- [ ] **One decided behavior per fork** — every fork in the story the ask-or-leave test does not leave to the implementer has *one* chosen answer. Before drafting or revising, compare scope with the captured request and scope answers in this run's derivation artifact (or its inline fallback); record there each user scope answer with the reason the question stated, a re-asked question's answer replacing it, and each constraint the user states, which counts as a user answer. Excluding a requested case requires explicit agreement; reuse a prior answer covering it and retain the case on refusal. Ask with the case, behavior left unresolved and known tracking status. Challenge or audit advice, tracking links and general filing approval supply no agreement. A missing, malformed, unreadable or unproduced request or recorded answer supplies none either. Unresolved exclusions follow this step's clarification and silence routes; a non-interactive run records the scope question in `## 🚫 Blocked`. Removing explanation while retaining requested behavior is not an exclusion. Apply `references/issue-template.md`'s `Related work: #N` bullet to agreed exclusions; agreement to exclude authorizes no follow-up issue creation.
+- [ ] **One decided behavior per fork** — every fork in the story the ask-or-leave test does not leave to the implementer has *one* chosen answer. Before drafting or revising, compare scope with the request and with the scope answers in this run's derivation artifact (or its inline fallback); record there each user scope answer, a re-asked question's answer replacing it, and each user-stated constraint (also a user answer) as the picked option's full offered text, including its description when present, or the user's own words for a free-text reply, keeping each scope answer's reason as stated in the question. Excluding a requested case requires explicit agreement; reuse a prior answer covering it and retain the case on refusal. Ask with the case, behavior left unresolved and known tracking status. Challenge or audit advice, tracking links and general filing approval supply no agreement. A missing, malformed or unreadable request or recorded answer, or an unproduced answer, supplies none either. Unresolved exclusions follow this step's clarification and silence routes; a non-interactive run records the scope question in `## 🚫 Blocked`. Removing explanation while retaining requested behavior is not an exclusion. Apply `references/issue-template.md`'s `Related work: #N` bullet to agreed exclusions; agreement to exclude authorizes no follow-up issue creation.
 - [ ] **Solution-space expansion before convergence.** Before the implementation-approach
   question, derive alternatives from the checked behavior or failure path and the existing
   owner of its rule or value. When
@@ -23,8 +23,8 @@ Definition of Ready — every item below must have a single, decided answer befo
   The user's proposed mechanism is an input, not the menu.
 - [ ] **One implementation approach** — present the expanded menu and obtain the user's
   election, including a pick settled under *Delegated replies* below. Surface each option's
-  limits, failures, maintenance cost and trade-offs in the
-  question, not the issue.
+  limits, failures, maintenance cost, recurring cost (what it adds to or saves from each
+  later run or use of the changed system) and trade-offs in the question, not the issue.
 - [ ] **Concrete acceptance criteria** — you can state each as a single unconditional, testable assertion. If an AC would need a conditional ("if links are public…"), the underlying fork isn't resolved yet — go ask.
 - [ ] **Known prerequisites (cross-issue ordering)** — candidate prerequisite issues (another issue/PR that must land before this work can *start*) are inferred from the story and the Step 1 findings, and **when at least one candidate exists** they are confirmed with the user via the runner's user-question tool. A story with **no** inferable prerequisite gains **no new question** — this item adds a question only when it applies. Confirmed **still-open** prerequisites populate the draft's `## Dependencies` section as `Blocked by #N — <reason>` lines (see `references/issue-template.md`); already-closed ones are recorded as Technical Context provenance instead.
 - [ ] **Widen or file new** — when the request names no issue and Step 1's read shows a found issue open and not a pull request, ask via the user-question tool, by your first Step 2 question, whether to widen it or file new; only a widen reply widens. A request names an issue only when it asks you to spec that issue (e.g. its bare number or URL here); unsure means none. A non-interactive run asks nothing and widens no issue the request does not name. Draft a widen from the title and body Step 1 read.
@@ -56,7 +56,8 @@ Step 1 and the currency recheck below, not whole-codebase re-exploration.
 - Seed from the Step 1 record; Step 1's read of the role files is this seed's read, so do not read them again or re-derive the evidence. A role-file read or search that *Entry form* accepts is this run's; re-read or re-run neither unless you doubt it. Treat agent-written Markdown as best-effort evidence. Accept complete or degraded role reports, including failure notes beside retained partial evidence. Apply Step 1's field and role-failure rules, carrying gaps and degradation into the entries they seed; a role file's missing or malformed fields take those rules, never a rerun. An empty index, a missing or duplicated required role heading in it, or an unrecognized index layout reruns Step 1, never partially parses it. An absent or unreadable index after Step 1 completed instead records `unestablished — Step 1 evidence artifact absent or unreadable`. A read-only sandbox uses the current inline stand-in under `references/fallback-read-only-sandbox.md`.
 - Use the investigator's supported constraints and premise corrections in clarification and the relevant evidence axes; feed conditional risks into the existing pre-mortem when their activating choice applies. Keep consequential unknowns explicit. A conditional risk alone creates no requirement for an unelected approach.
 - Axis floor. After writing the derivation, append a `## Evidence bundle` section to the same `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` artifact (in a read-only sandbox, to the same visible inline-in-chat block that stands in for it). The bundle records, per axis on the effective list, what the mechanism space under discussion touches, covering at minimum these generic axes: authoritative producers and the values they emit; consumers of each touched value or surface; execution environments (tiers, host OSes, degraded arms); persistence paths; lifecycle states and termination paths including retries and backstops; migration and coexistence surfaces (what is already deployed that the change must coexist with — this axis stays evidence collection; the *decisions* about supported combinations, transitions, mixed versions, and rollback are owned by the conditionally-loaded compatibility-and-rollout quality group, `references/quality-group-compatibility.md`, not settled here); coupled tests and docs; and overlapping open issues, resting on Step 1's duplicate-issue check alone, never on scope inference: the entry names each open issue a successful source of that check read whose mechanism overlaps the request, and each refused, failed or incomplete source as unestablished, and is `N/A — checked: duplicate check, <terms>` only when every source succeeded and none overlapped, `unestablished — <why>` only when none succeeded. The `at minimum` marker is deliberate — a consumer `## Evidence axes` section extends the list.
-- Entry form. Every axis has exactly one entry: one to three lines of checked facts, `N/A — checked <how>` when the named check shows it does not apply, or `unestablished — <why>` when a probe was unavailable, denied, failed enumeration below, or was superseded by an answer or revision. A repository fact uses `Verified:` only for a read meeting the *Definition of verified* in `references/step-3-5-self-audit.md` (read it there if unloaded) — your own command or file read, or an agent's returned result (a Step 1 report item or a research-helper fact) naming the locator and quoting the text its read returned — or for a whole-set search, yours or an agent's, meeting the enumeration rule below; the entry cites that read or search, quotes the returned text it rests on (an empty output quoted as empty), and states only what that text or the search's population states, keeping any condition the text carries. A conclusion drawn from a read, such as what an option or code on a path no read covered would do, is never part of a `Verified:` entry: write it into the stated reasons of the option, or the rejection reason of the passed-over candidate, it bears on. An agent's item citing a locator without quoting the text its read returned, and not such a search, is a lead, never a `Verified:` source: you may read the cited source and record what that read shows, and an entry resting on an unread lead is `unestablished — cited without quoted read text`. Output is cut short when stopped before the full result, at minimum by your own command, a tool's result limit or a saved-output preview (a cap never reached cuts nothing), or when you cannot tell it is whole; an entry resting on the unshown part is `unestablished — <why>` unless you read that part uncut, or, for an entry claiming nothing else matches or a complete list of matching lines, a matching-line count from the same search with nothing cut (no cap, filter or preview) equals the lines seen. An externally verified fact uses `Per <URL>, checked <YYYY-MM-DD>: <fact>` under `references/quality-group-premises.md`. A repository entry claiming a complete population — consumers, producers or any other complete set, such as every member of a set the draft relies on — names the whole-tracked-tree search, patterns and scope covering the amended rule's input, its amended value and each value it moves items into. Exclude only named paths that cannot hold a member, such as a vendored plugin copy. Read every candidate and record found/read counts; no search makes the entry `unestablished — <population> not enumerated`, and an unread candidate makes it `unestablished — <population> not read`. Axes the mechanism space plainly does not touch may be batch-marked `N/A — checked: scope inference, <one line>`.
+- Entry form. Every axis has exactly one entry: one to three lines of checked facts plus any *Source trace* chains, `N/A — checked <how>` when the named check shows it does not apply, or `unestablished — <why>` when a probe was unavailable, denied, failed enumeration below, or was superseded by an answer or revision. A repository fact uses `Verified:` only for a read meeting the *Definition of verified* in `references/step-3-5-self-audit.md` (read it there if unloaded) — your own command or file read, or an agent's returned result (a Step 1 report item or a research-helper fact) naming the locator and quoting the text its read returned — or for a whole-set search, yours or an agent's, meeting the enumeration rule below; the entry cites that read or search, quotes the returned text it rests on (an empty output quoted as empty), and states only what that text or the search's population states, keeping any condition the text carries. A conclusion drawn from a read, such as what an option or code on a path no read covered would do, is never part of a `Verified:` entry: write it into the stated reasons of the option, or the rejection reason of the passed-over candidate, it bears on. An agent's item citing a locator without quoting the text its read returned, and not such a search, is a lead, never a `Verified:` source: you may read the cited source and record what that read shows, and an entry resting on an unread lead is `unestablished — cited without quoted read text`. Output is cut short when stopped before the full result, at minimum by your own command, a tool's result limit or a saved-output preview (a cap never reached cuts nothing), or when you cannot tell it is whole; an entry resting on the unshown part is `unestablished — <why>` unless you read that part uncut, or, for an entry claiming nothing else matches or a complete list of matching lines, a matching-line count from the same search with nothing cut (no cap, filter or preview) equals the lines seen. An externally verified fact uses `Per <URL>, checked <YYYY-MM-DD>: <fact>` under `references/quality-group-premises.md`. A repository entry claiming a complete population — consumers, producers or any other complete set, such as every member of a set the draft relies on — names the whole-tracked-tree search, patterns and scope covering the amended rule's input, its amended value and each value it moves items into. Exclude only named paths that cannot hold a member, such as a vendored plugin copy. Read every candidate and record found/read counts; no search makes the entry `unestablished — <population> not enumerated`, and an unread candidate makes it `unestablished — <population> not read`. Axes the mechanism space plainly does not touch may be batch-marked `N/A — checked: scope inference, <one line>`.
+- Source trace. A complete-population entry covering a removed or changed input, value, text, call or write carries a trace under *Entry form*'s search, read and count rules: Start at what changes, identify what it emits or supplies, and follow each discovered output through the values built from it and the records or steps that carry it onward to the sites that read, check or rely on it. Record the source-to-reader links with their source evidence; search by the discovered values and conditions as well as the changed name. A link or reader population that cannot be established leaves the affected population unestablished, with that gap named. Outputs include a call's printed outcome or exit status, which a later field or check may copy; the fact that a write ran, where it is its path's only write; and what removed text grants or leaves behind: a file, line, state or exemption. Search each output also by the words a reader would use for its content and for the decision or case it covers, and read the whole step receiving it and each check run on the record carrying it. Write one chain per output, `<change> → <output> → … → <reader: quoted line>`, under the entry.
 - Carry relied-on bundle claims into the draft under `references/issue-template.md`'s *Technical Context* evidence forms for the Step 3.6 audit, and each relied-on quoted read in an *Option check* record under `references/quality-group-premises.md`'s *Re-derivation handles* rule. The bundle itself stays in the derivation artifact, outside the audit dispatch.
 
 `## Evidence axes` forwarding. Inside this sub-pass, before writing the bundle, run this fence as written unless this run already ran it, and append any section headed exactly `## Evidence axes` to the generic axis floor; an extension without that heading contributes no consumer section, and the absent heading is breadcrumbed and reported:
@@ -108,11 +109,17 @@ How to ask:
 
 - **Gate — confirm *this run's* derivation artifact and evidence bundle.** Before the first clarification question, and before Step 3 drafting on every run, verify `.prflow/tmp/spec/<slug>/issue-derivation-<slug>.md` holds the derivation you produced for the current story — a file left by an earlier run on the same slug does not count — and a `## Evidence bundle` with an entry for every axis its header lists. A missing or foreign artifact means the pass was skipped; a missing section, a header that is missing or cannot be read as an axis list, or a listed axis with no entry means the evidence-bundle sub-pass was. Either way, stop, say so, run the skipped pass and write the artifact, then run the meaning check unless this run already ran it, and only then ask anything. On a filesystem that refuses the write, follow `references/fallback-read-only-sandbox.md`.
 - Use the runner's user-question tool (`AskUserQuestion`, `ask_user`, or its equivalent).
-  Batch 2–4 ready questions when supported, within the runner's limit, whose answers do
-  not determine whether or how another question in that batch should be asked. Ask a
-  lone ready question on its own; use sequential calls on a one-question tool. Readiness
-  concerns that question's prerequisites, not verification of every fact: an unavailable
-  fact can itself be the question, and disclosed evidence gaps follow the rule below.
+  Batch 2–4 ready questions when supported, within the runner's limit. Ask a lone ready
+  question on its own; use sequential calls on a one-question tool. A question is ready
+  only when no unanswered question decides, or leaves you unable to tell whether it
+  decides, whether this question applies or what this question's options say or lead
+  to. A question in the same call counts as unanswered, and so does the
+  implementation-approach question until answered, except for a question
+  *Option check*'s dispatch gate asks before it. When questions keep one another from
+  being ready, ask first one whose options you word to hold under any answer to the
+  others, picking one that also applies under any of them when one does. Readiness is
+  not verification of every fact: an unavailable fact can itself be the question, and
+  disclosed evidence gaps follow the rule below.
 - Every question has three parts, in this order: background, then the question, then the options — all in plain language. The background says what the answer decides and what in the system it touches, written for a reader who has not seen this codebase and reads English as a second language. It opens every question's own `question` text in one or two sentences — the question tool has no background field and truncates long text; your chat message before the call may add longer or batch-wide background but never replaces it. Keep this background and the settled-decision lines (*Simplest-reliable selection* below) under any output style, including one asking for terse replies or no preamble. Add a short concrete example wherever one makes a choice clearer than a description does — a sample line of output, a filename, a before-and-after pair — in the background or inside an option. The question itself is one sentence. The options follow (next bullet). Use everyday words, spell out any term private to this repository the first time it appears, and prefer a longer plain sentence to a shorter one only a reader who already knows this code could act on.
 - For each question, offer concrete multiple-choice options, each a decision — never a deferral ("let the implementer choose", "decide later"). When one choice is clearly best, list it first, marked `(Recommended)` with a one-line why; a free-text-only question tool gets the same options in the question text.
 - **Simplest-reliable selection.** Include the least costly approach checked evidence
@@ -288,9 +295,10 @@ How to ask:
   discloses; a claim added after the check first goes into those reasons and takes the re-check
   and cap rules above, the question saying one the cap left unchecked was not re-checked.
 
-  Before the cap, answer each returned item with the first that applies: (1) change the
-  mechanism when it shows the option fails a motivating case, as the pre-mortem rule in
-  `SKILL.md` defines one, or that its mechanism contradicts a user answer recorded this run;
+  Before the cap, answer each returned item with the first that applies: (1) except
+  against a *No change* option, which has no mechanism, change the mechanism when it shows
+  the option fails a motivating case, as the pre-mortem rule in `SKILL.md` defines one, or
+  that its mechanism contradicts a user answer recorded this run;
   (2) correct the option text, keeping the mechanism, a changed value or range included, when a
   read's returned text states a claim there false, or the text contradicts itself — a read
   returning no match, or other values without the claimed one, only fails to find support and
@@ -308,25 +316,37 @@ How to ask:
   answer or constraint and adding or substituting no mechanism. Still make answer 2's
   corrections and correct
   the reasons a removal affects, saying in the question that the corrected text and each
-  removal were not re-checked, and disclose each item answer 1 would answer, and each
-  failure you find yourself after the cap, naming the motivating case or user answer it
-  bears on; answer the items of a check a new user answer required after the cap the same
-  way. The timing, claim-check, answer and cap rules bind each
-  check before an approach question, a re-ask's included: the dispatch and your own check in
-  its place. Each re-ask is a new approach question with its own cap. An item against a mechanism-choosing
-  fork's exclusion option takes answer 3 alone, before and after the cap.
+  removal were not re-checked, and disclose each failure you find yourself after the cap,
+  naming the motivating case or user answer it bears on; answer the items of a check a new
+  user answer required after the cap the same way. The timing, claim-check, answer and cap
+  rules bind each check before an approach question, a re-ask's included: the dispatch and
+  your own check in its place. Each re-ask is a new approach question with its own cap. An
+  item against a mechanism-choosing fork's exclusion option takes answer 3 alone, before
+  and after the cap.
 
-- **Shown-gone defect.** When this run's Step 1 evidence positively shows every reported
-  failure can no longer occur because its code, command or path is gone or behaves as
-  expected, ask the approach question before other clarification except widen-or-file.
-  Cite its `Verified:` bundle entries and recommend *No change — file nothing* first,
-  overriding ordinary recommendation order. Failure to reproduce is insufficient; accepted
-  degraded Step 1 evidence counts with its degradation disclosed. If another option wins
-  and a later answer changes the mechanism space, re-ask. A consumer extension's own
-  recommendation policy overrides either recommendation. A non-interactive run picks the
-  recommended option on such a report. *No change* ends at Step 2 with no GitHub writes;
-  cite the evidence, disclose unestablished duplicate/named-issue reads, and name found or
-  requested open issues left open for the user to close.
+- **No change — file nothing.** Any implementation-approach question — a first ask, a
+  *Settled approach* re-ask or a fork re-ask — may offer *No change — file nothing* beside
+  its other options, under *Option check* like any option. Only *Shown-gone defect* makes
+  it eligible for `(Recommended)`; within that limit, a consumer extension's own
+  recommendation policy overrides this file's recommendation order. A *No change* pick —
+  that option chosen, or a reply to an approach question clearly choosing to file nothing
+  whether or not it was offered (an unclear one takes *Recognize*'s route), a second
+  delegated reply's pick included — takes this end ahead of every other reply route and
+  ending in this file: stop at the step reached, run no later step, and create, widen,
+  comment on, label, assign or close nothing on GitHub; the final outcome cites the evidence
+  behind the pick, discloses unestablished duplicate/named-issue reads, names found or
+  requested open issues left open for the user to park, label or close, names any run
+  directory it leaves, and, when a second delegated reply settled the pick, says the run
+  made it after the user delegated it.
+
+- **Shown-gone defect.** When this run's Step 1 evidence, not contradicted by later evidence,
+  positively shows every reported failure can no longer occur because its code, command or
+  path is gone or behaves as expected, ask the approach question before other clarification
+  except widen-or-file. Cite its `Verified:` bundle entries and recommend *No change — file
+  nothing* first, overriding ordinary recommendation order. Failure to reproduce is
+  insufficient; accepted degraded Step 1 evidence counts with its degradation disclosed.
+  If another option wins and a later answer changes the mechanism space, re-ask. A
+  non-interactive run picks the recommended option on such a report.
 
 - **Settled approach.** The recorded mechanism election, including a second delegated
   reply's pick, is a resolved decision: a later pass judges the draft against it and never
@@ -394,16 +414,17 @@ How to ask:
   one gets no option check; a decision written into the draft without asking is not one. On an
   interactive run, wherever a fork arises — Step 2, the Step 3 no-options gate, Step 3.5 or a
   revision fork — ask it as the implementation-approach question again (a fork re-ask), each
-  option the chosen approach plus one of the fork's choices, its check's passed-over candidates
-  being only the fork's own choices. Its passed-over choices, and any rejection reason its check
-  corrects or states as not established, are disclosed only in the fork question. A reply
-  keeping the chosen approach with one of the fork's choices is the same
-  option, and drafting or revising continues as usual; with no option chosen, keep the current
-  design and record the fork in `## 🚫 Blocked`; a delegating or unclear reply takes *Delegated
-  replies*' routes first, as a first reply; a reply rejecting the chosen approach for another, or a clear one you
-  cannot classify as keeping or rejecting it, asks the original approach question again under
-  *Settled approach*, whose endings then apply with that reply in place of the corrected fact, never as a
-  disclosed cost. Classifying a question as a fork, and classifying its reply, are your judgment.
+  option, *No change* aside, pairing the chosen approach with one of the fork's choices.
+  Its check's passed-over candidates are only the fork's own choices. Its passed-over
+  choices, and any rejection reason its check corrects or states as not established, are
+  disclosed only in the fork question. A reply keeping the chosen approach with one of the
+  fork's choices is the same option, and drafting or revising continues as usual; with no
+  option chosen, keep the current design and record the fork in `## 🚫 Blocked`; a delegating
+  or unclear reply takes *Delegated replies*' routes first, as a first reply; a reply rejecting
+  the chosen approach for another, or a clear one you cannot classify as keeping or rejecting
+  it, asks the original approach question again under *Settled approach*, whose endings then
+  apply with that reply in place of the corrected fact, never as a disclosed cost. Classifying
+  a question as a fork, and classifying its reply, are your judgment.
   *Settled approach* protects and re-asks the approach question, never a fork re-ask; the
   Revision rule handles later evidence against a fork's chosen option.
 - After each round, re-check the Definition of Ready and bundle currency. Drop questions
@@ -446,17 +467,17 @@ under *How to ask*.
   Before re-asking, record those facts in the bundle, mark other forms `unestablished`, and refresh conflicting or extended entries under
   *Bundle currency*. If dispatch is unavailable, fails or is refused, or returns no
   comparison covering the reply's questions, do the research in this session. Re-ask the same question using the comparison
-  and each option's pros and cons.
-- **Research recommendation.** Apply *How to ask*'s recommendation rules, including its
-  shown-gone and consumer-policy overrides. A close call alone does not withhold
-  `(Recommended)`: mark the favored option and say the options are close. Withhold it
-  when the answer depends on an unestablished fact; a factual answer established by
-  research is the recommended option.
+  and each option's pros and cons, offering each option the comparison favors in the form
+  it favors, including one that changes a menu option or that no option matches; when the
+  question tool's option limit leaves no room, drop the options the comparison favors least
+  that *How to ask* does not require, naming them in the chat message before the call.
+- **Research recommendation.** Apply *How to ask*'s recommendation rules. A close call alone
+  does not withhold `(Recommended)`: mark the favored option and say the options are close.
+  Withhold it when the answer depends on an unestablished fact; a factual answer established
+  by research is the recommended option.
 - **Second delegation.** On the question re-asked after research, put the item in
   `## 🚫 Blocked` if no option is marked `(Recommended)`. Otherwise take the marked option,
   except that widen-or-file files new and requested-case exclusion retains the case.
-  A shown-gone *No change*
-  pick follows that rule's terminal route and names the choice in the final outcome.
 
   Use *Simplest-reliable selection*'s settled-decision chat line for each decision,
   including these exceptions; include its reason and record it in the derivation artifact.

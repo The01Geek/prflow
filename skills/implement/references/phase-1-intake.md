@@ -241,11 +241,11 @@ One moment, one call: every operand above rides the same §1.3 hydration update 
 
 The marker classifies the WORKPAD, not the repository, and decides no branch — §1.4's resume pre-check governs branch adoption, and no marker value waives it.
 
-### 1.3.5 Early declared-dependency preflight
+### 1.3.5 Early preflight
 
 Before any §1.4 branch operation — including the resume pre-check, a checkout,
-fetch, checkpoint merge, branch creation, or push — run the declared-dependency
-gate. `scripts/preflight.py` owns the recognizer and state semantics; do not
+fetch, checkpoint merge, branch creation, or push — run the preflight gate.
+`scripts/preflight.py` owns the recognizer and state semantics; do not
 duplicate them here.
 
 When the §1.1 cache was written, read it via `--body-file` — no re-fetch. preflight.py's `--body-file` arm reads the file and, on an unreadable path, prints `UNAVAILABLE body` / exit 3 — which §1.3.5 already routes to the terminal Blocked path:
@@ -259,13 +259,16 @@ Read the helper's one-token stdout result and its exit code:
 
 - `PROCEED` (including a listed set of landed dependencies) exits 0. Continue
   to §1.4.
-- `BLOCKED <numbers>` exits 2. The named dependencies are still open. Set the
-  workpad to `Blocked` with a `blocked` reflection naming the numbers and the
-  remedy (merge/close them, amend a stale dependency, or correct a declaration
-  whose direction is inverted or phrased outside that vocabulary, which
-  reads as a blocker of this issue when it in fact declares the reverse
-  ordering), emit the 👎 outcome
-  reaction and stop. Do not start §1.4.
+- `BLOCKED <numbers>` or `BLOCKED blocked-decisions` exits 2. Set the workpad
+  to `Blocked` with a `blocked` reflection naming the cause and the remedy,
+  emit the 👎 outcome reaction and stop. Do not start §1.4.
+  - `<numbers>`: the named dependencies are still open. Remedy: merge/close
+    them, amend a stale dependency, or correct a declaration whose direction is
+    inverted or phrased outside that vocabulary, which reads as a blocker of
+    this issue when it in fact declares the reverse ordering.
+  - `blocked-decisions`: the issue body still has a `## 🚫 Blocked` section.
+    Remedy: settle each question in the issue, remove the section, then
+    re-trigger.
 - `UNAVAILABLE <reason-or-number>` exits 3. The dependency set or a declared
   dependency state could not be established. Take the same terminal Blocked
   path, naming the unestablished measurement and the remedy to restore GitHub

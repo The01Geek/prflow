@@ -94,11 +94,11 @@ The report names four fields:
 - **Doc verdict and location** — one of `RELIABLE`, `UNRELIABLE` or `ABSENT`, together with the internal-doc location the run resolved. It describes the internal documentation only, a wrong default in a schema or a stale code comment being reported under current behavior instead. It is returned by default and under `--lead docs`; a `--lead code` run does not return it.
 - **Relevant files** — the files that implement the topic, marked to show the minimum set someone must read, with file and line references for the entry points, guards and writers.
 - **Current behavior** — what the code actually does today, including the failure paths and non-obvious couplings you would otherwise find the hard way.
-- **Not established** — what the run reports it did not do or establish: each duty it skipped or could not establish, and each internal-documentation page it located but did not read in full, with a one-clause reason each; `none` when nothing qualifies. This includes, for example, a duty whose answer rests on lines that a search the run piped through `head` never printed, when the run neither read those lines in full nor counted the matches with nothing cut.
+- **Not established** — what the run reports it did not do or establish, with a one-clause reason each, for example a duty it skipped or could not establish, or an internal-documentation page it located but did not read in full; `none` when nothing qualifies. This includes, for example, a duty whose answer rests on lines that a search the run piped through `head` never printed, when the run neither read those lines in full nor counted the matches with nothing cut.
 
 You can steer where the run starts. `--lead docs` reads the internal documentation first (from its index) before turning to the code; `--lead code` starts from the code and treats documentation as supporting evidence. With no `--lead`, the run reads documentation then code and returns the doc verdict.
 
-To keep the report as a file instead of chat text, add `--report-file` with a path under `.prflow/tmp/`, written relative (as below) or absolute. The run writes the report there, makes no other change and replies with the path. If it cannot write the file, it says so and returns the whole report as text.
+To keep the report as a file instead of chat text, add `--report-file` with a path under `.prflow/tmp/`, written relative (as below) or absolute. The run writes the report there, makes no other change and replies with the path alone. If it cannot write the file, it says so and returns the whole report as text.
 
 ```text
 /prflow:docs-verify --report-only --report-file .prflow/tmp/retry-report.md retry handling

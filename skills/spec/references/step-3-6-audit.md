@@ -26,6 +26,6 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 
 Exit 0 prints the extracted Documentation Needed paths, possibly none. Compare each with the edits the draft intends under the template's **Documentation Needed** rule: keep matching paths; rewrite the declaration to drop a path the change does not edit, keeping its restrictions and intended edits. An empty result stands only under a truthful standalone `none`; otherwise, a missing block included, correct the declaration. A path you cannot classify is reported as the check's finding, never guessed. Any other exit, or a refused invocation, is no result.
 
-Every draft change — a fix a check calls for, an audit round's must-revise or applied advisory fix (`references/step-3-6-audit-dispatch.md`), or a change the user asks for — follows `references/revision-delta.md`'s revision rule, then is re-gated by the Step 3 no-options gate and **Revision-delta verification** before the checks run. After a round's must-revise or applied advisory fixes or a change the user asks for, run Step 3.5 item 5's whole-draft walk before the next presentation or round.
+Every draft change — a fix a check calls for, an audit round's must-revise or applied advisory fix (`references/step-3-6-audit-dispatch.md`), or a change the user asks for — follows `references/revision-delta.md`'s revision rule, then is re-gated by the Step 3 no-options gate and **Revision-delta verification** before the checks run.
 
 <!-- prflow:spec-ref step=3.6 file=skills/spec/references/step-3-6-audit.md end -->

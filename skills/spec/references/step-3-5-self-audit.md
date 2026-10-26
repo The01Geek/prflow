@@ -48,11 +48,12 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    `references/issue-template.md`'s Acceptance Criteria contract (**omit/merge/add**); read it there
    rather than restating it. Scan every acceptance criterion and every named Testing-Strategy
    assertion the assembled draft asserts, and grade each against that whole rule. The *request* is
-   the words the filer actually supplied — Step 1's captured request and any Step 2 clarifications
-   recorded in this run's derivation artifact — never the drafted issue restating them back. When
-   this run cannot establish the request from that artifact — the unestablished-request case that
-   rule defines — record that state in the summary and report each criterion and named assertion
-   that rests on no change-introduced failure and carries no accepted limit. Otherwise report each guarantee nobody asked for that
+   the words the filer supplied — the story this run received, with any issue that story names,
+   and any Step 2 clarifications recorded in this run's derivation artifact — never the drafted
+   issue restating them. When the story this run received, the text of an issue that story names
+   or a Step 2 clarification this run recorded is unreadable or absent from what the run holds — the
+   unestablished-request case that rule defines — record
+   that state in the summary and report each criterion and named assertion that rests on no change-introduced failure and carries no accepted limit. Otherwise report each guarantee nobody asked for that
    the rule omits, including the plausible, individually defensible one (a startup-time
    validation, a "no such module exists" negative, a proof-of-extensibility stub), a preservation
    the change does not reach, and one the project's guidance already requires of every change. Except

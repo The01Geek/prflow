@@ -77,16 +77,23 @@ def _force_utf8_streams():
 
 GH = os.environ.get("DEVFLOW_GH") or "gh"
 # The §1.3.5 gate reads exactly three exit codes: 0 PROCEED, 2 BLOCKED (named
-# dependencies still open), 3 UNAVAILABLE (an unestablished measurement — bad
-# input, a failed read, or any unanticipated error). Naming them here makes the
-# "exit 2 is reserved for BLOCKED" invariant a single source of truth shared by
-# _Parser (usage errors route to UNAVAILABLE, never masquerade as BLOCKED),
-# dependencies() (its BLOCKED return), and main()'s top-level fail-closed catch.
+# dependencies still open, or a Blocked-decisions section remains), 3 UNAVAILABLE
+# (an unestablished measurement — bad input, a failed read, or any unanticipated
+# error). Naming them here makes the "exit 2 is reserved for BLOCKED" invariant a
+# single source of truth shared by _Parser (usage errors route to UNAVAILABLE,
+# never masquerade as BLOCKED), dependencies() (its BLOCKED return), and main()'s
+# top-level fail-closed catch.
 PROCEED_EXIT = 0
 BLOCKED_EXIT = 2
 UNAVAILABLE_EXIT = 3
 DEPENDENCY_HEADING = re.compile(r"^##\s+Dependencies\s*$", re.IGNORECASE)
+# The heading /prflow:spec's issue template writes for unsettled decisions; renaming
+# it there without changing this pattern silently disables the stop.
+BLOCKED_DECISIONS_HEADING = re.compile(r"^##\s+🚫\s+Blocked\b")
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 HEADING = re.compile(r"^#{1,6}\s+")
+_LIST_ITEM = re.compile(r"^ {0,3}([-*+]|\d{1,9}[.)])(?=\s|$)")
+_THEMATIC_BREAK = re.compile(r"^ {0,3}(?:(?:\* *){3,}|(?:- *){3,}|(?:_ *){3,})$")
 # Group 1 is the heading level (the `#`-run), read by the reserved-leading
 # malformed-heading detector below; group 2 is the heading text (whitespace-trimmed
 # by the pattern; case-folded by the detector).
@@ -401,6 +408,46 @@ def malformed_reserved_dependency_heading(body: str) -> str | None:
     return None
 
 
+def has_blocked_decisions_heading(body: str) -> bool:
+    """Return True when a Blocked-decisions heading line sits outside fenced code.
+
+    Fence open/close follows `scripts/build-investigation-record.py`'s `_Fence`; an
+    unclosed fence runs to the end of the body. A fence opened inside a list item
+    also ends at a non-blank line indented less than the item's content column.
+    """
+    fence = None  # (fence character, run length, list content column or 0)
+    item_cols = []  # content columns of list items that may still be open
+    blank = False  # the previous line was blank
+    for line in re.split(r"\r\n?|\n", body):
+        line = line.expandtabs(4)
+        indent = len(line) - len(line.lstrip(" "))
+        ended = bool(fence and fence[2] and line.strip() and indent < fence[2])
+        if ended:
+            fence = None
+        match = _FENCE.match(line)
+        if fence is None:
+            thematic = _THEMATIC_BREAK.match(line)
+            item = None if thematic else _LIST_ITEM.match(line)
+            if (item or thematic or re.match(r"^ {0,3}>", line)
+                    or (line.strip() and (blank or ended or match or HEADING.match(line)))):
+                while item_cols and item_cols[-1] > indent:
+                    item_cols.pop()
+            if item:
+                gap = len(line) - len(line[item.end():].lstrip(" ")) - item.end()
+                wide = not 1 <= gap <= 4 or not line[item.end():].strip()
+                item_cols.append(item.end() + (1 if wide else gap))
+            if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
+                fence = (match.group(1)[0], len(match.group(1)),
+                         item_cols[-1] if item_cols else 0)
+            elif BLOCKED_DECISIONS_HEADING.match(line):
+                return True
+            blank = not line.strip()
+        elif (match and match.group(1)[0] == fence[0]
+              and len(match.group(1)) >= fence[1] and not match.group(2).strip()):
+            fence, blank = None, False
+    return False
+
+
 def _gh_issue_view(number: object, field: str) -> str:
     """Run `gh issue view <number> --json <field> -q .<field>` and return stdout.
 
@@ -495,6 +542,16 @@ def dependencies(args: argparse.Namespace) -> int:
         )
         print("UNAVAILABLE malformed-dependency-heading", flush=True)
         return UNAVAILABLE_EXIT
+
+    if has_blocked_decisions_heading(body):
+        print(
+            "preflight.py: the issue body still has a `## 🚫 Blocked` section of "
+            "unsettled decisions — settle each question in the issue, remove the "
+            "section and re-trigger",
+            file=sys.stderr,
+        )
+        print("BLOCKED blocked-decisions", flush=True)
+        return BLOCKED_EXIT
 
     numbers = dependency_numbers(body)
     if not numbers:
@@ -2351,10 +2408,13 @@ def doc_needed_paths(args: argparse.Namespace) -> int:
         print(f"preflight.py: doc-needed-paths: extraction failed (extractor exit {out.returncode})", file=sys.stderr)
         return UNAVAILABLE_EXIT
     try:
-        sys.stdout.write(out.stdout.decode("utf-8"))
+        paths = out.stdout.decode("utf-8")
     except UnicodeDecodeError:
         print("preflight.py: doc-needed-paths: extraction failed (non-UTF-8 extractor output)", file=sys.stderr)
         return UNAVAILABLE_EXIT
+    # Text-mode stdout writes "\n" as "\r\n" on Windows; print the extractor's lines verbatim.
+    sys.stdout.reconfigure(newline="")
+    sys.stdout.write(paths)
     return PROCEED_EXIT
 
 
@@ -2377,11 +2437,11 @@ class _Parser(argparse.ArgumentParser):
     """Exit usage errors with UNAVAILABLE_EXIT, not argparse's default 2.
 
     BLOCKED_EXIT (2) is the contract code the Phase 1 §1.3.5 gate maps to "named
-    dependencies are still open". A malformed invocation (bad/empty --issue,
-    neither input flag) must not masquerade as that verdict — it is an
-    unestablished measurement, so route it to the UNAVAILABLE class
-    (UNAVAILABLE_EXIT). The override is scoped to error()-routed failures; every
-    non-help exit today flows through error().
+    dependencies are still open" or "a Blocked-decisions section remains". A
+    malformed invocation (bad/empty --issue, neither input flag) must not
+    masquerade as that verdict — it is an unestablished measurement, so route it
+    to the UNAVAILABLE class (UNAVAILABLE_EXIT). The override is scoped to
+    error()-routed failures; every non-help exit today flows through error().
     """
 
     def error(self, message: str) -> NoReturn:

@@ -9,7 +9,7 @@ Teach a PRFlow command your repository's rules by committing a Markdown file tha
 
 A skill extension is a Markdown file in your repository whose text PRFlow adds to the end of a command's own instructions each time that command runs.
 
-The file belongs to you, not to the plugin. A plugin update never overwrites it and never conflicts with it, in the same way that your `.prflow/config.json` stays yours across updates.
+The file belongs to you, not to the plugin. A plugin update never overwrites your instructions, but preserved instructions can still refer to PRFlow behavior that has changed. Review those references when upgrading.
 
 Settings in `.prflow/config.json` change values PRFlow already knows about. A skill extension adds instructions PRFlow could not know about, such as the name of your verification command or a rule about code that must never change.
 
@@ -62,7 +62,9 @@ The command loads the file at the start of the run and appends its contents, wor
 
 Long commands reload the file when they enter a new phase, so your instructions stay in effect through a run that lasts an hour. `/prflow:implement` also checks the file again when it merges your base branch just before review, so an extension change merged meanwhile applies to the review. `/prflow:pr-description` is a single pass and loads it once.
 
-Write the file as instructions, not as background reading. If you want a tool called, say so, because the agent acts on what the text tells it to do.
+Write instructions that state the repository outcome you need instead of copying PRFlow's core mechanics or anchoring rules to incidental internal names. If you want a tool called, say so.
+
+Follow *Two headings the spec extension treats specially* below for the requirements it covers. Use ordinary prose for other requirements, retaining exact literals that a tool reads.
 
 ## Write One
 
