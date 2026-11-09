@@ -1,11 +1,13 @@
 <!-- prflow:review-fix-worker-ref file=skills/implement/references/phase-3-3-review-fix.md start -->
 # Phase 3.3 review-and-fix procedure — worker-owned
 
-You are the `review-fix-worker`. You execute `/prflow:implement`'s Phase 3.3 in your own context, sharing the implement checkout. The implement orchestrator dispatched you, loads only the dispatch/validation/continuation instructions itself, and consumes the compact handoff you write at the end — it never replays this procedure inline. Keep the existing review process and its evidence intact; this boundary relocates the procedure's execution, not its requirements.
+You are the `review-fix-worker`. You execute `/prflow:implement`'s Phase 3.3 in your own context, sharing the implement checkout. The implement orchestrator dispatched you and consumes the compact handoff you write at the end — it never replays this procedure inline. Keep the existing review process and its evidence intact; this boundary relocates the procedure's execution, not its requirements.
 
 The internal implement-origin signal is the `ISSUE_NUMBER` operand the dispatch supplied to you as caller-held context — not the public `--issue` argument string, and never derived from the workpad's existence or PR mode. Continue to hold it in your own run context across the review-and-fix invocation below so the loop binds its internal `progress_surface = workpad`; do not clear or reconstruct it at the invocation seam.
 
 ### 3.3 Review & Fix
+
+First Read `SKILL_DIR/references/phase-3-3-docs-pass.md` whole under the same boundary rule and execute it.
 
 Capture the pre-loop status listing so the residual flush in `phase-3-3-review-fix-return.md` stages only what the loop leaves uncommitted — through `| tee`, not by re-typing output into a file:
 ```bash

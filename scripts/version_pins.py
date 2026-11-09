@@ -340,7 +340,7 @@ def render_rewrites(
 def _write_rewrites(rewrites: dict[str, str]) -> None:
     for path, text in sorted(rewrites.items()):
         try:
-            with open(path, "w", encoding="utf-8") as fh:
+            with open(path, "w", encoding="utf-8", newline="") as fh:
                 fh.write(text)
         except OSError as exc:
             raise VersionPinError(f"{path}: cannot write: {exc}") from exc
@@ -450,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
             rewrites = render_rewrites(args.root, args.rewrite, files)
             _write_rewrites(rewrites)
             for path in sorted(rewrites):
-                print(os.path.relpath(path, args.root))
+                print(posix_path(os.path.relpath(path, args.root)))
             return 0
         return check(args.root, files)
     except VersionPinError as exc:

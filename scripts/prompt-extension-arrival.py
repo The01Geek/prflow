@@ -55,6 +55,9 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib"))
+from path_forms import posix_path
+
 # The three delivery states the job-level surface establishes (AC1), plus the
 # per-fault classify tokens that each map to `unestablished` at reconcile time.
 STATE_ARRIVED_EXPECTED = "arrived-expected"
@@ -227,7 +230,7 @@ def cmd_classify(args: argparse.Namespace) -> int:
     state = _classify_state(ext_file)
     # Record the resolved root on stdout so the run can state which root it read (AC8).
     sys.stdout.write(
-        f"state={state} root={ext_dir} skill={args.skill} file={ext_file}\n"
+        f"state={state} root={posix_path(ext_dir)} skill={args.skill} file={posix_path(ext_file)}\n"
     )
     return EXIT_FAULT if state in _FAULT_TOKENS else EXIT_OK
 

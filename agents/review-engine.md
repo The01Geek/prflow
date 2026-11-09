@@ -20,4 +20,4 @@ On cloud, a refused command runs nothing and may print nothing; never improvise 
 
 On cloud, start helpers with their granted literal and apply the shape limits above.
 
-Search file contents with the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/`; a refused search or exit above 1 proves nothing.
+Search file contents with the Grep tool, else `git grep --untracked -nP -e '<pattern>' -- :/`; single-quote each pattern, never double-quote it, writing a `'` it needs as `'\''` after escaping its regex metacharacters; a refused search or exit above 1 proves nothing.

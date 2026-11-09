@@ -4,10 +4,16 @@
 ### Defect reproduction
 
 A defect report carries concrete reproduction facts: triggering input or steps, observed and
-expected results, and relevant environment. Its Testing Strategy explains how the fix will be
-distinguished from the failure, preferably with a focused regression test against the actual
-implementation. Reuse existing coverage or a direct reproduction where sufficient; missing evidence
-is an explicit limit, not an invented result. Honor repository testing requirements and agreed
+expected results, and relevant environment. Each observed and expected result a reporter of the
+defect states is its own fact; someone else's explanation of a result is not a result.
+`Current Behavior` keeps every such result, including one a premise correction, an explanation or
+the user's scope answer addresses: a result a premise correction contradicts is kept as the
+reporter's result, marked as reported, with the correction stated beside it; any other kept
+result, including one a scope answer moves out of the issue, is stated as the reporter states it.
+A defect report's Testing Strategy explains how the fix will be distinguished from the failure,
+preferably with a focused regression test against the actual implementation. Reuse existing
+coverage or a direct reproduction where sufficient; missing evidence is an explicit limit, not an
+invented result. Honor repository testing requirements and agreed
 criteria.
 
 ### Convention-governed matrices

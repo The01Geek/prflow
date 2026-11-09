@@ -649,22 +649,6 @@ case "$WORKPAD_BODY" in
         BASE_UPDATE_CHECKPOINT4_PRESENT=true ;;
 esac
 
-# phase2_sweep_yield (issue #438): the workpad's Phase 2 sweep-evidence records,
-# tallied by the sibling sweep-evidence.py so the analysis reads counts, not base64
-# marker payloads. null when the workpad carries no record; "unavailable" when the
-# summarizer is absent or fails (unknown is not zero).
-PHASE2_SWEEP_YIELD_JSON="null"
-case "$WORKPAD_BODY" in
-    *'checkpoint sweep-evidence:'*)
-        PHASE2_SWEEP_YIELD_JSON='"unavailable"'
-        printf '%s' "$WORKPAD_BODY" > "$_JQ_TMP/workpad_body.txt"
-        if _SWEEP_YIELD="$(python3 "$HERE/../scripts/sweep-evidence.py" summarize --workpad-file "$_JQ_TMP/workpad_body.txt")"; then
-            PHASE2_SWEEP_YIELD_JSON="$_SWEEP_YIELD"
-        else
-            echo "::warning::fetch-pr-context: sweep-evidence.py summarize failed for PR ${PR}; phase2_sweep_yield is unavailable" >&2
-        fi ;;
-esac
-
 # implement_summary_comment: best-effort
 IMPLEMENT_SUMMARY="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -r '[.[] | select((.body | strings) // "" | test("Claude finished|/implement #"; "i"))] | first | .body // ""')"
 if [ -n "$IMPLEMENT_SUMMARY" ]; then
@@ -754,7 +738,6 @@ printf '%s' "$REVIEW_VERDICTS"          > "$_JQ_TMP/review_verdicts.json"
 printf '%s' "$WORKPAD_BODY_JSON"        > "$_JQ_TMP/workpad_body.json"
 printf '%s' "$REFLECTIONS"              > "$_JQ_TMP/reflections.json"
 printf '%s' "$IMPLEMENT_SUMMARY_JSON"   > "$_JQ_TMP/implement_summary_comment.json"
-printf '%s' "$PHASE2_SWEEP_YIELD_JSON"  > "$_JQ_TMP/phase2_sweep_yield.json"
 
 # argjson-ok: pr additions deletions diff_truncated issue_number review_reject_outstanding review_verdict_unparsed_count review_comments_count post_bot_commits ci_failures_during_pr ci_status_unknown pr_devflow_provenance reflections_friction_count base_update_checkpoint4_present ttm_hours -- all bounded scalars (numbers/booleans), never corpus-sized; every corpus-sized operand here is routed via --slurpfile (issue #895)
 "$DEVFLOW_JQ" -n \
@@ -789,7 +772,6 @@ printf '%s' "$PHASE2_SWEEP_YIELD_JSON"  > "$_JQ_TMP/phase2_sweep_yield.json"
     --argjson review_reject_outstanding "$REVIEW_REJECT_OUTSTANDING" \
     --argjson review_verdict_unparsed_count "$REVIEW_VERDICT_UNPARSED_COUNT" \
     --slurpfile implement_summary_comment "$_JQ_TMP/implement_summary_comment.json" \
-    --slurpfile phase2_sweep_yield "$_JQ_TMP/phase2_sweep_yield.json" \
     --argjson review_comments_count "$REVIEW_COMMENTS_COUNT" \
     --argjson post_bot_commits "$POST_BOT_COMMITS" \
     --argjson ci_failures_during_pr "$CI_FAILURES" \
@@ -834,7 +816,6 @@ printf '%s' "$PHASE2_SWEEP_YIELD_JSON"  > "$_JQ_TMP/phase2_sweep_yield.json"
         review_verdicts: $review_verdicts[0],
         review_verdict_unparsed_count: $review_verdict_unparsed_count,
         implement_summary_comment: $implement_summary_comment[0],
-        phase2_sweep_yield: $phase2_sweep_yield[0],
         signals: {
             review_comments_count: $review_comments_count,
             post_bot_commits: $post_bot_commits,

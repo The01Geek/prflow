@@ -5,13 +5,13 @@ description: "Understand PRFlow's lifecycle, progress records, verification, rev
 
 Understand how PRFlow moves a request through an established repository while keeping human control, durable progress and independent review.
 
-PRFlow is an orchestrated delivery workflow. It turns a GitHub issue into a branch and a progress record, builds a draft pull request, verifies and reviews the change, updates documentation and hands the result to a person. It does not merge.
+PRFlow is an orchestrated delivery workflow. It turns a GitHub issue into a branch and a progress record, builds a draft pull request, updates documentation, verifies and reviews the change and hands the result to a person. It does not merge.
 
 ## Core Concepts
 
 <CardGroup cols={2}>
   <Card title="The PRFlow Lifecycle" icon="route" href="/docs/concepts/lifecycle">
-    The seven stages an issue passes through, and the gates that can stop a run at each one.
+    The stages an issue passes through, and the gates that can stop a run.
   </Card>
   <Card title="Workpads and Resume" icon="clipboard-list" href="/docs/concepts/workpads-and-resume">
     The progress comment PRFlow writes on the issue, and which work survives an interruption.

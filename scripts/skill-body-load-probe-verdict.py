@@ -63,8 +63,8 @@ import sys
 def _force_utf8_streams():
     for _stream in (sys.stdout, sys.stderr):
         try:
-            _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError, OSError):
+            _stream.reconfigure(encoding="utf-8", newline="\n")
+        except (AttributeError, TypeError, ValueError, OSError):
             pass
 
 

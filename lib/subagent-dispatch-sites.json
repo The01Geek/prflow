@@ -14,7 +14,7 @@
       "subagent_type": "unspecified"
     },
     {
-      "dispatcher": "skills/implement/references/phase-4-finalization.md",
+      "dispatcher": "skills/implement/references/phase-3-3-docs-pass.md",
       "skill": "docs",
       "handoff": "by-path",
       "subagent_type": "unspecified"

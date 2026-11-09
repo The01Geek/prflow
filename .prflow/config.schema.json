@@ -342,6 +342,14 @@
           "description": "When true, a PR-mode /prflow:review authors a live progress comment for that run (a run-keyed <!-- prflow:review-progress run=<id>-<attempt> --> comment \u2014 one per review run, so a later run posts its own rather than overwriting an earlier run's) incrementally as it works \u2014 a blueprint of the phases up front, then per-phase updates (diff classification, checklist results, each Phase-3 agent's findings as they land, the verdict), finalizing with the verdict-first report. When false, /prflow:review falls back to producing its report once at the end (no incremental updates). Independent of prflow_review_and_fix.efficiency_telemetry_enabled, which separately gates the run-telemetry record. Inherits from telemetry.enabled (issue #2035): when this key does not resolve to a value — absent, JSON null, or an empty string — and telemetry.enabled is the JSON boolean false, this gate resolves to false; a value that does resolve always wins.",
           "default": true
         },
+        "dependency_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns (non-recursive; a relative one against the repository root) for directories holding installed third-party library source, such as a Python site-packages, a PHP vendor/ or a JavaScript node_modules/ directory. The checklist verifier may read a library's source there when a claim depends on how that library behaves; it still runs nothing. Read only from the reviewed base commit's .prflow/config.json, so a change takes effect on reviews whose base already contains it. A pattern cannot contain a comma, and a wildcard does not match a name starting with a dot. A directory the reviewed head or base commit tracks, or tracks a file under, is dropped, letter case ignored. The default, an empty list, gives the verifier no dependency directories.",
+          "default": []
+        },
         "stale_prose": {
           "type": "object",
           "additionalProperties": false,
@@ -1105,12 +1113,12 @@
         },
         "internal_enabled": {
           "type": "boolean",
-          "description": "When false, the /prflow:docs combined pass (and /prflow:implement's Phase 4.1 docs step) SKIPS internal-doc updates (Step 1, docs-sync-internal). Use it for repos with no internal docs tree, or to keep the implement pass from touching internal docs. Default true (run internal docs). Does not affect invoking /prflow:docs-sync-internal directly.",
+          "description": "When false, the /prflow:docs combined pass (and /prflow:implement's documentation pass) SKIPS internal-doc updates (Step 1, docs-sync-internal). Use it for repos with no internal docs tree, or to keep the implement pass from touching internal docs. Default true (run internal docs). Does not affect invoking /prflow:docs-sync-internal directly.",
           "default": true
         },
         "external_enabled": {
           "type": "boolean",
-          "description": "When false, the /prflow:docs combined pass (and /prflow:implement's Phase 4.1 docs step) SKIPS external-doc alignment (Step 2, docs-sync-external). Use it for repos with no separate customer-facing docs tree (e.g. a single flat docs/ directory). Default true (run external docs). Does not affect invoking /prflow:docs-sync-external directly.",
+          "description": "When false, the /prflow:docs combined pass (and /prflow:implement's documentation pass) SKIPS external-doc alignment (Step 2, docs-sync-external), and the implement documentation pass writes no release note while `git ls-files` succeeds without listing the release-notes file. Use it for repos with no separate customer-facing docs tree (e.g. a single flat docs/ directory). Default true (run external docs). Does not affect invoking /prflow:docs-sync-external directly.",
           "default": true
         },
         "release_notes_file": {

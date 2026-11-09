@@ -5,7 +5,7 @@
 
 The checklist-verifier answers one verdict: PASS, FAIL, INVALID or INCONCLUSIVE. This helper owns
 the parse contract and maps each answer to a stored verdict (*Stored verdicts* below).
-Its own modes use the stdlib and the sibling ``verdict_report.py``'s severity ladder and path spelling, read no config and make no ``gh``/network/``git`` calls; the
+Its own modes use the stdlib, the sibling ``verdict_report.py``'s severity ladder and path spelling, the sibling ``checklist_finalize.py``'s prior-finding lines (``render`` with a prior directory) and, on Windows, the sibling ``tree_removal.py``'s extended-length paths, read no config and make no ``gh``/network/``git`` calls; the
 ``checklist`` route below is not bound by this.
 
 Contract. ``prepare``, ``collect``, ``render``, ``assemble`` and ``reverify-add`` each require ``--contract 2``
@@ -41,6 +41,8 @@ these helper-owned keys, overwriting a generator-supplied value of any of them:
                               here; a re-verification moves only verdict_file)
     head_view, base_view      the source views and their revisions, from engine-setup.json
     head_sha, base_sha, diff
+    dependency_sources        the setup record's resolved dependency directories, only when
+                              it holds at least one
     grading_rules             the paragraphs of skills/review/verifier-rules/<name>.md the item
                               needs: issue-acceptance.md for an issue_acceptance item or one a
                               Stricter disclosure reaches, prior-ref.md for an item carrying
@@ -134,14 +136,16 @@ verifier's grade lower-cased, ``critical`` for an invalid or missing one, an unu
 an ``issue_acceptance`` item.
 
 ``reverify`` (Phase 4.1) grades attempt k of a fresh item whose stored verdict is FAIL like a
-first answer (never from a reply) and replaces the stored row only with a PASS or FAIL, which
+first answer (never from a reply), so an eligible item's FAIL whose ``requirement`` does not pass
+grades INCONCLUSIVE, and replaces the stored row only with a PASS or FAIL, which
 keeps the replaced row's ``findings``; each
 entry, used or ignored, writes one ``input_warnings`` line beginning ``re-verification <id>: ``; a replacement
 adds nothing to ``counts``.
 
 Findings: defects a verifier reports beside its verdict. A row stored from a usable answer
 carries ``findings`` when that answer's ``findings`` array holds at least one object with a
-non-empty string ``description``; each is stored with ``item_id`` set to the item's id and
+non-empty string ``description`` and, on an eligible item, a ``requirement`` that passes (*Stored
+verdicts* below); each is stored with ``item_id`` set to the item's id and
 ``severity`` read as the verdict's is (an untrusted channel included). A missing array stores
 none. A non-array value and each other record are dropped with an ``input_warnings`` line,
 never a retry. Other fields pass through unchecked: Phase 3 reads them as a reviewer finding's.
@@ -161,10 +165,32 @@ unreadable is ``defect_class: "channel"`` (``trusted_file_unreadable``) in every
 direction; an exception on one pair is ``helper_internal`` (``pair_processing_error``, with a
 traceback on stderr) and never aborts the rest.
 
-Stored verdicts: a usable answer is graded on its ``verdict``; no qualifying field
-(``read_failed``, ``severity``, ``file_checked``) grades it, but an ``id`` mismatch is a verdict
-defect and the delivery-recovery checks above can store INCONCLUSIVE instead. PASS, FAIL and
-INCONCLUSIVE are otherwise stored as answered. INVALID (only the generated
+Stored verdicts: a usable answer is graded on its ``verdict``; ``read_failed`` and ``severity``
+never grade it, and ``requirement`` and ``file_checked`` grade only an eligible FAIL (below), but
+an ``id`` mismatch is a verdict
+defect and the delivery-recovery checks above can store INCONCLUSIVE instead. PASS and
+INCONCLUSIVE are otherwise stored as answered, and so is a FAIL, except on an eligible item
+(``_invalid_blockers`` empty) and the trusted file not unreadable: there the FAIL is stored only when
+its ``requirement`` passes and any present ``file_checked`` is a string, and otherwise as
+INCONCLUSIVE with ``verification_shortfall`` null and
+a ``FAIL stored INCONCLUSIVE (requirement quote <reason>): `` evidence prefix.
+
+A ``requirement`` passes when it is an object whose string ``path`` and string ``quote`` hold a
+quote not empty once every run of spaces, tabs, CR and LF is collapsed to one space and trimmed;
+``path``, reduced by ``_bare_key`` against the item file's ``head_view``/``base_view``, names an
+entry of each view's ``inventory.json`` (by ``path`` or ``stored_path``) of kind ``blob`` with a
+``stored_path``; the collapsed quote occurs in both stored files, each read as UTF-8 with
+undecodable bytes replaced and collapsed the same way (nothing else is normalized); and the
+repository path it names (mapped through the head inventory) is none of the files it must stay
+out of, each reduced and mapped the same way: for a verdict the item's ``source_file`` and every
+file ``file_checked`` cites (each part ``_cited_paths`` returns that is a head inventory key, or
+else each whitespace-separated piece of it that ``_bare_key`` reduces to one; a part or piece
+naming no inventory file excludes nothing), for a finding its ``defect_signature.file``. A name
+the inventory gives, as ``path`` or ``stored_path``, to more than one repository path is
+ambiguous: it never passes as ``path`` and, in the head inventory, excludes every such path. An item
+with no string ``source_file``, a finding with no string ``defect_signature.file``, an absent,
+empty or non-string view and a missing or malformed ``inventory.json`` never pass;
+none of them raises. INVALID (only the generated
 claim is wrong) is never stored: it becomes PASS with ``normalized: true``, ``raw_verdict:
 "INVALID"`` and the ``NORMALIZED (wording-only): `` evidence prefix when ``_invalid_blockers``
 names no blocker and the trusted file was not unreadable, and FAIL otherwise, the reason in
@@ -181,6 +207,7 @@ or raises on import, or an error or refusal from ``prepare``, ``collect``, ``ren
 and ``checklist``, which print their own JSON shape.
 """
 
+import functools
 import itertools
 import json
 import os
@@ -469,6 +496,15 @@ def _process_pair(pair):
     if trusted_channel_lost:  # a fallback-channel grade is untrusted, like its verdict
         result["severity"] = "critical"
 
+    if raw == "FAIL" and not trusted_channel_lost and not _invalid_blockers(item):
+        miss = (f"file_checked is {_shape(True, fc)}"
+                if "file_checked" in obj and not isinstance(fc, str) else
+                _requirement_miss("requirement" in obj, obj.get("requirement"), pair.get("views"),
+                                  item.get("source_file"), [item.get("source_file")], fc))
+        if miss is not None:
+            result["verdict"], result["_requirement_miss"] = "INCONCLUSIVE", miss
+            result["evidence"] = (f"FAIL stored INCONCLUSIVE (requirement quote {miss}): "
+                                  + (result["evidence"] or ""))
     if raw == "INVALID":
         blockers = _invalid_blockers(item)
         # A lost trusted channel stores FAIL too; the channel stamp below writes its note.
@@ -498,10 +534,11 @@ def _process_pair(pair):
 
 
 def run_pairs(pairs):
-    """Grade the ``{"item", "verdict_path", "response_text"}`` pairs ``collect`` derives."""
+    """Grade the pairs ``collect`` derives. A pair's ``views`` is its item file's ``(head_view,
+    base_view)`` tuple; any other value fails the requirement check."""
     results = []
     needs_retry = []
-    severity_defects, read_failed, findings = {}, {}, {}
+    severity_defects, read_failed, findings, requirement_miss = {}, {}, {}, {}
     for idx, pair in enumerate(pairs):
         try:
             result, retry = _process_pair(pair)
@@ -545,6 +582,7 @@ def run_pairs(pairs):
         severity_defects[len(results)] = result.pop("_severity_defect", None)
         read_failed[len(results)] = result.pop("_read_failed", (False, None))
         findings[len(results)] = result.pop("_findings", (False, None))
+        requirement_miss[len(results)] = result.pop("_requirement_miss", None)
         results.append(result)
         if retry is not None:
             needs_retry.append(retry)
@@ -555,6 +593,7 @@ def run_pairs(pairs):
         "severity_defects": severity_defects,
         "read_failed": read_failed,
         "findings": findings,
+        "requirement_miss": requirement_miss,
         "counts": {"normalized_count": sum(1 for r in results if r.get("normalized"))},
     }
 
@@ -698,6 +737,131 @@ def _cited_paths(fc, prefixes, inventory):
                     continue
             keys.append(key)
     return keys or [fc]
+
+
+# ── requirement check (module docstring, *Stored verdicts*) ──────────────────
+
+_REQ_SPACE = re.compile(r"[ \t\r\n]+")
+
+
+def _collapse(text):
+    return _REQ_SPACE.sub(" ", text).strip(" ")
+
+
+def _view_fs(path):
+    """``path`` in the extended-length form on Windows, as review-engine-io.py's ``_fs_path``
+    writes view files past the 260-character limit; else unchanged."""
+    if os.name != "nt":
+        return path
+    from tree_removal import _extended_path
+    return _extended_path(os.path.abspath(path))
+
+
+@functools.lru_cache(maxsize=1)
+def _tree_removal_unusable():
+    """Why ``_view_fs`` cannot import ``tree_removal._extended_path``, else None. The first failure
+    writes its traceback to stderr: it is a helper defect, not a verifier one."""
+    try:
+        from tree_removal import _extended_path  # noqa: F401
+    except Exception as e:
+        sys.stderr.write("normalize-verdicts.py: tree_removal.py is unimportable -- this is a helper "
+                         "defect, not a verifier defect:\n" + traceback.format_exc())
+        return f"{type(e).__name__}: {e}"
+    return None
+
+
+@functools.lru_cache(maxsize=4)
+def _view_names(view):
+    """``<view>/inventory.json``'s entries keyed by ``path``, then by ``stored_path``, a name the
+    entries give to more than one ``path`` keyed to the tuple of those paths; None unless it reads and parses as an object whose ``entries`` is a list of
+    objects each with a string ``path``. Callers never mutate the result."""
+    try:
+        with open(_view_fs(os.path.join(view, "inventory.json")), encoding="utf-8") as fh:
+            entries = json.load(fh).get("entries")
+    except (OSError, ValueError, AttributeError, RecursionError):
+        return None
+    if not (isinstance(entries, list)
+            and all(isinstance(e, dict) and isinstance(e.get("path"), str) for e in entries)):
+        return None
+    names = {e["path"]: e for e in entries}
+    for e in entries:
+        stored = e.get("stored_path")
+        if not isinstance(stored, str):
+            continue
+        prior = names.setdefault(stored, e)
+        paths = prior if isinstance(prior, tuple) else (prior["path"],)
+        if e["path"] not in paths:
+            names[stored] = paths + (e["path"],)
+    return names
+
+
+def _requirement_miss(present, req, views, source_file, stay_out, cited=None):
+    """Why ``req`` fails the requirement check, or None when it passes. ``stay_out`` are citations
+    of files it must not name, each reduced whole; ``cited`` a ``file_checked`` whose cited files
+    it must not name either. Never raises."""
+    if not isinstance(req, dict):
+        return f"is {_shape(present, req)}"
+    path, quote = req.get("path"), req.get("quote")
+    if not isinstance(path, str):
+        return f"path is {_shape('path' in req, path)}"
+    if not isinstance(quote, str):
+        return f"quote is {_shape('quote' in req, quote)}"
+    quote = _collapse(quote)
+    if not quote:
+        return "quote is empty"
+    if not isinstance(source_file, str):
+        return "item has no string source_file"
+    if not (isinstance(views, tuple) and len(views) == 2
+            and all(isinstance(v, str) and v for v in views)):
+        return "item file gives no usable views"
+    if os.name == "nt" and _tree_removal_unusable() is not None:
+        return f"cannot run: tree_removal.py beside this file is unimportable ({_tree_removal_unusable()})"
+    prefixes = []
+    for view in views:
+        for form in (view.replace("\\", "/").rstrip("/"), _resolved(view)):
+            if form and form not in prefixes:
+                prefixes.append(form)
+    sides = []
+    for side, view in zip(("head", "base"), views):
+        names = _view_names(view)
+        if names is None:
+            return f"{side} view inventory.json unusable"
+        sides.append((side, view, names))
+    head = sides[0][2]
+
+    def repos(text):
+        key = _bare_key(text, prefixes)
+        entry = head.get(key)
+        return [key] if entry is None else list(entry) if isinstance(entry, tuple) else [entry["path"]]
+
+    excluded = {p for text in stay_out for p in repos(text)}
+    for part in _cited_paths(cited, prefixes, head):
+        pieces = [part] if part in head else part.split()
+        excluded.update(r for p in pieces if _bare_key(p, prefixes) in head for r in repos(p))
+    targets = repos(path)
+    if len(targets) > 1:
+        return f"names {_bare_key(path, prefixes)}, ambiguous between {' and '.join(targets)}"
+    target = targets[0]
+    if target in excluded:
+        return f"names {target}, a file it must stay out of"
+    for side, view, names in sides:
+        entry = names.get(target)
+        if entry is None:
+            return f"file is absent from the {side} view"
+        if isinstance(entry, tuple):
+            return f"names {target}, ambiguous in the {side} view between {' and '.join(entry)}"
+        if entry.get("kind") != "blob" or not isinstance(entry.get("stored_path"), str):
+            return f"file is {entry.get('kind')!r} in the {side} view, not a stored blob"
+        try:
+            with open(_view_fs(os.path.join(view, entry["stored_path"])), "rb") as fh:
+                raw = fh.read()
+        except (OSError, ValueError) as e:
+            return f"file is unreadable in the {side} view ({type(e).__name__}: {e})"
+        text = raw.decode("utf-8", errors="replace")
+        if quote not in _collapse(text):
+            return f"is not in the {side} view's copy" + (
+                "" if text.encode("utf-8") == raw else ", which is not valid UTF-8")
+    return None
 
 
 # ── shared helpers ────────────────────────────────────────────────────────────
@@ -852,7 +1016,8 @@ _STRICTER = "Stricter than criterion "
 _REJECTED = 'Finding rejected "'
 PR_ABSENT = object()
 _ITEM_STATE_KEYS = ("grading_rules", "disclosed", "criteria_file", "retried", "dispute",
-                    "delivery", "delivery_answer", "delivery_file_only", "rejections")
+                    "delivery", "delivery_answer", "delivery_file_only", "rejections",
+                    "dependency_sources")
 
 
 def _artifact_fields(value, verdict_file):
@@ -958,6 +1123,11 @@ def _setup_fields(lay):
     if not (isinstance(diff, str) and diff):
         raise _Refusal("error", "setup_record_unusable", "diff_path is not a non-empty string")
     keys["diff"] = diff
+    deps = record.get("dependency_sources", [])
+    if not (isinstance(deps, list) and all(isinstance(d, str) and d for d in deps)):
+        raise _Refusal("error", "setup_record_unusable", "dependency_sources is not a list of non-empty strings")
+    if deps:
+        keys["dependency_sources"] = deps
     return keys, record.get("pr", PR_ABSENT)
 
 
@@ -1249,8 +1419,8 @@ def _mark_delivery(state, pair, file_only=False):
     return _artifact_path(pair["verdict_path"]), None
 
 
-# What a delivered file must repeat from the recorded answer: the fields grading reads.
-# Evidence wording may drift.
+# What a delivered file must repeat from the recorded answer, which is what is graded; other
+# fields may drift.
 _DELIVERY_OPERANDS = ("id", "verdict", "severity", "read_failed")
 
 
@@ -1324,9 +1494,9 @@ def _read_inputs(lay, warnings):
     return maps["response_text"], maps["reverify"], agent_ids
 
 
-def _reverify(lay, reverify, checklist, verification, answered, warnings):
+def _reverify(lay, reverify, checklist, verification, answered, warnings, views):
     """Grade each ``reverify`` entry's attempt and let a PASS or FAIL replace the stored FAIL.
-    Returns the replaced ids."""
+    ``views`` maps an item id to its item file's views. Returns the replaced ids."""
     replaced, where = [], {}
     for idx, item in enumerate(checklist):
         if isinstance(item, dict) and isinstance(item.get("id"), str):
@@ -1359,7 +1529,8 @@ def _reverify(lay, reverify, checklist, verification, answered, warnings):
             warnings.append(head + "ignored: " + why)
             continue
         item = checklist[slots[0]]
-        ran = run_pairs([{"item": item, "verdict_path": _attempt_path(lay["verdicts"], rid, k)}])
+        ran = run_pairs([{"item": item, "verdict_path": _attempt_path(lay["verdicts"], rid, k),
+                          "views": views.get(rid)}])
         graded, sev_defect = ran["results"][0], ran["severity_defects"].get(0)
         _force_issue_acceptance(graded, item)
         before = f"FAIL ({stored['severity']}) -> "
@@ -1370,6 +1541,8 @@ def _reverify(lay, reverify, checklist, verification, answered, warnings):
                         "none_file_unreadable": "re-verification file unreadable"}.get(graded["source"], kept)
         elif graded["verdict"] == "INCONCLUSIVE":
             kept = "graded INCONCLUSIVE"
+            if ran["requirement_miss"].get(0) is not None:
+                kept += f" (requirement quote {ran['requirement_miss'][0]})"
         else:
             graded["verification_shortfall"] = None
             if "findings" in stored:  # the dispute grades the claim; the first answer's findings stand
@@ -1399,19 +1572,30 @@ def _read_failed_note(item_id, result, present, value, warnings):
     return "verifier-read-failed"
 
 
-def _findings(item_id, result, present, value, warnings):
+def _findings(item_id, result, present, value, warnings, pair):
     """A usable answer's stored ``findings`` records (module docstring, *Findings*)."""
     if not present:
         return []
     if not isinstance(value, list):
         warnings.append(f"{item_id!r}: findings is {_shape(True, value)}, not an array -- dropped")
         return []
+    item = pair["item"]
+    eligible = not _invalid_blockers(item)
     kept = []
     for idx, record in enumerate(value):
         if not (isinstance(record, dict) and isinstance(record.get("description"), str)
                 and record["description"].strip()):
             warnings.append(f"{item_id!r}: findings[{idx}] is not an object with a description -- dropped")
             continue
+        if eligible:
+            sig = record.get("defect_signature")
+            own = sig.get("file") if isinstance(sig, dict) else None
+            miss = ("is unchecked: no string defect_signature.file" if not isinstance(own, str) else
+                    _requirement_miss("requirement" in record, record.get("requirement"),
+                                      pair.get("views"), item.get("source_file"), [own]))
+            if miss is not None:
+                warnings.append(f"{item_id!r}: findings[{idx}] requirement quote {miss} -- dropped")
+                continue
         record = dict(record, item_id=item_id)
         record["severity"], defect = _severity(record)
         if defect is not None:
@@ -1454,7 +1638,8 @@ def collect(checklist_file):
             continue
         key = item_id if isinstance(item_id, str) else None
         state = _item_state(lay, key, warnings)
-        pair = {"item": item}
+        value = state["value"] or {}
+        pair = {"item": item, "views": (value.get("head_view"), value.get("base_view"))}
         reply = replies.get(key) if key is not None else None
         if key in replies and not (isinstance(reply, str) and reply):
             warnings.append(f"response_text[{key!r}]: " + ("empty string" if reply == "" else
@@ -1541,7 +1726,7 @@ def collect(checklist_file):
             shortfall = "no-usable-verdict"
         else:
             shortfall = _read_failed_note(item_id, result, present, value, warnings)
-            found = _findings(item_id, result, *ran["findings"].get(idx, (False, None)), warnings)
+            found = _findings(item_id, result, *ran["findings"].get(idx, (False, None)), warnings, pair)
             if found:
                 result["findings"] = found
         result["verification_shortfall"] = shortfall
@@ -1554,7 +1739,8 @@ def collect(checklist_file):
             if k:
                 answered.setdefault(item_id, set()).add(k)
 
-    replaced = _reverify(lay, reverify, checklist, verification, answered, warnings)
+    views = {pair["item"].get("id"): pair["views"] for pair in pairs}
+    replaced = _reverify(lay, reverify, checklist, verification, answered, warnings, views)
     tally = {"pass": 0, "fail": 0, "inconclusive": 0, "agent": len(pairs), "reused": reused_count}
     for entry in verification:
         tally[entry["verdict"].lower()] += 1

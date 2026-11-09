@@ -56,11 +56,13 @@ WORKER_PHASE_FILES = {"phase-4-finalization.md": "phase4"}
 # correct label for it, so lib/test/test_context_eval_shared.py registers it as a known gap
 # instead. That guard is equality, so attributing one later must delete its entry there.
 REFERENCE_PHASE_FILES = {
+    "branch-naming.md": "phase1",
     "extension-row-ticks.md": "phase3",
     "phase-1-intake.md": "phase1",
     "phase-2-0-resume-gate.md": "phase2",
     "phase-2-2-6-ac-plan-reconciliation.md": "phase2",
     "phase-2-5-workflow-edit-guard.md": "phase2",
+    "phase-3-3-docs-pass.md": "phase3",
     "phase-3-3-review-fix.md": "phase3",
     "phase-3-3-review-fix-return.md": "phase3",
     "post-merge-tagging.md": "phase3",

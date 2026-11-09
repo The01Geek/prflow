@@ -121,13 +121,16 @@ jobs:
 
 Once your CI job finishes successfully on the pull request, the `PRFlow auto-review request` workflow runs. It posts a `/prflow:review` comment on the pull request, authored by your GitHub App. That comment then starts a normal PRFlow review, exactly as if a collaborator had typed it, and the review posts its progress comment on the same pull request. Unlike a typed request, it is never suppressed by the progress comment of a review already running for that commit.
 
-Three outcomes tell you something went wrong instead:
+These outcomes tell you something went wrong instead:
 
 - **The job was skipped.** One of the five conditions was false: the pull request is a draft, it comes from a fork, its author is `dependabot[bot]`, `DEVFLOW_APP_ID` is not set or your CI job did not succeed.
 - **The step logged a warning about a missing helper.** Your installed `prflow_version` is below `2.30.18`. Update the installation. See [Cloud Updates](/docs/runs/cloud/updates).
 - **The comment was posted but no review started.** The App's bot login is not in `prflow.allowed_bots` on your default branch. See [Cloud Triggers](/docs/runs/cloud/triggers).
+- **The step logged a warning that the pull request's live head could not be established.** GitHub returned no usable head commit, so no review was requested. Comment `/prflow:review` by hand.
 
-One outcome is intentional, not a failure:
+These outcomes are intentional, not failures:
+
+- **A newer commit was pushed while CI ran, and no review was requested for the older one.** The helper compares the commit the CI run tested with the pull request's current head and skips when the head has moved on to another commit, logging a warning that names both commits. The newer commit's own CI run can request its review; if none arrives, comment `/prflow:review` by hand. To stop the older run early instead, see *Supersede stale CI runs* below.
 
 - **The pull request has GitHub auto-merge enabled, and no review was requested.** Auto-merge merges a pull request the instant its required checks pass — the same instant this trigger fires — so an armed pull request is about to merge and a review requested now would run against an already-merged target that nobody can act on. The helper detects the armed pull request and skips, logging a warning that names enabled auto-merge as the reason. If your repository *also* requires an approving review, an armed pull request does not merge at CI-green, so if you still want a review there, comment `/prflow:review` by hand — the manual path is unchanged.
 

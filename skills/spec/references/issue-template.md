@@ -82,7 +82,7 @@ rest. An enumerated set or multi-state contract, its members' definitions and as
 included, takes the form `references/quality-group-contracts.md`'s *Enumeration closure* and this
 file's **Multi-state contracts** give it, amended or not, and this rule's other sentences do not
 apply to it. Desired Behavior is never a home a criterion cites. Text the issue writes —
-criterion, Desired Behavior, Implementation Notes, Technical Context or Documentation Needed — that
+criterion, Desired Behavior, Implementation Notes or Technical Context — that
 describes or applies a rule for a prose site, or asks a prose site to describe or apply it or to say
 when it fires, cites the home ("as <home> defines it") wherever the site can cite the home and the
 site's reader can follow the citation. Where either fails, or it is unclear whether both hold, a
@@ -105,8 +105,7 @@ tree states and the change does not amend is treated as a rule by this rule for 
 written inside each code criterion that depends on it.
 
 Keep `## Dependencies` (a `Blocked by #N` line in a comment registers nothing),
-`## Acceptance Criteria`, the `Documentation Needed` bullet (plain or bold) under
-`## Implementation Notes`, and `## 🚫 Blocked` in the issue body; their consumers read them there.
+`## Acceptance Criteria` and `## 🚫 Blocked` in the issue body; their consumers read them there.
 
 A `Verified:` bullet stays in the body only when the implementation contract relies on its premise;
 a purely confirmatory one routes to the investigation record.
@@ -118,12 +117,7 @@ only* appears only under that condition.
 
 ### Title
 Clear, descriptive, action-oriented, and scoped to one feature/fix (e.g., "Add PDF export for survey
-results"). If you are tempted to write "and" joining two features, the issue should have been split
-in Step 2 — ask the user to split first.
-
-Exception: if the scope-split decision is itself unresolved (it is the first item in
-`## 🚫 Blocked`), a neutral multi-feature title is acceptable. Do not silently pick one
-feature to satisfy the title rule.
+results").
 
 ### Dependencies (include only when a prerequisite is still open at drafting time)
 Rendered as the first body section, above `## Problem Statement`. Each entry is one line naming the
@@ -153,6 +147,13 @@ Keep this section distinct from the other "dependency"-flavored surfaces:
   restate the excluded behavior. An out-of-scope item gets a
   pointer only to a tracking issue already known from Step 1's duplicate check, its evidence, or the
   user — run no new search; otherwise state only the scope boundary, never promise another issue.
+  List in `Technical Context`, as scope boundaries rather than accepted limits, an agreed split's
+  remaining parts in the *Scope split* entry's landing order, each stating
+  `lands before this issue` or `lands after this issue`. Write a part with no known tracking issue
+  other than the issue being widened as one line naming it, with no `## Dependencies` line, and a
+  part with such an issue as its `Related work: #N` pointer. A part whose issue *Known
+  prerequisites* lists under `## Dependencies` keeps that `Blocked by #N` line instead of a pointer
+  and gets one line naming it.
 
 A prerequisite that is already closed at drafting time is not listed here — record it as provenance
 in `Technical Context` instead (e.g. "builds on #M, merged").
@@ -227,7 +228,13 @@ arm, the self-contained re-derivation handle every `Verified:` bullet carries, *
 and **Value semantics** — live in the verified-claims / external-premises quality group
 (`references/quality-group-premises.md`). Record verified third-party facts and their source URLs in
 this `Technical Context` section, as prose in the form `Per <URL>, checked <YYYY-MM-DD>: <fact>` —
-never as a `Verified:` bullet, which the premise checker cannot grade for a URL-sourced fact.
+never as a `Verified:` bullet, which the premise checker cannot grade for a URL-sourced fact. A fact
+taken from the issue a widen replaces, or from one of its comments, takes that form wherever the
+draft states it: for a body fact the URL is that issue's URL and the fact names the date of the body
+version read (the check date's current body, or an earlier version in the body's edit history); for
+a comment fact the URL is the comment's own URL. A passage kept verbatim from the replaced body
+takes no added citation; a fact reworded, moved or newly stated from it does. No citation in the
+issue body names the investigation record or a file under `.prflow/tmp/spec/<slug>/`.
 
 An in-repo occurrence count or coupled-site list is checked against the tree before it is asserted,
 never from recall: by an executed whitespace-normalized search where the drafting tier grants one,
@@ -284,13 +291,17 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   heuristic's, by the criterion projecting it); else, for a decision not to change or test
   something, by the issue's one leaves-as-is criterion, which names for each such decision the
   surface left as is and the case it keeps and passes or fails as one unit; else by a criterion of
-  its own. No Desired Behavior sentence claims a case an accepted limit leaves uncovered. The carrying criterion states the limit
-  as a fact about the finished change whose words exclude covering the case, backable by an
-  observation probe (a search, a diff listing) for code a program runs or by the text itself for
-  prose an agent or person reads, and writes a decision not to change or test something as what the
-  change leaves out ("The change leaves `scripts/x.sh`'s handling of empty input unchanged."). It may
-  name the code or file it
-  leaves as is, over the mechanism and preservation rules below. It never labels the limit "an
+  its own. No Desired Behavior sentence claims a case an accepted limit leaves uncovered. The
+  carrying criterion states the limit as a fact about the finished change whose words exclude
+  covering the case, backable by an observation probe (a search, a diff listing) for code a program
+  runs. For prose an agent or person reads, a limit whose content the finished text could itself say
+  or require is stated as what the passage the criterion names, not its whole file, does not say or
+  require ("`docs/x.md`'s retry step names no timeout check."), backed by a read of that passage,
+  never as a sentence or clause that text states, even when the criterion also requires other text.
+  Every other decision not to change or test something, at prose and code sites alike, is written as
+  what the change leaves out ("The change leaves `scripts/x.sh`'s handling of empty input
+  unchanged."). The criterion may name the code or file it leaves as is, over the mechanism and
+  preservation rules below. It never labels the limit "an
   accepted limit", "out of scope" or "not required": only its words exclude covering the case.
 - Before adding a criterion whose subject is an *existing* file, path, or subsystem, confirm that
   target is present in the current tree (a targeted read or search). A target absent from the tree
@@ -375,12 +386,19 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   double-quote inside such a span neither opens nor closes it — which
   `scripts/check-verified-premises.py` reports as `handle=path-quote state=holds` against the
   current tree. A criterion resting on the *absence* of such a guard is accompanied instead by a
-  `Verified:` bullet quoting the gate the method does carry today, and by an implementer-obligation
-  criterion whose first named unit of work is confirming — by reading the method body and every
-  decorator or middleware on it — that no other permission check applies. A peer's report of a
-  guard is not grounding: without the graded bullet and a read confirming it under the
-  *Definition of verified* in `references/step-3-5-self-audit.md` (read it there if unloaded), the claim
-  is an unverified premise, not an admissible criterion.
+  `Verified:` bullet quoting the gate the guarded code carries today, or the guarded code's first
+  statement when it carries none, and rests on a drafting read, using the search that item 4 of
+  `references/step-3-5-self-audit.md` requires to establish an absence, covering the guarded code
+  and everything in the repository on each path the criterion relies on that reaches it and can
+  stop it, such as decorators, attributes, middleware, filters, route rules, a job's or command's
+  registration, a workflow `if:` condition and global registrations; no criterion asks the
+  implementer to confirm the absence by reading code. A peer's report of a guard is not grounding:
+  without the graded bullet and a read confirming it under the *Definition of verified* in
+  `references/step-3-5-self-audit.md` (read it there if unloaded) — for an absence, a read with
+  that coverage and search — the claim is an unverified premise, not an admissible criterion.
+- **Documentation criteria.** A documentation change the issue requires is a criterion naming the
+  file and what it must state. Never name by path a file another process writes, such as release
+  notes generated from changesets.
 - Reference project coding standards from `CLAUDE.md` if available.
 
 ### Implementation Notes
@@ -471,20 +489,6 @@ governs the **Approach**, **Code Patterns**, and **Testing Strategy** bullets; t
   unchanged recorded case, and name each difference from a recovered input that changes the behavior
   exercised.
 
-- **Documentation Needed** — what doc updates the change requires. Name by path only the files the
-  change edits, each led as `` `path`: what changes `` with one bare backticked path per span,
-  naming a **documentation file** — a page under the documentation root, the release notes, the
-  changelog, or `README.md`; a path outside those documentation locations is not a deliverable, and
-  the implementing run refuses it rather than editing a non-documentation file after review. A file
-  the change only points at goes inside that description, or is described without its path; a file another
-  process writes, such as release notes generated from changesets, is never named by path. Command
-  and grant literals in this block (`` `bash ./run-tests.sh` ``, `` `Bash(x.sh:*)` ``) are never
-  deliverables and are suppressed by the path extractor. To declare that no documentation is needed,
-  open the block with the standalone word `none` (optionally followed by one of `,.;:`) — e.g.
-  `none.` — and then explain why, naming any already-correct file freely; the extractor examines
-  only that first `none` and does not turn a path you mention afterward into a mandatory
-  deliverable. The word must stand alone: an ordinary sentence opening `None of these …` is not the
-  declaration and still extracts its paths.
 - **Potential Gotchas** — pitfalls and architectural warnings, not unresolved choices, and never an
   accepted limit. An action the implementing
   run must take that no existing rule already requires goes in Desired Behavior and a criterion,
@@ -548,6 +552,7 @@ Survey owners can share results with people outside the tool and keep an offline
 - [ ] An owner viewing a finished survey sees an Export as PDF button.
 - [ ] Clicking the button downloads a PDF that contains every chart and table shown on the results page, in the same order.
 - [ ] The PDF opens in a standard reader without signing in.
+- [ ] `README.md` explains how to export a finished survey as a PDF.
 
 ## Implementation Notes
 
@@ -557,7 +562,6 @@ Survey owners can share results with people outside the tool and keep an offline
 - Approach — add one export endpoint that reuses the results object and renders it to PDF, and one button that calls it.
 - Relevant files — at minimum: the report service that returns the results object, the results page handler, and a new export handler beside it.
 - Testing Strategy — one test drives the endpoint against a survey with two charts and asserts the PDF holds both, in order; a second test asserts the endpoint refuses a survey that is not finished.
-- Documentation Needed — `README.md`: explain how to export a finished survey as a PDF.
 
 </details>
 ```

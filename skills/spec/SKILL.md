@@ -53,8 +53,8 @@ implementer. A decision the request leaves open is asked and written unless a co
 implementer could clearly make it from the request and codebase and it is not a member's
 outcome in a fully listable set, such as an agent-policy route or a text's clause. Then
 the run leaves it out, naming it in one chat line; the implementer decides and PR review
-judges it. The implementation-approach question is asked on every run and never left to
-the implementer; a needed heuristic is asked as its rule, failure direction and limit.
+judges it. The implementation-approach question is asked on every run that no earlier
+documented stop ends, and never left to the implementer; a needed heuristic is asked as its rule, failure direction and limit.
 
 Every decision the test does not leave to the implementer must be resolved by asking the
 user before drafting. A decision settled on a second delegated reply counts as
@@ -137,18 +137,19 @@ These five hold on every path, including every degraded arm above, and are load-
 ## Subagent dispatch is user-requested here (injection-condition clause)
 
 Invoking `/prflow:spec` requests subagent dispatch at Step 1's discovery and risk peers,
-Step 2's option check and delegated-reply research helper (whichever step asks the question) and Step 3.6's
-fresh-context auditor, satisfying any injected "do not call the AgentTool unless the user
-requested it" condition there and nowhere else. Dispatch or native result collection that fails, is
+Step 2's option check and delegated-reply research helper (whichever step asks the question), Step 3.6's
+fresh-context auditor and any dispatch the loaded `spec` skill extension directs, satisfying any
+injected "do not call the AgentTool unless the user requested it" condition there and nowhere else. Dispatch or native result collection that fails, is
 unavailable, or is refused takes the site's existing fallback; report the failure.
 Each dispatch the run makes, an extension's included, is a non-fork subagent; hold its completed
 result or confirmed failure before dependent work or a final response. When one replies with its whole
 result, use that reply and do not also read a file holding it, unless the step's own rule names which
 of the two it reads or the step must write into that file. In Claude Code's interactive main
 conversation, on a launch acknowledgment, do only work that neither needs the result nor repeats
-anything the subagent's prompt delegates, then end the turn and resume on that subagent's completion
-notification (no other notification is its result). Otherwise (inline result, headless `claude -p`,
-nested run, Codex or any other runner, or unsure) never end the turn with one pending; collect it
+anything the subagent's prompt delegates, except the Step 3.6 auditor's wait-time passes, then end
+the turn (for that auditor, once those passes stop with its result pending) and resume on that
+subagent's completion notification (no other notification is its result). Otherwise (inline
+result, headless `claude -p`, nested run, Codex or any other runner, or unsure) never end the turn with one pending; collect it
 natively. Step 1 waits for both roles; on the Claude Code arm, a notification with the other peer
 pending ends the turn again.
 Every subagent prompt the run writes, except Step 3.6's fixed item list, carries this shell rule: in
@@ -209,14 +210,20 @@ so, and each peer reads the issue itself.
 
 Dispatch two independent peers in parallel; when Step 1 is already on that sandbox arm, dispatch them as it says instead:
 
-- Discovery: a subagent holding a file-write tool (on Claude Code, `general-purpose`) running `/prflow:docs-verify --report-only --report-file .prflow/tmp/spec/<slug>/issue-step1-discovery-<slug>.md --lead docs <topic>` with the user story, retaining its whole-repository search and six-duty floor, and also measuring each file it reports against any size or count limit a guard holds that file to, and searching the history of the topic's text when a finding depends on it.
-- Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path, established user constraints/decisions (never agent-written advice, as the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` defines it; read it there if unloaded), the risk role file's absolute path as its report file, and the paths, made absolute against the checkout the session started in, of files it saved before Step 1 as a record of the reported failure (a downloaded job log, a failing run's output). Pass paths only, never file content or a conclusion drawn from a file; never pass the session's own transcript or this run's other `.prflow/tmp/spec/<slug>/` files, the story file excepted, as evidence. Supply no preferred design or other peer's conclusions.
+- Discovery: a subagent holding a file-write tool (on Claude Code, `general-purpose`) running `/prflow:docs-verify --report-only --report-file .prflow/tmp/spec/<slug>/issue-step1-discovery-<slug>.md --lead docs <topic>` with the user story, retaining its whole-repository search and six-duty floor, and also searching the history of the topic's text when a finding depends on it.
+- Risk investigation: `subagent_type: prflow:spec-risk-investigator` with the original story, repository path, established user constraints/decisions (never agent-written advice, as the Step 3.6 dispatch list in `references/step-3-6-audit-dispatch.md` defines it; read it there if unloaded), the risk role file's absolute path as its report file, and the paths, made absolute against the checkout the session started in, of files it saved before Step 1 as a record of the reported failure (a downloaded job log, a failing run's output). Pass paths only, never file content; never pass the session's own transcript or this run's other `.prflow/tmp/spec/<slug>/` files, the story file excepted, as evidence.
 
+On every arm, give neither peer a preferred design, another peer's conclusion, or a duty, agenda or
+claim of your own, your summary of a story proposal included; the story reaches both, and what this
+skill or a loaded extension names for a peer reaches that peer.
 Each peer writes its whole report to its role file with its file-write tool, never a shell
 redirect, and replies with the path alone; one that cannot write says so and replies with its whole
 report, a peer's own failed write never taking the sandbox arm. Both dispatches give this evidence
 form: each fact the report relies on as its locator with the text its read returned, quoted, and
 each whole-tree search as its command, scope and found/read counts.
+
+In every step, write and edit text you compose, a peer's reply included, into a file under
+`.prflow/tmp/spec/<slug>/` with your file-write or file-edit tool, never a shell redirect or heredoc.
 
 After both return or fail, read once, whole, each role file that exists and is non-empty, whatever
 its peer replied. Into an absent or empty role file write the peer's reply, the risk report kept
@@ -332,7 +339,7 @@ Load `references/issue-template.md` per the *Reference routing* rules above and 
 | `references/quality-group-regression.md` | A defect report, a Testing Strategy case/input-shape matrix (parser, config consumer, best-effort input handler), or a new reader of input the repo does not produce (historical records, user/reporter-controlled text, external structured formats, agent/human-mutable markdown). |
 | `references/quality-group-compatibility.md` | A grounded supported-version boundary change across runtimes, tools, APIs, schemas, configurations or plugin releases; a changed contract used by existing data, configuration or consumers; independently upgraded components that can run at mixed versions; or rollout behavior such as staged activation, rollback or old/new coexistence. Merely touching a shipped path does not trigger it. |
 
-Write the title, one line, to `.prflow/tmp/spec/<slug>/issue-title-<slug>.txt`, then the body alone to `.prflow/tmp/spec/<slug>/issue-working-draft-<slug>.md`, both anchored to the working directory. The body file is the working-draft file: the run edits, presents, audits and posts it. Its last line is the provenance signature: paste verbatim the italic line the fence below prints, and omit it when the fence prints nothing.
+Write the title, one line, to `.prflow/tmp/spec/<slug>/issue-title-<slug>.txt`, then the body alone to `.prflow/tmp/spec/<slug>/issue-working-draft-<slug>.md`, both anchored to the working directory. A widen whose draft keeps most of the existing body's text (seed when unsure) instead seeds the body file: run Step 1's `preflight.py issue-body` fence for the widened issue without `--with-comments`, with the absolute working-draft path as `--out`; on a `CACHED` line, read that file and edit it into the replacement body, its first edit counting as the body file's first write below. Any other output, none, or a seeded file you cannot read writes the body as above; say so. The body file is the working-draft file: the run edits, presents, audits and posts it. Its last line is the provenance signature: paste verbatim the italic line the fence below prints, replacing any earlier one; when the fence prints nothing, omit it and delete any earlier one.
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:spec

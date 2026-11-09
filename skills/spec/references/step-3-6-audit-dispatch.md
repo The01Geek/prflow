@@ -38,9 +38,10 @@ the last two only when they exist:
 - each decision the user made this run — every answer a user-question call returned and every change
   the user requested, in a question reply or in plain chat — and each decision settled on a second
   delegated reply. A user decision covers only what the user's answer or requested change states: a
-  picked option's own text, or the user's words for a free-text reply. Apart from those
-  second-delegation decisions, never list a choice the run settled itself, nor agent-written advice
-  (a `/prflow:challenge` result, an audit return, or a mechanism, direction or design an agent
+  picked option's own text, or the user's words for a free-text reply and the part of a relayed note
+  they adopt. Apart from those second-delegation decisions, never list a choice the run settled
+  itself, nor agent-written advice (a `/prflow:challenge` result, an audit return, a note a user turn
+  relays except what the user's own words adopt, or a mechanism, direction or design an agent
   proposes in the issue body or a comment), even when it sits in the request. State the choice,
   identifying a delegated decision as one the run made after the user delegated it, never the finding
   or audit round that prompted it. Mark an approach pick, a fork re-ask's included, that a later *Settled approach* re-ask
@@ -49,6 +50,14 @@ the last two only when they exist:
 
 Add no reasoning, verdict or opinion about the draft. The round has started once a dispatch call
 succeeds or the inline audit begins.
+
+When the dispatch call succeeded and returned before the auditor's result, audit the draft yourself
+while it runs in wait-time passes: read-only passes over the whole working-draft file under
+`references/step-3-5-self-audit.md` items 1–4, with your own code reads, editing no file and asking
+nothing, holding each defect you confirm and each question an item would ask in your context,
+written to no file. After a pass that confirmed a new defect, start another; once the result
+arrives, start no new read; otherwise stop when a full pass confirms no new defect. These passes add
+to the root's *Audit preparation*, which still finishes before the dispatch.
 
 When no subagent tool is exposed or the dispatch call errors, run the round inline instead and mark
 it `degraded`: render the inline audit prompt below and audit the working-draft file yourself under
@@ -99,13 +108,18 @@ justify a revision:
 State in your reply whether the round is a verdict round (if not, why), whether it ran inline, its
 `draft-object-id:` value, and each finding by a short reference only, such as its heading, with
 your grade and whether you fixed it; Step 4 reads the latest verdict round from that statement.
-Fix each must-revise finding you confirm as a draft change (`references/step-3-6-audit.md`). Also
-fix, with no user change request, each advisory finding whose fix the *Revision rule* in
-`references/revision-delta.md` makes by deleting attacked text or moving it to the investigation
-record, when that file leaves no decision to the user; it stays advisory. Any other advisory change,
-or one whose eligibility is unclear, reaches the draft only through Step 4's *Change something
-first*. Write no ledger, record,
-evidence or coverage file. After a draft's first round, continue to Step 4; after an elected round,
-return to Step 4 sub-step 2 and present the draft again.
+When the round reports any finding, first load `references/revision-delta.md` once. Fix each
+must-revise finding you confirm as a draft change (`references/step-3-6-audit.md`), and, with no
+user change request, each advisory finding that file's *Revision rule* fixes by deleting attacked
+text or moving it to the investigation record when the file leaves no decision to the user; it
+stays advisory. To each finding you fix, apply that file's *Revision rule*, its paragraph beginning
+"A finding against a case addition" and *Repair*'s removal-or-reuse weighing. Any other advisory
+change, or one whose eligibility is unclear, reaches the draft only through Step 4's *Change
+something first*. In the same revision, fix the defects your wait-time passes held under Step 3.5 item 5,
+asking the user now about one its rule sends to the user and taking each held question by its
+item's rule; first read the draft's current bytes for each held defect no read of them has
+confirmed, and fix once a defect the auditor also reported. Report the passes in a Step 3.5 item 6
+summary, naming each held defect and what you revised for it. Write no ledger, record, evidence or
+coverage file. After a draft's first round, continue to Step 4; after an elected round, return to Step 4 sub-step 2 and present the draft again.
 
 <!-- prflow:spec-ref step=3.6-dispatch file=skills/spec/references/step-3-6-audit-dispatch.md end -->

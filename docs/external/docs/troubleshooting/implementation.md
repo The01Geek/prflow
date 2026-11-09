@@ -166,14 +166,16 @@ Finish and remove the other worktree, or move its work elsewhere. Use `git workt
 
 <Accordion title="A resumed branch cannot be brought to its pushed commits">
 
-**Symptom:** a resumed run stops as Blocked during branch setup, and the workpad reflection reads `Branch setup stopped: landing stopped, no recovery: resume-precheck-checkout-did-not-land; <reason>`.
+**Symptom:** a resumed run stops as Blocked during branch setup, and the workpad reflection reads `Branch setup stopped: landing stopped, no recovery: resume-precheck-checkout-did-not-land; <reason>`, or `recovery invocation also stopped` in place of `landing stopped, no recovery` when the stop came while recovering from an earlier one.
 
-When a run resumes an open pull request, or a branch an earlier run pushed, it brings your local branch of the same name to the commits already pushed for it: it moves the branch only when no commit is lost, and keeps a branch that already contains those commits as it is. When it cannot do this safely, or cannot set the branch to track its pushed branch, it stops instead of continuing on the wrong commits, unless the cause is another worktree holding the branch (see the previous section). The `<reason>` names the cause:
+When a run resumes an open pull request, or a branch an earlier run pushed, it brings your local branch of the same name to the commits already pushed for it: it moves the branch only when no commit is lost, and keeps a branch that already contains those commits as it is. The `<reason>` names the cause:
 
 - `local-branch-diverged`: Your local branch holds commits that are on no branch fetched from `origin`, and the pushed branch holds commits your local branch lacks.
 - `move-refused`: The move was refused and your local branch is still where it was, typically because an uncommitted or untracked file in your working tree would be overwritten.
 - `branch-fetch-failed`: The branch could not be fetched from the remote.
+- `branch-busy-in-other-worktree`: Another worktree is in the middle of a rebase or bisect of your current branch, so Git will not move it. Finish or abort that rebase or bisect, then start the run again.
 - `fetched-tip-lacks-pr-head`: The fetched branch does not contain the pull request's head commit, for example after a force-push during setup.
+- `recover-adopt-lacks-origin-tip`: After an earlier branch-setup stop, the run chose to continue on your current branch, but that branch lacks commits already pushed for it.
 - `checkout-refused`, `git-state-unestablished` or `upstream-not-set`: Git refused the checkout; a repository state the check needs could not be established (for example, a git read failed, a shallow clone could not be deepened, or the base branch could not be fetched); or the branch could not be set to track its own remote branch.
 
 Compare your local branch with the pushed one:
@@ -186,7 +188,7 @@ git log --oneline --left-right <branch>...origin/<branch>
 Lines marked `<` are commits only your local branch has; lines marked `>` are commits only the pushed branch has.
 
 <Warning>
-For `local-branch-diverged`, `move-refused`, `branch-fetch-failed` and `fetched-tip-lacks-pr-head`, your local branch is left where it was. With `upstream-not-set`, the branch was already checked out at the pushed commits, or ahead of them, and only its tracking setting failed.
+For `local-branch-diverged`, `move-refused`, `branch-busy-in-other-worktree`, `branch-fetch-failed`, `fetched-tip-lacks-pr-head` and `recover-adopt-lacks-origin-tip`, your local branch is left where it was. With `upstream-not-set`, the branch was already checked out at the pushed commits, or ahead of them, and only its tracking setting failed.
 </Warning>
 
 Keep any local-only commits you want on a branch of your own, commit or stash conflicting files, then start the run again. A fetch failure or a force-push during setup usually clears on a plain re-run.

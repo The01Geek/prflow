@@ -11,9 +11,94 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## November 8, 2026
+
+- **`/prflow:implement`'s acceptance-criteria gate copies criterion texts from the workpad instead of retyping them.** If your repository commits a `.prflow/vendor/prflow/` copy, refresh it to this release: an older copy stops the gate Blocked. (#2480)
+
+## November 7, 2026
+
+- **`/prflow:implement` can name its feature branch from a naming rule written in your implement extension.** Teams can use conventions such as an assignee's login and a ticket ID from the issue body. (#3319)
+- **Review-and-fix's fixer reads each checklist failure's evidence, so a reviewer's lead that the same defect lives elsewhere reaches it.** A related defect it leaves unfixed can be named in the run's report or on the issue's workpad. (#3451)
+- **PRFlow's agent and skill search templates single-quote the search pattern.** Copied text holding a Markdown code span, a `$(…)` or a `$` name is searched as written instead of being run or expanded by the shell. (#3578, #3609)
+- **When a fix adds a new value, such as an enum member or a status or reason string, the fix-delta reviewer reports other lists of those values that lack it**, so a stale list can be caught before the next full review. (#3536)
+- **Issues no longer carry a Documentation Needed section.** A documentation change an issue requires is now an acceptance criterion naming the file and what it must state, which `/prflow:implement` writes with the rest of the change and checks like any other criterion. (#3610)
+- **A workpad entry saved after a failed update is written back under its original heading when a later update replays it**, so an action-required entry stays under Action required. (#3613)
+- **`/prflow:implement`'s review step is told not to stop on the review loop's final report.** Stopping there could skip a follow-up review it still owed and leave the run Blocked. (#3619)
+- **`/prflow:spec`'s audit-round fixes now follow its rules for revising text the run itself wrote in an earlier round.** (#3348)
+- **Checklist failures below Important no longer keep a first review iteration from counting as clean**, so `/prflow:implement` can skip the second review pass and shadow review they used to force. (#2669)
+- **Issue-claim audit records keep code spans, `$` and quotes intact.** The pre-implementation audit now writes each workpad note and reflection to a file before posting it, so issue text it quotes reaches the workpad word for word. (#3608)
+
+## November 6, 2026
+
+- **`/prflow:fix` and the review-and-fix loop check a fix's outcomes against the acceptance criteria before committing it, and record what they compared.** A review finding's suggested scope or remedy no longer counts as evidence that a fix meets a criterion, and the loop's applied fix records can show which criterion and case were checked. (#2916)
+- **`/prflow:review-and-fix` can re-answer a finding whose fix the fix-delta gate attacks, or withdraw an optional fix, instead of growing that fix.** Fewer gate rounds go to repairing additions nobody required, and fewer such additions ship. (#3084)
+- **Review fixes now follow your project's agent instructions at every severity.** (#2887)
+- **Fix checks grade a change that blocks supported work with no way to unblock it as high severity, not as a minor fail-closed problem**, so it can be fixed in the same run. Wording that changes behavior or what an agent does is graded by that change. (#2841)
+- **`/prflow:implement` can now check facts an issue cites from GitHub issues, pull requests and comments in private repositories.** It reads them through the GitHub CLI instead of an unauthenticated web fetch. (#3346)
+- **`/prflow:spec` can audit its own draft while an audit round runs.** (#3383)
+- **Review-and-fix stops for your call when every fix for a valid Critical or Important finding would contradict a decision you recorded**, instead of pushing the finding back. (#3450)
+- **The error-handling reviewer grades its findings by the shared severity rubric instead of grading every swallowed or over-broad error Critical.** Critical stays for an error that can lose or corrupt kept data, open a security hole or stop the system. (#3527)
+- **A review pass that ends normally deletes its temporary copies of your source code from your checkout**, so a lint or build that walks the whole tree, the fix loop's included, no longer scans them; a copy that cannot be deleted is reported. To clear copies an earlier version left, delete the `view-head`, `view-base`, `view-head.tmp` and `view-base.tmp` folders under `.prflow/tmp/review/` by hand. (#3430)
+
+## November 5, 2026
+
+- **`/prflow:implement` can resume a pushed `claude --worktree` branch named for the issue instead of restarting from the base.** (#2453)
+- **`/prflow:implement` writes its documentation before the review loop, so the loop's first review reads it.** (#1242)
+- **`workpad.py update` no longer accepts `--record-sweep-evidence`, and the retrospective bundle drops its `phase2_sweep_yield` field.** `/prflow:implement` no longer writes that per-run record. (#2019)
+- **Spec's audit rounds treat a side-agent note relayed as your message as agent-written advice.** (#3412)
+- **`/prflow:review-and-fix` no longer declines an acceptance-criterion checklist failure as a requirement the code need not meet.** It fixes the failure, or records a dispute the criterion or the linked issue's own text supports as the criterion conflict that `/prflow:implement` reads. (#3486)
+
+## November 2, 2026
+
+- **`/prflow:implement`'s cleanup pass catches instruction wording that drifts from its acceptance criterion or from the wording it rewrites.** It can fix that drift before the other checks run, instead of leaving it for review. (#2675)
+- **`/prflow:spec` keeps an agreed split's remaining parts on the filed issue, in landing order.** The final outcome lists them in the same order. (#3320)
+- **When an issue leaves a policy's failure outcome undecided, `/prflow:implement` no longer invents one.** It defers the affected criterion to a follow-up issue, or stops the run Blocked when nothing would remain, and also checks what else produces the value a stated policy keys on. (#2785, #2854)
+
+## October 31, 2026
+
+- **Implement can now skip creating a release-notes file in a repository with external docs turned off.** (#3431)
+- **Review can read installed library source you point it at.** List your installed-dependency directories in `prflow_review.dependency_sources`, and the review's checklist checks can settle claims about how a library behaves by reading its code instead of leaving them inconclusive. (#3438)
+- **`/prflow:spec` records how a story splits into parts before its first clarification question.** Its split question can now come first and end the run with the parts listed in landing order. (#3424)
+
+## October 30, 2026
+
+- **A green CI run for an outdated commit no longer requests a second review.** The request is skipped with a warning naming the tested commit and the current head. (#3426)
+
+## October 29, 2026
+
+- **`/prflow:challenge` reports whether the idea is sound separately from whether its implementation is correct, and lists the risks you accept by proceeding.** Its pre-mortem now also asks what the change costs or changes for others when it works, so a "keep" verdict no longer hides known downsides. (#3394)
+- **Local reviews can spend less time waiting for checklist generator replies.** (#2863)
+
+## October 28, 2026
+
+- **`/prflow:spec` treats subagents your spec skill extension directs as user-requested.** (#3361)
+- **Fewer review checklist items come back inconclusive.** Claims the review writes itself can now check how the code handles another commit, the history, a CI run, a digest or the coding agent's own behavior, instead of what those sources hold. (#2722)
+- **A checklist failure on a claim the review wrote itself now stands only when it quotes the requirement it breaks from another file the change leaves unchanged.** Otherwise the failure is reported inconclusive, and a finding on such a claim without that quote is dropped. (#2875)
+
+## October 27, 2026
+
+- **`/prflow:spec` can check a filed issue against its draft from a worktree session.** The read-back runs through PRFlow's own issue-body helper, which no longer adds a trailing newline to the body it writes. (#3325)
+- **`/prflow:spec` drafts state how a speed or memory criterion is measured.** Spec can ask you how much slowdown a before-and-after comparison allows. (#3309)
+- **`/prflow:spec` discovery no longer measures the files it reports against size or count limits.** A repository that wants the check can add it to its own spec extension. (#3323)
+- **`/prflow:spec`'s issue template says how to state an accepted limit about prose.** A criterion can state such a limit as what the finished passage does not say or require, a fact reviewers can check, rather than as text the prose must contain. (#3333)
+- **The instruction replays `/prflow:implement` and the fix pass run to test changed instructions no longer hand the replayed model the decision under test**, so a replay can show whether the old text had the defect. (#2396)
+- **Fix passes check each factual clause of a claim at the scope it asserts, including clauses the fix left unchanged.** (#2414)
+
 ## October 26, 2026
 
 - **`/prflow:spec` more reliably re-checks the whole draft after audit fixes or a change you ask for, before showing it to you again.** (#3274)
+- **`/prflow:spec`'s re-check of a question's options now gets the option text**, rather than returning items that text already settles. (#3272)
+- **`/prflow:spec` writes the run-file text it composes with file tools instead of shell redirects, and can reuse the spec extension's `## Evidence axes` section it already loaded.** Worktree-isolated spec sessions spend fewer shell calls and retries. (#2364)
+- **`/prflow:spec` checks more of a draft's closed lists for missing cases while writing the draft, before an audit round.** (#2643)
+- **`/prflow:spec`'s audit checks when an added editing step runs relative to the steps that verify its edits.** (#2707)
+- **`/prflow:spec` gives its two research helpers the story without agendas of its own.** (#2649)
+- **Fewer spec question options misstate what the design changes.** (#3281)
+- **`/prflow:spec` checks that a bug issue keeps each result the reporter describes.** Its self-audit compares the draft's Current Behavior with the report and restores a dropped result before you see the draft. (#3271)
+- **`/prflow:spec`'s recommended options can name the checks they add.** (#3280)
+- **`/prflow:spec` can now report decisions recorded on pull requests your request names and on prerequisite issues it declares.** Its early risk check reads their text, so a recorded decision can reach the approach question. (#3102)
+- **`/prflow:spec` confirms a missing permission check while drafting.** Issues no longer carry a criterion asking the implementer to confirm the absence by reading code. (#3276)
+- **Review-and-fix re-checks a passed checklist item after a fix changes its file.** A passed item carries over only while its files are unchanged, and large repositories no longer pay to index every tracked file. (#2774)
+- **When `/prflow:spec` widens an existing issue, the draft cites that issue and its comments by URL, and a mostly-kept body starts from a copy of the old one** instead of being retyped. (#2644)
 
 ## October 25, 2026
 

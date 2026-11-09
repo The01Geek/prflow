@@ -74,8 +74,7 @@ a member needing a new outcome takes the decision test above. A case the request
 The tests this rule applies, one line each, with `references/issue-template.md` their home:
 
 - Vanish test's question: *if this sentence vanished, would the implementer build the wrong thing?*
-- Never moved to the record: `## Dependencies`, `## Acceptance Criteria`, the `Documentation Needed`
-bullet and `## 🚫 Blocked`.
+- Never moved to the record: `## Dependencies`, `## Acceptance Criteria` and `## 🚫 Blocked`.
 - Reserved-surface check, which text moving to the record also passes: no consumer requires it in
 the body.
 - Admissibility test's three origins: the request named the guarantee, a failure the change

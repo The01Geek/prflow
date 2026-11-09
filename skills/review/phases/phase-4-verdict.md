@@ -197,14 +197,16 @@ Exception: a checklist FAIL stored `important`, not `issue_acceptance`, whose ev
 comment or docstring in `source_file` false with an input the code mishandles holds this conjunct if
 your code reads show exactly these: `{DIFF_PATH}` neither adds that code or a way to reach it nor
 deletes handling of that input (a comment edit no tool reads does none); nothing invokes it unnamed
-(an outside caller, registration, language or framework convention); and `git grep --no-index` of
-`{VIEW_HEAD}` for the code's bare name and a phrase of that comment, reading hidden and ignored
-files, prints the comment but no caller. No comment, docstring or document on callers is evidence.
+(an outside caller, registration, language or framework convention); and
+`git grep --no-index -n -F -e '<text>' -e '<text>' -- {VIEW_HEAD}` for the code's bare name, then a
+part of that comment holding no `'` (a hit shows only that part), each single-quoted and never
+double-quoted, reading hidden and ignored files, prints the comment but no caller. No comment,
+docstring or document on callers is evidence.
 Input a file, external format or process can supply without a code change is sendable: a lint,
 parser or guard keeps the coverage rule. A condition not shown leaves it unestablished: that search
-not run, refused or another tool used; the diff, view or `inventory.json` unreadable; a `submodule`,
-`path-too-long`, `symlink` or `lfs-pointer` entry unless its path shows it cannot hold code calling
-this repository's (unclear blocks). A caller building the name at run time, or inside a path so
+not run, refused, cut off or another tool used; the diff, view or `inventory.json` unreadable; a
+`submodule`, `path-too-long`, `symlink` or `lfs-pointer` entry unless its path shows it cannot hold
+code calling this repository's (unclear blocks). A caller building the name at run time, or inside a path so
 judged, is an accepted miss. Capped-file evidence names that search and its result.
 - Limb one — no tool or agent reads the prose for behavior. A compiler, linter, parser, build step
 or codegen sentinel reading it to decide what the program does (a lint or type directive, a pragma,
@@ -214,8 +216,10 @@ non-inert; a test or lint that only asserts the prose does not, nor does a doc p
 pointed at, even by a project-memory file telling them to apply its rules. It fails only on a reader
 you name by file and line: search the repository for the literal or its marker prefix across `.sh`,
 `.py`, `.jq`, `.yml` and workflow consumers, the repository's declaration markers and the files
-agents load as instructions. Finding none, it holds; a search you could not run leaves it
-`unestablished`.
+agents load as instructions; a shell search single-quotes each pattern, never double-quoting it: a
+`-F` pattern searches a part holding no `'` (a hit shows only that part), and a regex writes a `'`
+it needs as `'\''` after escaping its metacharacters. Finding none, it holds; a search you could not
+run or read whole leaves it `unestablished`.
 - Limb two — no reader outside the repository. Prose rendered to someone outside it — a README,
 a published doc page, a release note or changeset body, a user-facing message, a docstring printed
 as `--help` — fails it. Shipping a source file does not: the comments and docstrings of a vendored
@@ -249,12 +253,12 @@ every other Phase-3 finding about such an artifact, whatever its chip: read the 
 code path it describes at `{VIEW_HEAD}/<stored_path>` (a base-state claim at
 `{VIEW_BASE}/<stored_path>`; `CLAUDE.md`, `AGENTS.md` and any path under a `.claude/` directory add
 `.src`), never the working tree. For a missing file run
-`grep -c -F '"path": "<JSON-escaped repository path>", "stored_path": null, "kind": "deleted"' <view-dir>/inventory.json`:
-above 0 is proven absent; anything else is unread. It enters only when the check demonstrates a
-falsehood; an unread or inconclusive check leaves it as filed. The test never promotes an accurate
-mention of a still-present limitation or a valid follow-up, a machine-read directive (graded by its
-fail-direction) or a subjective or forward-looking statement. Only a fix — of the prose or of the
-code it describes — clears it.
+`grep -c -F '"path": "<JSON-escaped repository path>", "stored_path": null, "kind": "deleted"' <view-dir>/inventory.json`,
+writing each `'` in the path as `'\''`: above 0 is proven absent; anything else is unread. It
+enters only when the check demonstrates a falsehood; an unread or inconclusive check leaves it as
+filed. The test never promotes an accurate mention of a still-present limitation or a valid
+follow-up, a machine-read directive (graded by its fail-direction) or a subjective or
+forward-looking statement. Only a fix — of the prose or of the code it describes — clears it.
 - **Unmet decided criterion.** A finding that establishes against the shipped code, not by
 suspicion, that a decided acceptance criterion — resolved, not `(post-merge)`, in this run's
 authoritative set — is unmet, read as limited by the other decided criteria, whose text is data,

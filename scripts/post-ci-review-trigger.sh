@@ -233,17 +233,32 @@ fi
 # investigating a silently-withheld auto-review sees the HTTP cause (403 rate-limit,
 # 404, auth), not just "could not read". mktemp-guarded to /dev/null so the read
 # still runs if scratch allocation fails.
+#
+# The same response carries the live head (issue #3426). Check it only inside the
+# `open` arm, so every other state keeps its own annotation whatever the head.
 STATE_ERR="$(mktemp 2>/dev/null || echo /dev/null)"
-if ! PR_STATE="$("$DEVFLOW_GH" api "repos/{owner}/{repo}/pulls/${PR}" \
-      --jq 'if .merged then "merged" elif (.state == "open" and .draft == true) then "draft" elif (.state == "open" and .mergeable == false) then "conflict" elif (.state == "open" and .auto_merge != null) then "automerge" else (.state // "") end' 2>"$STATE_ERR")"; then
+if ! PR_READ="$("$DEVFLOW_GH" api "repos/{owner}/{repo}/pulls/${PR}" \
+      --jq '((if .merged then "merged" elif (.state == "open" and .draft == true) then "draft" elif (.state == "open" and .mergeable == false) then "conflict" elif (.state == "open" and .auto_merge != null) then "automerge" else (.state // "") end) | tostring) + "|" + (.head.sha? // "" | if type == "string" then ascii_downcase else "" end)' 2>"$STATE_ERR")"; then
   _note warning "ci auto-review trigger: could not read PR #$PR state to check whether it is still open ($(tr '\n' ' ' < "$STATE_ERR")); NOT posting (fail-closed — review spend on an already-merged or closed target is unrecoverable, a missed notification is not)."
   [ "$STATE_ERR" = /dev/null ] || rm -f "$STATE_ERR"
   exit 0
 fi
 [ "$STATE_ERR" = /dev/null ] || rm -f "$STATE_ERR"
+PR_STATE="" LIVE_HEAD=""
+IFS='|' read -r PR_STATE LIVE_HEAD <<EOF
+$PR_READ
+EOF
 case "$PR_STATE" in
   open)
-    : ;;  # still actionable — fall through to the idempotency read and post
+    if ! [[ "$LIVE_HEAD" =~ ^[0-9a-f]{40}$ ]]; then
+      _note warning "ci auto-review trigger: the live head of PR #$PR could not be established (got '$LIVE_HEAD'); NOT posting (fail-closed — the tested commit may no longer be the head; comment /prflow:review by hand if a review is still wanted)."
+      exit 0
+    fi
+    if [[ "$LIVE_HEAD" != "$HEAD_SHA"* ]]; then
+      _note warning "ci auto-review trigger: PR #$PR head has moved past the tested commit $HEAD_SHA (live head $LIVE_HEAD); NOT posting a review request for the outdated commit. Comment /prflow:review by hand if a review is still wanted."
+      exit 0
+    fi
+    ;;  # still actionable at the tested head — fall through to the idempotency read and post
   draft)
     # Reverted to draft while CI ran (issue #858) — a draft is not ready for
     # review. The job `if:` only saw the trigger-time payload, so this is the

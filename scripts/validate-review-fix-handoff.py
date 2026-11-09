@@ -47,7 +47,7 @@ fully-conforming handoff whose identity matches the caller exits 0.
 Permitted review-fix valid-falsy / null shapes (AC3): a null `final_commit` or
 `pr.number`; an empty `unresolved_findings`; a finding with a null `defect_signature`;
 `review_coverage_recorded` false; and a null `loop_run.iter_dir`. `blockers` must be non-empty
-only when `outcome` is `blocked` or `error`.
+only when `outcome` is `blocked`, `needs-recovery` or `error`.
 
 Finalization schema (`--schema finalization`, issue #539) — validated here, and restated for
 the worker in `agents/implement-finalization.md`:
@@ -105,9 +105,8 @@ import sys
 SCHEMA_VERSION = 1
 
 #: Closed enums, each keyed by its dotted field path.
-_OUTCOMES = ("proceed", "blocked", "error")
-#: Finalization (issue #539) adds `needs-recovery` for a missing canonical operand, and issue
-#: #562 `needs-repair` for a failed final-tree verification the parent repairs.
+_OUTCOMES = ("proceed", "blocked", "needs-recovery", "error")
+#: Finalization adds `needs-repair`, a failed final-tree verification the parent repairs.
 _OUTCOMES_FINALIZATION = ("proceed", "blocked", "needs-recovery", "needs-repair", "error")
 #: The Phase 4 steps a `proceed` finalization handoff must account for in `steps`.
 _FINALIZATION_STEP_IDS = ("§4.0", "§4.0.5", "§4.0.6", "§4.1", "§4.2", "§4.3")
@@ -357,7 +356,6 @@ def validate_handoff(data, *, checkout_root, dispatch_id, issue_number):
         if not (persistence.get("reason") is None or _is_str(persistence.get("reason"))):
             offending.append("persistence.reason: must be a string or null")
 
-    # Arrays. blockers is required non-empty on a blocked/error outcome; empty otherwise is fine.
     blockers = data.get("blockers")
     if not isinstance(blockers, list):
         offending.append("blockers: must be an array")
@@ -365,8 +363,9 @@ def validate_handoff(data, *, checkout_root, dispatch_id, issue_number):
         for i, b in enumerate(blockers):
             if not (isinstance(b, dict) and _is_str(b.get("reason")) and _is_str(b.get("evidence"))):
                 offending.append(f"blockers[{i}]: must be an object with string reason and evidence")
-        if data.get("outcome") in ("blocked", "error") and not blockers:
-            offending.append("blockers: must be non-empty when outcome is blocked or error (incomplete)")
+        stops = tuple(o for o in _OUTCOMES if o != "proceed")
+        if data.get("outcome") in stops and not blockers:
+            offending.append(f"blockers: must be non-empty when outcome is one of {stops} (incomplete)")
 
     findings = data.get("unresolved_findings")
     if not isinstance(findings, list):

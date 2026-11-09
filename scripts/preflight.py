@@ -774,6 +774,20 @@ def _branch_rebased_or_bisected_elsewhere(branch: str) -> bool | None:
     return False
 
 
+def _fetched_remote_tip(branch: str) -> tuple[str, str]:
+    """Force-fetch origin's `branch` over full history: (tip, "") or ("", reason)."""
+    tip_ref = f"refs/remotes/origin/{branch}"
+    if _run_git(["fetch", "origin", f"+refs/heads/{branch}:{tip_ref}"]).returncode != 0:
+        return ("", "branch-fetch-failed")
+    if not _full_history():
+        return ("", _UNESTABLISHED)
+    tip_read = _run_git(["rev-parse", "--verify", "--quiet", f"{tip_ref}^{{commit}}"])
+    tip = tip_read.stdout.strip()
+    if tip_read.returncode != 0 or not _OID.fullmatch(tip):
+        return ("", _UNESTABLISHED)
+    return (tip, "")
+
+
 def _checkout_branch(
     branch: str, *, base: str, pr_head: str | None = None
 ) -> tuple[bool, str]:
@@ -790,24 +804,21 @@ def _checkout_branch(
     if listing.returncode != 0 or current.returncode != 0:
         return (False, _UNESTABLISHED)
     lines = listing.stdout.splitlines()
-    if f"branch refs/heads/{branch}" in lines and current.stdout.strip() != branch:
+    here = current.stdout.strip() == branch
+    if f"branch refs/heads/{branch}" in lines and not here:
         return (False, WORKTREE_LIVE)
-    if "detached" in lines:
-        busy = _branch_rebased_or_bisected_elsewhere(branch)
-        if busy is None:
-            return (False, _UNESTABLISHED)
-        if busy:
-            return (False, WORKTREE_LIVE)
 
+    def busy_elsewhere() -> str:
+        busy = _branch_rebased_or_bisected_elsewhere(branch)
+        return _UNESTABLISHED if busy is None else (WORKTREE_LIVE if busy else "")
+
+    if "detached" in lines and not here and (stop := busy_elsewhere()):
+        return (False, stop)
+
+    tip, reason = _fetched_remote_tip(branch)
+    if reason:
+        return (False, reason)
     tip_ref = f"refs/remotes/origin/{branch}"
-    if _run_git(["fetch", "origin", f"+refs/heads/{branch}:{tip_ref}"]).returncode != 0:
-        return (False, "branch-fetch-failed")
-    if not _full_history():
-        return (False, _UNESTABLISHED)
-    tip_read = _run_git(["rev-parse", "--verify", "--quiet", f"{tip_ref}^{{commit}}"])
-    tip = tip_read.stdout.strip()
-    if tip_read.returncode != 0 or not _OID.fullmatch(tip):
-        return (False, _UNESTABLISHED)
 
     if pr_head is not None:
         if not _OID.fullmatch(pr_head):
@@ -846,6 +857,10 @@ def _checkout_branch(
                 if own.stdout.strip():
                     return (False, "local-branch-diverged")
             command, expected, unchanged = ["checkout", "-B", branch, tip_ref], tip, local_sha
+            # git refuses to move even the current branch while another worktree rebases or
+            # bisects it; no other worktree holds it to switch into, so the stop is terminal.
+            if "detached" in lines and here and (stop := busy_elsewhere()):
+                return (False, stop if stop == _UNESTABLISHED else "branch-busy-in-other-worktree")
 
     _run_git(command)
     after = _local_branch_sha(branch)
@@ -867,18 +882,22 @@ def _checkout_branch(
 _FORK_SUFFIX_LIMIT = 5
 
 
-def _unused_branch_name(name: str) -> tuple[str, str]:
+def _unused_branch_name(name: str, *, ask_origin: bool = False) -> tuple[str, str]:
     """The first free name in `name`, `name-r2`, … Returns (name, diagnostic).
 
-    A name whose existence cannot be established (`_branch_exists` → None) is not
-    free: returning it would let a fork check out over live work. The two
-    exhaustion causes carry distinct diagnostics because a crowded namespace and
-    an unestablished probe need different remedies.
+    A name whose existence cannot be established (`_branch_exists` → None, or a
+    failed `ls-remote` under `ask_origin`) is not free: returning it would let a
+    fork check out over live work. The two exhaustion causes carry distinct
+    diagnostics because a crowded namespace and an unestablished probe need
+    different remedies.
     """
     unestablished = False
     for attempt in range(1, _FORK_SUFFIX_LIMIT + 1):
         candidate = name if attempt == 1 else f"{name}-r{attempt}"
         exists = _branch_exists(candidate)
+        if exists is False and ask_origin:
+            remote = _origin_branch_rc(candidate)
+            exists = None if remote not in (0, 2) else remote == 0
         if exists is False:
             return (candidate, "")
         if exists is None:
@@ -886,6 +905,11 @@ def _unused_branch_name(name: str) -> tuple[str, str]:
     if unestablished:
         return ("", "branch-name-existence-unestablished")
     return ("", "branch-name-collision-unresolved")
+
+
+def _origin_branch_rc(name: str) -> int:
+    """`git ls-remote --exit-code` for origin's `name`: 0 present, 2 absent, else unestablished."""
+    return _run_git(["ls-remote", "--exit-code", "origin", f"refs/heads/{name}"]).returncode
 
 
 def _fresh_create(
@@ -935,9 +959,15 @@ def _fresh_create(
     if not name or _run_git(["check-ref-format", f"refs/heads/{name}"]).returncode != 0:
         return (name, "invalid-or-uncreated-branch", "")
     if recover:
-        name, collision = _unused_branch_name(name)
+        name, collision = _unused_branch_name(name, ask_origin=bool(branch))
         if collision:
             return ("", collision, "")
+    elif branch:
+        # A taken or unconfirmed name stops so the fork, not this cut from the base, decides it.
+        remote = 0 if _branch_exists(name) else _origin_branch_rc(name)
+        if remote != 2:
+            return (name, "branch-name-taken" if remote == 0
+                    else "branch-name-existence-unestablished", "")
     created = _run_git(["checkout", "-b", name, start_point])
     if created.returncode != 0:
         diagnostic = (created.stderr or created.stdout).strip()
@@ -988,6 +1018,28 @@ def _branch_setup_checkout_stop(
         reason=diagnostic,
     )
     return BLOCKED_EXIT
+
+
+def _issue_bound_branch(name: str | None, *, issue: int, base: str) -> bool:
+    """True for a branch name bound to the issue, never the base."""
+    return bool(name and name != base and (
+        re.fullmatch(rf"issue-{issue}(?:-[a-z0-9-]+)?", name)
+        or re.fullmatch(rf"worktree-(?:[a-z0-9]+-)*{issue}(?:-[a-z0-9]+)*", name)))
+
+
+def _remote_branch_probe(
+    branch: str, *, base: str, reason: str, recovery: str | None = None,
+) -> int | None:
+    """`ls-remote` exit 0 (present) or 2 (absent); any other exit records the stop, returning None."""
+    remote = _run_git(["ls-remote", "--exit-code", "origin", f"refs/heads/{branch}"])
+    if remote.returncode in (0, 2):
+        return remote.returncode
+    _branch_setup_record(
+        outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
+        base=base, branch=branch, freshness="n/a",
+        verdict_b="not-run" if recovery else "UNAVAILABLE", recovery=recovery, reason=reason,
+    )
+    return None
 
 
 HANDOFF_ORIGINS = ("created-current-run", "adopted-existing", "unknown")
@@ -1092,6 +1144,27 @@ def _branch_setup_recover(args: argparse.Namespace, action: str) -> int:
                 recovery="adopt", reason=reason,
             )
             return UNAVAILABLE_EXIT
+        # The first call's probe may have failed. Adopting an issue-bound branch
+        # lacking its origin tip would resume stale, and landing that tip here would
+        # adopt history neither the agent nor Verdict B inspected: stop instead.
+        if _issue_bound_branch(branch, issue=args.issue, base=args.base):
+            remote = _remote_branch_probe(
+                branch, base=args.base, reason="current-branch-remote-probe-failed",
+                recovery="adopt")
+            if remote is None:
+                return BLOCKED_EXIT
+            if remote == 0:
+                tip, reason = _fetched_remote_tip(branch)
+                if not reason:
+                    holds = _is_ancestor(tip, f"refs/heads/{branch}")
+                    reason = {True: "", False: "recover-adopt-lacks-origin-tip"}.get(holds, _UNESTABLISHED)
+                if reason:
+                    _branch_setup_record(
+                        outcome="stop", stop_kind="resume-precheck-checkout-did-not-land",
+                        arm="landed-resume", base=args.base, branch=branch, freshness="n/a",
+                        verdict_b="not-run", recovery="adopt", reason=reason,
+                    )
+                    return BLOCKED_EXIT
         _branch_setup_record(
             outcome="proceed", stop_kind="n/a", arm="landed-resume", base=args.base,
             branch=branch, freshness=_branch_freshness(args.base), verdict_b="not-run",
@@ -1102,6 +1175,14 @@ def _branch_setup_recover(args: argparse.Namespace, action: str) -> int:
         issue=args.issue, base=args.base, branch=args.branch,
         title_file=args.title_file, recover=True,
     )
+    abandoned = ""
+    if args.branch and diagnostic not in ("", "base-fetch-failed"):
+        abandoned = f"supplied-branch-not-created:{diagnostic}"
+        branch, diagnostic, start_point = _fresh_create(
+            issue=args.issue, base=args.base, branch=None,
+            title_file=args.title_file, recover=True,
+        )
+        diagnostic = diagnostic and f"{abandoned}; {diagnostic}"
     if diagnostic:
         _branch_setup_record(
             outcome="stop", stop_kind="feature-branch-create-failed", arm="fresh-create",
@@ -1118,7 +1199,9 @@ def _branch_setup_recover(args: argparse.Namespace, action: str) -> int:
         outcome="proceed", stop_kind="n/a", arm="fresh-create", base=args.base,
         branch=branch, freshness=_branch_freshness(args.base), verdict_b="not-run",
         selected_pr="n/a", recovery="fork",
-        reason="forked-from-local-base" if start_point == args.base else None,
+        reason="; ".join(part for part in (
+            "forked-from-local-base" if start_point == args.base else "", abandoned) if part)
+        or None,
     )
     return PROCEED_EXIT
 
@@ -1195,6 +1278,14 @@ def branch_setup(args: argparse.Namespace) -> int:
         head_rows, body_rows, args.issue, workpad_branch
     )
 
+    def supplied(name: str | None) -> bool:
+        return bool(name and name == args.branch and name != args.base)
+
+    def admitted(name: str | None) -> bool:
+        # Kept out of `_issue_bound_branch`: the recovery adopt's origin-tip check
+        # must not widen to a caller-supplied name.
+        return supplied(name) or _issue_bound_branch(name, issue=args.issue, base=args.base)
+
     branch = ""
     arm = "landed-resume"
     if selected is not None:
@@ -1211,21 +1302,35 @@ def branch_setup(args: argparse.Namespace) -> int:
                 selected_pr=selected.get("number", "n/a"),
             )
     else:
-        recorded_shape = bool(workpad_branch and re.fullmatch(
-            rf"issue-{args.issue}(?:-[a-z0-9-]+)?", workpad_branch
-        ))
-        if recorded_shape:
-            remote = _run_git(["ls-remote", "--exit-code", "origin", f"refs/heads/{workpad_branch}"])
-            if remote.returncode not in (0, 2):
-                _branch_setup_record(
-                    outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
-                    base=args.base, branch=workpad_branch, freshness="n/a", verdict_b="UNAVAILABLE",
-                    reason="recorded-branch-remote-probe-failed",
-                )
+        land = False
+        current = _run_git(["branch", "--show-current"])
+        current_branch = current.stdout.strip() if current.returncode == 0 else ""
+        common = _run_git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+        git_dir = _run_git(["rev-parse", "--path-format=absolute", "--git-dir"])
+        layout_read = bool(
+            common.returncode == 0 and git_dir.returncode == 0
+            and common.stdout.strip() and git_dir.stdout.strip()
+        )
+        linked = layout_read and common.stdout.strip() != git_dir.stdout.strip()
+        recognized = (current_branch.startswith(("claude/issue-", "issue-"))
+                      or supplied(current_branch))
+        adoptable = (current_branch if current_branch and current_branch != args.base
+                     and (linked or recognized) else "")
+        # A failed read that leaves adoption undecided must not fork a fresh branch over it.
+        adoption_known = current.returncode == 0 and (
+            not current_branch or current_branch == args.base or recognized or layout_read)
+        recorded_remote: int | None = None
+        if admitted(workpad_branch):
+            recorded_remote = _remote_branch_probe(
+                workpad_branch, base=args.base,
+                reason=("current-branch-remote-probe-failed" if workpad_branch == adoptable
+                        else "recorded-branch-remote-probe-failed"))
+            if recorded_remote is None:
                 return BLOCKED_EXIT
-            if remote.returncode == 0:
+            if recorded_remote == 0:
                 prior_prs = _gh_pr_rows(["--head", workpad_branch, "--state", "all", "--json", "number"])
-                if prior_prs is None:
+                # The adoptable current branch lands whatever its PR history.
+                if prior_prs is None and workpad_branch != adoptable:
                     _branch_setup_record(
                         outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
                         base=args.base, branch=workpad_branch, freshness="n/a", verdict_b="UNAVAILABLE",
@@ -1233,29 +1338,33 @@ def branch_setup(args: argparse.Namespace) -> int:
                     )
                     return BLOCKED_EXIT
                 if not prior_prs:
-                    branch = workpad_branch
-                    landed, diagnostic = _checkout_branch(branch, base=args.base)
-                    if not landed:
-                        return _branch_setup_checkout_stop(
-                            branch=branch,
-                            diagnostic=diagnostic,
-                            arm="landed-resume",
-                            base=args.base,
-                        )
+                    branch, land = workpad_branch, True
 
-        if not branch:
-            current = _run_git(["branch", "--show-current"])
-            current_branch = current.stdout.strip() if current.returncode == 0 else ""
-            common = _run_git(["rev-parse", "--path-format=absolute", "--git-common-dir"])
-            git_dir = _run_git(["rev-parse", "--path-format=absolute", "--git-dir"])
-            linked = (
-                common.returncode == 0 and git_dir.returncode == 0
-                and common.stdout.strip() and git_dir.stdout.strip()
-                and common.stdout.strip() != git_dir.stdout.strip()
+        if not branch and not adoption_known:
+            _branch_setup_record(
+                outcome="stop", stop_kind="resume-precheck-probe-failed", arm="landed-resume",
+                base=args.base, branch="n/a", freshness="n/a", verdict_b="UNAVAILABLE",
+                reason="current-branch-read-failed",
+                failed_read="branch --show-current" if current.returncode != 0 else "rev-parse layout",
             )
-            recognized = current_branch.startswith(("claude/issue-", "issue-"))
-            if current_branch and current_branch != args.base and (linked or recognized):
-                branch = current_branch
+            return BLOCKED_EXIT
+        if not branch and adoptable:
+            branch = adoptable
+            # A name neither bound to the issue nor supplied gets no probe: a reused generic
+            # `--worktree` name can belong to another issue's pushed run.
+            if admitted(branch):
+                remote = (recorded_remote if branch == workpad_branch and recorded_remote is not None
+                          else _remote_branch_probe(
+                              branch, base=args.base, reason="current-branch-remote-probe-failed"))
+                if remote is None:
+                    return BLOCKED_EXIT
+                land = remote == 0
+
+        if land:
+            landed, diagnostic = _checkout_branch(branch, base=args.base)
+            if not landed:
+                return _branch_setup_checkout_stop(
+                    branch=branch, diagnostic=diagnostic, arm="landed-resume", base=args.base)
 
         if not branch:
             arm = "fresh-create"
@@ -1935,14 +2044,10 @@ _SWEEP_EXACT_TEMPLATES = (
     "rf-verdict-{issue}.md",
     "refl-{issue}.md",
     "relocate-to-docs-{issue}.md",
-    "docgate-suppressed-note-{issue}.txt",
     "branch-state-{issue}.json",
     "devflow-issue-{issue}-title.txt",
-    "devflow-docgate-body-{issue}.txt",
-    "devflow-docgate-extractor-err-{issue}.txt",
     "issue-claim-audit-record-{issue}.md",
     "issue-claim-projection-{issue}.json",
-    "sweep-evidence-{issue}.json",
 )
 # The 2 wildcard families. The captured digit run is `-`-delimited on both sides,
 # so a group(1) STRING equality against the run's issue is what stops 240 from
@@ -2254,7 +2359,8 @@ def _render_issue_story(raw: bytes) -> "bytes | None":
         parts = [f"# {data['title']}\n\nState: {data['state']}\nURL: {data['url']}\n\n{data['body'] or ''}\n"]
         for comment in data["comments"]:
             author = (comment.get("author") or {}).get("login") or "unknown"
-            parts.append(f"\n## Comment by {author}, {comment.get('createdAt') or ''}\n\n{comment.get('body') or ''}\n")
+            url = f"URL: {comment['url']}\n\n" if comment.get("url") else ""
+            parts.append(f"\n## Comment by {author}, {comment.get('createdAt') or ''}\n\n{url}{comment.get('body') or ''}\n")
         # Inside the try: a lone surrogate in the JSON fails the encode (a ValueError).
         return "".join(parts).encode("utf-8")
     except (ValueError, KeyError, TypeError, AttributeError):
@@ -2264,8 +2370,8 @@ def _render_issue_story(raw: bytes) -> "bytes | None":
 def _fetch_issue_body_bytes(issue: str, with_comments: bool = False) -> "tuple[bytes | None, str]":
     """The issue body as raw bytes, or with_comments the rendered story (None when gh
     could not answer or printed unusable JSON), and a diagnostic string for the caller's
-    failure breadcrumb. No encoding= on stdout, so without with_comments the bytes gh
-    printed reach --out untranslated (the byte-exactness contract)."""
+    failure breadcrumb. No encoding= on stdout, so without with_comments the body's
+    bytes reach --out untranslated (the byte-exactness contract)."""
     query = ["--json", "title,state,url,body,comments"] if with_comments else ["--json", "body", "-q", ".body"]
     try:
         result = subprocess.run([GH, "issue", "view", issue, *query], capture_output=True, env=fresh_gh_env())
@@ -2274,7 +2380,8 @@ def _fetch_issue_body_bytes(issue: str, with_comments: bool = False) -> "tuple[b
     if result.returncode != 0:
         return None, result.stderr.decode("utf-8", "replace").strip()
     if not with_comments:
-        return result.stdout, ""
+        # gh's -q appends one "\n"; drop only that one — rstrip would eat the body's own.
+        return result.stdout.removesuffix(b"\n"), ""
     story = _render_issue_story(result.stdout)
     return (story, "") if story is not None else (None, "gh printed unusable issue JSON")
 
@@ -2362,59 +2469,6 @@ def issue_body_cmd(args: argparse.Namespace) -> int:
         print("UNAVAILABLE write", flush=True)
         return UNAVAILABLE_EXIT
     print(f"CACHED {out} bytes={len(body)}", flush=True)
-    return PROCEED_EXIT
-
-
-DOC_NEEDED_DRAFT_ERROR_EXIT = 2
-
-
-def doc_needed_paths(args: argparse.Namespace) -> int:
-    """Print the Documentation Needed extractor's unfiltered paths for a draft.
-
-    Exit 0 is a successful extraction (stdout verbatim, possibly empty), 2 an
-    unusable draft, UNAVAILABLE_EXIT a failed extraction or usage error; a
-    failure never prints an empty success. Never honour the allowlist here: it
-    would let the environment hide the candidates under review.
-    """
-    try:
-        raw = Path(args.body_file).read_bytes()
-    except OSError as exc:
-        print(f"preflight.py: doc-needed-paths: draft unusable (unreadable: {exc})", file=sys.stderr)
-        return DOC_NEEDED_DRAFT_ERROR_EXIT
-    try:
-        body = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        print("preflight.py: doc-needed-paths: draft unusable (is not valid UTF-8)", file=sys.stderr)
-        return DOC_NEEDED_DRAFT_ERROR_EXIT
-    if not body.strip():
-        print("preflight.py: doc-needed-paths: draft unusable (empty or whitespace-only)", file=sys.stderr)
-        return DOC_NEEDED_DRAFT_ERROR_EXIT
-    env = {k: v for k, v in os.environ.items() if k != "DEVFLOW_DOC_NEEDED_ALLOWLIST"}
-    try:
-        import bash_launch as _bl
-
-        bash = _bl.resolve_bash(env)
-        extractor = Path(__file__).resolve().parent / "extract-doc-needed-paths.sh"
-        argument = _bl.script_argument(extractor, cwd=Path.cwd(), bash=bash)
-        out = subprocess.run(
-            _bl.command([bash, argument]), input=body.encode("utf-8"),
-            capture_output=True, env=env, check=False,
-        )
-    except (ImportError, OSError, ValueError) as exc:
-        print(f"preflight.py: doc-needed-paths: extraction failed (launch: {type(exc).__name__}: {exc})", file=sys.stderr)
-        return UNAVAILABLE_EXIT
-    sys.stderr.write(out.stderr.decode("utf-8", errors="replace"))
-    if out.returncode != 0:
-        print(f"preflight.py: doc-needed-paths: extraction failed (extractor exit {out.returncode})", file=sys.stderr)
-        return UNAVAILABLE_EXIT
-    try:
-        paths = out.stdout.decode("utf-8")
-    except UnicodeDecodeError:
-        print("preflight.py: doc-needed-paths: extraction failed (non-UTF-8 extractor output)", file=sys.stderr)
-        return UNAVAILABLE_EXIT
-    # Text-mode stdout writes "\n" as "\r\n" on Windows; print the extractor's lines verbatim.
-    sys.stdout.reconfigure(newline="")
-    sys.stdout.write(paths)
     return PROCEED_EXIT
 
 
@@ -2511,10 +2565,6 @@ def main(argv=None) -> int:
     issue_body_parser.add_argument("--out", required=True)
     issue_body_parser.add_argument("--with-comments", action="store_true")
     issue_body_parser.set_defaults(func=issue_body_cmd)
-
-    doc_needed_parser = subparsers.add_parser("doc-needed-paths")
-    doc_needed_parser.add_argument("--body-file", required=True)
-    doc_needed_parser.set_defaults(func=doc_needed_paths)
 
     # ── lint-changed / lint-full (issue #1389) ──────────────────────────────
     # Advisory changed-file and repository-wide lint, selected through the

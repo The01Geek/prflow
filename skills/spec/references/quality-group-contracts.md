@@ -32,6 +32,19 @@ resolved with the user, not an obligation. **Adjective-only language** ("explici
 exactly `true`") without that grounding is **non-conforming**, including when a probe is present but
 silent on the axis.
 
+**Performance and resource measurements.** An AC or Testing-Strategy assertion that compares a
+performance or resource measurement — elapsed time, latency, throughput, memory or CPU use — with
+another run or with a fixed limit also names how and where its runs are taken: for example the
+number of runs, the statistic, the run order, and the machine and its load. A comparison with
+another run also names its tolerance as an amount on the side the comparison guards ("at most 15%
+slower than before" for a "no slower" criterion); a fixed limit is its own margin and takes no
+separate tolerance. A phrase naming no amount ("more than measurement noise") is not a tolerance,
+and an amount on both sides ("within 15%") does not meet this rule for a one-sided comparison. The
+amount comes from repo policy, such as a consumer skill extension, or from the user — the request,
+an answer, or a choice the user delegates to the run; the drafter never picks one on its own
+initiative and never leaves it to the implementer. When neither source gives one, the missing
+tolerance is an unresolved decision for the no-options gate in `skills/spec/SKILL.md` Step 3.
+
 **Obligation execution tier.** Obligation arms are implement-tier verification commands (this
 governs this AC and the Step 3.5 unstated-mechanism-dependency hunt alike): an obligation that
 requires *running* an in-repo command must name one already granted on the consuming tier (the
@@ -128,9 +141,13 @@ Every enumerated member set inside a criterion declares its closure. Such a set,
 cases or existing producers, markers or consumers, takes one of two forms: a **floor**, carrying the
 exact marker `at minimum`, or a **closed set**, carrying an explicit exhaustiveness statement of the
 shape `exactly these N — complete by construction`. A closed set whose members the change does not
-itself define is declared `complete by construction` only when a bundle entry meets the enumeration
-rule in `references/step-2-clarify.md`, and otherwise a floor with `at minimum`. A set owned by a
-file the change does not edit, where the criterion's reader can follow a pointer to it, is instead
+itself define, or that it defines over values or an outcome existing rules already produce or of
+which that is unclear, is declared `complete by construction` only when a bundle entry meets the
+enumeration rule in `references/step-2-clarify.md`; for a set the change defines, that entry
+must also list the rules producing those values or that outcome (it need not list readers or
+other uses of them), and the set must have a member for each listed rule's value or outcome.
+Otherwise it is a floor with `at minimum`. A set owned by a file the change does not edit, where
+the criterion's reader can follow a pointer to it, is instead
 pointed at by the criterion: the pointer covers every member and owes no floor, closed-set
 statement, per-state criteria or per-member pin; the criterion names by name alone a member the
 change gives an outcome of its own, with that outcome, and restates nothing that file defines for
@@ -142,8 +159,9 @@ with any of its refusal or failure outcomes, on any input to which no other crit
 outcome. Each set of causes a criterion enumerates rather than points at for its refusal or failure is then an
 `at minimum` floor, never a closed set. An input another criterion gives its own outcome keeps
 that outcome, even where that outcome cannot be produced, so the default never covers an input a
-success criterion decides. Every other set the change defines takes either form, including the
-states such an operation reports (exit codes, status values) and the causes of an operation that
-does not fail closed or of which that is unclear.
+success criterion decides. Every other set the change defines, including the states such an
+operation reports (exit codes, status values) and the causes of an operation that does not fail
+closed or of which that is unclear, takes either form; one the bundle-entry condition above covers
+takes the closed form only under it.
 Any other enumeration carrying neither form is non-conforming.
 <!-- prflow:spec-ref step=quality-group-contracts file=skills/spec/references/quality-group-contracts.md end -->

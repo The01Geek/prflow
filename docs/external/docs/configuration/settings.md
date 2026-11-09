@@ -78,6 +78,7 @@ A name containing `<name>`, such as `providers.<name>.auth`, means you choose th
 | `prflow_retrospective.retrospective_model` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | The model used for the analysis stage. |
 | `prflow_retrospective.watched_authors` | [Documentation and Retrospectives](/docs/configuration/documentation-and-retrospectives) | Whose pull requests the weekly loop scans. |
 | `prflow_review.agent_overrides` | [Review Agents](/docs/configuration/review-agents) | Per-agent `model` and `iterations` overrides, plus a `default` entry; a per-agent `effort` is ignored. |
+| `prflow_review.dependency_sources` | [Review](/docs/configuration/review) | Directories of installed library source the review's checklist checks may read. |
 | `prflow_review.live_progress_comment_enabled` | [Review](/docs/configuration/review) | Whether a run keeps a live progress comment. |
 | `prflow_review.require_ci_green` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |
 | `prflow_review.require_up_to_date` | [Review](/docs/configuration/review) | Removed (issue #2071) from the shipped schema/example; stripped from a consumer config on the next installer apply. |

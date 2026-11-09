@@ -100,9 +100,14 @@ how each flow ends. Then:
 2. **Added mechanisms.** Walk the motivating case, each named arm (a case class the draft's rule
    wording distinguishes) and each arm the mechanism runs on, then an empty or absent input and an
    error exit. Two rules giving one case different outcomes, a case with no outcome, or an
-   obligation with no end condition is a defect. For an alleged contradiction, quote both
-   statements and derive their incompatible outcomes for one input and state; different
-   responsibilities or awkward wording are no conflict.
+   obligation with no end condition is a defect. When the draft adds a step that makes edits to an
+   ordered procedure, each step of that procedure that verifies those edits (a test run, a sweep, a
+   guard reading them) must run on them, after the new step or again after it: an execution order
+   in which such a verifying step runs before the new step and not again after it is a defect,
+   while a new step that makes no edits, or a step that does not verify the new step's edits
+   (reporting, bookkeeping), raises none. For an alleged contradiction, quote both statements and
+   derive their incompatible outcomes for one input and state; different responsibilities or
+   awkward wording are no conflict.
 3. **Outcome.** Does the Desired Behavior, as the criteria pin it, deliver the Problem Statement's
    outcome for the reported case, and does the draft leave any decision open? Note a design that
    delivers the same outcome with less mechanism, and an obligation the problem does not need — a

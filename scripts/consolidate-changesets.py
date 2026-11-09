@@ -91,6 +91,9 @@ if "--dry-run" in sys.argv[1:]:
     sys.dont_write_bytecode = True
 import version_pins
 
+sys.path.insert(0, os.path.join(os.path.dirname(_SCRIPTS_DIR), "lib"))
+from path_forms import posix_path
+
 # Single source of the ordered bump domain: _BUMP_RANK is DERIVED from VALID_BUMPS (mirroring
 # the CANONICAL_TYPES → _TYPE_BY_LOWER pattern below), so adding a bump value cannot desync the
 # two into a KeyError at the `max(..., key=_BUMP_RANK.__getitem__)` lookup.
@@ -615,7 +618,7 @@ def consolidate(
         if new_release_notes is not None:
             written.append(release_notes_path)
         written.extend(pin_rewrites)
-        rels = sorted(os.path.relpath(p, root) for p in written)
+        rels = sorted(posix_path(os.path.relpath(p, root)) for p in written)
         _write_text(write_set_out, "".join(f"{r}\n" for r in rels))
     # The bump kind the release decision reads. Written only on a run that actually bumped:
     # the no-pending-changesets early return leaves the file ABSENT rather than writing a
