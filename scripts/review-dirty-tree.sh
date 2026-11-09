@@ -79,14 +79,20 @@
 #     entry at N >= 2 runs review-loop-io.py `prior`. Line: {status:"ok", entry, iteration,
 #     cache_deleted:[…], snapshot:"taken"|"disabled", oid, oid_file, prior:{…}|null}.
 #     entry-close is the sibling review-loop-io.py `entry-close` (branch guard, the restore of
-#     tracked files the engine changed, shadow migration from DIR-shadow into DIR, the retained
-#     evidence copies, the engine return's grade and the entry's evidence grade).
+#     tracked files the engine changed, shadow migration from DIR-shadow into DIR, the source-view
+#     deletion views-remove runs, the retained evidence copies, the engine return's grade and the
+#     entry's evidence grade).
 #     Errors print {status:"error", step, reason}: `arguments`/`run-root` exit 2;
 #     `cache` (a survivor after deletion), `content` (a content record it can neither replace
 #     nor clear), `head` (HEAD not recorded), `run-dir` (shadow removal/migration failed) and
 #     `repo-root` (git or the environment unavailable) exit 1. Migration errors retain the restoration fields; an unestablished dirty check
 #     still requires the loop to stop. Without `--contract 3` both arms
 #     refuse (exit 2).
+#   views-remove --run-dir DIR
+#     The sibling review-loop-io.py `views-remove`: deletes DIR's view-head, view-base and their
+#     .tmp staging folders without following a link and prints {status:"ok"}, with views_left
+#     naming each path left when there is one (exit 0); a refused --run-dir prints a status error
+#     line and exits 2.
 #
 # Portability: bash 3.2 / BSD userland, no GNU-only flags (indexed-array linear scan,
 # never `declare -A`; NUL-safe `read -r -d ''`).
@@ -558,8 +564,12 @@ main() {
       shift
       python3 "$LOOP_IO" entry-close "$@"
       ;;
+    views-remove)
+      shift
+      python3 "$LOOP_IO" views-remove "$@"
+      ;;
     *)
-      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-brief | engine-return | loop-setup | branch-sync | entry-open | entry-close)" >&2
+      echo "review-dirty-tree.sh: unknown subcommand '$1' (expected: snapshot | compare-and-restore | engine-setup | engine-brief | engine-return | loop-setup | branch-sync | entry-open | entry-close | views-remove)" >&2
       return 2
       ;;
   esac

@@ -13,7 +13,7 @@ routes on. Making the reconciliation an executable helper — rather than
 agent-executed prose — is what lets it carry regression coverage for the
 3x3 status-pairing table below.
 
-The reconciliation takes a third input: the orchestrator's tagged criteria list, whose
+The reconciliation takes a third input: the tagged criteria list, whose
 per-criterion `class` decides each criterion's *expected sides* — both verifiers for a
 `command` criterion, the evidence verifier alone for a `non-command` or `source-read` one. The per-side slot
 gate and the status pairing apply only to expected sides, and each record carries a
@@ -489,7 +489,7 @@ def _index_by_criterion(records, side):
 
 
 def parse_criteria(entries):
-    """Parse the orchestrator-authored tagged-criteria list into `{num: class | _POISON_CLASS}`.
+    """Parse the tagged-criteria list into `{num: class | _POISON_CLASS}`.
 
     Fail-closed exactly like `_index_by_criterion`: an entry that is not an object, or whose
     `criterion` is absent/boolean/not-int, is DROPPED with a stderr breadcrumb and contributes
@@ -536,10 +536,10 @@ def _expected_sides(cls):
 
 
 def _load_criteria(path):
-    """Load the orchestrator-authored tagged-criteria file — a BARE JSON list only.
+    """Load the tagged-criteria file — a BARE JSON list only.
 
     Unlike `_load_report`, the `{"criteria": [...]}` envelope the verifier reports use is NOT
-    accepted here: the orchestrator authors this file, so a wrapped envelope is a malformed
+    accepted here: `prepare --class` writes this file, so a wrapped envelope is a malformed
     input, not a faithful alternate shape. A non-list top-level value raises (the caller maps
     it to exit 3), matching `_load_report`'s fail-closed unreadable-report arm.
     """

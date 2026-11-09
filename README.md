@@ -85,7 +85,7 @@ The intended way to drive PRFlow — from a feature request to a reviewed pull r
        │
 /prflow:spec   →  explore codebase → implementation options → detailed GitHub issue
        │
-/prflow:implement      →  architect → code → build/test → /prflow:review-and-fix loop → /prflow:docs
+/prflow:implement      →  architect → code → build/test → /prflow:docs → /prflow:review-and-fix loop
        │
 /prflow:review         →  (optional) independent, comprehensive check → PR ready for developer hand-off
        │
@@ -94,7 +94,7 @@ The intended way to drive PRFlow — from a feature request to a reviewed pull r
 
 1. **Create the issue.** `/prflow:spec Add CSV export to the reports page` interviews you until the issue is unambiguous, shows you the draft, and files it **only after you confirm**. Say it lands as **#42**.
 2. **Start implementation.** Run `/prflow:implement 42` in Claude Code — or, on the cloud tier, comment `/prflow:implement 42` on the issue (`gh issue comment 42 --body '/prflow:implement 42'`). Because *you* posted the comment, GitHub fires the workflow natively (no `@claude`, bot comment or PAT needed — see [cloud triggers](https://prflow.ai/docs/runs/cloud/triggers#implement-an-issue)).
-3. **PRFlow implements it.** It creates a branch, plans against your codebase, writes the code, self-reviews it with a PRFlow code-reviewer cleanup pass, runs the tests, opens a **draft PR**, runs `/prflow:review-and-fix`, files follow-up issues for deferred findings, updates the docs, and flips the PR to **ready**.
+3. **PRFlow implements it.** It creates a branch, plans against your codebase, writes the code, self-reviews it with a PRFlow code-reviewer cleanup pass, runs the tests, opens a **draft PR**, updates the docs, runs `/prflow:review-and-fix`, files follow-up issues for deferred findings, and flips the PR to **ready**.
 4. **Review and merge.** On the cloud tier, `/prflow:review` runs as a gate and posts its verdict on the PR. You do the final human review and merge.
 
 > The cloud tier (steps 2–4 running automatically on GitHub) needs only a `CLAUDE_CODE_OAUTH_TOKEN` secret **by default** (routing a workflow through an optional third-party model provider adds one more, `DEVFLOW_PROVIDER_API_KEY`) — see [Cloud setup](https://prflow.ai/docs/runs/cloud/setup). Everything else runs locally inside Claude Code with no infrastructure.
@@ -150,7 +150,7 @@ in [Cloud triggers](https://prflow.ai/docs/runs/cloud/triggers).
 
 | Skill | What it does |
 |---|---|
-| `/prflow:implement <issue#>` | Full 4-phase lifecycle: issue → branch → plan → implement → code-reviewer cleanup pass → test → draft PR → `/prflow:review-and-fix` → file follow-up issues → docs → ready PR |
+| `/prflow:implement <issue#>` | Full 4-phase lifecycle: issue → branch → plan → implement → code-reviewer cleanup pass → test → draft PR → docs → `/prflow:review-and-fix` → file follow-up issues → ready PR |
 | `/prflow:review [PR#]` | Comprehensive review — verification checklist + the first-party `prflow:` review agents & the first-party `prflow:requesting-code-review` final-pass reviewer; returns APPROVE/REJECT |
 | `/prflow:challenge <target>` | Stress-test an idea, issue, approach, or approved PR; recommend keeping, refining, replacing, or deferring it |
 | `/prflow:review-and-fix [PR#]` | `/prflow:review` plus an automatic fix loop (default 5 iterations) that writes a deferrals manifest at exit |

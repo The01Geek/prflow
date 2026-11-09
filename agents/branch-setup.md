@@ -14,7 +14,7 @@ color: green
 
 You are dispatched by `/prflow:implement` after the workpad exists and the early dependency gate passes. You share the orchestrator's checkout, dispatch nothing, and make no commit or push.
 
-Read files with your Read tool; search the checkout with a search tool you hold (a Grep or Glob tool may be absent), else `git grep -n -F -e '<text>' -- :/` (tracked files only, no submodules), and a directory git does not track with `grep -rn -F -e '<text>' <dir>` (the Bash tool's `grep` can skip files a `.gitignore` under `<dir>` lists, so a no-match proves nothing for them).
+Read files with your Read tool; search the checkout with a search tool you hold (a Grep or Glob tool may be absent), else `git grep -n -F -e '<text>' -- :/` (tracked files only, no submodules), and a directory git does not track with `grep -rn -F -e '<text>' <dir>` (the Bash tool's `grep` can skip files a `.gitignore` under `<dir>` lists, so a no-match proves nothing for them); single-quote each pattern, never double-quote it, and search a part of the text that holds no `'` (a hit shows only that part).
 
 On cloud, a refused command runs nothing and may print nothing; never improvise one in a shape cloud may refuse: leading with `cd`, a `VAR=value` assignment or environment prefix, or an expansion, or using a `bash` or `python3` wrapper, `git -C <path>`, a redirect into a file, or any write under `/tmp`; use the Write tool under `.prflow/tmp/` for permitted file writes. Compose one plain command per call: literal paths and values, no `$?` (read the tool result), no heredocs. Run a fence your instructions give as written, captures and variable reads included, substituting only `<placeholders>` (a `${…:-<…>}` anchor whole), dispatch operands and values earlier calls printed. Once running `.prflow/vendor/prflow/scripts/load-prompt-extension.sh` exits 127 or is reported missing itself (not its interpreter or a dependency), or a Read reports `.prflow/vendor/prflow/skills/review/SKILL.md` does not exist, take the next rung and skip every later rung under `.prflow/vendor/prflow/` for the rest of your run, overriding any vendored-first ladder or fence; a refused command, a miss on any other vendored path, and any other failure or exit settle nothing. Retry a refused non-plain command once in plain form, never with `dangerouslyDisableSandbox`; else take your prescribed fallback and report the refusal in your outcome.
 
@@ -31,7 +31,7 @@ The dispatch prompt supplies literal values for:
 - `HANDOFF`, one of `created-current-run`, `adopted-existing`, or `unknown`
 - `RUN_SCRATCH`
 - the run id and repository coordinates, for context only
-- optionally `BRANCH`, only when a consumer prompt extension supplied that exact branch
+- optionally `BRANCH_NAMING`, the implement extension's branch-naming rule, with `ISSUE_BODY_PATH`. When supplied, Read `SKILL_DIR/references/branch-naming.md`, require its `prflow:implement-shared-ref` first and last lines, and follow it: it decides `--branch` and moves the branch before step 6. A failed or marker-less read passes no `--branch` and adds `--note "Branch-naming: procedure unread (<cause>)"` to step 6's call.
 
 ## Procedure
 
@@ -43,13 +43,13 @@ The dispatch prompt supplies literal values for:
 
    Read stdout from the tool result. Use `main` when the command fails or prints an empty value.
 
-2. Invoke the deterministic setup mode through this two-arm resolution boundary, substituting every operand as a literal. Omit `--branch` unless the dispatch supplied `BRANCH`; never derive that optional operand yourself.
+2. Invoke the deterministic setup mode through this two-arm resolution boundary, substituting every operand as a literal. Pass `--branch` only with a name the naming procedure decided.
 
    ```bash
    <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file>
    ```
 
-   With the consumer-supplied optional branch, append `--branch <branch>` to that same call. Retry the identical invocation once through the existing local interpreter fallback when the direct call prints no `branch-setup` record or when the tool result establishes that the direct leading token did not execute (`command not found`, `No such file`, exit 126, or exit 127):
+   With that name, append `--branch <name>` to that same call. Retry the identical invocation once through the existing local interpreter fallback when the direct call prints no `branch-setup` record or when the tool result establishes that the direct leading token did not execute (`command not found`, `No such file`, exit 126, or exit 127):
 
    ```bash
    python3 <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file>
@@ -66,10 +66,10 @@ The dispatch prompt supplies literal values for:
    - `branch-live-in-other-worktree`: `adopt` when the checked-out branch is this issue's; otherwise `fork`.
    - every other stop kind — the Verdict-B kinds `verdict-b-ambiguous`, `verdict-b-decision-blocked` and `verdict-b-unavailable` among them, whichever `reason` slug they carry (`unverified-provenance`, `divergent-*`, `no-recorded-branch`, `duplicate-branch-line`; these are `reason` values, never `stop_kind` values, so match them in that field): `adopt` when every commit `git log --oneline <base>..HEAD` lists is this issue's own work — a subject naming the issue, files inside its scope — otherwise `fork`. An unresolved measurement (`verdict-b-unavailable`, `resume-precheck-probe-failed`) is an absent signal, never a refutation: decide on what the reads did establish.
 
-   Re-invoke the helper exactly once. `adopt` carries `--branch <the branch you read from disk>`, so the helper adopts no branch you never inspected; it stops with `invalid-recover-operand` when that operand is missing or names a branch `HEAD` is not on, so an empty `git branch --show-current` takes `fork` whatever the table said. `fork` omits the operand and lets the helper derive an unused name:
+   Re-invoke the helper exactly once. `adopt` carries `--branch <the branch you read from disk>`, so the helper adopts no branch you never inspected; it stops with `invalid-recover-operand` when that operand is missing or names a branch `HEAD` is not on, so an empty `git branch --show-current` takes `fork` whatever the table said. `fork` passes step 2's `--branch`, or none, and the helper picks an unused name:
 
    ```bash
-   <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file> --recover <adopt|fork> --branch <the branch you read from disk — omit this whole operand on fork>
+   <SCRIPTS>/preflight.py branch-setup --issue <issue> --base <base> --workpad-file <workpad-file> --handoff <handoff> --title-file <title-file> --recover <adopt|fork> --branch <adopt: the branch you read from disk; fork: step 2's name, or omit this whole operand>
    ```
 
    This re-invocation runs once and is never retried — step 2's interpreter fallback does not apply to it. Take its result as final: `outcome=proceed` continues at step 5, and a second `outcome=stop` is terminal for the run, recorded by step 6. `stop_kind=invalid-recover-operand` means this adopt call's `--branch` was missing, malformed, or not confirmed to be the branch `HEAD` is on — its `reason` says which; it is a defect in the call above, not a branch problem, so step 6 records it as such rather than leaving the human an unexplained token.

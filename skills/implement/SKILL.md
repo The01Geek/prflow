@@ -121,7 +121,7 @@ On any boundary row: stop that phase, report the stop label with the phase id an
 ## MANDATORY: All Four Phases Must Execute
 
 ```
-Phase 1: Setup → Phase 2: Implement → Phase 3: Review → Phase 4: Documentation
+Phase 1: Setup → Phase 2: Implement → Phase 3: Review → Phase 4: Finalization
 ```
 
 Every phase is mandatory, even for a one-line fix. Keep the PR a *draft* until Phase 4.3, so downstream workflows see "ready" only after docs and description. Output the phase header at the start of each phase.
@@ -267,11 +267,11 @@ Orientation only: explore the codebase; reproduce first when the recorded classi
 
 ## Phase 3: Review & Fix
 
-Orientation only: open the draft PR; run the review-and-fix loop; enforce the acceptance-criteria gate before advancing.
+Orientation only: open the draft PR; run the documentation pass, then the review-and-fix loop; enforce the acceptance-criteria gate before advancing.
 
-## Phase 4: Documentation
+## Phase 4: Finalization
 
-Orientation only: dispatch the finalization worker for follow-ups, documentation, PR description and final-tree gates; validate its compact evidence-backed result, then publish or leave a draft per config and finalize the workpad.
+Orientation only: dispatch the finalization worker for follow-ups, PR description and final-tree gates; validate its compact evidence-backed result, then publish or leave a draft per config and finalize the workpad.
 
 ---
 
@@ -281,8 +281,8 @@ Before reporting completion, verify ALL phases executed:
 
 - Phase 1: issue fetched; workpad created before the branch with run link, `## Progress` checklist and mirrored Acceptance Criteria; branch exists and the workpad `Branch` line filled; Setup ticked
 - Phase 2: reproduction signal recorded when the recorded classification is bug-report (Phase 1.3's `classification: ` note, not the `bug` label); for a multi-PR issue the 2.2.5 scope-adjustment applied and `## Acceptance Criteria` holds only in-scope items; the 2.3.0 changed-contract, 2.3.4 boundary-assumption, 2.3.4a self-authored-claim and 2.3.4b coverage-claim sweeps all ran over the §2.3 branch-delta operand (merge base → working tree, not just the uncommitted diff); code committed and pushed
-- Phase 3: draft PR created; `/prflow:review-and-fix` ran; acceptance-criteria gate passed (PR still draft)
-- Phase 4: follow-up issue(s) filed in 4.0 for 2.2.5-deferred criteria and in 4.0.5 (manifest hydrated) for a review-and-fix deferrals manifest; docs updated and the `Documented` label applied; PR description generated via `/pr-description`; working tree asserted clean (4.3 backstop, publish and draft cases alike) and any remainder committed; PR published via `gh pr ready` unless `prflow_implement.implement_pr_state` is `draft` (then left as the Phase 3.1 draft, no extra PR-thread comment); every applicable `## Progress` item ticked; workpad finalized with `Status: Complete` (🎉, draft-aware `--note` wording) and the 🎉 outcome reaction emitted
+- Phase 3: draft PR created; the documentation pass ran (none runs when §3.1's review reuse adopted the review); `/prflow:review-and-fix` ran; acceptance-criteria gate passed (PR still draft)
+- Phase 4: follow-up issue(s) filed in 4.0 for 2.2.5-deferred criteria and in 4.0.5 (manifest hydrated) for a review-and-fix deferrals manifest; PR description generated via `/pr-description`; working tree asserted clean (4.3 backstop, publish and draft cases alike) and any remainder committed; PR published via `gh pr ready` unless `prflow_implement.implement_pr_state` is `draft` (then left as the Phase 3.1 draft, no extra PR-thread comment); every applicable `## Progress` item ticked; workpad finalized with `Status: Complete` (🎉, draft-aware `--note` wording) and the 🎉 outcome reaction emitted
 
 If a phase was skipped or a `Status` PATCH didn't land, go back and complete it now. Do not stop after the PR is created or review approves — the PR stays a draft until Phase 4.3 publishes it (or deliberately leaves it a draft after finalizing workpad and reaction). Do not stop because acceptance criteria are unchecked on a multi-PR issue — apply the 2.2.5 scope-adjustment, then re-run the gate; Phase 3.4's Blocked stop is only for genuinely-failing in-scope criteria.
 
@@ -298,7 +298,7 @@ A turn may end only on:
 - a workpad `Status` that `scripts/workpad.py status` classes terminal — `complete` (🎉), `blocked` (👎), `failed` (💥) or `cancelled` (🛑) — though one read at the start of a resuming run is a finished earlier run's status and a resume trigger, not a ground, on either tier;
 - the work driven to completion, the live `Status` terminal, and this turn carrying the run's final message.
 
-Ending a turn on anything else — to report progress, request an uncalled-for confirmation, hand off, or at a "natural break" — is forbidden. An in-progress `Status` (🚀) means the run is unfinished: return to the phase that owns the remaining work and drive `Status` terminal. The commonest trip is stopping at "documentation done" when Phase 4.2 (`/pr-description`) and Phase 4.3 (finalize → `Status: Complete` 🎉 + outcome reaction) remain.
+Ending a turn on anything else — to report progress, request an uncalled-for confirmation, hand off, or at a "natural break" — is forbidden. An in-progress `Status` (🚀) means the run is unfinished: return to the phase that owns the remaining work and drive `Status` terminal.
 
 A refused status read is retried through the *Workpad-invocation ladder*; on a second refusal record the status unestablished and continue — a refused read is never a ground to end the turn. Only when the ladder is exhausted for writes too (no terminal `Status` reachable), or the status stays unestablished after it is exhausted for reads, end the turn on the harness-refusal ground, naming the refusal and each rung attempted, and report `Blocked` to your caller.
 
@@ -313,5 +313,5 @@ The check keys on the workpad `Status`, not PR draft state — a run finishing w
 - Subagent failures: a subagent that fails or returns nothing useful is recorded via `--reflection-kind dropped-failed --reflection "…"` and the run continues; never retry the same subagent more than once.
 - Permission denials: a denial refuses the *form*, not the work — re-form per phase-3-fix-loop.md's ladder, never the denied *effect* via a tool, interpreter, checkout, or self-attested check. Ladder spent: `dropped-failed` reflection naming helper, tier, remedy (local `~/.claude/settings.json`; cloud `install.sh --apply`/`allowed_tools` token) and the absent artifact; `workpad.py` refused: PR body; no workpad/PR: name the terminal, unrecordable. A phase's own refusal arm stands. A denied verification is unestablished, not passed; never skip a phase over one.
 - Commit prefixes: follow the project's declared commit-message convention; absent one, `docs:` for documentation, `feat:` for implementation, `fix:` for review and test fixes.
-- Context recovery: recover the issue from `$ARGUMENTS`, branch/PR with `git`/`gh`, lifecycle with `workpad.py status`, and setup only from validated compact handoffs (`phase2_resume`, AC/audit paths, branch-setup record). Missing, stale, unreadable or evicted state: rerun the worker that owns it. Never read the full workpad, transcript, or setup procedure, or inline setup; later phases reread only their set and named shared refs.
+- Context recovery: recover the issue from `$ARGUMENTS`, branch/PR with `git`/`gh`, lifecycle with `workpad.py status`, and setup only from validated compact handoffs (`phase2_resume`, AC/audit paths, branch-setup record). A lost issue-body file whose validated path you hold: re-create it with `preflight.py issue-body --issue $ISSUE_NUMBER --out <that path, absolute>`; anything but its `CACHED` line, no output included, takes the sending arm's route for it where that arm has one, else counts as missing state. Missing, stale, unreadable or evicted state: rerun the worker that owns it. Never read the full workpad, transcript, or setup procedure, or inline setup; later phases reread only their set and named shared refs.
 - Surfacing failures: everything you "note and continue" on above goes to `PRFlow Reflections` via `--reflection`/`--reflection-file`, kind chosen by the *Reflection style contract*; no separate end-of-run comment is needed.

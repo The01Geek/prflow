@@ -989,7 +989,7 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
                 entry["_iter_files"] = [[str(repo_root), f"{br}:{p}"] for p in branch_iters[key]]
             elif all(part not in ("", ".", "..") and "/" not in part for part in key):
                 entry["_iter_files"] = [
-                    [None, str(f)] for f in sorted((review_dir / key[0] / key[1]).glob("iter-*.json"))
+                    [None, f.as_posix()] for f in sorted((review_dir / key[0] / key[1]).glob("iter-*.json"))
                     if _ITER_NAME_RE.fullmatch(f.name)]
 
     index = {}

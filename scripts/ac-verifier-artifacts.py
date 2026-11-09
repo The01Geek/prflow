@@ -13,13 +13,12 @@ reconciliation is accepted.
 
 Two subcommands:
 
-  prepare --issue <N>
+  prepare --issue <N> [--class <N>=<class> ...]
     Write the attempt root's `.gitignore` holding the single line `*`, THEN capture the
     five-field `checkout-fingerprint.py` baseline, allocate a FRESH per-attempt directory
     beneath the checkout's `.prflow/tmp/` (so every first-party write the dispatch makes lands
-    in ignored space), mint distinct evidence/claim report destinations plus the `criteria_path`
-    the orchestrator writes the tagged criteria list to before dispatch, write the verifiers'
-    `diff_path` — `git diff origin/<base>...HEAD`, `<base>` being the configured `.base_branch`
+    in ignored space), mint distinct evidence/claim report destinations plus the `criteria_path`,
+    write the verifiers' `diff_path` — `git diff origin/<base>...HEAD`, `<base>` being the configured `.base_branch`
     (default `main`) read through `config-get.sh` — and print those paths
     as one JSON object the orchestrator passes by value into the two dispatch prompts and the
     later `check` call. The `.gitignore` is written before the baseline so every attempt file —
@@ -28,6 +27,13 @@ Two subcommands:
     not itself gitignored. Fresh allocation is what stops a previous attempt's report from being
     reused. (Phase 3.4 mints no verification flight — the evidence verifier runs its command
     directly — so `prepare` prints no flight state/logs directory.)
+
+    Each `--class <N>=<class>` names one criterion the gate verifies: `<N>` is the 1-based
+    position among every checkbox row of the live workpad's `## Acceptance Criteria` section,
+    counted as `workpad.py update --tick-ac-n` counts them, and `<class>` is `command`,
+    `non-command` or `source-read`. With any `--class`, `prepare` writes `criteria_path` as a
+    bare JSON list of `{criterion, text, class}` in ascending `<N>` order, each `text` that row's
+    criterion text; without one it writes no criteria file.
 
   check --attempt-dir <dir> --evidence-file <path> --criteria-file <path> [--claim-file <path>]
     Re-run the fingerprint and compare it field-by-field against the baseline `prepare` saved.
@@ -64,8 +70,7 @@ Exit codes:
         `dispositions_path`) and the dispositions record is written to
         `ac-dispositions.md` in the attempt directory — even when the reconciliation reports
         blocking criteria, a normal outcome, not a helper failure
-    1 — a `prepare` failure (fingerprint capture, directory allocation, symlink rejection, an
-        unreadable `.base_branch`, an unresolvable base ref, or an unwritable diff)
+    1 — a `prepare` failure other than an argparse usage error (2), exit 3 or exit 4
     2 — a `check` guard failure: drift, a missing/unreadable baseline, a failed measurement,
         or a symlink-rejected path (the `ac-dispositions.md` destination included) — all
         independently blocking. stdout carries a guard JSON object naming the cause; stderr
@@ -74,7 +79,12 @@ Exit codes:
         file unreadable/malformed/not-a-bare-list, `--claim-file` omitted while a `command`
         criterion is present, or the `ac-dispositions.md` record could not be written (empty
         stdout, a stderr line prefixed `could not write the dispositions record:`). A report
-        path with nothing at it is not an exit-3 input.
+        path with nothing at it is not an exit-3 input. For `prepare`: a refused `--class`
+        operand (malformed, an unknown class, a repeated `<N>`, or an `<N>` naming no checkbox
+        row), named on stderr, with no attempt allocated and nothing on stdout.
+    4 — a `prepare` given `--class` found no workpad, could not load `workpad.py` or its
+        `section_parse.py`, or could not read the workpad, named on stderr,
+        with no attempt allocated and nothing on stdout.
 """
 
 from __future__ import annotations
@@ -223,7 +233,85 @@ def _untracked_offenders(top: str) -> list[str]:
     return [p for p in _best_effort_git(top, "ls-files", "-o", "--exclude-standard", "-z").split("\0") if p]
 
 
+# reconcile-ac-verifiers.py's CLASS_VALUES, copied so operand validation loads no other sibling.
+_CLASSES = ("command", "non-command", "source-read")
+
+
+class _PrepareRefused(Exception):
+    """A `--class` refusal carrying `prepare`'s exit code (3 or 4; the module docstring's exit
+    table states each)."""
+
+    def __init__(self, code: int, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def _parse_class_operands(operands: list[str]) -> dict[int, str]:
+    """`{N: class}` from `<N>=<class>` operands; raise an exit-3 refusal naming the bad one."""
+    by_num: dict[int, str] = {}
+    for op in operands:
+        num, sep, cls = op.partition("=")
+        if not sep or not num.isascii() or not num.isdigit():
+            raise _PrepareRefused(3, f"--class {op!r} is not of the form <N>=<class>")
+        if cls not in _CLASSES:
+            raise _PrepareRefused(3, f"--class {op!r}: class must be one of {', '.join(_CLASSES)}")
+        try:
+            n = int(num)
+        except ValueError:  # past Python's int-string digit limit, so no row has this number
+            raise _PrepareRefused(3, f"--class {op!r}: criterion number names no row") from None
+        if n in by_num:
+            raise _PrepareRefused(3, f"--class {op!r}: criterion {n} is named more than once")
+        by_num[n] = cls
+    return by_num
+
+
+def _workpad_ac_texts(issue: str) -> list[str] | None:
+    """Criterion texts of the live workpad's `## Acceptance Criteria` rows, in tick-index order;
+    None when the workpad has no such section."""
+    try:
+        wp = _load_sibling("_ava_workpad", "workpad.py")
+        wp._require_section_parse("ac-verifier-artifacts prepare")
+        body, _lines, _items = wp._acs_read_workpad("ac-verifier-artifacts prepare", issue)
+        # Never the section `_acs_read_workpad` extracted: that parser can open on an earlier
+        # `### Acceptance Criteria`, which `--tick-ac-n` never counts.
+        _preamble, sections = wp._split_sections(body)
+        idx = wp._find_section(sections, wp._ACS_SECTION)
+        if idx is None:
+            return None
+        return [it["text"] for it in wp.parse_checkboxes(sections[idx][1].splitlines())]
+    # workpad.py reports through SystemExit: 2 is a clean absence, anything else a failed read.
+    except SystemExit as exc:
+        if exc.code == 2:
+            raise _PrepareRefused(4, f"issue {issue} has no workpad comment") from None
+        raise _PrepareRefused(4, f"the workpad read failed (workpad.py exit {exc.code})") from None
+    # An unloadable, mismatched or failing reader (or undecodable gh output) is a failed read.
+    except (ImportError, OSError, SyntaxError, AttributeError, TypeError, ValueError) as exc:
+        raise _PrepareRefused(4, f"could not read the workpad through workpad.py: {exc!r}") from exc
+
+
+def _resolve_criteria(issue: str, by_num: dict[int, str]) -> list[dict]:
+    texts = _workpad_ac_texts(issue)
+    if texts is None:
+        raise _PrepareRefused(
+            3, f"--class {min(by_num)}={by_num[min(by_num)]}: the workpad has no "
+            "## Acceptance Criteria section, so no criterion names a row")
+    for n in sorted(by_num):
+        if not 1 <= n <= len(texts):
+            raise _PrepareRefused(
+                3, f"--class {n}={by_num[n]}: the workpad's Acceptance Criteria section has "
+                f"{len(texts)} checkbox row(s), so criterion {n} names no row")
+    return [{"criterion": n, "text": texts[n - 1], "class": by_num[n]} for n in sorted(by_num)]
+
+
 def _cmd_prepare(args) -> int:
+    criteria = None
+    classes = getattr(args, "classes", None)
+    if classes:
+        try:
+            criteria = _resolve_criteria(str(args.issue), _parse_class_operands(classes))
+        except _PrepareRefused as exc:
+            print(f"ac-verifier-artifacts: prepare: {exc}", file=sys.stderr)
+            return exc.code
     fp_mod = _load_sibling("_ava_checkout_fingerprint", "checkout-fingerprint.py")
     try:
         top = _toplevel()
@@ -262,6 +350,8 @@ def _cmd_prepare(args) -> int:
             _reject_symlink_path(dest, boundary)
         _atomic_write_json(paths["baseline_fingerprint_path"], baseline)
         _atomic_write_bytes(paths["diff_path"], _base_diff(top))
+        if criteria is not None:
+            _atomic_write_json(paths["criteria_path"], criteria)
     except (_GuardError, OSError) as exc:
         print(f"ac-verifier-artifacts: prepare: {exc}", file=sys.stderr)
         return 1
@@ -312,9 +402,7 @@ def _base_diff(top: str) -> bytes:
     return proc.stdout
 
 
-# `prepare`'s payload key -> file name inside the attempt dir. The orchestrator writes the
-# tagged criteria list to criteria.json (with the Write tool) before dispatch, and `check`
-# reads it from there (issue #439).
+# `prepare`'s payload key -> file name inside the attempt dir.
 _ATTEMPT_FILES = (
     ("evidence_report_path", "evidence-report.json"),
     ("claim_report_path", "claim-report.json"),
@@ -517,7 +605,7 @@ def _cmd_check(args) -> int:
         return 2
 
     recon = _load_sibling("_ava_reconcile", "reconcile-ac-verifiers.py")
-    # The criteria file is agent-authored input (issue #439): a missing/unreadable file or a
+    # The criteria file is untrusted input (issue #439): a missing/unreadable file or a
     # non-bare-list top-level value (the wrapped `{"criteria": [...]}` envelope included) is an
     # unestablished measurement — exit 3 with no reconciliation printed.
     try:
@@ -582,13 +670,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     p_prep = sub.add_parser(
-        "prepare",
-        help="Allocate a fresh per-attempt directory and print the report/flight paths.")
+        "prepare", allow_abbrev=False,
+        help="Allocate a fresh per-attempt directory, write its diff (and, with --class, "
+             "its criteria file) and print the paths.")
     p_prep.add_argument("--issue", required=True, help="the issue number (a naming prefix)")
     p_prep.add_argument(
         "--scratch-base", default=None,
         help="repo-relative per-arm scratch home under .prflow/tmp (issue #240); "
              "absent keeps the per-issue-folder default")
+    p_prep.add_argument(
+        "--class", dest="classes", action="append", default=[], metavar="N=CLASS",
+        help="a criterion the gate verifies: its 1-based --tick-ac-n position in the workpad's "
+             "Acceptance Criteria section and its class (command, non-command, source-read); "
+             "repeatable. Any --class makes prepare write criteria_path from the workpad")
     p_prep.set_defaults(func=_cmd_prepare)
     p_check = sub.add_parser(
         "check",
@@ -601,15 +695,24 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="the claim verifier's assigned report path; omit only when the "
                               "criteria file names no 'command' criterion (issue #439)")
     p_check.add_argument("--criteria-file", required=True,
-                         help="the orchestrator-authored tagged-criteria list (a bare JSON "
-                              "list); the class per criterion decides its expected sides")
+                         help="the tagged-criteria list (a bare JSON list; prepare --class "
+                              "writes it); the class per criterion decides its expected sides")
     p_check.set_defaults(func=_cmd_check)
     return parser
 
 
+def _bind_class_operands(argv: list[str]) -> list[str]:
+    """Rewrite each `--class` and its next token as one `--class=<token>`, or `--class=` when no
+    token follows; every other token is kept as is."""
+    out, it = [], iter(argv)
+    for tok in it:
+        out.append(f"--class={next(it, '')}" if tok == "--class" else tok)
+    return out
+
+
 def main(argv=None) -> int:
     _force_utf8_streams()
-    args = _build_parser().parse_args(argv)
+    args = _build_parser().parse_args(_bind_class_operands(sys.argv[1:] if argv is None else argv))
     return args.func(args)
 
 

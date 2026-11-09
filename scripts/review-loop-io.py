@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Deterministic review-and-fix loop helpers: setup, PR-head branch-sync, and the engine entry's
-close half and prior-iteration inputs.
+"""Deterministic review-and-fix loop helpers: setup, PR-head branch-sync, the engine entry's
+close half and prior-iteration inputs, and the source-view deletion a standalone review also runs.
 
-Reached through `review-dirty-tree.sh loop-setup|branch-sync|entry-close|entry-open`, the granted
+Reached through `review-dirty-tree.sh loop-setup|branch-sync|entry-close|entry-open|views-remove`, the granted
 head, so one invocation replaces the run of one-value loop-entry turns
 `references/loop-control.md` costs — the run key, three `config-get.sh` reads each with an inline
 clamp, the telemetry flag, the run directory — and the four by-eye Step 0.5 comparand reads. It
@@ -57,10 +57,12 @@ Subcommands:
                  tracked file differs from HEAD (with none, it is `ok` and `dirty_detail`
                  names the cause). A shadow entry then migrates its sibling write directory
                  into the run root, replacing files and merging directories without rewriting
-                 bytes, except that its source views replace the run root's whole; an absent
-                 sibling is a no-op. A failed migration emits status error with the
-                 restoration fields, so an unestablished reset still stops the loop.
-                 It retains the entry's evidence (`_retain` names where)
+                 bytes, except that it leaves the sibling's source views and staging folders
+                 where they are; an absent sibling is a no-op. A failed migration emits status
+                 error with the restoration fields, so an unestablished reset still stops the
+                 loop. It then deletes the run root's source views as `views-remove` does and,
+                 on a shadow entry, the sibling with the views it still holds, adding
+                 `views_left` the same way, and retains the entry's evidence (`_retain` names where)
                  and relays
                  `loop-verdict-marker.py check-evidence --contract 2 --iteration N` over
                  `evidence-<entry>/iter-N/` as `evidence: {token, exit, line}`.
@@ -76,9 +78,14 @@ Subcommands:
                  ran Step 1 (iter-<N-1>.json's unless that record is promoted) and
                  `prior-findings-iter-N.json` (iter-<N-1>'s findings plus each earlier
                  record's unapplied ones, tagged `iter`).
+    views-remove `--run-dir DIR`: delete the `view-head`, `view-base` and their `.tmp` staging
+                 folders of DIR, a run folder holding `engine-setup.json`, never following a link, and print `{"status": "ok"}`, plus
+                 `views_left` listing each path it could not delete when there is one (its
+                 cause goes to stderr).
+                 Parsed by hand: every refused operand prints a status `error` line and exits 2.
 
 Output is one JSON object whose `status` is `ok`/`mismatch`/`unresolved` (branch-sync), `ok`
-(loop-setup) or `ok`/`branch-mismatch`/`branch-unestablished` (entry-close), and `error` when any
+(loop-setup, views-remove) or `ok`/`branch-mismatch`/`branch-unestablished` (entry-close), and `error` when any
 subcommand stops; shadow-open prints nothing on success, `prior` prints its record with no `status`
 and only its own usage error carries one, and argparse's own usage error or a crash prints none.
 An error raised through `Stop` carries a `step` in LOOP_STOP_STEPS, and the one pre-main
@@ -117,13 +124,15 @@ try:
     _repo_root = _reio._repo_root
     _slug = _reio._slug
     SAFE_COMPONENT_RE = _reio.SAFE_COMPONENT_RE
-    # The severity ladder's one home; loading the sibling above put scripts/ on sys.path.
+    _VIEW_DIRS = [_reio.view_dir_names(revision) for revision in _reio.VIEW_REVISIONS]
+    # Loading the sibling above put scripts/ on sys.path; verdict_report is the severity ladder's one home.
+    from tree_removal import climbs, describe, remove_tree
     from verdict_report import SEVERITIES
 except Exception as _exc:  # a broken/partial deployment: a sibling missing or raising on import
     sys.stdout.write(json.dumps({
         'status': 'error', 'step': 'sibling-import',
         'reason': 'review-loop-io.py could not load a sibling (review-engine-io.py, '
-                  f'verdict_report.py): {_exc}',
+                  f'verdict_report.py, tree_removal.py): {_exc}',
     }, separators=(',', ':')) + '\n')
     sys.exit(1)
 
@@ -688,7 +697,46 @@ def _remove(path):
         path.unlink(missing_ok=True)
 
 
-_SOURCE_VIEWS = ('view-head', 'view-base')
+_VIEW_NAMES = frozenset(name for names in _VIEW_DIRS for name in names)
+
+
+def _remove_views(run_dir, extra=()):
+    """Delete `run_dir`'s source views and their staging folders, then each `extra` tree; return
+    `{'views_left': [...]}` naming each path left, or `{}`, writing each left path's cause to
+    stderr. A linked view is left, never followed."""
+    reasons = {}
+    targets = [run_dir / name for names in _VIEW_DIRS for name in names] + list(extra)
+    left = [p for target in targets for p in remove_tree(target, reasons)]
+    for path in left:
+        sys.stderr.write(f'views left: {_shown(path)}: {describe(reasons.get(path)) or "cause not reported"}\n')
+    return {'views_left': [_shown(p) for p in left]} if left else {}
+
+
+def cmd_views_remove(argv):
+    """`views-remove --run-dir DIR`, parsed by hand so every refusal, an unknown flag included,
+    prints a status line rather than argparse's bare usage text."""
+    if len(argv) != 2 or argv[0] != '--run-dir' or not argv[1]:
+        return _usage('arguments', 'usage: views-remove --run-dir DIR')
+    if '<' in argv[1] or '>' in argv[1]:
+        return _usage('arguments', 'an operand carries an unsubstituted <placeholder>')
+    if climbs(argv[1]):
+        return _usage('arguments', f'run directory {_shown(argv[1])!r} has a component the removal '
+                                   'refuses (a .. or, on Windows, a name of only dots and spaces)')
+    run_dir = Path(argv[1])
+    try:
+        is_dir = run_dir.is_dir()  # some Python versions raise EACCES or ENAMETOOLONG here
+        is_run = is_dir and (run_dir / 'engine-setup.json').is_file()
+    except OSError as exc:
+        return _usage('arguments', f'run directory {_shown(argv[1])!r} cannot be read: '
+                                   f'{exc.strerror or type(exc).__name__}')
+    if not is_dir:
+        return _usage('arguments', f'run directory {_shown(argv[1])!r} is not a directory '
+                                   'or cannot be read')
+    if not is_run:
+        return _usage('arguments', f'run directory {_shown(argv[1])!r} holds no engine-setup.json, '
+                                   'so it is not a review run folder')
+    _emit({'status': 'ok', **_remove_views(run_dir)})
+    return 0
 
 
 def _run_dir_stop(what, shown, exc, partial=False):
@@ -726,23 +774,23 @@ def _merge_shadow(src, dst, shown, partial=True):
 
 
 def _migrate_shadow(run_root):
-    """Merge `<run_root>-shadow` into `run_root` and remove it; absent, a no-op. A source
-    view the shadow wrote first removes the run root's: views are whole-commit snapshots."""
+    """Merge `<run_root>-shadow`, minus its source views and their staging folders, into
+    `run_root`; return the sibling's plain path, holding only those views for the caller to
+    delete in place, or None when it is absent."""
     plain = Path(str(run_root) + '-shadow')
-    shown, partial = plain, False
     try:
         shadow, root = _reio._fs_path(plain), _reio._fs_path(run_root)
         if not (shadow.exists() or shadow.is_symlink()):
-            return
-        # A linked sibling cannot be moved onto the run root, so it removes no view first.
-        for name in () if shadow.is_symlink() else _SOURCE_VIEWS:
-            shown = plain / name
-            if (shadow / name).is_dir() and not (shadow / name).is_symlink():
-                shown, partial = run_root / name, True
-                _remove(root / name)
+            return None
+        linked = shadow.is_symlink()
+        children = [] if linked else [c for c in shadow.iterdir() if c.name not in _VIEW_NAMES]
     except OSError as exc:
-        raise _run_dir_stop('migrate shadow path', shown, exc, partial) from exc
-    _merge_shadow(shadow, root, plain, partial)
+        raise _run_dir_stop('migrate shadow path', plain, exc) from exc
+    if linked:
+        _merge_shadow(shadow, root, plain, False)  # a link cannot be moved onto the run root: stops
+    for child in children:
+        _merge_shadow(child, root / child.name, plain / child.name)
+    return plain
 
 
 def _replace(src, dst):
@@ -797,7 +845,7 @@ def _grade(run_root, iteration):
 
 
 def _usage(step, reason):
-    """entry-close's usage refusal: one error line, exit 2 (the caller's can't-serve arm)."""
+    """A usage refusal: one error line, exit 2 (the caller's can't-serve arm)."""
     _emit({'status': 'error', 'step': step, 'reason': reason})
     return 2
 
@@ -1031,13 +1079,16 @@ def cmd_entry_close(args):
               'dirty_check': reset.check, 'dirty_detail': _shown(reset.detail),
               'restored': [_shown(p) for p in reset.restored],
               'dirtied': [_shown(p) for p in reset.dirtied]}
+    shadow = None
     if args.entry == 'shadow':
         try:
-            _migrate_shadow(run_root)
+            shadow = _migrate_shadow(run_root)
         except Stop as stop:
             result.update(status='error', step=stop.step, reason=stop.reason)
             _emit(result)
             return 1
+    # Only after a successful migration: a migration-error return must keep every view.
+    result.update(_remove_views(run_root, [shadow] if shadow else []))
     error = _retain(run_root, args.entry, n)
     evidence = ({'token': '', 'exit': 1, 'line': f'entry-close {error}'} if error
                 else _grade(run_root / f'evidence-{args.entry}' / f'iter-{n}', n))
@@ -1087,6 +1138,9 @@ def main(argv=None):
         sys.stdout.reconfigure(newline='\n')  # one LF-terminated line on every host
     except (AttributeError, ValueError, OSError):
         pass
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ['views-remove']:
+        return cmd_views_remove(argv[1:])
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)

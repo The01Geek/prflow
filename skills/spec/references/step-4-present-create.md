@@ -170,7 +170,7 @@ A non-interactive run uses 3a's election rule below; every run presents before f
    Load `references/step-4-create.md` per the *Reference routing* rules in the turn of that election.
 
    The final outcome names every out-of-scope item the body states with its known tracking issue or as
-   unfiled, discloses an unestablished Step 1 duplicate check (quoting any search error), and names by number and reason
+   unfiled (an agreed split's remaining parts in the *Scope split* entry's landing order, never with the issue being widened), discloses an unestablished Step 1 duplicate check (quoting any search error), and names by number and reason
    each issue the check found or the request named that the run did not widen.
 
 5d. Remove this run's scratch under `.prflow/tmp/spec/<slug>/` (best-effort, success path only), keyed to this run's

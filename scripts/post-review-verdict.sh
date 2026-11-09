@@ -417,9 +417,12 @@ else
   PRV_BODY_ARG=(--rawfile body "$BODY_FILE")
 fi
 
-# Compose the JSON request body inside jq so the body bytes (backticks, `$(`, literal
-# quotes, newlines) reach the API unmangled and the marker prepend is byte-lossless:
-# split("\n")/join("\n") round-trips any input exactly, including a missing final newline.
+# Compose the JSON request body inside jq so backticks, `$(`, literal quotes and newlines
+# reach the API unescaped: split("\n")/join("\n") round-trips the body exactly, including a
+# missing final newline, and the marker prepend loses nothing. On native Windows, jq.exe reads
+# --rawfile in text mode, so CRLF line ends are posted as LF; nothing downstream relies on CR
+# bytes (the run-key and verdict-marker drops use startswith; check-verdict-post-reached.sh
+# reads the receipt).
 # Every line starting with a run-key marker, in either spelling, is dropped first (see BODY).
 # A caller-authored verdict marker then on LINE 1 is dropped rather than double-stamped — only
 # line 1, so a marker literal quoted deeper in the report (a finding citing this contract)

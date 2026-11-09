@@ -5,7 +5,7 @@ description: "Install PRFlow, set up a repository and turn your first issue into
 
 This section takes you from an empty machine to your first PRFlow pull request.
 
-PRFlow is an agent plugin for [Claude Code](https://code.claude.com) and Codex. It takes a GitHub issue and carries it through planning, implementation, verification, review and documentation, then leaves you a pull request. You keep final review and merge control. PRFlow never merges the pull request for you.
+PRFlow is an agent plugin for [Claude Code](https://code.claude.com) and Codex. It takes a GitHub issue and carries it through planning, implementation, verification, documentation and review, in a pull request it leaves for you. You keep final review and merge control. PRFlow never merges the pull request for you.
 
 PRFlow works best in an established repository, where a change has to follow architecture, tests and documentation conventions that already exist.
 

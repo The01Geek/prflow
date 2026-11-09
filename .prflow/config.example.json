@@ -46,6 +46,7 @@
   "prflow_review": {
     "verdict_severity_threshold": "critical",
     "live_progress_comment_enabled": true,
+    "dependency_sources": [],
     "stall_backstop": {
       "enabled": true,
       "max_resume_attempts": 2

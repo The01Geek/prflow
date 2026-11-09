@@ -62,7 +62,7 @@ The command loads the file at the start of the run and appends its contents, wor
 
 Long commands reload the file when they enter a new phase, so your instructions stay in effect through a run that lasts an hour. `/prflow:implement` also checks the file again when it merges your base branch just before review, so an extension change merged meanwhile applies to the review. `/prflow:pr-description` is a single pass and loads it once.
 
-Write instructions that state the repository outcome you need instead of copying PRFlow's core mechanics or anchoring rules to incidental internal names. If you want a tool called, say so.
+Write instructions that state the repository outcome you need instead of copying PRFlow's core mechanics or anchoring rules to incidental internal names. If you want a tool called, say so. `/prflow:spec` treats a subagent your `spec.md` tells it to dispatch as one you requested, so a session told not to start subagents you did not ask for still runs it.
 
 Follow *Two headings the spec extension treats specially* below for the requirements it covers. Use ordinary prose for other requirements, retaining exact literals that a tool reads.
 
@@ -99,6 +99,20 @@ For a cloud run, also grant the command you named. Installing a tool or naming i
 ```
 
 Expected result on the next `/prflow:implement` run: the workpad's `Skill extension resolved` line shows the extension loaded (see [Check That It Was Applied](#check-that-it-was-applied)), the run uses `make verify` as its verification command, opens the pull request with a "Rollback" section and refuses to edit a shipped migration, proposing a new migration file instead. See [Tool Permissions](/docs/configuration/tool-permissions) for the grant format.
+
+<Accordion title="Name the feature branch">
+  `/prflow:implement` names its branch `issue-<number>-<title-slug>` by default. Your implement extension can describe your own convention in prose. PRFlow has no template language: the agent that sets up the branch follows your rule. An exact branch name is a rule with one answer.
+
+  ```markdown
+  ## Branch naming
+
+  Name branches `feature/<login of the issue's first assignee>/<Azure DevOps work item number from the AB# reference in the issue body>-<short slug of the title>`.
+  ```
+
+  Name values every run can read: the issue title, the issue body and what the GitHub API returns for the issue, such as its assignees. A local-only source, such as `git config user.name`, is not among the commands a cloud run is allowed by default.
+
+  A name must start with a letter or digit and may contain only ASCII letters, digits, `.`, `_`, `/` and `-`; when the run cannot use your name, its workpad note says which branch it used instead and why. A resumed run can reuse the branch recorded on the workpad. A taken name can get an `-r2` to `-r5` suffix, which a strict branch ruleset may reject.
+</Accordion>
 
 <Accordion title="Two headings the spec extension treats specially">
   `/prflow:spec` reads two headings in `.prflow/skill-extensions/spec.md` by name, in addition to using the whole file as instructions.

@@ -75,8 +75,7 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    author-owned criteria under item 5 and re-check before creation.
 
    Check the draft against `references/issue-template.md`'s `Relevant files` and
-   **Multi-state contracts** rules; check the whole body, Technical Context and Documentation
-   Needed included, against its **One-home rule** in *Brief / investigation-record routing* and its
+   **Multi-state contracts** rules; check the whole body, Technical Context included, against its **One-home rule** in *Brief / investigation-record routing* and its
    rule for text with more than one clause, arm or ordered step; and apply its **AC mutual
    consistency — reconcile shared cases** rule to `## Acceptance Criteria`, `## Desired Behavior`
    and `## Implementation Notes`.
@@ -98,6 +97,13 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    `references/step-2-clarify.md`'s *Settled approach* rule takes the re-ask that rule orders.
    Each other item or fact lands in the draft as the root's Step 3 lands a drafted fact; revise any
    other under item 5.
+
+   For a story read as a defect report, also check the draft's `Current Behavior` against each
+   observed and expected result a reporter states in the request, the *request* as item 2's
+   Request-origin sweep defines it, reading the reporter's text as
+   `references/issue-template.md`'s Current Behavior guidance does. A result kept as
+   `references/quality-group-regression.md`'s *Defect reproduction* rule keeps it, including as
+   reported beside its correction, is present; restore any missing one under item 5.
 4. Sweep the draft's own unstated mechanism dependencies (mandatory). Beyond the *stated* premises
    checked in step 2, name each in-repo capability the mechanism assumes and the behavior its
    consumer needs: a helper's exit code, a resolver's output shape, a gate's semantics. Include
@@ -121,7 +127,10 @@ with a targeted `Read` or `Grep`, never a full re-exploration.
    routes to that surface when a resolved plugin root exists, and otherwise to the single degraded
    outcome *plugin root unestablished* — a run on which neither channel yields a directory records a
    plugin-provided capability as not established, naming that channel, never present or absent,
-   whatever the hit count. The determination has exactly three outcomes, complete by construction:
+   whatever the hit count. A dependency on the absence of an authorization guard, permission key or
+   gate condition takes none of the obligation ACs below: **Guard claims** in
+   `references/issue-template.md` governs it. The determination has exactly three outcomes, complete
+   by construction:
 
    - present — found and read in its producing surface, not merely mentioned in documentation,
      comments or fixtures. Establish the behavior the consumer needs, not just the capability's

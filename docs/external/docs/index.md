@@ -36,7 +36,7 @@ Three commands cover the common path.
     `/prflow:spec` turns a rough idea into a GitHub issue. It reads your repository first, asks the questions it genuinely cannot answer and creates nothing until you approve the exact draft.
   </Step>
   <Step title="Let PRFlow build it">
-    `/prflow:implement 123` creates a branch, plans the change against your existing code, implements it, runs your tests, reviews the diff, fixes what the review found, updates the documentation and opens a pull request. It writes its progress to a comment on the issue as it goes, so you can watch or walk away.
+    `/prflow:implement 123` creates a branch, plans the change against your existing code, implements it, runs your tests, opens a draft pull request, updates the documentation, reviews the diff and fixes what the review found. It writes its progress to a comment on the issue as it goes, so you can watch or walk away.
   </Step>
   <Step title="Review and merge">
     You read the pull request. PRFlow never merges it. Your branch protection and your normal approval process are untouched.
@@ -48,16 +48,16 @@ A run on a real ticket takes minutes, not seconds. It is doing the whole round, 
 ```mermaid
 flowchart LR
     accTitle: What one PRFlow run does between your request and your review
-    accDescr: A request becomes an issue you approve. PRFlow then plans the change, implements it, verifies it against your tests and reviews it. Findings from the review go back into another fix pass until the review is clean. PRFlow then updates documentation and opens a pull request. A person reviews and merges it.
+    accDescr: A request becomes an issue you approve. PRFlow then plans the change, implements it, verifies it against your tests, opens a draft pull request, updates documentation and reviews the change with its documentation. Findings from the review can go back into another fix pass. A person reviews and merges it.
     req["Your request"] --> issue["Issue<br/>you approve it"]
     issue --> plan["Plan and implement"]
     plan --> verify["Run your tests<br/>and linters"]
-    verify --> review["Review the diff"]
+    verify --> pr["Draft pull request"]
+    pr --> docs["Update the docs"]
+    docs --> review["Review the diff"]
     review -- "findings" --> fix["Fix them"]
     fix --> review
-    review -- "clean" --> docs["Update the docs"]
-    docs --> pr["Pull request"]
-    pr --> human["You review<br/>and merge"]
+    review --> human["You review<br/>and merge"]
 ```
 
 ## What Makes the Review Trustworthy

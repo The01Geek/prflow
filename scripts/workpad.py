@@ -2905,9 +2905,7 @@ def _place_bullet_in_blocks(blocks: list[list], target_heading: str,
     sub-section of `blocks`, mutating `blocks` in place. Reuses the existing
     sub-section when present; otherwise inserts a new one in canonical order (a
     None-heading preamble always stays first; an unknown `### ` heading sorts last,
-    so it is never reordered above a known one). Shared by `_insert_reflection_bullet`
-    (which composes the bullet from a kind) and `_resolve_doc_reflection` (which moves
-    an already-rendered bullet, glyph intact), so both place bullets identically."""
+    so it is never reordered above a known one)."""
     for blk in blocks:
         if blk[0] == target_heading:
             while blk[1] and not blk[1][-1].strip():
@@ -2971,75 +2969,6 @@ def _append_reflection(content: str, kind: str, text: str) -> str:
     that block (before `</details>`), keeping the collapsible region intact."""
     head, inner, tail = _split_details(content)
     new_inner = _insert_reflection_bullet(inner, kind, text)
-    if head is None:
-        return new_inner
-    return _rewrap_details(head, new_inner, tail)
-
-
-# issue #508 — the append boundary the idempotent-replay check reads a resolved
-# bullet's evidence back from: change it and the replay no-op stops recognizing an
-# already-resolved bullet and re-resolves (or duplicates) it. The move and
-# glyph-retention contract lives on `_resolve_doc_reflection` below.
-_DOC_RESOLUTION_MARKER = ' — ✅ resolved: '
-
-
-def _resolve_doc_reflection(content: str, target: str, evidence: str) -> str:
-    """Move the unique actionable target to Notes with evidence, retaining its glyph.
-    Matching resolved evidence is a replay. Invalid operands, ambiguous/non-actionable
-    targets or conflicting evidence raise _UpdateError before any PATCH."""
-    target = target.strip()
-    evidence = evidence.strip()
-    if not target:
-        raise _UpdateError(
-            "--resolve-doc-reflection: a non-empty target is required. No PATCH was made.")
-    if not evidence:
-        raise _UpdateError(
-            "--resolve-doc-reflection: a non-empty completion evidence is required (an "
-            "obligation with no checked completion evidence stays actionable). No PATCH "
-            "was made.")
-    if not _is_single_line(target) or not _is_single_line(evidence):
-        raise _UpdateError(
-            "--resolve-doc-reflection: target and evidence must each be a single line (a "
-            "line boundary would split the bullet). No PATCH was made.")
-    head, inner, tail = _split_details(content)
-    blocks = _parse_reflection_blocks(inner)
-    action_heading = _SUBSECTION_HEADINGS['action']
-    notes_heading = _SUBSECTION_HEADINGS['notes']
-    matches = [(bi, li)
-               for bi, (_heading, lines) in enumerate(blocks)
-               for li, ln in enumerate(lines)
-               if ln.lstrip().startswith(('- ', '* ')) and target in ln]
-    if len(matches) == 0:
-        raise _UpdateError(
-            f"--resolve-doc-reflection: no reflection bullet matched target {target!r}; no "
-            "resolution applied and no other reflection changed. No PATCH was made.")
-    if len(matches) > 1:
-        raise _UpdateError(
-            f"--resolve-doc-reflection: target {target!r} matched {len(matches)} reflection "
-            "bullets; refusing an ambiguous resolution rather than changing the wrong one. "
-            "No PATCH was made.")
-    bi, li = matches[0]
-    bullet = blocks[bi][1][li]
-    if _DOC_RESOLUTION_MARKER in bullet:
-        _base, _sep, existing = bullet.partition(_DOC_RESOLUTION_MARKER)
-        if existing == evidence and blocks[bi][0] == notes_heading:
-            return content  # idempotent replay of the same resolution
-        raise _UpdateError(
-            f"--resolve-doc-reflection: the bullet matching {target!r} already carries a "
-            "resolution marker; refusing to overwrite resolution history. No PATCH was "
-            "made.")
-    if blocks[bi][0] != action_heading:
-        raise _UpdateError(
-            f"--resolve-doc-reflection: the bullet matching {target!r} is not an actionable "
-            f"reflection under {action_heading!r}; only an unresolved obligation there can be "
-            "resolved. No PATCH was made.")
-    resolved = bullet + _DOC_RESOLUTION_MARKER + evidence
-    del blocks[bi][1][li]
-    if (blocks[bi][0] in _SUBSECTION_HEADING_ORDER
-            and not any(ln.strip() for ln in blocks[bi][1])):
-        del blocks[bi]
-    _place_bullet_in_blocks(blocks, notes_heading, resolved)
-    new_inner = _render_reflection_blocks(blocks)
     if head is None:
         return new_inner
     return _rewrap_details(head, new_inner, tail)
@@ -3282,9 +3211,8 @@ def _reflection_already_rendered(
     content as a bullet `_insert_reflection_bullet` could have written for it.
 
     The comparison is whole-line equality against the candidate renderings for
-    every kind, because a replayed reflection is filed under the REPLAYING call's
-    kind rather than its own — so the glyph/label the original write used is not
-    knowable here and all of them must count as the same item."""
+    every kind, because the text may already sit under another kind, for example
+    from an older helper's replay — so all of them must count as the same item."""
     if reflection_content is None:
         return False
     one_line = ' '.join(text.splitlines())
@@ -3301,12 +3229,14 @@ def _plan_buffer_replay(comment_id, body, args,
     this call's inline content, and earlier buffered items in the same pass.
     Fold only into existing target sections. Return True only when every item is
     accounted for; otherwise retain the buffer for a later healthy body.
-    Reflections replay under the current call's kind to preserve their text."""
+    A reflection replays under its earliest record's stored kind, or the current
+    call's kind when that is not a `_REFLECTION_KINDS` key."""
     records = _read_workpad_buffer(comment_id)
     if not records:
         return False
+    call_kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
     add_notes = []
-    add_reflections = []
+    add_reflections = {}
     # This call's own inline content. Deduping against it is what keeps the
     # retry-the-same-update shape from rendering the item twice — once from the
     # buffer, once from the flag. Only the BUFFERED copy is ever skipped; a caller
@@ -3321,6 +3251,9 @@ def _plan_buffer_replay(comment_id, body, args,
     for rec in records:
         if not isinstance(rec, dict):
             continue
+        rec_kind = rec.get('reflection_kind')
+        if not (isinstance(rec_kind, str) and rec_kind in _REFLECTION_KINDS):
+            rec_kind = call_kind
         for n in rec.get('notes') or []:
             if (isinstance(n, str) and n
                     and not _note_already_rendered(_progress, n)
@@ -3331,7 +3264,7 @@ def _plan_buffer_replay(comment_id, body, args,
                     and not _reflection_already_rendered(_reflections, rfl)
                     and rfl not in _pending_reflections
                     and rfl not in add_reflections):
-                add_reflections.append(rfl)
+                add_reflections[rfl] = rec_kind
     notes_replayable = '## Progress' in body
     reflections_replayable = (
         f'## {_REFLECTION_HEADING}' in body
@@ -3340,7 +3273,10 @@ def _plan_buffer_replay(comment_id, body, args,
     if add_notes and notes_replayable:
         args.note = list(args.note or []) + add_notes
     if add_reflections and reflections_replayable:
-        args.reflection = list(args.reflection or []) + add_reflections
+        # The texts stay in args.reflection: the no-op replay checks read it, and a
+        # call they classed as a no-op would clear the buffer without writing them.
+        args.reflection = list(args.reflection or []) + list(add_reflections)
+        args.replayed_reflection_kinds = add_reflections
     # Safe to clear only when nothing was left un-replayed: any not-yet-present
     # item whose target section is absent stays buffered (return False).
     fully_replayed = (
@@ -4684,8 +4620,7 @@ def _encode_ci_payload(record: dict, compress: bool = False) -> str:
     """Encode a CI-evidence record dict as a base64url-unpadded token, so the payload
     is a single whitespace-free `[^\\s]+` the marker grammar and the checkpoint key
     grammar (`[A-Za-z0-9._:-]+`, which includes `-` and `_`) both accept. `compress`
-    zlib-compresses the JSON first; only the cloud-CI writer passes it, because
-    `scripts/sweep-evidence.py`'s decoder mirror reads the plain form alone."""
+    zlib-compresses the JSON first; only the cloud-CI writer passes it."""
     raw = json.dumps(record, sort_keys=True, separators=(',', ':')).encode('utf-8')
     if compress:
         raw = zlib.compress(raw, 9)
@@ -4772,84 +4707,6 @@ def _strip_all_completion_marker_rows(content: str) -> str:
     content = _strip_completion_ci_marker_rows(content)
     content = _strip_completion_cloud_ci_marker_rows(content)
     return content
-
-
-# Sweep evidence replaces only the same run identity's record; other runs coexist.
-# Protected from compaction/caller-note limits, its payload has _NOTE_BYTE_BUDGET.
-# Keep this marker grammar coupled to scripts/sweep-evidence.py's reader.
-_SWEEP_EVIDENCE_KEY_PREFIX = 'sweep-evidence:'
-_SWEEP_EVIDENCE_MARKER_RE = re.compile(
-    _MARKER_NS_RE + r'checkpoint sweep-evidence:([^:\s]+):([^\s]+?) -->'
-)
-_SWEEP_EVIDENCE_VALIDATOR_CACHE = None
-
-
-def _strip_sweep_evidence_marker_rows_for_run(content, run_identity):
-    """Remove any ## Progress row carrying THIS run identity's sweep-evidence marker,
-    so a later validated record replaces the prior one for the same run rather than
-    accumulating — while another run's rows are left untouched (per-run, not global)."""
-    kept = []
-    for ln in content.splitlines(keepends=True):
-        m = _SWEEP_EVIDENCE_MARKER_RE.search(ln)
-        if m and m.group(1) == run_identity:
-            continue
-        kept.append(ln)
-    return ''.join(kept)
-
-
-def _load_sweep_evidence_validator():
-    """Lazily import the sibling `sweep-evidence.py` module, once. Returns the module,
-    or None when the sibling is absent OR present-but-unimportable beside this
-    workpad.py copy (the standalone-deployment closure) — the caller's diagnostic names
-    both causes. Imported by file path because the filename carries a hyphen; the result
-    is memoized. Tests exercise the standalone-copy arm by monkeypatching this function
-    to return None."""
-    global _SWEEP_EVIDENCE_VALIDATOR_CACHE
-    if _SWEEP_EVIDENCE_VALIDATOR_CACHE is not None:
-        return _SWEEP_EVIDENCE_VALIDATOR_CACHE
-    import importlib.util
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sweep-evidence.py')
-    if not os.path.exists(path):
-        return None
-    try:
-        spec = importlib.util.spec_from_file_location('_devflow_sweep_evidence', path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-    except Exception:
-        return None
-    _SWEEP_EVIDENCE_VALIDATOR_CACHE = mod
-    return mod
-
-
-def _validate_sweep_evidence(record):
-    """Validate a decoded sweep-evidence record through the sibling validator.
-
-    Raises a structural `_UpdateError` (no PATCH) on an absent validator sibling, an
-    internal validator failure, or a non-`ok` verdict. Returns None on a clean pass.
-    Mirrors `_validate_cloud_ci_evidence`'s three-way failure shape."""
-    validator = _load_sweep_evidence_validator()
-    if validator is None or not hasattr(validator, 'validate_sweep_evidence'):
-        # `_load_sweep_evidence_validator` returns None for BOTH an absent sibling and a
-        # present-but-unimportable one, so the diagnostic names both causes rather than
-        # asserting absence — a present-but-broken sweep-evidence.py must not read as
-        # missing to an operator debugging the standalone-copy closure.
-        raise _UpdateError(
-            "sweep evidence [missing-validator]: the sweep-evidence validator module "
-            "(sweep-evidence.py) is not available or not importable beside this "
-            "workpad.py copy, so a --record-sweep-evidence write cannot be validated. "
-            "No PATCH was made."
-        )
-    try:
-        token, detail = validator.validate_sweep_evidence(record)
-    except Exception as e:
-        raise _UpdateError(
-            f"sweep evidence: the validator raised an internal error "
-            f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."
-        )
-    if token != 'ok':
-        raise _UpdateError(
-            f"sweep evidence rejected [{token}]: {detail}. No PATCH was made."
-        )
 
 
 # ── Verification-evidence record (issue #2131) ─────────────────────────────────
@@ -6118,7 +5975,6 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
     (_COMPLETION_CLOUD_CI_MARKER_KEY_PREFIX,
      '`--record-completion-evidence-cloud-ci`'),
-    (_SWEEP_EVIDENCE_KEY_PREFIX, '`--record-sweep-evidence`'),
     (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
     (_PLAN_INPUTS_KEY_PREFIX, '`--record-plan-inputs`'),
     (_REUSABLE_REVIEW_KEY_PREFIX, '`--record-reusable-review`'),
@@ -6608,7 +6464,6 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'record_plan_inputs', False),
         getattr(args, 'record_reusable_review', None),
         getattr(args, 'adopt_reusable_review', False),
-        getattr(args, 'resolve_doc_reflection', None),
         getattr(args, 'strip_prior_status_marker', False),
     ])
 
@@ -7177,36 +7032,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     verification_evidence_rows = (
         [completion_plan.verification_row] if completion_plan.verification_row is not None else [])
     _ve_recorded_at = now_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-    # Phase 2 sweep-evidence recording (issue #438). Read from a FILE (a JSON object
-    # too large for a CLI operand), validated and size-checked BEFORE any body
-    # mutation — a refused record changes nothing (all-or-nothing). The per-run strip +
-    # append (below) replaces this run's prior row.
-    record_sweep_evidence_file = getattr(args, 'record_sweep_evidence', None)
-    sweep_evidence_payload = None
-    sweep_evidence_run_identity = None
-    sweep_evidence_record = None
-    if record_sweep_evidence_file:
-        try:
-            with open(record_sweep_evidence_file, encoding='utf-8') as _fh:
-                sweep_evidence_record = json.load(_fh)
-        except (OSError, ValueError) as e:
-            raise _UpdateError(
-                f"--record-sweep-evidence: could not read a JSON record from "
-                f"{record_sweep_evidence_file!r} ({e.__class__.__name__}). No PATCH "
-                f"was made."
-            )
-        sweep_evidence_run_identity = (
-            sweep_evidence_record.get('run_identity')
-            if isinstance(sweep_evidence_record, dict) else None)
-        _validate_sweep_evidence(sweep_evidence_record)
-        sweep_evidence_payload = _encode_ci_payload(sweep_evidence_record)
-        if len(sweep_evidence_payload) > _NOTE_BYTE_BUDGET:
-            raise _UpdateError(
-                f"sweep evidence rejected [payload-over-budget]: the encoded record is "
-                f"{len(sweep_evidence_payload)} bytes, over the {_NOTE_BYTE_BUDGET}-byte "
-                f"budget; shorten its evidence references. No PATCH was made."
-            )
 
     # Validate BEFORE any body mutation (no PATCH on refusal). The head is stamped here,
     # never caller-supplied: a passed-in head could name a commit the suite never ran on.
@@ -7812,18 +7637,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         _rp_row = f'mid-phase resume point recorded {_checkpoint_marker(_rp_ck)}'
         progress_notes.append(_rp_row)
         _producer_reserved_rows.add(_rp_row)
-    # Sweep-evidence record (issue #438): REPLACES this run's prior row (the per-run
-    # strip below), so the reader sees exactly one record per run identity.
-    if sweep_evidence_payload:
-        _se_ck = (_SWEEP_EVIDENCE_KEY_PREFIX + sweep_evidence_run_identity
-                  + ':' + sweep_evidence_payload)
-        _se_row = (
-            f'sweep evidence recorded (run {sweep_evidence_run_identity}: '
-            f'{len(sweep_evidence_record["selected_sweeps"])} sweeps, '
-            f'{len(sweep_evidence_record["catches"])} catches) '
-            f'{_checkpoint_marker(_se_ck)}')
-        progress_notes.append(_se_row)
-        _producer_reserved_rows.add(_se_row)
     # Resume-reuse records (issue #616): validated above; the prior row of each
     # family is stripped just before the append loop.
     if plan_inputs_digest:
@@ -7948,15 +7761,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             heading, content = sections[idx]
             sections[idx] = (heading, _strip_all_completion_marker_rows(content))
 
-    # Per-run sweep-evidence strip (issue #438): only THIS run's prior row goes (another
-    # run's rows are untouched); the incoming row is appended after this strip.
-    if sweep_evidence_payload:
-        idx = _find_section(sections, 'Progress')
-        if idx is not None:
-            heading, content = sections[idx]
-            sections[idx] = (heading, _strip_sweep_evidence_marker_rows_for_run(
-                content, sweep_evidence_run_identity))
-
     if progress_notes:
         idx = _find_section(sections, 'Progress')
         if idx is None:
@@ -7998,33 +7802,19 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         if idx is None:
             raise _UpdateError(f"section '## {_REFLECTION_HEADING}' not found")
         heading, content = sections[idx]
-        # Direct attribute access (not getattr-with-default), matching the sibling
-        # args.note / args.reflection reads above: argparse always supplies
-        # reflection_kind (default=None), so a missing attribute is a wiring
-        # regression that should fail loud rather than silently file every bullet
-        # as a `note`. The `or _DEFAULT_REFLECTION_KIND` handles only the
+        # argparse always supplies reflection_kind (default=None), so reading it
+        # directly makes a missing attribute a wiring regression that fails loud
+        # rather than silently filing every bullet as a `note`. The `or _DEFAULT_REFLECTION_KIND` handles only the
         # legitimate flag-omitted None case.
         kind = args.reflection_kind or _DEFAULT_REFLECTION_KIND
+        replay_kinds = getattr(args, 'replayed_reflection_kinds', None) or {}
         for bullet in args.reflection:
-            content = _append_reflection(content, kind, bullet)
-        # Append memoized file reflections after inline ones, in path order and same kind.
+            content = _append_reflection(
+                content, replay_kinds.get(bullet, kind), bullet)
+        # Append memoized file reflections after inline ones, in path order.
         # Read failures abort before PATCH; buffering reuses the exact payloads/stdin read.
         for bullet in _reflection_file_payloads(args):
             content = _append_reflection(content, kind, bullet)
-        sections[idx] = (heading, content)
-
-    # Resolve a fulfilled documentation obligation (issue #508).
-    if getattr(args, 'resolve_doc_reflection', None):
-        idx = _find_reflection_section(sections)
-        if idx is None:
-            raise _UpdateError(
-                f"--resolve-doc-reflection: section '## {_REFLECTION_HEADING}' not found. "
-                "No PATCH was made.")
-        heading, content = sections[idx]
-        for pair in args.resolve_doc_reflection:
-            _require_arity('--resolve-doc-reflection', pair, 2, ('target', 'evidence'))
-            target, evidence = pair
-            content = _resolve_doc_reflection(content, target, evidence)
         sections[idx] = (heading, content)
 
     # Verification-evidence rows (issue #2131) are appended, never replacing a prior row.
@@ -8659,19 +8449,6 @@ def _build_parser():
                         '(labeled) and note (the default when omitted, glyph-only) '
                         'under "### ℹ️ Notes". Applies to every bullet in the '
                         'call.')
-    u.add_argument('--resolve-doc-reflection', nargs=2, action='append', default=None,
-                   metavar=('TARGET', 'EVIDENCE'),
-                   help='Resolve a fulfilled documentation obligation (issue #508): '
-                        'move the single actionable PRFlow Reflections bullet '
-                        'containing TARGET out of "### ⚠️ Action required" into '
-                        '"### ℹ️ Notes", keeping its original glyph/kind and appending '
-                        'EVIDENCE (the checked completion evidence). The moved bullet '
-                        'keeps its non-note glyph, so it still counts as retrospective '
-                        'friction. Idempotent: replaying the same TARGET/EVIDENCE is a '
-                        'no-op. An absent or ambiguous TARGET, a non-actionable match, '
-                        'an empty/multiline operand, or an already-resolved bullet with '
-                        'different evidence aborts the call before any PATCH, changing '
-                        'no other reflection. May be passed more than once.')
     u.add_argument('--replace-plan-file', metavar='FILE',
                    help='Replace the Plan section content with FILE contents.')
     u.add_argument('--replace-acs-file', metavar='FILE',
@@ -8726,17 +8503,6 @@ def _build_parser():
                           'key (issue #1947). Combining it with --checkpoint or '
                           '--replace-checkpoint for one of those same keys is '
                           'rejected before any PATCH.')
-    u.add_argument('--record-sweep-evidence', default=None, metavar='FILE',
-                   help='Record one Phase 2 sweep-evidence JSON record (issue #438): '
-                        'the selected sweep set, each sweep\'s terminal outcome '
-                        '(completed/degraded/unrunnable), and the distinct catches each '
-                        'sweep owned. FILE is validated by sweep-evidence.py before any '
-                        'PATCH; on a pass a hidden "<!-- prflow:checkpoint '
-                        'sweep-evidence:<run_identity>:<payload> -->" ## Progress row is '
-                        'written, replacing only THIS run identity\'s prior row (other '
-                        'runs\' records coexist for the summarizer). A non-ok record, or '
-                        'one whose encoded payload exceeds 2048 bytes, aborts the whole '
-                        'call before any PATCH.')
     u.add_argument('--record-completion-evidence', default=None, metavar='FLIGHT_KEY',
                    help='Record a validated completion verification-flight key '
                         '(issue #1087). The canonical record '

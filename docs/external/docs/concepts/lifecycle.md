@@ -1,24 +1,25 @@
 ---
 title: "The PRFlow Lifecycle"
-description: "Follow an issue through implementation, verification, review, documentation and human merge."
+description: "Follow an issue through implementation, verification, documentation, review and human merge."
 ---
 
-Follow a PRFlow request through seven stages, from issue preparation to human merge. PRFlow performs the middle stages. The merge stays with a person.
+Follow a PRFlow request through eight stages, from issue preparation to human merge. PRFlow performs the middle stages. The merge stays with a person.
 
 ```mermaid
 flowchart TD
-    accTitle: Seven stages in the PRFlow lifecycle
-    accDescr: An issue starts a PRFlow run. PRFlow prepares a branch and workpad, clears its setup gates, implements the change, runs a cleanup pass over it, runs the repository's checks and opens a draft pull request. It then reviews the change, applies fixes and updates documentation. A person reviews and merges the finished pull request.
+    accTitle: Eight stages in the PRFlow lifecycle
+    accDescr: An issue starts a PRFlow run. PRFlow prepares a branch and workpad, clears its setup gates, implements the change, runs a cleanup pass over it, runs the repository's checks and opens a draft pull request. It then updates documentation, reviews the change and its documentation, applies fixes, and finishes the pull request. A person reviews and merges the finished pull request.
     issue["1. Issue<br/>Define the change"] --> run["2. Run<br/>Load guidance, start or resume"]
 
     subgraph prflow["PRFlow prepares the change"]
         run --> branch["3. Branch and setup gates<br/>Record progress, check dependencies and claims"]
         branch --> draft["4. Implement and verify<br/>Clean up, run the checks, then open the draft pull request"]
-        draft --> review["5. Review and fix<br/>Route findings, apply authorized fixes"]
-        review --> docs["6. Documentation<br/>Explain the finished change"]
+        draft --> docs["5. Documentation<br/>Explain the change"]
+        docs --> review["6. Review and fix<br/>Route findings, apply authorized fixes"]
+        review --> finish["7. Finish<br/>File follow-ups, refresh description, publish"]
     end
 
-    docs --> merge["7. Human merge<br/>Review, approve and merge"]
+    finish --> merge["8. Human merge<br/>Review, approve and merge"]
 ```
 
 <Steps>
@@ -55,11 +56,15 @@ flowchart TD
 
     For an issue classified as a bug report, reproduction is a hard gate. PRFlow captures a reproduction signal, such as a failing test or an error log, **before** it plans the fix. If it cannot reproduce the defect, the run stops as `Blocked` and records why. It does not proceed on an unreproduced bug.
 
-    Once the change is written, PRFlow runs a **cleanup pass** over the branch's changes. Its charter is quality (reuse, simplification, efficiency and altitude) plus one claims check: it compares sentences the change adds or changes that restate a rule with that rule, runs searches to test the change's claims about its own coverage, and names any it could not check. PRFlow checks some sentences itself, including those the pass could not check. It does not otherwise hunt for bugs. Before fixing a claims problem the pass reports, PRFlow checks it against the rule or search the pass cites, or checks the sentence itself. Before a quality edit deletes, merges or rewords text, PRFlow reads that text and any text the finding says covers it, and makes the edit only when every outcome of that text that an acceptance criterion, a scope decision of the run, a plan step serving one or a remaining rule still needs survives it. A quality finding applies only on lines the change touched, unless the change made that line wrong, and never against an acceptance criterion or scope decision. A quality finding it cannot confirm stays unapplied and is recorded on the workpad.
+    Once the change is written, PRFlow runs a **cleanup pass** over the branch's changes. Its charter is quality (reuse, simplification, efficiency and altitude) plus one claims check: it compares sentences the change adds or changes that restate a rule with that rule, runs searches to test the change's claims about its own coverage, compares changed agent-instruction sentences with the acceptance criterion that prescribes them and with the wording they rewrite, and names any it could not check. It does not otherwise hunt for bugs. PRFlow checks some sentences itself and confirms a claims problem the pass reports before fixing it. When the pass reports that a sentence drifts from its criterion or from the wording it rewrites, PRFlow can fix the confirmed drift before its other checks on the change. Before a quality edit deletes, merges or rewords text, PRFlow reads that text and any text the finding says covers it, and makes the edit only when every outcome of that text that an acceptance criterion, a scope decision of the run, a plan step serving one or a remaining rule still needs survives it. A quality finding applies only on lines the change touched, unless the change made that line wrong, and never against an acceptance criterion or scope decision. A quality finding it cannot confirm stays unapplied and is recorded on the workpad.
 
     PRFlow then runs the repository's own checks in the run environment, so they cover the cleanup's edits too, commits and pushes the work and opens a draft pull request that closes the issue. The checks run before the draft pull request is opened, not after it. See [How PRFlow Verifies a Change](/docs/concepts/verification).
 
-    The pull request stays a draft while the remaining review and documentation work happens.
+    A pull request the run opens stays a draft while the remaining documentation and review work happens.
+  </Step>
+
+  <Step title="Documentation">
+    PRFlow updates the internal and external documentation the change affects and adds release-note material when it is needed, so the review that follows checks these edits along with the code.
   </Step>
 
   <Step title="Review and Fix">
@@ -72,10 +77,8 @@ flowchart TD
     </Warning>
   </Step>
 
-  <Step title="Documentation">
-    PRFlow files follow-up issues for deferred work, updates the internal and external documentation the change affects, adds release-note material when it is needed and refreshes the pull-request description.
-
-    By default the pull request is then published as ready for review. Repository configuration can leave it as a draft instead.
+  <Step title="Finish">
+    PRFlow then files follow-up issues for deferred work and refreshes the pull-request description. By default the pull request is then published as ready for review. Repository configuration can leave it as a draft instead.
   </Step>
 
   <Step title="Human Merge">

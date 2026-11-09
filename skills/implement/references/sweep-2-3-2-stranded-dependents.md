@@ -13,6 +13,6 @@ After deleting any public method, class, file, page, route, endpoint, asset, or 
 
 Treat any stranded dependent as a defect in **this** PR. A deletion PR is not done until searching for the deleted symbols/paths returns nothing but the deletion itself and historical records exempted under §2.3.0d's recorded `--note`.
 
-**Docs hits.** This sweep covers references in *code, config, and routing tables* — things that break behavior at runtime if left dangling. A prose reference to a deleted symbol or path inside `[[INTERNAL_DOC_LOCATION]]` that your change made false is reconciled in this phase per the documentation paragraph closing phase-2-implement.md §2.1, never deferred to Phase 4.1. One that stays true — a quoted historical record — may be left with §2.3.0d's recorded `--note` exemption.
+**Docs hits.** This sweep covers references in *code, config, and routing tables* — things that break behavior at runtime if left dangling. A prose reference to a deleted symbol or path inside `[[INTERNAL_DOC_LOCATION]]` that your change made false is reconciled in this phase per the documentation paragraph closing phase-2-implement.md §2.1, never deferred to the documentation pass. One that stays true — a quoted historical record — may be left with §2.3.0d's recorded `--note` exemption.
 
 <!-- prflow:implement-ref step=2.3.2 file=skills/implement/references/sweep-2-3-2-stranded-dependents.md end -->

@@ -10,7 +10,8 @@ tree too deep for `shutil.rmtree`, are returned this way, never raised, and a `V
 (a NUL byte, a bad path-like) is returned as `EINVAL`; one raised by the path-like's `__str__`
 or by the `reasons` dict can propagate, and an argument that is not a path raises `TypeError`.
 A `reasons` dict receives each returned path's first `OSError`; a path is returned once.
-`describe(exc)` renders such an error's cause for a message.
+`describe(exc)` renders such an error's cause for a message; `climbs(path)` tells whether a path
+has a component `remove_tree` refuses wherever it sits.
 
 * An empty path returns `[]`; a blank name, a bare root (`/`, a drive, a UNC share), a path
   that is `.` or a path with a `..` component (a UNC server or share and a drive-relative `C:..`
@@ -138,6 +139,19 @@ def _split_probe(path):
     return drive, trimmed or rest[:1]
 
 
+def climbs(path):
+    """Whether `path`, a string, has a component `remove_tree` refuses wherever it sits: a `..`,
+    or on Windows a name other than `.` made only of dots and spaces."""
+    drive, tail = _split_probe(path)
+    seps = '\\/' if HOST_OS_NAME == 'nt' else '/'
+    # The drive too, split apart from the tail: splitdrive files a UNC server and share there,
+    # and a drive-relative 'C:..' puts its '..' at the start of the tail.
+    parts = [p for s in (drive, tail) for p in ''.join('/' if c in seps else c for c in s).split('/')]
+    # Win32 trims a name's trailing spaces and dots; refusing such a name anywhere is the safe side.
+    return any(p == '..' or (HOST_OS_NAME == 'nt' and p not in ('', '.') and not p.rstrip(' .'))
+               for p in parts)
+
+
 def _present(path):
     """Whether `path` exists (a dangling link counts); raises OSError when that cannot be told.
     Not os.path.lexists: it reads a denied lstat as absent, so a root nobody inspected would read as gone."""
@@ -196,14 +210,7 @@ def remove_tree(path, reasons: dict[str, OSError] | None = None) -> list[str]:
         if not path:
             return []
         drive, tail = _split_probe(path)
-        seps = '\\/' if HOST_OS_NAME == 'nt' else '/'
-        # The drive too, split apart from the tail: splitdrive files a UNC server and share there,
-        # and a drive-relative 'C:..' puts its '..' at the start of the tail.
-        parts = [p for s in (drive, tail) for p in ''.join('/' if c in seps else c for c in s).split('/')]
-        # Win32 trims a name's trailing spaces and dots; refusing such a name anywhere is the safe side.
-        climbs = any(p == '..' or (HOST_OS_NAME == 'nt' and p not in ('', '.') and not p.rstrip(' .'))
-                     for p in parts)
-        if not tail.strip() or tail in ('.', '/', '\\') or climbs:
+        if not tail.strip() or tail in ('.', '/', '\\') or climbs(path):
             # Windows resolves a blank name to the current folder; a .. can climb out through a link.
             _record(path, OSError(errno.EINVAL, 'a blank name, a .. component, the current folder or a root'
                                   ' is refused'), failures, reasons)

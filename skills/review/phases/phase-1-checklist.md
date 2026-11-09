@@ -15,7 +15,7 @@ Only when `/prflow:review-and-fix` supplied `prior_diff_head` (for example, a st
 .prflow/vendor/prflow/scripts/normalize-verdicts.py checklist carry <work-dir> <N> <prior_diff_head>
 ```
 
-It writes `<work-dir>/carried.json`: the PASSes of the newest earlier iteration that ran Step 1 whose cited lines are provably unchanged, each reusing its verdict; nothing else carries (rules: the helper's docstring). Log every `carry-forward:` line it prints; any outcome but `ok: true` carries nothing. Carried items are exempt from the cap and keep their ids.
+It writes `<work-dir>/carried.json`: the reusable PASSes of the newest earlier iteration that ran Step 1, under the helper's whole-file carry contract; nothing else carries. Log every `carry-forward:` line it prints; any outcome but `ok: true` carries nothing. Carried items are exempt from the cap and keep their ids.
 
 ### 1.0.5 Seed the prior report's defects (PR mode)
 
@@ -65,7 +65,7 @@ While a reply §1.3 collects is still missing, follow that wait with one foregro
 .prflow/vendor/prflow/scripts/normalize-verdicts.py wait --verdicts-dir <work-dir> --expect hold --deadline <s>
 ```
 
-Each message's wait opens a 540-second window for the dispatches it launched, spent by that wait's `waited_s` and each later hold's; `<s>` is 30, or fewer when fewer remain of the latest window. That window ends when none remain, or when a hold prints a `waited_s` of 0 or none or a wait prints none; log any stderr a wait or hold printed. A call refused as `usage` ends no window: correct its operand and re-run.
+Each message's wait opens a 540-second window for the dispatches it launched, spent by that wait's `waited_s` and each later hold's; `<s>` is 5 for the latest window's first hold and 30 for each later one, or fewer when fewer remain of that window. That window ends when none remain, or when a hold prints a `waited_s` of 0 or none or a wait prints none; log any stderr a wait or hold printed. A call refused as `usage` ends no window: correct its operand and re-run.
 
 ### 1.3 Collect
 

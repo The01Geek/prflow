@@ -49,12 +49,20 @@ BODY
    After a send from the working-draft file, read the stored body back, digest it and print the stored title;
    `<read-back file>` is `.prflow/tmp/spec/<slug>/issue-readback-<slug>.md` made absolute from the working directory:
    ```bash
-   gh api repos/{owner}/{repo}/issues/<issue_number> --template '{{.body}}' > "<read-back file>" && git hash-object --no-filters "<read-back file>" && gh api repos/{owner}/{repo}/issues/<issue_number> --template '{{.title}}'
+   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py issue-body --issue <issue_number> --out "<read-back file>"
+   ```
+   Only after that call printed a `CACHED` line, digest the file:
+   ```bash
+   git hash-object --no-filters "<read-back file>"
+   ```
+   ```bash
+   gh api repos/{owner}/{repo}/issues/<issue_number> --template '{{.title}}'
    ```
    Report in the final outcome whether that digest equals the working-draft file's digest from sub-step 3 of the
    approved presentation and the printed title equals the title file's line; when either differs, name the read-back
-   file there. Fewer than two digests, or no printed title, leave the comparison not performed; report that, naming the
-   failure. Continue to sub-step 5a whatever the comparison found.
+   file there. Any helper output other than a `CACHED` line, or none, leaves the comparison not performed; report
+   that, naming the line it printed or that it printed none. Fewer than two digests, or no printed title, leave the
+   comparison not performed; report that, naming the failure. Continue to sub-step 5a whatever the comparison found.
 5a. Stamp the `PRFlow` provenance label (best-effort); the helper creates the label if missing and prints one outcome
     token:
    ```bash

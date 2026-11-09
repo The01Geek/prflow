@@ -41,7 +41,7 @@ Confirm all of the following:
     /prflow:implement 123
     ```
 
-    PRFlow reads the issue, creates a feature branch, posts a workpad comment on the issue, plans the change, writes it, runs your repository's verification commands, reviews the diff and updates documentation.
+    PRFlow reads the issue, creates a feature branch, posts a workpad comment on the issue, plans the change, writes it, runs your repository's verification commands, updates documentation and reviews the diff.
 
     Expect this to take a while. Every step reports into the workpad as it happens, so you can follow along on the issue page.
   </Step>

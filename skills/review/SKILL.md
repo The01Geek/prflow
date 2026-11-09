@@ -43,6 +43,12 @@ Phase 0.2 binds `$PROGRESS_SURFACE` from the caller's `progress_surface`:
 
 **Any path that reaches no verdict — stamp a terminal `❌` as your final action.** Put it on the selected surface, naming the concrete reason (e.g. `permission denials exhausted the run`): the PR comment per Phase 0.3.5; on `workpad`, report the reason to the caller and best-effort run `.prflow/vendor/prflow/scripts/workpad.py update <issue> --note "❌ review incomplete — <reason>"` (`<issue>` is `$ISSUE_OVERRIDE`); otherwise chat. Never create another surface as a fallback. A self-assessed budget or context state is not a reason.
 
+Source-view removal (standalone only: `$PHASE_RANGE_MAX` is not `4.3`). When Phase 0.2's setup returned `ok`, run this once just before your final output, a terminal `❌` included, and name each `views_left` path in that output; when it prints no `status: ok` line, still give that output with its verdict unchanged, naming the failed call:
+
+```bash
+.prflow/vendor/prflow/scripts/review-dirty-tree.sh views-remove --run-dir <run_dir>
+```
+
 Delivery retry (standalone only). When this run's Phase 4.4 reading was `FAILED no-durable-channel`, before terminating, with `$WP` set patch `Status` back to the line Phase 4 wrote, then run Phase 4.4's helper call once more and route on its first line as that phase does, reporting a `POSTED` reading as a correction in chat. No other reading triggers this retry.
 
 ## Subagent dispatch and model overrides
