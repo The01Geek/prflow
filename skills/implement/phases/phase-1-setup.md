@@ -149,10 +149,10 @@ Retain the audit reader's printed fields — `outcome`, `blocked_reason`, `unmat
 Route only on the validated handoff:
 
 - `proceed` continues to Phase 2.
-- `blocked-specification` records `Blocked` naming every exact unmatched Desired Behavior statement, emits 👎, and stops without synthesizing an AC.
+- `blocked-specification` records `Blocked` naming the issue body or resolved-criteria file the auditor could not read, as `unmatched_desired_behavior` lists it, emits 👎, and stops.
 - `blocked-policy` records `Blocked` with `blocked_reason` verbatim, emits 👎, and stops.
 - `blocked-capability` records `Blocked` with `issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/`, naming the credential boundary, emits 👎, and stops without a PR.
-- `error`, a failed dispatch, or an unusable handoff records `Blocked` with a `dropped-failed` reflection naming the worker or validation boundary, emits 👎, and stops. **No inline audit fallback:** never load or replay the worker procedure in the orchestrator.
+- `error`, a failed dispatch, or an unusable handoff records `Blocked` with a `dropped-failed` reflection naming the worker or validation boundary and any printed `blocked_reason`, emits 👎, and stops. **No inline audit fallback:** never load or replay the worker procedure in the orchestrator.
 
 On `NOT_IGNORED`, remove the intake workpad snapshot and the retained intake handoff on every arm here, a failed dispatch included — never before the audit dispatch completes. On `proceed`, retain the compact audit handoff and resolved-AC artifact until Phase 2's planning consumers have read them, and retain the intake-owned issue-body artifact through the Phase 3.3 documentation pass and Phase 4's PR-description handoff; on a terminal audit outcome, remove those three validated files now. Retain all artifacts on `IGNORED` until the existing successful-terminal cleanup.
 

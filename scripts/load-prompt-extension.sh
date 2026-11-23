@@ -105,7 +105,7 @@
 # and it makes an absent/empty extension distinguishable from a harness refusal (which produces
 # no output at all). The `load-prompt-extension.sh: ` prefix marks the line as a diagnostic,
 # not extension content, for a reader of the merged stdout/stderr. --section mode emits no
-# token, so spec's byte-and-stderr contract is unchanged.
+# token, so its byte-and-stderr contract is unchanged.
 #
 # When the file is absent — or present but empty — this prints nothing on stdout and exits
 # 0 (the no-op path), so a skill that reads stdout behaves exactly as before unless the

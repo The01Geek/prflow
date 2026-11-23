@@ -22,6 +22,6 @@ On a gate fire, still read §2.1's requirement artifacts and resolve its interna
 
 This gate covers the Phase 2 subagent dispatches only; Phase 3 §3.1 decides review reuse.
 
-Criterion re-derivation on this path. Phase 1.3's resume-path `--replace-acs-file` mirror re-mirrors the issue's `## Acceptance Criteria` wholesale while a prior run's §2.2.5 scope-decision records still sit in `## Progress`. The *set* stays safe (a superset of the issue body — nothing dropped), but those surviving records describe deferrals the live set no longer reflects. So re-derive your acceptance criteria from the issue and re-apply any narrowing that still holds through §2.2.5 — never treat a stale record as a live description of the current set.
+Criterion re-derivation on this path. Phase 1.3's resume-path `--replace-acs-file` mirror re-mirrors the issue's `## Acceptance Criteria` wholesale, dropping rows an earlier attempt's Phase 1.6 added, and this run's Phase 1.6 then adds its own, while a prior run's §2.2.5 scope-decision records still sit in `## Progress`. So re-derive your acceptance criteria from the live workpad set and re-apply any narrowing that still holds through §2.2.5 — never treat a stale record as a live description of the current set: a scope-decision record or Plan row naming an added row the live set lacks describes nothing in it, and every added row in the live set is verified from scratch.
 
 <!-- prflow:implement-ref step=2.0-resume-gate file=skills/implement/references/phase-2-0-resume-gate.md end -->

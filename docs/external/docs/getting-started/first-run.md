@@ -29,7 +29,7 @@ Confirm all of the following:
     /prflow:spec Add an option to retain completed run logs for 30 days
     ```
 
-    In this interactive session, PRFlow clarifies unresolved decisions, saves the draft and shows its path, then files only after you approve. You can request the full draft in chat. Note the issue number it reports; [non-interactive filing](/docs/workflows/spec#non-interactive-filing) follows separate conditions.
+    In this interactive session, PRFlow clarifies unresolved decisions, saves the draft and shows its path, then files only after you approve. You can request the full draft in chat. Note the issue number it reports.
 
     See [Create Issue](/docs/workflows/spec) for the full workflow.
   </Step>
