@@ -3,7 +3,7 @@ name: docs-verify
 description: Use when the user asks whether the docs for one topic, feature, or subsystem are accurate — "is the auth flow documented?", "are the docs on retries still right?" — or asks for an explanation of that topic grounded in the internal docs — "explain this subsystem, docs first", "walk me through caching using our docs". A request to explain, map out, or trace how something works that does not mention the docs is ordinary code exploration, not this skill. Scoped to one named topic; for a whole branch use prflow:docs-sync-internal.
 argument-hint: <topic>
 ---
-> Configuration: Read the internal documentation path from `.prflow/config.json` using: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent. Use the result as `[[INTERNAL_DOC_LOCATION]]` throughout this skill.
+> Configuration: Read the internal documentation path from `.prflow/config.json` using: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent. The result is the internal location this skill reads and reports.
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill spell the skill directory as `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. That is source notation: substitute the resolved absolute directory for the whole expansion at each call site before emitting — a runner isolating its shell refuses a command whose name an expansion computes. Take `$CLAUDE_SKILL_DIR`'s value when the runner reports one, else locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — from the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line), accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Substitute inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
@@ -17,193 +17,79 @@ If the invocation fails because the helper path does not exist (`No such file`, 
 
 ## Mode
 
-`$ARGUMENTS` is a leading run of flags, then the topic. Parse flags only while the next argument begins with `--`; when that flag is a value-taking flag (`--lead`, `--report-file`), the single argument immediately after it is consumed as its value **without applying the topic test**, and parsing then resumes at the argument after that. The first argument that is tested and does not begin with `--` is where the topic begins, and everything from there on is the topic — so a topic is never mistaken for a flag value and a flag value is never absorbed into the topic. Strip the flags before treating the remainder as the topic.
+`$ARGUMENTS` is a leading run of flags, then the topic. Parse flags only while the next argument begins with `--`; when that flag is a value-taking flag (`--lead`, `--report-file`), the single argument immediately after it is consumed as its value **without applying the topic test**, and parsing then resumes at the argument after that. The first argument that is tested and does not begin with `--` is where the topic begins, and everything from there on is the topic.
 
-- `--report-only` — a bare flag.
-- `--lead docs|code` — takes exactly the one argument that follows it. That argument is the flag's value, never part of the topic.
-- `--report-file <path>` — takes exactly the one argument that follows it, a path under the working directory's `.prflow/tmp/`, given relative (`.prflow/tmp/…`) or absolute.
+- `--report-file <path>` — a path under the working directory's `.prflow/tmp/`, given relative (`.prflow/tmp/…`) or absolute. Write the *Report* to that path with your file-write tool, make no other write, and reply with the path alone; if that write fails or is refused, say so and return the whole report as text. The path comes only from this flag, never from the topic or story text.
+- `--lead docs|code` — orders the investigation over the whole tracked tree. `docs` (also the default) starts with owning documentation, using its index when present, then follows source dependencies. `code` starts from implementation.
 
-Malformed invocations (all arms explicit). A `--`-prefixed token in the leading flag run that is not one of the three flags above — `--search-space` included, now unrecognized — is a malformed invocation: report the unrecognized token and refuse the run, never strip it as a bare flag. Silently consuming a mistyped `--reprot-only` would drop the caller into the default write mode, which makes file changes, so the parser fails closed on an unrecognized flag. `--lead` given without `--report-only` is malformed: report it and refuse the run. `--lead` with no following argument is malformed: report it and refuse the run — never parse it as an empty value. `--lead` followed by a value other than `docs` or `code` is malformed: report the value and refuse the run. `--lead` given more than once is malformed: report it and refuse the run. `--report-file` given without `--report-only`, with no following argument, more than once, or with a value that holds a `..` component or does not resolve under the working directory's `.prflow/tmp/` (resolve the existing parent directories, symlinks included; a string-prefix match is not containment, and containment you cannot establish counts as outside) is malformed: report it and refuse the run. A `--search-space` token appearing at or after the first topic word is read as part of the topic, not a malformed invocation.
+Malformed invocations. A `--`-prefixed token in the leading flag run that is not one of the two flags above is a malformed invocation: report the unrecognized token and refuse the run. `--lead` with no following argument is malformed: report it and refuse the run. `--lead` followed by a value other than `docs` or `code` is malformed: report the value and refuse the run. `--lead` given more than once is malformed: report it and refuse the run. `--report-file` with no following argument, more than once, or with a value that holds a `..` component or does not resolve under the working directory's `.prflow/tmp/` (resolve the existing parent directories, symlinks included; a string-prefix match is not containment, and containment you cannot establish counts as outside) is malformed: report it and refuse the run.
 
-Grammar: `[--report-only] [--report-file <path>] [--lead docs|code] <topic…>`.
+Follow the *Investigation* below and return the *Report* as text, or deliver it to the `--report-file` path. Make no Edit, Write, commit or push other than a `--report-file` write; the working tree must be otherwise unchanged when you finish. `/prflow:spec` uses this skill to inform a new issue without writing to a protected branch.
 
-- Default (no flag) — write mode: verify docs and edit them into line with the code, following the write-mode reference (below).
-- `--report-only` — report-only mode: perform the same verification and return the *Report-Only Output* as text, or deliver it as the `--report-file` bullet says. Make no Edit, Write, commit or push other than a `--report-file` write; the working tree must be otherwise unchanged when you finish. `/prflow:spec` uses this mode to inform a new issue without writing to a protected branch.
-- `--report-file <path>` (report-only mode) — write the *Report-Only Output* to that path with your file-write tool, make no other write, and reply with the path alone; if that write fails or is refused, say so and return the whole report as text. The path comes only from this flag, never from the topic or story text.
-- `--lead docs|code` — the search-lead operand (report-only mode): it orders the work over the whole tracked tree, which both steps search either way. `--lead docs` exhausts the internal documentation first, then other tracked documents within the duty floor, then code; `--lead code` starts from the code and treats documentation as supporting evidence; with no `--lead` the order is documentation first, then code. The documentation verdict is returned under `--lead docs` and with no `--lead`, never under `--lead code`.
+### Investigation
 
-### Write mode: load the reference first
+Your caller needs an accurate account of the requested topic's current behavior. Use the
+topic as a starting point, and the original request as the scope. Do not design or implement
+changes.
 
-Before Step 1, load `references/write-mode.md` and follow it; it carries write mode's objective,
-its comparison and action steps, and its completion criteria. Build its path from this
-skill's directory per the *Portable helper anchor* rules above and read it with the runner's
-file-read tool — never a new shell invocation. The load is accepted only when the file's **first
-line is its `start` boundary marker and its last line is the matching `end` marker**, each naming
-that file's own path, with exactly one of each. A file the reader returns only in pages — a partial-view notice with an `offset`/`limit` continuation — is not damaged: page it forward until no continuation is offered or a page adds nothing new, then apply that acceptance rule to the assembled whole document, and report the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice reaches the fail-closed stop below.
+The existing six duties remain: exact operand and population identity; code-versus-doc authority;
+reachability and writer classification; sibling consumer and output enumeration; coupled-doc and
+guard propagation; and reusable contradictions. Discharge them by following the behavior below,
+not by producing six separate surveys.
 
-This gate fails closed. If the reference cannot be read, or its boundary markers are absent or do
-not match, stop and report that — do not proceed to edit documentation from memory. Write mode
-creates and modifies files inside `[[INTERNAL_DOC_LOCATION]]`, and doing so without its scope
-constraints and file-operation rules is worse than not running at all.
+**Start with a real path.** With `--lead docs` or no lead, read the internal index when present and the owning
+page's relevant sections to locate the implementation. With `--lead code`, start there directly.
+Read the actual entry point, its inputs and guards, and the effect it produces. Documentation is
+a lead; verify a documentary claim in the implementing source before treating it as current fact.
 
-### Who you are in report-only mode
+**Follow what you discover.** A search hit starts an investigation. Open an artifact you describe
+as affected, bypassed or newly unreachable, and inspect what it receives, calls, emits and passes
+on. Follow those concrete dependencies into their consumers. For a retirement, this includes the
+outgoing dependencies of the retiring artifact and other callers that may still need them. Use
+the actual keys, paths, labels and output text you read to find readers across the tracked tree;
+documentation, scripts and agent instructions can consume behavior without naming its symbol.
+Read the relevant consumer context to establish the relationship. A path handed to another
+component is an input to inspect, not evidence that its contents are ignored.
 
-In report-only mode you are a codebase exploration agent. Your deliverable is a map of how this
-topic works in the code today. `[[INTERNAL_DOC_LOCATION]]` is your entry point and a source of
-provisional evidence — it is never your subject.
+Use `git grep -nP -e '<pattern>' -- :/` for tracked-tree searches, escaping literal regex characters
+and single-quoting the pattern. Filename searches are useful leads. Keep large results readable by
+locating files first, then opening relevant contexts. If a search fails or output is truncated,
+do not treat the unseen part as absence. Search beyond the obvious module when an inspected
+relationship leads there; do not survey unrelated behavior merely because it shares a word.
 
-Your caller is drafting work against this topic and needs to know what exists, how it behaves, and
-what will bite an implementer. Documentation accuracy is not what you were dispatched to produce —
-you return one doc reliability signal and nothing else about documentation quality.
+Continue until the behavior under investigation and its consequential dependencies are understood. Pursue a
+readable dependency needed to support a conclusion instead of declaring it unknown without
+inspection. Where source, runtime state or history cannot settle a material question, retain the
+question and its effect on the caller's decision. This is particularly important for dynamic
+dispatch, stored paths, generated data and external clients in legacy repositories.
 
-Documentation is provisional evidence, and every doc-derived claim gets one of three fates.
-Documentation lets you find the right code fast; it does not tell you what the code does. Before a
-claim you took from a document enters your report as fact, confirm it against the code that
-implements it. No doc-derived claim enters the report unmarked:
+**Check the conclusions against the reads.** For each consequential conclusion, identify what the
+inspected input and implementing or consuming path actually establish. Correct a conclusion that
+contradicts them before writing. Keep distinct: a matching string and a working dependency; no
+caller found by a bounded search and no possible caller; an instruction and observed execution;
+overlapping duties and interchangeable replacements. A missing instruction does not prove a
+provided input cannot be used. Current source does not establish a historical run's cause.
+Keep any qualification in the conclusion itself, not only in a later disclaimer. Mark inferences
+and unchecked documentary claims as such. Quantitative claims need the measured population and
+method; otherwise call them estimates.
 
-| Fate | Condition | Where it goes |
-| --- | --- | --- |
-| **Finding** | You confirmed it against the implementing code | `Relevant files` / `Current behavior` |
-| **Contradiction** | The code disagrees with the document | `Current behavior` — the code wins |
-| **Unconfirmed** | You did not check it | Stated in-line, marked `doc-sourced, unconfirmed` |
+### Report
 
-Never silently promote an unconfirmed doc claim to a finding. "The documentation says so" is not a
-code read, and a caller that cannot tell the two apart will plan against a document instead of the
-system.
+Use these fields and honor the caller's requested evidence form. Give findings their locators
+and supporting text; avoid repeating the same finding in the file map and behavior section.
 
-Assume the system is more coupled than it looks. This skill ships for brownfield codebases, where
-the behavior that matters is frequently not visible at the call site: it lives in a guard several
-layers up, a default that silently coerces, a coupled site that must change in lockstep, or a
-consumer nobody references by name. Treat "I read the obvious file and it looked simple" as an
-unfinished read, not a finding.
+- **Doc verdict and location:** for `--lead docs` or no lead, report the resolved internal location
+  and `ABSENT` if no internal page covers the topic, `UNRELIABLE` if an inspected claim there is
+  contradicted or materially incomplete, or `RELIABLE` if the checked claims hold. This is a
+  spot-check signal about internal docs, not a verdict on external docs or source comments. An
+  unreadable location is unestablished, not absent. Omit this field under `--lead code`.
+- **Current behavior:** the established path, affected consumers, failure behavior and constraints
+  relevant to the request. State premise corrections and evidence limits where they matter.
+- **Relevant files:** a compact map to the implementing paths, guards, writers and consumers.
+- **Not established:** material unresolved relationships or claims, why they remain unresolved,
+  and what decision each could affect; include any extension-load failure, or write `none`.
 
-Breadth and depth are separate budgets. The duty floor below, with any duty your caller
-adds, bounds how many things you examine. It never bounds how carefully you examine each one. Reading fewer files properly beats
-skimming more of them.
+The calling workflow owns the next step; this leaf investigation does not dispatch another agent
+or finish the larger task.
 
-### Breadth bound (report-only mode)
-
-In report-only mode the **duty floor, plus any duty your caller adds, bounds the work.** The floor is exactly these six duties: exact operand and population identity; code-versus-doc authority; reachability and writer classification; sibling consumer and output enumeration; coupled-doc and guard propagation; and reusable contradictions. Together they bound how much you must read; the whole tracked tree states only where you may look.
-
-Report every gap in the **Not established** field, with a one-clause reason each: a floor duty you did not carry out, and why; a floor duty you carried out but could not establish; a duty your caller added that you did not carry out or could not establish; and an internal-documentation page you located for this topic — through the index, a search or a size check — but did not read in full. A duty carried out with an empty result is established and not listed, unless its only evidence is cut-short output showing no hits (the bar below); a page you never located is not listed.
-
-The bar (apply it per carried-out duty). A duty is established only when **you can state its answer
-and cite the tool output you read it from.** Otherwise list it — a normal, expected outcome, not a
-failure to hide.
-
-List the duty whenever any of these hold:
-
-- You inferred the answer from naming, structure, or a document rather than reading the code.
-- Your evidence is a search hit you did not open. A grep match proves a string exists, not that
-  the code does what you say.
-- A search was refused or exited above 1, so absence of further hits proves nothing.
-- Your answer rests on the part of output cut short — stopped before the full result, at minimum
-  by your own command (a cap, filter, slice or partial-range read), a tool's result limit or a
-  saved-output preview; a cap the result never reached cut nothing. Cut output establishes only
-  what it showed, until you read the rest uncut, or, for a claim that nothing else matches or a
-  list of matching lines is complete, a matching-line count from the same search with nothing cut
-  (no cap, filter or preview) equals the lines you saw. That count never shows that a shown line or
-  value lacks something. Output you cannot tell is whole counts as cut short.
-- A file you needed was unreadable, absent, or binary.
-- The answer depends on a runtime or config value you could not resolve.
-- For the enumeration duties (sibling consumers and outputs; coupled sites and guards):
-  you found *some* members but have no method that would have found them all. A partial
-  enumeration reported as complete is the failure mode these duties exist to catch.
-
-| Tempting reasoning | Why the duty is listed |
-| --- | --- |
-| "I grepped and found the call sites" | A grep finds the spellings you guessed. State the pattern and its limits, or open the hits. |
-| "The docs describe this clearly" | A document is provisional evidence, not a code read. |
-| "It's obviously not used anywhere else" | Absence of evidence from a bounded search is not evidence of absence. |
-| "I understood it well enough to summarize" | Summarizing is not citing. If you cannot point at where you read it, you did not establish it. |
-
-A qualification on an established duty is the test, not a footnote: one naming something you
-relied on but did not read lists the duty; one that only bounds the reach of a method whose every
-claim you verified does not — state the bound.
-
-Unknown is not zero: report a duty you could not close, so the caller looks harder rather than
-planning against a gap they cannot see.
-
-How to discharge a duty (technique, not extra scope). These are ways of reading, applied to the
-six duties above — they add no seventh duty and license no wider survey:
-
-- Entry points. Find how the topic is reached — CLI commands, workflow steps, dispatched skills,
-  API handlers, config keys. A topic with no located entry point is not yet understood.
-- Follow the chain. Trace from entry point to effect, noting where a value is transformed,
-  defaulted, or discarded on the way. Name the layers it crosses.
-- Writers, not just readers. For every value a guard or predicate compares against, identify what
-  *writes* it and on which paths it can be absent — a guard whose comparand can be missing fails open
-  exactly where it claims to fail closed.
-- Failure paths. Error handling, fallbacks, and best-effort arms are where brownfield surprises
-  live. A helper that always exits 0, a capture that stores an error body, a default that swallows a
-  real value — read these deliberately rather than assuming the happy path.
-
-Cite `file:line` in this report. Your report is ephemeral analysis a caller consumes immediately,
-so line numbers are precise and useful here.
-
-Calibrate quantitative claims. Mark any count, size, percentage, or arithmetic total you did not
-read directly from tool output in this session as `(unverified estimate)`, and mark the same way a
-count derived from truncated or count-mode tool output; a matching-line count you use only to check
-that a listing is whole is a check, not a quantity. When a number *is* tool-derived, state what
-you measured and how you counted it, so the caller has a defined comparand to re-derive. This applies
-to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
-the report.
-
-**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. This is a return-value contract: return your doc-reliability signal and your **Not established** list (in the `--report-file` file when given), and the caller decides. Never branch into a deeper pass internally.
-
-## Detailed Execution Steps
-
-### Step 1: Locate Documentation Files
-Search for any existing documentation about the topic across the whole tracked tree, ordered by lead. Under `--lead docs`, exhaust the internal documentation first — starting from `[[INTERNAL_DOC_LOCATION]]`'s `index.md` routing when that file exists, read every page in that location bearing on the topic before reading any code, then other tracked documents within the six-duty floor. Under `--lead code`, start from the code and treat documentation as supporting evidence. With no `--lead`, read documentation first, then code, and return the documentation verdict:
-- When the internal-doc location carries an `index.md` routing map (and a `glossary.md`), read the index first and follow its routing to the page that owns the topic — the index locates the owning page faster than a raw search, and a routed page a name-match would miss is still in scope
-- Use the runner's Glob tool for filename leads; it does not establish tracked-tree completeness
-- Search tracked files containing the topic with `git grep -nP -e '<pattern>' -- :/`, escaping a literal's regex metacharacters; single-quote each pattern, never double-quote it, writing a `'` it needs as `'\''` after that escaping. This includes ignored tracked files. On refusal or exit above 1, use the runner's Grep tool for leads when available; report the failure and that ignored tracked files may be missed, leaving tracked-tree completeness unestablished
-- Document all files found (or note if no files exist)
-
-### Step 2: Search Codebase for Topic
-Identify all code related to the topic across the whole tracked tree, in the lead order Step 1 states:
-- Use Step 1's search method for classes, functions, and features mentioned in the topic
-- Review all relevant source files
-- Document the key files and features involved
-
-### Report-Only Output (`--report-only` mode)
-
-Return this structure as text, or write it to the `--report-file` path:
-
-- **Doc verdict and location:** `RELIABLE` | `UNRELIABLE` | `ABSENT`, and the internal documentation location this run resolved. Returned under `--lead docs` and with no `--lead`; never under `--lead code`.
-- **Relevant files:** the files implementing the topic — mark the essential ones and cite `file:line` for entry points, guards, and writers.
-- **Current behavior:** what the code does today, including failure paths and non-obvious couplings.
-- **Not established:** each gap the *Breadth bound* rule lists, with its one-clause reason, and any extension-load state the *Consumer prompt extension* step says to report or surface, or `none`.
-
-What the doc-reliability signal ranges over (decide it this way, every time). It says whether the
-documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else, were a reliable map for this
-topic:
-
-- `ABSENT` — no document inside that location covers the topic.
-- `UNRELIABLE` — a document there covers the topic, and at least one claim you spot-checked was
-  contradicted by the code or is materially incomplete.
-- `RELIABLE` — a document there covers the topic and everything you spot-checked held.
-
-A discrepancy in any file outside that location — a stale default in a schema, a wrong literal in
-a code comment, an out-of-date example config — is not an input to this signal. Report it under
-*Current behavior* if it is load-bearing, and leave the signal unchanged. Two runs over the same tree
-must return the same token; without a stated boundary they do not, and the caller's
-decision turns on noise.
-
-If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is not `ABSENT` — an absence you
-could not establish is not an established absence. Name the failed read on the *Doc verdict and
-location* bullet when you return one, and list the *exact operand and population identity* duty
-under **Not established** with the failed read as its reason.
-
-## Success Criteria (report-only mode)
-
-Success = a caller who can now plan work against this topic without
-re-exploring it — the code map, the current behavior including its failure paths, and an honest
-account of what you could not establish. A report that is accurate about the documentation but thin about the code has
-failed, however clean its doc-reliability signal.
-
-This mode is typically a sub-step of another skill (e.g. `/prflow:spec`) — when you
-finish, hand the report back to the calling flow and let it continue. Do not announce overall task
-completion or stop the larger task.
-
-Arguments (`[--report-only] [--report-file <path>] [--lead docs|code] <topic…>` — leading flags, then the topic): $ARGUMENTS
+Arguments (`[--report-file <path>] [--lead docs|code] <topic…>` — leading flags, then the topic): $ARGUMENTS

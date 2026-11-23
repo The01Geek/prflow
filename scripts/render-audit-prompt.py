@@ -35,17 +35,12 @@ Contract (issue #600):
   outside this claim. The path check bounds shape, not vocabulary (see
   ``_abs_path``).
 - Modes, complete by construction: the dispatch arms ``file`` (a subagent
-  auditor) and ``inline`` (the degraded in-context audit), plus ``checklist``
-  (the walk and consumer dimensions, for the drafter's self-audit). Both dispatch
-  arms fill ``{RETURN_PATH}`` from the working directory (``return_path``); no
-  argument check shapes that directory part.
+  auditor) and ``inline`` (the degraded in-context audit). Both fill
+  ``{RETURN_PATH}`` from the working directory (``return_path``); no argument
+  check shapes that directory part.
 - Output contract: stdout's FIRST line is ``render-status:`` with a value from
   the closed set {appended, absent, unestablished}; stdout's LAST line is the
-  fixed terminal marker ``render-end:`` on every full render, so a truncated
-  delivery is positionally detectable: any tail cut drops the terminal marker,
-  whatever the render's last block happens to be (the consumer section is last
-  only in checklist mode — the dispatch arms follow it with the
-  verdict block).
+  fixed terminal marker ``render-end:`` on every full render.
 - Failure (any ``RenderError`` or argparse refusal — for example unusable
   arguments, or an unreadable or malformed template) exits non-zero with
   EMPTY stdout and a stderr breadcrumb — which, together with out-of-position
@@ -76,8 +71,7 @@ STATUS_PREFIX = "render-status:"
 END_MARKER = "render-end:"
 
 # Closed vocabularies (complete by construction).
-_MODES = ("file", "inline", "checklist")
-_DISPATCH_ARMS = ("file", "inline")
+_MODES = ("file", "inline")
 _AUDIT_DIMENSIONS_HEADING = "## Audit dimensions"
 # Consumer-dimension status values (the render-status: value set).
 _STATUS_APPENDED = "appended"
@@ -381,6 +375,13 @@ def _parse_blocks(template_text: str) -> list[tuple[frozenset[str], str]]:
                 )
             spec = s[len(_BLOCK_OPEN_PREFIX):-len(_BLOCK_OPEN_SUFFIX)].strip()
             current_set = frozenset(spec.split())
+            if not current_set:
+                raise RenderError("template malformed: render-block names no arm")
+            unknown = sorted(current_set - set(_MODES))
+            if unknown:
+                raise RenderError(
+                    f"template malformed: render-block names unknown arm(s) {' '.join(unknown)}"
+                )
             current_lines = []
             continue
         if s == _BLOCK_CLOSE:
@@ -451,14 +452,11 @@ def render_dispatch(
     mode: str,
     template_path: Path,
     slug: str,
-    draft_path: str | None,
+    draft_path: str,
     ext_path: Path,
 ) -> str:
-    """Assemble a full render for a dispatch arm (``mode`` in _DISPATCH_ARMS) or
-    the walk and consumer dimensions alone (``mode == "checklist"``). ``mode`` doubles as the
-    block-selection token."""
-    if mode in _DISPATCH_ARMS and not draft_path:
-        raise RenderError(f"--draft-path is required for the {mode} arm")
+    """Assemble a full render for a dispatch arm (``mode`` in _MODES). ``mode`` doubles as
+    the block-selection token."""
     blocks = _parse_blocks(_load_template(template_path))
     status, section = consumer_dimensions(ext_path)
     # `{CONSUMER_DIMENSIONS}` is substituted LAST (dict-insertion order): the
@@ -466,8 +464,8 @@ def render_dispatch(
     # `{DRAFT_PATH}` / `{RETURN_PATH}` tokens it may legitimately contain. Keep it last.
     slots = {
         "<slug>": slug,
-        "{DRAFT_PATH}": posix_path(draft_path) if draft_path else "",
-        "{RETURN_PATH}": posix_path(return_path(slug)) if mode in _DISPATCH_ARMS else "",
+        "{DRAFT_PATH}": posix_path(draft_path),
+        "{RETURN_PATH}": posix_path(return_path(slug)),
         "{CONSUMER_DIMENSIONS}": _dimensions_block_for_status(status, section),
     }
 
@@ -536,7 +534,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("mode", choices=_MODES)
     parser.add_argument("--slug", type=_kebab_slug)
-    parser.add_argument("--draft-path", type=_abs_path)  # absolute path (dispatch arms)
+    parser.add_argument("--draft-path", type=_abs_path)  # absolute path
     # NOT typed with _abs_path: the #295 shared contract says an explicit EMPTY
     # value still selects the root-anchored default, and an argparse type would
     # reject "" at rc 2 before main() could apply that default (and rc 2 is not
@@ -574,26 +572,17 @@ def main(argv: list[str]) -> int:
     )
 
     try:
-        if args.mode in _DISPATCH_ARMS:
-            if args.slug is None:
-                raise RenderError(f"--slug is required for the {args.mode} arm")
-            out = render_dispatch(
-                args.mode,
-                template_path,
-                args.slug,
-                args.draft_path,
-                ext_path,
-            )
-        elif args.mode == "checklist":
-            out = render_dispatch(
-                "checklist",
-                template_path,
-                args.slug or "",
-                None,
-                ext_path,
-            )
-        else:  # unreachable: choices already constrain mode
-            raise RenderError(f"unknown mode {args.mode}")
+        if args.slug is None:
+            raise RenderError(f"--slug is required for the {args.mode} arm")
+        if not args.draft_path:
+            raise RenderError(f"--draft-path is required for the {args.mode} arm")
+        out = render_dispatch(
+            args.mode,
+            template_path,
+            args.slug,
+            args.draft_path,
+            ext_path,
+        )
     except RenderError as exc:
         sys.stderr.write(f"render-audit-prompt.py: {exc}\n")
         return 1

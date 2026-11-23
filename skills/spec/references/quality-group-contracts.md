@@ -35,7 +35,13 @@ silent on the axis.
 **Performance and resource measurements.** An AC or Testing-Strategy assertion that compares a
 performance or resource measurement — elapsed time, latency, throughput, memory or CPU use — with
 another run or with a fixed limit also names how and where its runs are taken: for example the
-number of runs, the statistic, the run order, and the machine and its load. A comparison with
+number of runs, the statistic, the run order, and the machine and its load. A criterion asking for
+such a measurement, compared or only recorded, whose result depends on data names the data it runs
+on, with a floor that neither an empty data set nor one holding only reference data meets, and what
+the implementer does when that data or its database is not available: take the measure where the
+data exists, or report the criterion not established, naming who records it. A data value the run
+does not hold, such as a row count, takes *Ask budget* in `references/shared-rules.md`; writing
+these parts reopens no decision the decisions record holds. A comparison with
 another run also names its tolerance as an amount on the side the comparison guards ("at most 15%
 slower than before" for a "no slower" criterion); a fixed limit is its own margin and takes no
 separate tolerance. A phrase naming no amount ("more than measurement noise") is not a tolerance,
@@ -45,15 +51,12 @@ an answer, or a choice the user delegates to the run; the drafter never picks on
 initiative and never leaves it to the implementer. When neither source gives one, the missing
 tolerance is an unresolved decision for the no-options gate in `skills/spec/SKILL.md` Step 3.
 
-**Obligation execution tier.** Obligation arms are implement-tier verification commands (this
-governs this AC and the Step 3.5 unstated-mechanism-dependency hunt alike): an obligation that
-requires *running* an in-repo command must name one already granted on the consuming tier (the
-repo's test/lint commands in `prflow_implement.allowed_tools`), or be a
-**code-reading obligation citing the producer code** — not a run-this-ungranted-helper AC. Two
-further obligation forms name work for the implementer rather than a drafting-time probe — adding a
-capability, and establishing whether one exists — each routed by the existence-determination rule
-whose single home is Step 3.5's item 4 (`skills/spec/references/step-3-5-self-audit.md`). This
-constraint governs whatever in-repo command their discharge names.
+**Obligation execution tier.** A dependency the mechanism relies on is discharged by a cited probe
+or by an implementer obligation: to establish a behavior, to add a capability, or to establish
+whether one exists. An obligation that requires
+*running* an in-repo command must name one already granted on the consuming tier (the repo's
+test/lint commands in `prflow_implement.allowed_tools`), or be a **code-reading obligation citing
+the producer code** — not a run-this-ungranted-helper AC.
 
 ### Universal claims
 
@@ -71,9 +74,9 @@ fixture in which the suppressed or lost input is *present*, except a removed out
 criterion carries as accepted; **(b) scoped** — rewritten to the precise form the mechanism
 supports ("no *per-file* filename arguments", not "no filename arguments"), or, for a claim about
 current code that a read confirms under the *Definition of verified* in
-`references/step-3-5-self-audit.md` (read it there if unloaded), every clause of the confirming text read,
+`references/standards.md` (read it there if unloaded), every clause of the confirming text read,
 kept as written;
-**(c) removed**; or **(d) stated as a heuristic** per the template's *Heuristics* rule, its accepted
+**(c) removed**; or **(d) stated as a heuristic** per *Heuristics* in `references/quality-group-rule-text.md` (read it there if unloaded), its accepted
 limit needing no fixture unless the change removes an outcome whose loss no criterion carries as
 accepted. The carve-out is **extensional, not grammatical**: exempt are only (i)
 mandated-verbatim template boilerplate (`Blocked by #N` lines) and (ii) rule text the change ships
@@ -105,7 +108,7 @@ rows use, a heuristic's rule and failure direction, and the mechanism still prov
 outcome. An unreached unchanged class the request names
 is still covered by a preservation under **omit/merge/add**. Where the change lets evidence excuse a case
 from a rule or loosen, skip or demote its outcome, the mapping names that evidence and a class per
-state: for model-read prose, each state the template routes for an agent-policy criterion's value; else exactly
+state: for model-read prose, each state *Agent-policy criteria* in `references/quality-group-rule-text.md` routes for such a criterion's value; else exactly
 four, complete by construction: missing; malformed or wrong-type; produced by a step that did not
 run; unreadable. Each such class keeps its before outcome unless the request names that state; a
 created rule's mapping states each outcome. Each before cell of an existing rule's row whose
@@ -142,9 +145,9 @@ cases or existing producers, markers or consumers, takes one of two forms: a **f
 exact marker `at minimum`, or a **closed set**, carrying an explicit exhaustiveness statement of the
 shape `exactly these N — complete by construction`. A closed set whose members the change does not
 itself define, or that it defines over values or an outcome existing rules already produce or of
-which that is unclear, is declared `complete by construction` only when a bundle entry meets the
-enumeration rule in `references/step-2-clarify.md`; for a set the change defines, that entry
-must also list the rules producing those values or that outcome (it need not list readers or
+which that is unclear, is declared `complete by construction` only when a hand-back reports a
+whole-tracked-tree search for its members, with the patterns, scope and found and read counts; for
+a set the change defines, that hand-back must also list the rules producing those values or that outcome (it need not list readers or
 other uses of them), and the set must have a member for each listed rule's value or outcome.
 Otherwise it is a floor with `at minimum`. A set owned by a file the change does not edit, where
 the criterion's reader can follow a pointer to it, is instead
@@ -161,7 +164,13 @@ outcome. Each set of causes a criterion enumerates rather than points at for its
 that outcome, even where that outcome cannot be produced, so the default never covers an input a
 success criterion decides. Every other set the change defines, including the states such an
 operation reports (exit codes, status values) and the causes of an operation that does not fail
-closed or of which that is unclear, takes either form; one the bundle-entry condition above covers
+closed or of which that is unclear, takes either form; one the whole-tree-search condition above covers
 takes the closed form only under it.
 Any other enumeration carrying neither form is non-conforming.
+
+- **Multi-state contracts.** Every state a multi-state contract enumerates is covered by the
+  acceptance criteria themselves — a status enum, an outcome-token set, an error/exit-code set, a
+  state-machine node — not by Testing Strategy, unless a criterion points at the contract's owning
+  file under **Enumeration closure** in `references/quality-group-contracts.md`. No summary or table
+  form of such a contract lists fewer causes for a state than its per-state criteria.
 <!-- prflow:spec-ref step=quality-group-contracts file=skills/spec/references/quality-group-contracts.md end -->

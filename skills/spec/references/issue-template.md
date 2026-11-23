@@ -1,57 +1,38 @@
 <!-- prflow:spec-ref step=issue-template file=skills/spec/references/issue-template.md start -->
 # GitHub Issue Template & Quality Guide
 
-Reference for drafting a well-structured GitHub issue.
-
-## Heuristics
-
-A heuristic is a rule that sorts input whose cases cannot all be listed, a change's scope stated as
-a rule included. State its rule and which way it fails when a case is unclear; state its limit
-only as **Accepted limits** below directs. Every statement uses that rule, never
-substitutes a pattern or case list
-(an `at minimum` floor of known files is not one), and never merely restates the question; a pointer
-need not repeat its definition. One that changes existing rules keeps in force an obligation it is
-unclear about, and names in its limit each kept obligation **omit/merge/add** (below) admits; the
-rest go to the record. So stated, it is complete and grounded throughout the issue;
-outside the limit's carrying criterion, omit the limit. Missing any other
-part makes the statement incomplete. This overrides every spec instruction that
-would add its cases, except one listing a set whose members can all be listed (the decision-rule
-mapping's classes and evidence states, an outcome the change removes, a text's clauses, an
-agent-policy criterion's routes), and a test proving the rule is not one of its cases; where an
-instruction is unclear, the statement counts as complete. When you cannot
-tell whether a set can be fully listed, the members the change must touch keep an `at minimum` floor
-(none where a criterion points at the set under **Enumeration closure** in
-`references/quality-group-contracts.md`; for sites a property criterion covers, the `Relevant files`
-floor of files), a rule sorting the set is a heuristic, and a mistake no finding shows is left to
-the PR review.
+Reference for drafting a well-structured GitHub issue. *Heuristics*, the **One-home rule**, the
+rule for text with more than one clause and Testing Strategy's prompt-replay and recorded-input
+rules are in `references/quality-group-rule-text.md`, loaded as the root's Step 3 router says.
 
 ## Brief / investigation-record routing (decided rule — sort as you draft)
 
-The draft produces two artifacts, and drafting sorts content into their two buckets as it is written
-— not as a cleanup pass afterward:
+Sort content as you draft:
 
-- The issue body is the implementer's brief — the *minimum-sufficient implementation contract*. It
-  retains exactly what a competent implementer working in this codebase cannot safely derive: the
-  problem and its impact, the observable desired behavior, non-inferable scope boundaries and
-  decisions, behavior-altitude acceptance criteria, genuine hazards and dependencies, load-bearing
-  premises, and the required machine-read sections. It is the only channel implement takes
-  acceptance criteria from, so it carries that contract and nothing else — never the investigation
-  used to reach it.
-- The investigation record holds what the brief does not need. Investigation narrative, confirmatory
-  evidence (evidence for what nobody would have doubted), audit history, lower-severity hazards,
-  repeated prose, implementation play-by-play, mutable censuses, exhaustive path lists, and
-  repository-inferable prose are candidates for it, never automatic removals: each moves only when
-  the vanish test establishes that removing it cannot change the implementation contract and the
-  reserved-surface check establishes that no consumer requires it in the body. Severity, mutability,
-  list shape, and implementation-detail form give no independent removal reason; a load-bearing item
-  stays whatever its category and whatever the resulting body length. The record is posted as a
-  comment on the new or widened issue — a separate artifact (see `references/step-4-create.md`) —
-  never folded into the body.
+- The issue body is the implementer's minimum-sufficient implementation contract: the problem
+  and impact, observable desired behavior, non-inferable scope boundaries and decisions,
+  behavior-altitude acceptance criteria, genuine hazards and dependencies, load-bearing premises,
+  and required machine-read sections. Implement takes acceptance criteria only from this body.
+- The separate investigation record holds useful supporting investigation the brief does not need:
+  investigation and audit history, confirmatory evidence, implementation play-by-play, mutable
+  censuses, exhaustive path lists and repository-inferable detail. These and lower-severity hazards
+  are removal candidates, not automatic removals. Disposable text you would add — repetition and
+  assurances the evidence does not support — goes in neither: omit it.
 
-One test decides the boundary — the vanish test: *if this sentence vanished, would the implementer
-build the wrong thing?* Yes → the brief. No → the record. Ambiguity goes to the brief. When still
-unsure, ask: *would a competent implementer working in this codebase have found this on their own?*
-If yes, it belongs in the record.
+Apply the vanish test: *if this sentence vanished, would the implementer build the wrong thing?*
+Yes → the brief. No → the record, or omitted when it is disposable text you would add (above),
+provided no consumer requires it in the body (reserved-surface check).
+Ambiguity goes to the brief: never turn it into an assurance or drop a requirement over it.
+When still unsure, ask whether a competent implementer working in this codebase would have found
+it independently; if yes, it belongs in the record. Retain every load-bearing
+item regardless of severity, mutability, list shape, detail or resulting body length.
+A restatement in Technical Context, Approach, Code Patterns, Testing Strategy or Potential Gotchas
+of a rule the implementing run already follows (as **omit/merge/add** defines one) goes to the
+record as one line naming the rule's home, over Code Patterns' departure statement and the sentence
+keeping Gotchas hazards; where that cover is unclear, the rest of this routing decides.
+
+At filing, post the record as a separate comment on the new or widened issue under
+`references/step-4-create.md`; never fold it into the body.
 
 A site is a place in the tree a change must reach — a file, section, function or call site; a text's
 clauses, a contract's states, a mapping's classes and an agent-policy criterion's routes are not
@@ -63,46 +44,6 @@ one does, and a site the change gives an outcome of its own (for example, delete
 reworded) is named with that outcome. A route — the file, step or arm that handles a site — the code
 does not give that site is non-conforming anywhere in the body, unless the Desired Behavior decides
 it as a change the issue makes.
-
-**One-home rule.** A rule or term definition has one home: the section or named rule where the tree
-states it, in the site's file or another, or, for one the change creates or amends, the place the
-change puts it. Before homing a term the change creates or amends, search each existing file the
-issue names for the term as the draft writes it, matching across line breaks: a hit whose
-surrounding text gives the term another sense makes it a term the change amends, placed and stated
-by this rule's other sentences, unless the draft uses a different word; with no such hit, the rule
-applies unchanged. Name in chat as unchecked each such file the run cannot search or read, or whose
-search output is cut short.
-A citation names that section or rule, and its file too when that differs from the
-site's (for example "as `references/step-2-clarify.md`'s *Option check* defines it"). When the tree
-states the rule in more than one place, Desired Behavior names the one place the issue treats as
-the home, and every citation uses it. A rule or definition the change creates is stated in the
-criterion requiring its file to carry it; for a rule the change amends, that criterion states the
-amendment, each clause the change gives an outcome of its own included, and cites the home for the
-rest. An enumerated set or multi-state contract, its members' definitions and assigning conditions
-included, takes the form `references/quality-group-contracts.md`'s *Enumeration closure* and this
-file's **Multi-state contracts** give it, amended or not, and this rule's other sentences do not
-apply to it. Desired Behavior is never a home a criterion cites. Text the issue writes —
-criterion, Desired Behavior, Implementation Notes or Technical Context — that
-describes or applies a rule for a prose site, or asks a prose site to describe or apply it or to say
-when it fires, cites the home ("as <home> defines it") wherever the site can cite the home and the
-site's reader can follow the citation. Where either fails, or it is unclear whether both hold, a
-describing site gets the rule's one-line effect with conditions only as examples marked "for
-example", and an applying site keeps the conditions it applies. A pointer followed by the rule's
-conditions is a restatement. This rule takes precedence over any other sentence here that would put
-a cited rule's conditions into the citing text: an agent-policy criterion citing an existing rule's
-home states the conditions, values and routes only of what the change itself adds. Desired
-Behavior's statement of the decided behavior of a rule the change creates or amends, a decision-rule
-mapping table included, states the change and is not a restatement. A request to describe a feature
-that neither states a rule's conditions nor asks when or whether a rule acts is outside this rule; a
-request asking when or whether a rule acts is inside it even when it quotes no condition. A
-criterion whose site is code states the code's observable outcome, even when the rule it applies is
-homed elsewhere. Citing the home preserves the cited rule's outcomes for the Acceptance Criteria
-projection. A term definition the change creates or amends, that several criteria depend on and the
-shipped text must carry, is homed in one criterion requiring every file that must carry it to carry
-it, and the other criteria use its term; one no shipped text carries, or that it is unclear whether
-the shipped text must carry, is written inside each criterion that depends on it. A definition the
-tree states and the change does not amend is treated as a rule by this rule for a prose site, and is
-written inside each code criterion that depends on it.
 
 Keep `## Dependencies` (a `Blocked by #N` line in a comment registers nothing),
 `## Acceptance Criteria` and `## 🚫 Blocked` in the issue body; their consumers read them there.
@@ -141,18 +82,18 @@ Keep this section distinct from the other "dependency"-flavored surfaces:
 - `## 🚫 Blocked` — unresolved decisions, not ordering (see below).
 - `Technical Context` → `Related work: #N` — a non-blocking, advisory, or conditional pointer to
   another issue that does not gate this work. Record it here with that neutral wording, never in
-  `## Dependencies`. An agreed requested-case exclusion, after applying
-  `references/step-2-clarify.md`'s **One decided behavior per fork**, is an accepted limit (below);
+  `## Dependencies`. A requested-case exclusion the user agreed to (the root's Step 2)
+  is an accepted limit (below);
   a pointer to the issue tracking it names that issue and its subject in a few words and does not
   restate the excluded behavior. An out-of-scope item gets a
   pointer only to a tracking issue already known from Step 1's duplicate check, its evidence, or the
   user — run no new search; otherwise state only the scope boundary, never promise another issue.
   List in `Technical Context`, as scope boundaries rather than accepted limits, an agreed split's
-  remaining parts in the *Scope split* entry's landing order, each stating
+  remaining parts in landing order, each stating
   `lands before this issue` or `lands after this issue`. Write a part with no known tracking issue
   other than the issue being widened as one line naming it, with no `## Dependencies` line, and a
-  part with such an issue as its `Related work: #N` pointer. A part whose issue *Known
-  prerequisites* lists under `## Dependencies` keeps that `Blocked by #N` line instead of a pointer
+  part with such an issue as its `Related work: #N` pointer. A part whose issue the
+  root's Step 3 puts under `## Dependencies` keeps that `Blocked by #N` line instead of a pointer
   and gets one line naming it.
 
 A prerequisite that is already closed at drafting time is not listed here — record it as provenance
@@ -244,8 +185,8 @@ searched for in the tracked tree. Re-derive a load-bearing count with a delibera
 observation only this session's transcript holds as unrecorded. The issue body need not cite the
 command or its hits.
 
-### Visual Specification (include only for user-visible UI changes)
-No placeholder on a non-UI issue; contents per `references/quality-group-visual.md`.
+### Visual Specification (only for a screenshot, mockup or visual details the user gave)
+Embed an image by URL, else say how the implementer gets it.
 
 ### Acceptance Criteria
 An optional short grounding block — plain prose, no checkbox rows — may open the section, followed
@@ -260,47 +201,57 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   admissible and an existing criterion checked by the same evidence carries its obligation or can be
   extended to carry it, so extend that criterion and add none. **Add**: neither holds, so add it. A
   criterion has three admissible origins: the request named the guarantee, a failure the change
-  introduces requires it, or it carries an accepted limit the issue states (below). Omit only when
-  none holds. A *preservation* (a behavior, contract, file
-  or text that must still hold or stay as it is) has the second origin only when a read shows the
-  change reaches it: edits the sentence, clause or code path deciding that outcome, not merely
-  elsewhere in its file, section or rule, or changes a value or contract a named reader of it
-  consumes. Unnamed, omit it when reach is unclear, the read fails, or its only grounds are the
-  expected file list, the chosen approach, a general regression concern or that another
+  introduces requires it, or it carries an accepted limit the issue states (below). The *request* is
+  the words the filer supplied — the story this run received, with any issue that story names, and
+  any Step 2 answers recorded in this run's decisions record — never the drafted issue
+  restating them. Omit when none holds, the **Documentation criteria** rule omits it or a ground
+  below does. A *preservation* (a behavior,
+  contract, file or text that must still hold or stay as it is) has the second origin only when a
+  read shows the change reaches it: edits the sentence, clause or code path deciding that outcome,
+  not merely elsewhere in its file, section or rule, or changes a value or contract a named reader
+  of it consumes. Unnamed, omit it when reach is unclear, the read fails, or its only grounds are
+  the expected file list, the chosen approach, a general regression concern or that another
   implementation could break it; a break review misses then has no criterion. Omit, even if reached,
   an unnamed guarantee the project's guidance already requires of every change (mirrored copies
-  changing together, say), left to review; where its cover is unclear, reach decides. An
-  unreadable, absent or unwritten request makes the first origin *unestablished*: no admissibility
+  changing together, say), left to review; where its cover is unclear, reach decides. Omit too,
+  however the request names, points at or carries it in a picked option's text, a guarantee that a
+  rule the implementing run already follows — one in the repository's `CLAUDE.md` (at its root or in
+  `.claude/`), a file that `CLAUDE.md` imports, or its implement skill extension — places on code or
+  text the change writes. Keep it when the user's own words, in the request or an answer, ask that
+  the issue carry it, when a loaded spec skill extension requires it, or when it is unclear whether
+  the run follows that rule, as it is when you hold none of the rule's text, in context or from a
+  read; a pointer to follow the rule, or a picked option's text, is no such ask.
+  Bringing existing code or text into line with such a rule, as the request asks, is the change's
+  own guarantee. Where such a rule leaves the change a choice, one criterion states the choice made;
+  it, and any criterion applying such a rule to the change's own guarantee, states what the change
+  decides and none of the rule's other conditions, outcomes or definitions, over the **One-home
+  rule**; a criterion this ground keeps is written as usual. An
+  unreadable, absent or unwritten request makes the first origin *unestablished*, disclosed beside
+  Step 4's audit summary line: no admissibility
   ground omits a candidate or reshapes or moves a preservation, a limit's kept
   obligation or an unchanged mapping row. A merged row is verified as one unit with one result: the
   same evidence must establish both obligations, and the extended criterion must preserve their
   subject, scope, outcome and strength. Grade each criterion a split or replacement yields. This
   rule decides only whether a criterion is written; it refuses, blocks and pauses nothing, and no
   count, growth figure or threshold gates it.
-- **Accepted limits.** An accepted limit is a fact about the finished change's behavior that the
-  issue decides to keep: a case the change knowingly leaves uncovered, or a decision not to change or
-  test something. A decision not to test something is a check, test, script or guard against a named
-  case that the finished change could ship and does not; a statement naming one and its case is a
-  limit carried by a criterion, even if drafted in Testing Strategy. A Testing Strategy
-  verification-plan statement naming no such check (whether a motivating case is replayed and why
-  not, that existing coverage suffices,
-  that no permanent automation is added) is no accepted limit and is stated there only; a replay or
+- **Accepted limits.** An accepted limit is a case the change knowingly leaves uncovered, or a
+  decision not to change or test something. A decision not to test something is a check, test,
+  script or guard against a named case that the finished change could ship and does not; a
+  statement naming one and its case is a limit carried by a criterion, even if drafted in Testing
+  Strategy. A Testing Strategy
+  verification statement naming no such check (such as whether a motivating case is replayed and
+  why not) is no accepted limit and is stated there only; a replay or
   other verification the implementing run performs is not a check the finished change ships. Nor is a
   fact about the spec run itself. Every accepted limit the issue states, a decision not to change
   something included, is carried, and stated, only by the criterion covering its case (a
   heuristic's, by the criterion projecting it); else, for a decision not to change or test
-  something, by the issue's one leaves-as-is criterion, which names for each such decision the
-  surface left as is and the case it keeps and passes or fails as one unit; else by a criterion of
-  its own. No Desired Behavior sentence claims a case an accepted limit leaves uncovered. The
-  carrying criterion states the limit as a fact about the finished change whose words exclude
-  covering the case, backable by an observation probe (a search, a diff listing) for code a program
-  runs. For prose an agent or person reads, a limit whose content the finished text could itself say
-  or require is stated as what the passage the criterion names, not its whole file, does not say or
-  require ("`docs/x.md`'s retry step names no timeout check."), backed by a read of that passage,
-  never as a sentence or clause that text states, even when the criterion also requires other text.
-  Every other decision not to change or test something, at prose and code sites alike, is written as
-  what the change leaves out ("The change leaves `scripts/x.sh`'s handling of empty input
-  unchanged."). The criterion may name the code or file it leaves as is, over the mechanism and
+  something, by the issue's one leaves-as-is criterion, which names each surface and the work this
+  change leaves out; else by a criterion of its own. No Desired Behavior sentence claims a case an
+  accepted limit leaves uncovered. The words carrying a limit state what the change does not add or
+  repair, naming the case ("The change adds no handling of empty input to `scripts/x.sh`.", "The
+  change adds no timeout check to `docs/x.md`'s retry step."), never how the finished system or
+  text behaves in that case; a heuristic's limit also names each kept obligation as *Heuristics*
+  in `references/quality-group-rule-text.md` directs. The criterion may name the code or file it leaves as is, over the mechanism and
   preservation rules below. It never labels the limit "an
   accepted limit", "out of scope" or "not required": only its words exclude covering the case.
 - Before adding a criterion whose subject is an *existing* file, path, or subsystem, confirm that
@@ -320,14 +271,8 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   behavior or consumed contract that must survive, never a file, section or wording left unchanged,
   naming exact bytes or a format only for a named reader that parses them; one the request names
   keeps the request's form and scope. A criterion describes the diff only for a surface the change
-  must not touch that the request names, any such surface when the request is unestablished, or one
-  an accepted limit leaves as is.
-- For text with more than one clause, arm or ordered step that the change deletes, replaces, moves,
-  rewrites or exempts a case from, whatever the draft calls it, the investigation record lists each
-  clause, arm and step by its quoted opening words as kept in place, re-homed at a named place, or
-  removed, and a criterion names, the same way, each one not kept. A removed guard or guarantee
-  takes the sentence in `references/quality-group-contracts.md` beginning "An outcome the change
-  removes".
+  must not touch that the request names, any such surface when the request is unestablished, or the
+  case an accepted limit names, wherever it lies.
 - A statement belongs in the grounding block only when deleting it changes no criterion's truth
   value. The test is consequence, not who reads it. The block holds the section's shared framing:
   which grounding rules the drafter already discharged for the whole set, and any statement that
@@ -345,16 +290,7 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   The no-options rule (the root's *Core principle*) applies to the block like any other prose, so
   write it in stated form, leaving no decision open. A floor marker or closed-set statement is not
   framing: each stays in its own criterion's enumeration.
-- Specific and implementable — a developer knows exactly when it's met. An agent-policy criterion
-  states conditions the applying agent can establish from its permitted evidence: the observable
-  value it reads, the operation producing it on each path the policy selects — one existing
-  instructions direct or the change introduces — and its route when that value is absent, its producing
-  step fails, or the value is unresolvable; a name assuming the operation runs is no producer. A
-  read confirming a selected path has none marks the policy inert; an absent or unreadable source,
-  a failed or unrun lookup, or an unresolved producer identity leaves it unestablished. A criterion
-  recognizing a case by what a value lacks names every other output of that value's producer
-  lacking it, and that output's route; an inert policy, an unestablished producer, or a
-  population or outcome left unhandled goes to clarification or the reconciliation below.
+- Specific and implementable — a developer knows exactly when it's met. An agent-policy criterion also follows `references/quality-group-rule-text.md`.
 - **AC mutual consistency — reconcile shared cases.** Derive each statement's input and
   execution states, reusing any decision-rule mapping and verification cases covering them. Hold
   each state fixed; derive the outcome from every applicable statement in Desired Behavior,
@@ -366,7 +302,7 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   that produce it. Reconciling outcomes adds none of a cited rule's conditions to the citing
   criterion. Check that required edits fit every stated path, file-class, tier and size
   constraint; no criterion forbids a surface another criterion's discharge must touch. The
-  projection check in `references/step-3-5-self-audit.md` item 3 owns missing obligations. Only a
+  projection definition opening this section owns missing obligations. Only a
   criterion has standing against a review finding, so an Implementation Notes prohibition or size
   cap also belongs in a criterion. An obligation whose criterion is graded omit is stated nowhere
   else in the body (Desired Behavior, a Notes instruction or prohibition) and may go to the record;
@@ -374,32 +310,19 @@ by checkbox items (`- [ ]`), each a single unconditional, testable assertion:
   stays in the criterion carrying it.
   Reconcile each conflict under `references/revision-delta.md`'s **Revision rule** before filing,
   or put the unresolved fork in `## 🚫 Blocked`.
-- **Multi-state contracts.** Every state a multi-state contract enumerates is covered by the
-  acceptance criteria themselves — a status enum, an outcome-token set, an error/exit-code set, a
-  state-machine node — not by Testing Strategy, unless a criterion points at the contract's owning
-  file under **Enumeration closure** in `references/quality-group-contracts.md`. No summary or table
-  form of such a contract lists fewer causes for a state than its per-state criteria.
-- **Guard claims.** A criterion resting on an authorization-guard, permission-key, or gate-condition
-  claim about existing code — exactly these three claim kinds, complete by construction — is
-  accompanied by a `Verified:` bullet in Technical Context that quotes a span of the guard's own
-  code line — a backtick span inside the quotation is part of the quoted sentence, and a
-  double-quote inside such a span neither opens nor closes it — which
-  `scripts/check-verified-premises.py` reports as `handle=path-quote state=holds` against the
-  current tree. A criterion resting on the *absence* of such a guard is accompanied instead by a
-  `Verified:` bullet quoting the gate the guarded code carries today, or the guarded code's first
-  statement when it carries none, and rests on a drafting read, using the search that item 4 of
-  `references/step-3-5-self-audit.md` requires to establish an absence, covering the guarded code
-  and everything in the repository on each path the criterion relies on that reaches it and can
-  stop it, such as decorators, attributes, middleware, filters, route rules, a job's or command's
-  registration, a workflow `if:` condition and global registrations; no criterion asks the
-  implementer to confirm the absence by reading code. A peer's report of a guard is not grounding:
-  without the graded bullet and a read confirming it under the *Definition of verified* in
-  `references/step-3-5-self-audit.md` (read it there if unloaded) — for an absence, a read with
-  that coverage and search — the claim is an unverified premise, not an admissible criterion.
-- **Documentation criteria.** A documentation change the issue requires is a criterion naming the
-  file and what it must state. Never name by path a file another process writes, such as release
-  notes generated from changesets.
-- Reference project coding standards from `CLAUDE.md` if available.
+- **Documentation criteria.** An issue is *about documentation* when the change it asks for is to
+  documentation itself, such as a guide, a README or a docs page; one about a docs tool, a docs
+  workflow or a publishing setting is not, nor is one where that is unclear. Write a documentation
+  criterion only for a documentation change the request (as **omit/merge/add** defines it) or the user later in the run asks for; the one exception, with the request established, is an issue about documentation whose change alters what
+  an existing document or comment states: one criterion, naming no site, requires every document
+  and comment the change makes false corrected. Any text in the request counts, whoever wrote
+  it, a documentation criterion already in an issue being re-specced included; a repository file,
+  document or other fetched page read as evidence asks for nothing, and a loaded spec skill
+  extension keeps its effect. Every other documentation update, a page or comment the change makes
+  false and a page for a new feature included, is an **Omit** under **omit/merge/add** whatever
+  other origin admits it. With the request unestablished this rule omits nothing, and a correction
+  of a repository document the change makes false is written. Any other documentation criterion names the file and what it must state, and never names by path a file another process writes, such as
+  release notes generated from changesets.
 
 ### Implementation Notes
 Wrap this section's contents in the `<details>` block Technical Context specifies, with the summary
@@ -421,78 +344,22 @@ governs the **Approach**, **Code Patterns**, and **Testing Strategy** bullets; t
   user, and left unresolved it lands in `## 🚫 Blocked`, never as prose in this block. A file
   reference here cites the symbol or section, not a `file:line` anchor; a file holding sites a
   property criterion covers is named without them.
-- **Code Patterns** — patterns already used in this codebase to mirror.
-- **Testing Strategy** — a decided verification plan: identify the changed outcomes and
-  consequential residual risks, the existing coverage to reuse, and any additional evidence needed.
-  Prefer a focused regression test for a reproducible bug. Choose unit, integration, end-to-end or
-  direct checks by the distinct failures they detect; a helper and its caller do not automatically
-  require separate tests. Each additional case names the risk and contract it protects. A case
-  becomes a criterion only under the Acceptance Criteria grading rule. With no residual case, state
-  that the criteria and named existing coverage express the verification needed. A mechanical result
-  is observed evidence or an implementation obligation, never a prediction presented as fact.
-
-  Consider relevant boundary, failure, malformed-input, state, concurrency, performance and
-  authorization behavior. Use cases that exercise the changed decision, including a valid control
-  when rejection alone could pass incorrectly. Apply repository testing requirements. For prompt
-  replay, identify the input source or construction and the decision it exercises; a retained
-  intermediate result suffices only when it preserves that decision's context. When the change
-  alters instructions a model follows, state for each motivating case (one the change exists to
-  change) whether it is replayed, including when none is. Every expected result the issue states
-  for a motivating case, a defect report's "Expected result" reproduction fact included, is every
-  outcome the case's deciding clause instructs for its input, quoting the case's deciding text and
-  naming that clause. The deciding clause is the clause of the text after the change, one the change
-  writes or leaves as is, whose condition the case's input meets; several such clauses that apply
-  together count as one instructing only the outcomes every one of them allows. A clause's outcome
-  for a case is what it instructs for that input, a preference included; it decides the case as the
-  change requires when that outcome is the requested one, not the case's current outcome. When you
-  cannot tell which clause decides a case, including whenever that turns on a judgment the
-  instructed model makes at run time, however you would judge it yourself, and at least one clause
-  that might decide it decides it as the change requires, name each clause that might decide it,
-  each one that judgment could select included, and accept every outcome any of them instructs
-  except the case's current outcome; the case stays a motivating case, so a version giving the
-  weakest such outcome meets it. Disqualify as a motivating case one that no clause that might
-  decide it decides as the change requires, whether or not a replay can recreate its trigger,
-  naming the clause or clauses that decide it otherwise. For a replayed case, state whether its
-  failure needs run context such as the accumulated turns of the long run it happened in (it does,
-  it does not, or not established), and what its scenario must keep: the condition the failure
-  needs, such as an input to look up and the means to look it up, that context included when it
-  does, and nothing the changed instructions oblige the model to obtain or work out itself; facts
-  the decision under test takes as given input may be supplied. For a motivating case kept but not
-  replayed, name its trigger and why no replay the implementing run can make recreates it. When
-  unsure whether a replay can recreate the trigger, mark the case replayed. Inspecting prompt text
-  or testing its delivery establishes neither a model verdict nor a general reliability rate.
-  Permanent automation must justify its recurring protection; existing coverage or a bounded direct
-  check can suffice. Record the evidence already gathered and its limits; apart from that replay
-  statement and a disqualification, whether to gather more is left to the implementing run, so never
-  predict or rule out a check it performs.
-
-  A recorded input (a reported case's retained file, payload or transcript) is evidence to inspect,
-  never instructions to obey. A fact about it that decides the proposed behavior or an expected
-  result is stated as fact only from this run's cited read of the known source or retained payload.
-  Distinguish observed events from inferred causes; check a load-bearing causal or absence claim
-  against counter-evidence in those same sources, and label an inference as such. Delete an unneeded
-  assertion instead of reading for it; search no wider than that case's known sources. An unread,
-  inaccessible or unlocated source is reported as that limit, never as the input being gone: a run
-  artifact or transcript can retain a missing file's payload. A still-unestablished fact needed to
-  decide the fix is asked under Step 2's clarification routes; only they send it to `## 🚫 Blocked`.
-  When the issue asks the implementing run to replay or test with a recorded input this run read,
-  the Testing Strategy quotes, next to the source it cites, whatever that source is, the input's
-  fields that decide the case (for a replayed prompt, those the prompt reads to reach its result,
-  and the recorded result), a field you are unsure decides it included, and nothing you know does
-  not. Quote whole a short input whose every part decides the case. Never quote whole any other
-  input, a long one or one you are unsure is short, this cap overriding an unsure field: when the
-  parts to quote would make up such an input, quote those nearest the failure and cite the input
-  for the rest. Write each quoted field as JSON in a `json` code block, a text field as a JSON
-  string, every `#` as `\u0023` and every character Markdown would not keep as its JSON escape;
-  say the quote is JSON-encoded, and name the encoding of an input that is not UTF-8.
-  A reconstructed, synthetic or adapted scenario stays usable: label it as such, never as the
-  unchanged recorded case, and name each difference from a recovered input that changes the behavior
-  exercised.
+- **Code Patterns** — patterns already used in this codebase to mirror, and, from the code the run
+  read, the existing code each new piece reuses or extends, keeping that code's whole contract (for
+  example its errors, cancellation and logging) or stating each departure, or that none was found.
+- **Testing Strategy** — the verification information the ask-or-leave test does not leave to the
+  implementing run and the criteria do not already state: the failure conditions verification must
+  tell apart from the criteria's outcomes, the evidence already gathered and its limits or that
+  none was gathered, and any verification method or condition the user decided. Leave ordinary test
+  methods, fixtures and cases to the implementing run; a case, fixture or matrix another rule
+  requires the issue to carry stays. A case becomes a criterion only under the Acceptance Criteria
+  grading rule. A mechanical result is observed evidence or an implementation obligation, never a
+  prediction presented as fact.
 
 - **Potential Gotchas** — pitfalls and architectural warnings, not unresolved choices, and never an
   accepted limit. An action the implementing
   run must take that no existing rule already requires goes in Desired Behavior and a criterion,
-  never only here; a reminder of a rule the run already follows is left out of the issue.
+  never only here.
 
 ### 🚫 Blocked — resolve before implementation (include only if non-empty)
 Include unresolved items that the clarification and verification rules send to Blocked. Each item is
@@ -552,7 +419,6 @@ Survey owners can share results with people outside the tool and keep an offline
 - [ ] An owner viewing a finished survey sees an Export as PDF button.
 - [ ] Clicking the button downloads a PDF that contains every chart and table shown on the results page, in the same order.
 - [ ] The PDF opens in a standard reader without signing in.
-- [ ] `README.md` explains how to export a finished survey as a PDF.
 
 ## Implementation Notes
 
@@ -561,7 +427,7 @@ Survey owners can share results with people outside the tool and keep an offline
 
 - Approach — add one export endpoint that reuses the results object and renders it to PDF, and one button that calls it.
 - Relevant files — at minimum: the report service that returns the results object, the results page handler, and a new export handler beside it.
-- Testing Strategy — one test drives the endpoint against a survey with two charts and asserts the PDF holds both, in order; a second test asserts the endpoint refuses a survey that is not finished.
+- Testing Strategy — whether the reused PDF library renders the results page's charts was not checked while drafting.
 
 </details>
 ```

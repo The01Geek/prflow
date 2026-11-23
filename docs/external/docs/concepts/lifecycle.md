@@ -26,7 +26,7 @@ flowchart TD
   <Step title="Issue">
     The GitHub issue is the contract for the change. PRFlow reads its description and its acceptance criteria.
 
-    The optional [spec workflow](/docs/workflows/spec) clarifies unresolved decisions and presents the draft. Interactive runs wait for explicit approval; [non-interactive filing](/docs/workflows/spec#non-interactive-filing) has separate conditions.
+    The optional [spec workflow](/docs/workflows/spec) clarifies unresolved decisions and presents the draft. It files only after your explicit approval.
   </Step>
 
   <Step title="Run">
@@ -47,7 +47,7 @@ flowchart TD
     Three gates can stop the run here, before any code is written:
 
     - **A declared open dependency or unsettled decisions.** If the issue declares a dependency on another issue that is still open, if the state of that dependency cannot be established, or if the issue body still has a `## 🚫 Blocked` section, the run stops as `Blocked`. This check runs before branch work, so a blocked run leaves no new branch behind.
-    - **A claim in the issue that does not match the repository.** PRFlow checks the issue's claims about the codebase against the current tree before it treats them as instructions. It also checks that the acceptance criteria represent every independently testable outcome the issue describes. An uncovered outcome sends the issue back for refinement instead of being guessed at.
+    - **A claim in the issue that does not match the repository.** PRFlow checks the issue's claims about the codebase against the current tree before it treats them as instructions. It also checks that the acceptance criteria represent every independently testable outcome the issue describes. For an uncovered outcome, PRFlow adds a criterion to the run and continues rather than stopping for it, and records the sentence it came from.
     - **A workpad already marked `Blocked`.** PRFlow surfaces the recorded cause instead of continuing through it.
   </Step>
 
@@ -73,7 +73,7 @@ flowchart TD
     Before the run can finish, every in-scope acceptance criterion must be verified, or explicitly routed to a follow-up issue or to post-merge verification.
 
     <Warning>
-      This gate checks the criteria the issue actually lists. An issue with **no** acceptance criteria gives the gate nothing to check, so it passes without verifying anything against the issue. Write acceptance criteria if you want this gate to mean something.
+      This gate checks the criteria the issue lists plus any PRFlow added for uncovered Desired Behavior outcomes. A run left with **no** acceptance criteria gives the gate nothing to check, so it passes without verifying anything against the issue. Write acceptance criteria if you want this gate to mean something.
     </Warning>
   </Step>
 

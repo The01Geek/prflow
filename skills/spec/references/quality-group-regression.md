@@ -10,11 +10,6 @@ defect states is its own fact; someone else's explanation of a result is not a r
 the user's scope answer addresses: a result a premise correction contradicts is kept as the
 reporter's result, marked as reported, with the correction stated beside it; any other kept
 result, including one a scope answer moves out of the issue, is stated as the reporter states it.
-A defect report's Testing Strategy explains how the fix will be distinguished from the failure,
-preferably with a focused regression test against the actual implementation. Reuse existing
-coverage or a direct reproduction where sufficient; missing evidence is an explicit limit, not an
-invented result. Honor repository testing requirements and agreed
-criteria.
 
 ### Convention-governed matrices
 
@@ -54,9 +49,8 @@ or a heading, section or line shape the contract names as machine-read; a model 
 criterion, Approach or Architecture Alignment making code parse any other layout of that text
 (headings, section order, bullet shapes, or a count of them) is a **decision fork** — a model reads
 it; the producer emits the value as a machine-read field; or code parses the layout — routed like
-any new fork (`references/revision-delta.md`'s Revision rule); a run with no user never self-answers
-it and records it in `## 🚫 Blocked`. Skip the fork only when the user chose code parsing of that
+any new fork (`references/revision-delta.md`'s Revision rule). Skip the fork only when the user chose code parsing of that
 layout itself; a user decision naming an output or value the layout would supply is not that choice.
-The corresponding Testing Strategy residual case is the **new mutable-input-reader matrix** carrying
+The corresponding Testing Strategy case is the **new mutable-input-reader matrix** carrying
 its `governing conventions consulted:` record.
 <!-- prflow:spec-ref step=quality-group-regression file=skills/spec/references/quality-group-regression.md end -->
