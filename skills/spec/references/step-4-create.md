@@ -2,7 +2,7 @@
 
 ### Step 4 sub-steps 5–6: file the issue
 
-   File a new issue, or — on a run that widens an issue under Step 1's widen rule — replace that issue's title and
+   File a new issue, or — on a run that widens an issue under the root's Step 2 widen rule — replace that issue's title and
    body in place, never by a comment: the body is the only channel implement takes acceptance criteria from.
    `<method>` is `POST` and `<endpoint>` is `repos/{owner}/{repo}/issues` for a new issue; on a widen they are `PATCH`
    and `repos/{owner}/{repo}/issues/<issue_number>`, `<issue_number>` being the widened issue's number. Every step
@@ -82,8 +82,9 @@ BODY
    `<issue_number>`. Any other line, or no output, means prerequisites NOT registered: name that line, or its
    absence, in the final outcome. On a widen, the final outcome also says that a blocked-by link only the old body
    declared stays registered, since the helper only adds links. Continue to sub-step 5c.
-5c. Publish the investigation record (sub-step 2's record file) as a comment on the issue, before sub-step 6's
-    implement offer. When this run's record-file write did not land or its leftover delete was refused, invoke nothing
+5c. Publish the investigation record (Step 3's record file) as a comment on the issue, before sub-step 6's
+    implement offer. When this run's record-file write did not land, or its leftover delete or an edit of it was
+    refused or failed, after Step 3's retry where it applies, invoke nothing
     and report the record not posted because its save failed. Otherwise run the bundled helper once:
    ```bash
    python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/build-investigation-record.py --issue <issue_number> --record ".prflow/tmp/spec/<slug>/issue-record-<slug>.md" --derivation ".prflow/tmp/spec/<slug>/issue-derivation-<slug>.md"

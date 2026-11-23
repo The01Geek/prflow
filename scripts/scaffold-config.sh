@@ -391,7 +391,7 @@ else
     pe_tmp="$pe_target.tmp"
     # The body is written in three grouped printf calls so the spec example can
     # carry INERT `## Audit dimensions` (Step 3.6 audit forwarding) and `## Evidence axes`
-    # (Step 2 evidence-bundle forwarding, issue #548) samples between the boilerplate and the
+    # (read by the Step 1 investigators, issue #548) samples between the boilerplate and the
     # closing `-->`. The samples stay
     # INSIDE the comment block, so the whole body is still a single HTML comment (the
     # scaffold-pe AC3 single-comment-block invariant holds) and a misrename injects nothing.
@@ -428,9 +428,9 @@ else
              '## Audit dimensions' \
              '- A repo-specific invariant every issue must respect, named with what would falsify it.' \
              '' \
-             'Step 2 (the requirements self-check evidence bundle) reads an optional' \
-             '"## Evidence axes" section and appends it to the generic evidence-axis floor.' \
-             'Example section (inert until you activate this file):' \
+             'Each Step 1 investigator loads this extension and follows what it asks of' \
+             'the investigation, such as an "## Evidence axes" section. Example section' \
+             '(inert until you activate this file):' \
              '' \
              '## Evidence axes' \
              '- A repo-specific evidence axis every issue must record, named with what to check.'; } &&

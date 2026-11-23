@@ -11,6 +11,74 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## November 22, 2026
+
+- **You can review and decline the fixes `/prflow:spec`'s audit calls for.** A declined fix is left unapplied and can be quoted when the issue is presented for filing. (#3926)
+- **`/prflow:spec` offers to check its draft claim by claim against your code before you file it.** Each run asks once whether to run the check, which adds time and cost to that run. (#3926)
+- **`/prflow:spec` can run a second audit round on its own before it shows you the draft.** When the first round's fixes change the draft, one more round runs with a single auditor; you choose any further round. (#3926)
+- **`/prflow:spec` no longer has a non-interactive filing route.** It files only after you approve the draft. (#3926)
+- **`/prflow:spec` no longer asks for a screenshot, a mockup or confirmation of visual details.** You can still give a screenshot, a mockup or visual details, and the issue records them. (#3968)
+- **`/prflow:spec` corrects a false statement nothing in the draft depends on without asking.** It deletes or narrows the statement; a false statement that a criterion or one of your decisions rests on is put to you in an `Audit fix` question. (#3973)
+- **Implement adds a run criterion for an uncovered Desired Behavior outcome and keeps going.** The final criteria check verifies the added criterion like the issue's own, and the workpad quotes the sentence it came from. (#3502)
+- **Spec can ask, before investigating, whether a source your request rests on can be made available or how to check it.** (#3963)
+
+## November 21, 2026
+
+- **`/prflow:spec` questions and drafts take names and today's behavior from the investigation, not from the request's wording.** (#3926)
+- **`/prflow:spec` no longer files timing or benchmark criteria that can pass without measuring anything.** (#3926)
+
+## November 20, 2026
+
+- **`/prflow:spec` can cover the documents and comments a documentation change makes stale with one acceptance criterion.** An issue about documentation can come back shorter and with fewer audit rounds. (#3918)
+- **`/prflow:spec` carries what its investigation established into the draft and corrects audit findings without adding unverified statements.** Limits and warnings the investigation hands back reach the first draft, the choices PRFlow makes itself never rest on an invented fact and are listed before you approve, and a correction after an audit deletes or narrows the text it attacks. (#3900, #3901, #3904, #3890, #3895, #3896, #3902, #3903, #3893, #3892, #3906, #3910, #3911)
+- **`/prflow:spec` trims a draft before its first audit round.** A separate pass deletes text the implementer does not need before that round, so the round audits the shorter draft. (#3891)
+- **`/prflow:spec` re-checks a draft for common mistakes before its second audit round.** The automatic second round now audits that check's corrections, so a draft that round approves can be filed as audited without another round. (#3921)
+- **`/prflow:spec` checks its draft against your spec extension's audit dimensions before the first audit round.** Its question round can also ask, in one question, for everything a dimension needs that the investigation could not establish. (#3926)
+- **`/prflow:spec` checks its draft against common mistakes again after a draft-check correction no audit round covered.** (#3926)
+
+## November 19, 2026
+
+- **`/prflow:spec` asks fewer clarifying questions, usually in one round.** It settles smaller choices itself and lists them before filing so you can overrule them, and the only advisory audit finding it applies on its own is the correction of a false statement. (#3880)
+
+## November 18, 2026
+
+- **`/prflow:spec`'s issue template gives one wording for an accepted limit: what the change does not add or repair.** It no longer offers a wording that states how the finished system behaves in the uncovered case. (#3732)
+- **`/prflow:docs-verify` now only reports and edits no documentation.** The `--report-only` flag is gone, and a run that passes it is refused; drop the flag for the same report. (#3841)
+- **The spec audit leaves routine test setup and test-method choices to implementation.** Spec can require fewer revisions that prescribe fixture mechanics before anything is built. (#3835)
+- **`/prflow:spec`'s issue template now tells drafts to leave out unsupported assurances and routine test recipes.** Requirements, evidence limits and any verification method you ask for still belong in the issue; ordinary test design is left to `/prflow:implement`. (#3836)
+- **`/prflow:spec` checks its draft against a short list of common drafting mistakes instead of running a long self-audit.** Each spec run that drafts an issue reads a file of about 4 KB in place of a 16 KB procedure, and the fresh-context audit stays the thorough review. (#3831)
+- **`/prflow:spec` can leave out of the issue the house rules your implementing run already follows.** Fewer copies of rules from your `CLAUDE.md`, the files it imports and your implement extension reach the criteria and implementation notes, where a copy could drift from its source. (#3844)
+
+## November 17, 2026
+
+- **`/prflow:spec` offers *No change — file nothing* whenever its investigation shows the reported problem can no longer occur, or contradicts the request's premise so that the work may not be wanted.** Picking it files nothing and names the evidence and any open issue left for you to handle. (#3371)
+- **Spec writes fewer unrequested documentation criteria** — issues not about documentation can come back shorter, with fewer audit rounds spent on omitted doc updates. (#3820)
+
+## November 15, 2026
+
+- **Documentation discovery uses a simpler report-only procedure.** (#3784)
+
+## November 13, 2026
+
+- **Spec's questions state every limit the investigation found for an option in that option's description.** (#3739)
+- **`/prflow:spec` sorts the facts its investigation established into the issue body or the investigation record while drafting.** The investigation record is saved beside the first draft, and a later revision can move to it, or delete, body text the implementer does not need. (#3421)
+
+## November 12, 2026
+
+- **`/prflow:spec` discovery leaves the commits and pull requests a story cites as incident evidence to the risk investigator, which can also write an output file its dispatch names.** (#3335)
+
+## November 11, 2026
+
+- **`/prflow:spec` can mark a test case not replayed instead of giving it an expected result that passes without the fix.** `/prflow:implement` then skips that case's replays. (#3350)
+- **`/prflow:spec` questions can say a claim was not checked instead of stating it as fact.** (#3396)
+- **`/prflow:spec` revisions reconcile the draft's other statements of the same case.** A filed issue is less likely to say two different things about one case. (#3385)
+- **`/prflow:spec` loads its revision rules at every audit round that has a finding to fix, not once per run.** (#3700)
+
+## November 10, 2026
+
+- **The fix-delta review now runs on a fix made in another worktree or repository.** A `/prflow:fix` or `/prflow:review-and-fix` pass outside your session's starting folder no longer ends with `fix-delta review: not verified (wrong working directory)`. (#3428)
+- **`/prflow:spec`'s check for common mistakes compares the draft with your answers, the conditions your request states and the investigation's findings.** A draft that drops or contradicts one of them can be caught before the independent audit round. (#3332)
+
 ## November 8, 2026
 
 - **`/prflow:implement`'s acceptance-criteria gate copies criterion texts from the workpad instead of retyping them.** If your repository commits a `.prflow/vendor/prflow/` copy, refresh it to this release: an older copy stops the gate Blocked. (#2480)

@@ -91,7 +91,7 @@ The run has four phases:
 3. Open a draft pull request, then — unless a resumed run adopts a completed review at that step — update documentation and run the review-and-fix loop, so the loop reviews that documentation.
 4. File any required follow-up issues, refresh the pull request description and finish.
 
-The issue defines the intended outcome. Before implementation starts, PRFlow checks the issue's own claims about the repository against the current tree rather than trusting them, and it checks that the acceptance criteria cover every independently testable outcome the issue's Desired Behavior section states. An outcome no criterion covers stops the run for issue refinement. PRFlow never invents a criterion to fill the gap.
+The issue defines the intended outcome. Before implementation starts, PRFlow checks the issue's own claims about the repository against the current tree rather than trusting them, and it checks that the acceptance criteria cover every independently testable outcome the issue's Desired Behavior section states. For an outcome no criterion covers, PRFlow adds a criterion to the run and continues rather than stopping for it; the final criteria gate checks that criterion like the issue's own. The workpad records each added criterion beside the sentence it came from.
 
 ## Bug Reports Must Be Reproduced First
 
@@ -112,7 +112,7 @@ PRFlow checks the criteria for conflicts when it writes the plan: two criteria t
 A criterion that can only be confirmed in a real deployed environment stays unticked and moves to the pull request's Post-Merge Verification section.
 
 <Warning>
-  An issue with no acceptance criteria does not fail this gate — it passes it, because there is nothing to check. A prose-only issue therefore gets a run with no criteria gate at the end of it. If you want that gate to mean something, write acceptance criteria in the issue. PRFlow still stops when the issue's Desired Behavior section states a testable outcome no criterion covers, but an issue that states no such outcomes leaves nothing to compare against.
+  A run with no acceptance criteria does not fail this gate — it passes it, because there is nothing to check. When the issue has none, PRFlow adds a criterion for each testable outcome its Desired Behavior section states, and the gate checks those; an issue that states no such outcomes gets a run with no criteria gate at the end of it. If you want that gate to mean something, write acceptance criteria in the issue.
 </Warning>
 
 When a large issue deliberately defers some criteria to a later pull request, PRFlow files follow-up issues before it finishes and discloses them in the pull request description. Deferral never marks the work complete quietly.
@@ -131,7 +131,6 @@ Later stopping points include a bug it could not reproduce, an acceptance criter
   Read the reason on the workpad first — it names the specific obstacle.
 
   - **Cannot reproduce.** Add the missing detail to the issue: the exact trigger, the environment, the observed and expected behavior. Then run the command again.
-  - **An uncovered outcome in Desired Behavior.** The workpad quotes the exact sentence no criterion covers. Add a criterion for it, or narrow the Desired Behavior section.
   - **An open dependency.** Close or unblock the prerequisite issue, then run again.
   - **A `## 🚫 Blocked` section in the issue.** Settle each question in the issue, remove the section, then run again.
   - **A verification command that is not permitted.** Grant it in your tool-permission settings. See [Tool Permissions](/docs/configuration/tool-permissions).

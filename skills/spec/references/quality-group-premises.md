@@ -32,13 +32,12 @@
   negation). A `Verified:` premise asserts a **present-tense fact about the current tree**; a claim
   about the world *after* the change is written as an acceptance criterion, not a premise.
 - [ ] **Enclosing gates.** Under the *Definition of verified* in
-  `references/step-3-5-self-audit.md` (read it there if unloaded), a read confirms that the code
+  `references/standards.md` (read it there if unloaded), a read confirms that the code
   does X only with the enclosing gates, conditionals and defaults on the path to X read too; state a non-default precondition inside the claim. When X is one clause of a multi-clause rule or one step
   of an ordered procedure, also read each other clause of that rule and the steps whose order the
   claim depends on; the `Verified:` bullet quotes only the clause that makes the claim true; a
   sibling read that is denied, empty, partial or inconclusive leaves the premise unverified and out
-  of the `Verified:` bullets. This discipline runs **twice**: at drafting time, and again in Step
-  3.5's self-audit, which re-applies it to the *assembled* draft before the user sees it.
+  of the `Verified:` bullets.
 - [ ] **Value semantics.** Ground a "Verified:" premise about a value's meaning or a reused
   component's result in its producer and the code that acts on it. Read the conversion, validation
   and defaulting that determine the claimed result, including the relevant output, status and
@@ -46,6 +45,26 @@
   not whether this call enforces them. Keep command success distinct from a usable result. Before
   claiming a value's domain, nullability or units, search for a wider domain and read its consumers;
   a consumer distinguishing more states withholds the narrower claim. Ground the distinction the
-  proposed behavior relies on, using the existing probe or obligation route for an unstated
-  dependency in Step 3.5 item 4.
+  proposed behavior relies on with a cited probe or an implementer obligation to establish it, to
+  add the capability or to establish whether it exists (**Obligation execution tier** in
+  `references/quality-group-contracts.md`; read it there if unloaded).
+
+- **Guard claims.** A criterion resting on an authorization-guard, permission-key, or gate-condition
+  claim about existing code — exactly these three claim kinds, complete by construction — is
+  accompanied by a `Verified:` bullet in Technical Context that quotes a span of the guard's own
+  code line — a backtick span inside the quotation is part of the quoted sentence, and a
+  double-quote inside such a span neither opens nor closes it — which
+  `scripts/check-verified-premises.py` reports as `handle=path-quote state=holds` against the
+  current tree. A criterion resting on the *absence* of such a guard is accompanied instead by a
+  `Verified:` bullet quoting the gate the guarded code carries today, or the guarded code's first
+  statement when it carries none, and rests on a worker's returned read of the producing surface — the
+  guarded code and everything in the repository on each path the criterion relies on that reaches
+  it and can stop it, such as decorators, attributes, middleware, filters, route rules, a job's or
+  command's registration, a workflow `if:` condition and global registrations — together with a
+  repo-wide whitespace-normalized search. A zero-hit search alone never establishes an absence, and a
+  denied or unavailable search leaves it not established. No criterion asks the
+  implementer to confirm the absence by reading code. A report that names a guard without quoting it is not grounding:
+  without the graded bullet and a read confirming it under the *Definition of verified* in
+  `references/standards.md` (read it there if unloaded) — for an absence, a read with
+  that coverage and search — the claim is an unverified premise, not an admissible criterion.
 <!-- prflow:spec-ref step=quality-group-premises file=skills/spec/references/quality-group-premises.md end -->

@@ -117,9 +117,9 @@ Expected result on the next `/prflow:implement` run: the workpad's `Skill extens
 <Accordion title="Two headings the spec extension treats specially">
   `/prflow:spec` reads two headings in `.prflow/skill-extensions/spec.md` by name, in addition to using the whole file as instructions.
 
-  A section headed exactly `## Audit dimensions` is added to the standard audit checklist. PRFlow applies it to its own draft before the first audit round, and each audit round's auditor receives it too. Use it to teach the drafter and the auditor the assumptions your issues must respect. See [Approval Points](/docs/workflows/spec#approval-points) for audit preparation.
+  A section headed exactly `## Audit dimensions` is added to the standard audit checklist. PRFlow applies it to its own draft before the first audit round, and each audit round's auditor receives it too. PRFlow's question round can ask you for a fact a dimension needs that the investigation could not establish, every part in one question. Use it to teach the drafter and the auditor the assumptions your issues must respect. See [Approval Points](/docs/workflows/spec#approval-points) for audit preparation.
 
-  A section headed exactly `## Evidence axes` is passed to the pass that gathers evidence before the draft is written. Use it to name the kinds of evidence a draft must cover for your repository.
+  The agents that investigate before the draft is written read the whole extension, a section headed `## Evidence axes` included. Use it to name the kinds of evidence a draft must cover for your repository.
 
   A section runs from its heading line to the next line that starts with `## `. An extension without these headings changes nothing about those passes and still works as ordinary appended instructions. The scaffolded `spec.md.example` contains an inert sample of both headings.
 </Accordion>

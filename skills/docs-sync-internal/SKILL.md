@@ -1,6 +1,6 @@
 ---
 name: docs-sync-internal
-description: Use when code changes on the current branch need matching internal or developer documentation — "update our internal docs", "the architecture docs are stale after this change", "document what I just changed", "do the dev docs still match the code?" — or as a pre-push check that developer docs track the code. Narrower than prflow:docs; use prflow:docs-bootstrap-internal when no structured internal docs exist yet, or prflow:docs-verify for a single named topic.
+description: Use when code changes on the current branch need matching internal or developer documentation — "update our internal docs", "the architecture docs are stale after this change", "document what I just changed", "do the dev docs still match the code?" — or as a pre-push check that developer docs track the code. Narrower than prflow:docs; use prflow:docs-bootstrap-internal when no structured internal docs exist yet, or prflow:docs-verify to check a single named topic.
 ---
 > Configuration: Read the internal documentation path from `.prflow/config.json` using: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent. Use the result as `[[INTERNAL_DOC_LOCATION]]` throughout this skill.
 

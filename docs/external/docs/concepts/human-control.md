@@ -9,7 +9,7 @@ PRFlow can prepare and review a change, but people keep authority over the repos
 
 ## Before a Run
 
-- An interactive [spec workflow](/docs/workflows/spec) presents the draft and waits for your explicit approval before filing. Its [non-interactive route](/docs/workflows/spec#non-interactive-filing) has separate, bounded conditions; it does not grant authority to invent requirements.
+- The [spec workflow](/docs/workflows/spec) presents the draft and waits for your explicit approval before filing.
 - A local run can ask you for clarification, and it asks your client for tool permission as it goes. See [Local Permissions](/docs/runs/local/permissions).
 - Maintainers decide which configuration, prompt extensions and permission scopes are committed to the repository. A run can only use what you committed.
 - A cloud run starts only for an authorized collaborator or an allowed bot. An outside fork contributor cannot start one. See [Security and Trust](/docs/concepts/security).

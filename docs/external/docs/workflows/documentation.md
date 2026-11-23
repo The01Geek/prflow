@@ -5,7 +5,7 @@ description: "Keep developer docs, public docs and release notes in step with th
 
 Use this guide to pick the PRFlow documentation command that matches what you need.
 
-PRFlow has seven documentation commands. One is a router that runs three of the others in sequence; the rest do one job each. Every command except the report-only mode described below can edit files (that mode writes only a report file you ask for), and none of them commits.
+PRFlow has seven documentation commands. One is a router that runs three of the others in sequence; the rest do one job each. Every command except `/prflow:docs-verify` can edit files (it writes only a report file you ask for), and none of them commits.
 
 ## Pick a Command
 
@@ -14,8 +14,7 @@ PRFlow has seven documentation commands. One is a router that runs three of the 
 | A general documentation pass before merge | `/prflow:docs` |
 | Update developer docs for code you changed | `/prflow:docs-sync-internal` |
 | Bring public docs in line with what shipped | `/prflow:docs-sync-external` |
-| Check and fix the docs for one topic | `/prflow:docs-verify <topic>` |
-| Understand one topic, with no file changes | `/prflow:docs-verify --report-only <topic>` |
+| Check one topic's docs against the code, with no file changes | `/prflow:docs-verify <topic>` |
 | Build developer docs from nothing | `/prflow:docs-bootstrap-internal` |
 | Build public docs from the developer docs | `/prflow:docs-bootstrap-external` |
 | Add a release note for a customer-visible change | `/prflow:docs-release-notes` |
@@ -81,7 +80,7 @@ The locations themselves come from `docs.internal` (default `docs/internal/`) an
 <Steps>
   <Step title="Name the topic">
     ```text
-    /prflow:docs-verify --report-only retry handling
+    /prflow:docs-verify retry handling
     ```
   </Step>
   <Step title="Read the report">
@@ -91,28 +90,28 @@ The locations themselves come from `docs.internal` (default `docs/internal/`) an
 
 The report names four fields:
 
-- **Doc verdict and location** — one of `RELIABLE`, `UNRELIABLE` or `ABSENT`, together with the internal-doc location the run resolved. It describes the internal documentation only, a wrong default in a schema or a stale code comment being reported under current behavior instead. It is returned by default and under `--lead docs`; a `--lead code` run does not return it.
-- **Relevant files** — the files that implement the topic, marked to show the minimum set someone must read, with file and line references for the entry points, guards and writers.
+- **Doc verdict and location** — one of `RELIABLE`, `UNRELIABLE` or `ABSENT`, together with the resolved internal-doc location. This is a spot-check of the inspected internal claims, not a verdict on external docs or source comments. It is returned by default and under `--lead docs`; a `--lead code` run omits it.
+- **Relevant files** — a compact map to the implementing paths, guards, writers and consumers.
 - **Current behavior** — what the code actually does today, including the failure paths and non-obvious couplings you would otherwise find the hard way.
-- **Not established** — what the run reports it did not do or establish, with a one-clause reason each, for example a duty it skipped or could not establish, or an internal-documentation page it located but did not read in full; `none` when nothing qualifies. This includes, for example, a duty whose answer rests on lines that a search the run piped through `head` never printed, when the run neither read those lines in full nor counted the matches with nothing cut.
+- **Not established** — material unresolved relationships or claims, why they remain unresolved and what decision each could affect. It also includes an extension-load failure; `none` when nothing qualifies.
 
-You can steer where the run starts. `--lead docs` reads the internal documentation first (from its index) before turning to the code; `--lead code` starts from the code and treats documentation as supporting evidence. With no `--lead`, the run reads documentation then code and returns the doc verdict.
+You can steer where the run starts. `--lead docs` reads the internal documentation before turning to the code; `--lead code` starts from the code and treats documentation as supporting evidence. With no `--lead`, the run reads documentation then code and returns the doc verdict.
 
 To keep the report as a file instead of chat text, add `--report-file` with a path under `.prflow/tmp/`, written relative (as below) or absolute. The run writes the report there, makes no other change and replies with the path alone. If it cannot write the file, it says so and returns the whole report as text.
 
 ```text
-/prflow:docs-verify --report-only --report-file .prflow/tmp/retry-report.md retry handling
+/prflow:docs-verify --report-file .prflow/tmp/retry-report.md retry handling
 ```
 
-`--report-file` works only with `--report-only`. The run refuses to start when `--report-file` is given without `--report-only`, without a path or more than once, or when the path contains a `..` segment or does not resolve inside the working directory's `.prflow/tmp/`.
+The run refuses to start when `--report-file` is given without a path or more than once, or when the path contains a `..` segment or does not resolve inside the working directory's `.prflow/tmp/`.
 
 <Tip>
   `ABSENT` means no internal document covers the topic. If the documentation location itself could not be read, the run says so instead — an absence it could not establish is not an established absence.
 </Tip>
 
-[Create an Issue](/docs/workflows/spec) runs this report-only discovery with `--lead docs` alongside an independent investigator of request-specific assumptions, constraints and conditional risks before drafting a ticket.
+[Create an Issue](/docs/workflows/spec) runs this discovery with `--lead docs` alongside an independent investigator of request-specific assumptions, constraints and conditional risks before drafting a ticket.
 
-Drop `--report-only` and the same command fixes the internal documentation it found wrong.
+To fix the internal documentation a report found wrong, edit it yourself, or run `/prflow:docs-sync-internal` when the drift comes from your branch's changes.
 
 ## Related Articles
 
