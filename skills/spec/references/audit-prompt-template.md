@@ -190,10 +190,12 @@ matching-line count from the same search with nothing cut (no cap, filter or pre
 lines you saw. Grade each `defect` — a correctness, safety, implementability, unresolved-decision or
 load-bearing-premise failure, correctness including a concrete failure to deliver the stated
 outcome within the decided scope and accepted limits, a factual statement your read contradicts
-even when the design does not rest on it, and demanded behavior your reads show incompatible with a
+unless you can show that no criterion, Desired Behavior obligation, operator step or user decision
+rests on it, and demanded behavior your reads show incompatible with a
 governing requirement they show applies (a rule citation shows neither; for an omitted routine
 detail or a test-method suggestion, see the walk's Outcome step) — or `note`, a simpler design
-or an unneeded obligation from the walk's outcome step. Report no wording, formatting or
+or an unneeded obligation from the walk's outcome step, or a contradicted factual statement you
+can show nothing rests on. Report no wording, formatting or
 placement remarks and no replacement text: name the defect, and say "delete" when deleting the
 attacked text resolves it and the rest of the draft still carries every obligation it stated. One
 defect per finding. Say explicitly when nothing remains.
@@ -202,7 +204,7 @@ End with one bare verdict literal as your return's last non-blank line, without 
 explanation:
 
 - `VERDICT: REVISE` — at least one defect.
-- `VERDICT: FILE` — no defect; notes alone do not require revision of a truthful, buildable issue.
+- `VERDICT: FILE` — no defect.
 - `VERDICT: DRAFT-UNREADABLE` — you could not read the draft file; return no findings.
 <!-- render-block-end -->
 <!-- prflow:spec-ref step=audit-prompt-template file=skills/spec/references/audit-prompt-template.md end -->

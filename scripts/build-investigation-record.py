@@ -90,7 +90,6 @@ OVERSIZE, RECORD_UNREADABLE, WRITE_FAILED, GH_UNAVAILABLE, POST_FAILED, USAGE, I
     for reason in ('oversize', 'record-unreadable', 'write-failed', 'gh-unavailable', 'post-failed', 'usage',
                    'internal-error'))
 _TRIGGER_RE = re.compile(r'(/(?=prflow:|devflow:)|@(?=claude))', re.IGNORECASE)
-_FENCE_RE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
 _SHAPE_RE = re.compile(r'[ \t]*(?:[-*+][ \t]+)?(?=' + re.escape(CONSIDERED) + ')')
 _SENTENCE_END_RE = re.compile('[.!?][)\\]}"\'’”*_]*$')
 _JOIN_STOP_RE = re.compile(r'[ \t]*(?:```|~~~|#{1,6}(?:[ \t]|$)|(?:[-*+]|[0-9]+[.)])[ \t])')
@@ -123,35 +122,14 @@ def _bare(line):
     return line.rstrip('\r\n')
 
 
-class _Fence:
-    """Tracks whether a line sits inside a fenced code block."""
-
-    def __init__(self):
-        self._open = None  # (char, length) of the open fence
-
-    def feed(self, line):
-        """Advance past `line`; return True when it is inside a fence or is a fence line."""
-        m = _FENCE_RE.match(_bare(line))
-        if self._open is None:
-            if m and not (m.group(1)[0] == '`' and '`' in m.group(2)):
-                self._open = (m.group(1)[0], len(m.group(1)))
-                return True
-            return False
-        char, length = self._open
-        if m and m.group(1)[0] == char and len(m.group(1)) >= length and not m.group(2).strip():
-            self._open = None
-        return True
-
-    @property
-    def is_open(self):
-        return self._open is not None
-
-
 def _fence_flags(lines, unclosed=lambda index: None):
     """Return each line's in-fence flag, each opener that never closes read as text and passed to `unclosed`."""
+    # Imported here, not at module top: a missing sibling must reach main()'s internal-error line, not a traceback.
+    from section_parse import Fence
+
     as_text = set()
     while True:
-        fence, flags, opened_at = _Fence(), [], None
+        fence, flags, opened_at = Fence(), [], None
         for index, line in enumerate(lines):
             was_open = fence.is_open
             flags.append(index not in as_text and fence.feed(line))

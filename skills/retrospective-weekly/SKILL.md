@@ -71,14 +71,6 @@ gh auth status
 
 If it fails, tell the user to run `gh auth login` and stop.
 
-Confirm you are on `main`:
-
-```bash
-git branch --show-current
-```
-
-If not on `main`, run `git checkout main`.
-
 Prepare the scratch directory. This also removes prior-run scratch, so a run can never read another run's stale bundle, output, or overrides snapshot:
 
 ```bash
@@ -513,7 +505,7 @@ the legacy `{title, body}` shape never reaches it and derives its own cap verdic
 blocks it unconditionally and loudly — intended, because the shipped Stage B
 composer returns only the findings-array shape, and a stale composer that still
 returns `{title, body}` has had no projection audit to file on. No worktrees, no commits, no PRs — the loop proposes; a human triages each issue and runs it through the normal
-`/prflow:implement` → review pipeline. Your checkout stays on `main`; only the
+`/prflow:implement` → review pipeline. Your checkout stays on the branch the run started on; only the
 learnings working copy changes. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
 serially.
 

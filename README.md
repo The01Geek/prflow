@@ -183,7 +183,7 @@ Every bot-authored PR leaves evidence — review comments, post-bot commits, CI 
 /prflow:retrospective-weekly
 ```
 
-Run it interactively from the repo root, ideally weekly; it confirms a clean default branch, runs the full pipeline, and prints a status report with the issues to triage. Deterministic scripts handle all scanning, gating, and git/issue mechanics — the LLM is invoked **only** at the two genuine-judgment points (per-PR retrospective and per-pattern issue-spec drafting). The loop **proposes, it does not dispose**: it files one well-formed GitHub issue per actionable pattern and lets the normal implement → review pipeline execute it, rather than auto-editing the repo.
+Run it interactively from the repo root, ideally weekly; it requires a clean working tree, runs on the branch that is checked out, runs the full pipeline, and prints a status report with the issues to triage. Deterministic scripts handle all scanning, gating, and git/issue mechanics — the LLM is invoked **only** at the two genuine-judgment points (per-PR retrospective and per-pattern issue-spec drafting). The loop **proposes, it does not dispose**: it files one well-formed GitHub issue per actionable pattern and lets the normal implement → review pipeline execute it, rather than auto-editing the repo.
 
 See [PRFlow workflows](https://prflow.ai/docs/workflows) for the supported user-facing workflow guides.
 

@@ -20,15 +20,13 @@ Your dispatch gives `Draft:`, the draft's absolute path, and `Output:`, your out
 
 - **Criteria** are the checkbox items (`- [ ]`) under Acceptance Criteria, numbered 1, 2, … in order. A grounding paragraph before them is not a criterion; a statement in it that narrows a criterion is quoted with that criterion.
 - **Desired Behavior rules** are the Desired Behavior sentences that each state an outcome.
-- **Code-naming steps** are Implementation Notes sentences (Approach, Code Patterns, Testing Strategy, Potential Gotchas) that name a file, function, class, table, configuration key, route or other code element, or say what existing code does. `Relevant files` is a hedged map: take a claim from it only where another step's correctness rests on it.
-- **Limits** are statements anywhere in the draft that bound the build: what the change does not add or repair, what is out of scope or not established, and each assumption or premise it relies on (a `Verified:` bullet, "callers always …", "only X reaches Y").
+- **Limits** are statements anywhere in the draft (Technical Context and Implementation Notes included, a sentence that also names code included) that bound the build: what the change does not add or repair, what is out of scope or not established, and each assumption or premise it states (a `Verified:` bullet, "callers always …", "only X reaches Y"). An instruction saying what to build or where (an Approach step, a code pattern to follow, a file to change) is not a limit, nor is a premise you would infer from it; quote a limit only when the draft states it.
 
 ### Items, in priority order
 
 1. **`criterion_pair`** — for each criterion, quote it in `draft_text` and the Desired Behavior rule or rules it projects, verbatim, in `paired_rule`. `question`: "For every input this rule and this criterion apply to, do they give the same outcome?" When no rule matches, `paired_rule` is `[]` and the question asks which rule, if any, the criterion checks. Also emit one per Desired Behavior rule no criterion projects, `criterion` null, the rule in `draft_text`, asking whether any criterion checks it.
 2. **`criterion_cases`** — one per criterion: quote it, and in `case_variables` name what a case would vary: roles or permissions, flags and configuration, empty, missing or malformed data, boundaries and limits, which path, entry point or caller reaches the behavior, existing versus new records. `question`: "What input cases must this criterion cover, and which does it (or the test or evidence it names) not cover?" Never answer it or guess which cases are missed.
-3. **`code_question`** — one per code-naming step: a neutral question the code answers ("What does `X` do when `Y`?", "Which callers reach `Z`, and with what arguments?", "Where is `W` read or written?"), with the step's own sentence quoted separately in `draft_text`. The question must not carry the draft's answer: never "Does `X` return null, as the draft says?". One fact per question; a step stating several facts gets several items.
-4. **`limit`** — one per limit: quote it, and state as `question` the property that must hold for the build to be right (the excluded case is unreachable on a path Desired Behavior requires, the build needs nothing the limit excludes, the premise holds in code).
+3. **`limit`** — one per limit: quote it, and state as `question` the property that must hold for the build to be right (the excluded case is unreachable on a path Desired Behavior requires, the build needs nothing the limit excludes, the premise holds in code).
 
 Keep each claim's scope exactly as the draft states it: add no `only`, `every`, `never`, `always` or other qualifier the draft does not state, and when a sentence states several conditions, name each or say it states more. One claim per item; never emit two items for the same claim.
 
@@ -42,7 +40,7 @@ Name where in the code, or which decision, would settle the item: a file, functi
 
 Write to your output file only one JSON object:
 
-{"items": [{"id": "VC-1", "kind": "criterion_pair | criterion_cases | code_question | limit", "criterion": 1, "section": "the draft section draft_text comes from", "draft_text": "verbatim draft text the item rests on", "paired_rule": ["verbatim Desired Behavior sentence"], "case_variables": ["role", "empty list"], "question": "the question or property to settle", "verify_hint": "where in the code or which decision settles it"}], "dropped": []}
+{"items": [{"id": "VC-1", "kind": "criterion_pair | criterion_cases | limit", "criterion": 1, "section": "the draft section draft_text comes from", "draft_text": "verbatim draft text the item rests on", "paired_rule": ["verbatim Desired Behavior sentence"], "case_variables": ["role", "empty list"], "question": "the question or property to settle", "verify_hint": "where in the code or which decision settles it"}], "dropped": []}
 
 `criterion` is the integer criterion number, or null where none applies. `paired_rule` appears only on `criterion_pair`, `case_variables` only on `criterion_cases`. Ids run `VC-1`, `VC-2`, … in output order. Quote verbatim: copy the text exactly, dropping only the leading checkbox markup.
 
@@ -72,8 +70,6 @@ Settle each item from its own text, under every rule below. A defect found while
 
 ### Process by kind
 
-**`code_question`** — Answer `question` from the code first, setting `draft_text` aside; write that answer in `answer` with the lines it rests on. Only then read `draft_text` and compare. FAIL when the draft states something your answer contradicts, or states as unconditional what the code shows depends on a condition the draft omits.
-
 **`criterion_pair`** — From the code and the decisions, list the input states that the rule in `paired_rule` and the criterion in `draft_text` apply to. For each, derive the outcome each requires, resolving terms against `Draft sections`. FAIL on any reachable state where they differ: one requires what the other forbids, or the criterion can be met while the rule fails. With `paired_rule` empty or `criterion` null, find the counterpart in `Draft sections` yourself; FAIL when a Desired Behavior outcome has no criterion that checks it, or a criterion checks an outcome Desired Behavior does not decide. A FAIL's `missing_case.case` is the diverging input, with both outcomes.
 
 **`criterion_cases`** — Fill the cases yourself from the code: for each variable in `case_variables`, and any the code adds, the values it can take where the behavior is reached (each caller or entry path, each flag or role value, empty and boundary data). Drop a case the decisions record excludes. FAIL for each remaining case that Desired Behavior or a decision gives an outcome for, or that the code reaches with no decided outcome, and that the criterion text, or the test or evidence it names, does not cover. Put the most build-changing case in `missing_case` and list the others in `evidence`.
@@ -94,7 +90,7 @@ Any kind: draft text that contradicts the decisions record is FAIL, citing the d
 
 Write to your output file only one JSON array, one object per item in the order your dispatch lists them, each standing alone (no field refers to another item):
 
-{"id": "VC-1", "verdict": "PASS | FAIL | INCONCLUSIVE", "answer": "code_question only: your answer from code, before comparing", "evidence": "what was established, with path and line range", "refuting_lines": [{"path": "repository-relative/path", "lines": "40-52", "quote": "the exact lines"}], "missing_case": {"case": "the input case", "reachable_because": "path and lines, or the decision", "left_out_by": "the criterion text that does not cover it"}, "needed": "INCONCLUSIVE only", "changes_build": true, "changes_build_why": "one line"}
+{"id": "VC-1", "verdict": "PASS | FAIL | INCONCLUSIVE", "evidence": "what was established, with path and line range", "refuting_lines": [{"path": "repository-relative/path", "lines": "40-52", "quote": "the exact lines"}], "missing_case": {"case": "the input case", "reachable_because": "path and lines, or the decision", "left_out_by": "the criterion text that does not cover it"}, "needed": "INCONCLUSIVE only", "changes_build": true, "changes_build_why": "one line"}
 
 Omit the fields that do not apply to its verdict and kind. Then reply with one line `PASS: <ids>` (`PASS: none` when none), then only the FAIL and INCONCLUSIVE objects, each with its item's `kind` and `draft_text` added, as one JSON array (`[]` when none).
 
