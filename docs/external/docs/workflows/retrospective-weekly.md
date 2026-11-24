@@ -10,7 +10,7 @@ It reads recently merged pull requests, records what went well or badly, looks f
 ## Run It
 
 <Steps>
-  <Step title="Start from a clean tree on main">
+  <Step title="Start from a clean working tree">
     ```text
     /prflow:retrospective-weekly
     ```
@@ -18,7 +18,7 @@ It reads recently merged pull requests, records what went well or badly, looks f
     This is a local command. It is not available as a GitHub comment command. You can also run the same loop on a weekly schedule with the shipped GitHub Actions workflow — see [Run It On A Schedule](#run-it-on-a-schedule) below.
   </Step>
   <Step title="Let the preflight checks pass">
-    The run confirms the working tree is clean, that the GitHub CLI is authenticated and that `main` is checked out. It switches to `main` itself when needed.
+    The checks include a clean working tree and an authenticated GitHub CLI.
   </Step>
   <Step title="Read the report and triage">
     The run prints its full report and lists every issue it filed. Everything after that is yours to decide.
@@ -26,7 +26,7 @@ It reads recently merged pull requests, records what went well or badly, looks f
 </Steps>
 
 <Warning>
-  This workflow changes your local checkout. It requires a clean working tree (changes under `.prflow/learnings/` are ignored), may switch you to `main`, writes learning records to the telemetry branch and creates GitHub issues. Commit or stash your work before running it. Any other change in `git status` stops the run rather than proceeding.
+  This workflow requires a clean working tree (changes under `.prflow/learnings/` are ignored), runs on the branch that is checked out, writes learning records to the telemetry branch and creates GitHub issues. Commit or stash your work before running it. Any other change in `git status` stops the run rather than proceeding.
 </Warning>
 
 ### What You Get Back

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Shared markdown section- and checkbox-parsing rules (issue #781).
+"""Shared markdown section-, checkbox- and fence-parsing rules (issue #781).
+
+`FENCE_RE` and `Fence` track fenced code blocks for callers outside the contract below.
 
 SINGLE SOURCE for the `## Acceptance Criteria` parsing contract that two
 helpers depend on:
@@ -68,8 +70,36 @@ POST_MERGE_TAG = ' (post-merge)'
 
 CHECKBOX_RE = re.compile(r'^\s*[-*]\s+\[([ xX])\]\s+(.*)$')
 HEADING_RE = re.compile(r'^(#{1,6})\s+(.*?)\s*$')
+FENCE_RE = re.compile(r'^ {0,3}(`{3,}|~{3,})(.*)$')
 
 _WS_RE = re.compile(r'\s+')
+
+
+class Fence:
+    """Tracks whether a line sits inside a fenced code block."""
+
+    def __init__(self):
+        self._open = None  # (char, length) of the open fence
+
+    def feed(self, line):
+        """Advance past `line`; return True when it is inside a fence or is a fence line.
+
+        A fence closes only on a bare line of the opener's character at least as long as the opener.
+        """
+        m = FENCE_RE.match(line.rstrip('\r\n'))
+        if self._open is None:
+            if m and not (m.group(1)[0] == '`' and '`' in m.group(2)):
+                self._open = (m.group(1)[0], len(m.group(1)))
+                return True
+            return False
+        char, length = self._open
+        if m and m.group(1)[0] == char and len(m.group(1)) >= length and not m.group(2).strip():
+            self._open = None
+        return True
+
+    @property
+    def is_open(self):
+        return self._open is not None
 
 
 def extract_section(body: str, name: str) -> list[str]:

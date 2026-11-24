@@ -377,8 +377,8 @@ else
     fi
     # The body is itself one Markdown comment block: the first line opens `<!--`, the
     # last closes `-->`. printf '%s\n' prints each argument on its own line, so the
-    # static lines (single-quoted, apostrophe-free ASCII) and the two interpolated
-    # lines ($pe_skill / $pe_hint, double-quoted) compose in a single call.
+    # static lines (single-quoted, apostrophe-free ASCII) and the interpolated
+    # lines ($pe_skill / $pe_hint, double-quoted) compose without word-splitting.
     #
     # Write to a temp then `mv` into place ATOMICALLY — the same write-candidate-then-mv
     # idiom rewrite_config_if_changed uses above. This is the log-and-continue contract
@@ -417,7 +417,7 @@ else
            "Useful extension for $pe_skill: $pe_hint" \
            '' \
            'To activate, copy this file to the same name without the .example suffix' \
-           '(for example spec.md.example becomes spec.md) and replace' \
+           "(for example $pe_skill.md.example becomes $pe_skill.md) and replace" \
            'this comment with your own instructions.' &&
          { [ "$pe_skill" != "spec" ] || printf '%s\n' \
              '' \

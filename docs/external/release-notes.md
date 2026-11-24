@@ -11,6 +11,17 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## November 24, 2026
+
+- **The weekly retrospective no longer switches your checkout to `main`.** It runs on the branch that is checked out, locally and in the scheduled workflow. (#4004)
+- **The command and retrospective workflow jobs get a read-only Actions token.** The job token in the `command` job of `devflow.yml` and the `retrospective` job of `devflow-retrospective.yml` can no longer dispatch, re-run, cancel or delete workflow runs, the `setup-project-env` action's unread `health_summary` output is removed, and each skill-extension example names its own file. (#4009)
+
+## November 23, 2026
+
+- **A `/prflow:spec` audit round can return FILE for a draft whose only fault is a false statement nothing rests on.** The auditor reports that statement as a note. (#3973)
+- **Each auditor of a three-part `/prflow:spec` first round now checks a share of the acceptance criteria.** Before, one of the three checked only descriptive sections. (#3973)
+- **`/prflow:spec` can recommend filing instead of another audit round, and its verification list no longer spends places on Implementation Notes code questions.** The filing prompt can show which draft sections changed since the latest audit round that returned a verdict. (#3987)
+
 ## November 22, 2026
 
 - **You can review and decline the fixes `/prflow:spec`'s audit calls for.** A declined fix is left unapplied and can be quoted when the issue is presented for filing. (#3926)

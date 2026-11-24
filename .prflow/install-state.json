@@ -20,7 +20,7 @@
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",
-      "digest": "sha256:969a11fb4351c543cd60bd5cefde5103e8e00a6cf1a6b323619447dbf07f9cea"
+      "digest": "sha256:a313900c3e9607e53a6e261802f701cffd41fe6ed89fb29309ceaff8a18c07a2"
     },
     "provision-helper": {
       "path": ".github/actions/setup-project-env/provision-lint-tools.sh",

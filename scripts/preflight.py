@@ -411,7 +411,7 @@ def malformed_reserved_dependency_heading(body: str) -> str | None:
 def has_blocked_decisions_heading(body: str) -> bool:
     """Return True when a Blocked-decisions heading line sits outside fenced code.
 
-    Fence open/close follows `scripts/build-investigation-record.py`'s `_Fence`; an
+    Fence open/close follows `scripts/section_parse.py`'s `Fence`; an
     unclosed fence runs to the end of the body. A fence opened inside a list item
     also ends at a non-blank line indented less than the item's content column.
     """

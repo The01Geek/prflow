@@ -152,7 +152,7 @@ jobs:
       pull-requests: read
       issues: write
       id-token: write
-      actions: write # no step in this workflow is known to need the write scope
+      actions: read
       checks: read # fetch-pr-context.sh reads commits/*/check-runs (the retrospective scan's CI-context reads)
     env:
       # Authorize the Stop-hook --persist telemetry PUSH on this WRITABLE tier

@@ -438,7 +438,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      actions: write # no step in this job is known to need the write scope; superset still lets Claude read CI results on PRs
+      actions: read
       # The grounding block needs check-runs reads for CI facts.
       checks: read
     env:

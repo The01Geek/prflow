@@ -108,7 +108,24 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
    changed draft, or a working-draft file that never landed. Read each round's values from the statement you made after
    it (`references/step-3-6-audit-dispatch.md`).
 
-   The line carries:
+   Whenever 3a offers the round option, run the comparison with the latest verdict round's `draft-object-id:` value,
+   empty when no round returned a verdict:
+
+   ```bash
+   python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/spec-draft-compare.py compare --draft "<absolute working-draft file path>" --object-id "<latest verdict round's draft-object-id>"
+   ```
+
+   Its result is its last line when that reads `verdict: non-consequential` or `verdict: consequential`; any other
+   output, none included, is no result. Beside the summary line, name each section a result's `changed:` lines report,
+   or say the comparison was unavailable, with any reason it printed.
+   A *non-consequential section* is exactly one of these 2 — complete by construction: the first level-2 heading
+   whose text is `Technical Context` and the first whose text is `Implementation Notes`, case ignored, each with the
+   lines under it up to the next level-2 heading, where a `##` line inside a fenced code block is not a heading and a
+   fence closes only on a line of its opener's character at least as long as the opener. Every other line of the body is
+   consequential, text before the first heading, a renamed heading, a second copy of either heading and a level-3
+   heading included. The title is not compared.
+
+   The summary line carries:
    - the rounds run this run;
    - `no verdict` when the latest round is not a verdict round;
    - the latest verdict round's must-revise, advisory and invalid counts, as you graded them;
@@ -142,11 +159,13 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
 3a. **Ask ONE combined decision question** through the runner's user-question tool
    (`AskUserQuestion` or its equivalent, as in Step 2). Its options, in this order, each appear
    only when its condition holds; labels are used verbatim, *Create* filling `<n>` with
-   sub-step 3's unresolved count, `unavailable` included:
+   sub-step 3's unresolved count, `unavailable` included. The round option is marked `(Recommended)`; when
+   the comparison's result is `verdict: non-consequential`, *Create* is listed first and marked instead, the round
+   option following it unmarked:
 
    | Option | Present when | Choosing it |
    |---|---|---|
-   | **Run one more fresh-context audit round (Recommended)** | the working-draft file landed, the summary line reads `final bytes NOT audited`, and the root's *Audit preparation* prerequisite is met | load `references/step-3-6-audit-dispatch.md` and run one round, then present again |
+   | **Run one more fresh-context audit round** | the working-draft file landed, the summary line reads `final bytes NOT audited`, and the root's *Audit preparation* prerequisite is met | load `references/step-3-6-audit-dispatch.md` and run one round, then present again |
    | **Print the full draft in chat** | not on a forced-render arm | post sub-step 1's render (title, full body, then the record), then re-ask this question without this option |
    | **Create (`<n>` unresolved must-revise)** | always | the user's explicit approval of the presented draft; go to sub-step 5 |
    | **Change something first** | always | sub-step 4 |
@@ -186,7 +205,8 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
    me"* files with no assignee), else re-ask, keeping the set answer. A reply whose assignment or implement answer
    cannot be told elects nothing: re-ask, that question included unless the gate withholds it. **Another reply outside
    the options** is routed by what it asks for: a change request → *Change something first*; an unambiguous approval
-   of the draft as shown → *Create*; a decline of the offered round with nothing else → re-ask. Anything else, and a
+   of the draft as shown → *Create*; a decline of the offered round with nothing else, or a reply leaving the choice
+   to you, whichever option is marked → re-ask. Anything else, and a
    silent non-response, is not an answer and changes no carried answer: re-ask this question in the final chat
    message, with its question text and any preview content not yet rendered as chat text, and stop (**Silence** under
    the root's Step 2 *Replies*) — never dispatch, create, or proceed on silence.

@@ -12,21 +12,24 @@ with no verdict, one more round runs
 automatically before the first presentation. Every round after the first is one standard auditor:
 the same prompt without the slice line, writing to the return-file path. After those, a draft
 changed since its last round is presented at Step 4 with `final bytes NOT audited`, and another
-round runs only on the user's election at sub-step 3a, where it is the recommended option.
+round runs only on the user's election at sub-step 3a.
 
 **Slices.** Each slice auditor verifies one part against the source claim by claim and opens
 sources only in service of that part; it reads the rest of the draft as text and reports any defect that
 text shows, a contradiction between parts included. Every section the template can produce, and the title, belongs to a slice:
 
-1. the title (quoted in this slice's line, since the draft file holds only the body),
-   `## Dependencies`, Problem Statement, Current Behavior, User Impact and Technical Context: the
-   stated premises, every `Verified:` bullet and `Per <URL>` line;
-2. Desired Behavior, Visual Specification and the first half of the acceptance criteria;
-3. the second half of the acceptance criteria, Implementation Notes, `## 🚫 Blocked` and whatever
-   the draft says about rolling the change out and undoing it.
+1. the title (quoted in this slice's line; the draft file holds only the body),
+   `## Dependencies`, Problem Statement, User Impact, Desired Behavior, Visual Specification and
+   the first third of the acceptance criteria;
+2. Current Behavior, Technical Context (its stated premises, `Verified:` bullets and
+   `Per <URL>` lines) and the middle third of the acceptance criteria;
+3. the last third of the acceptance criteria, Implementation Notes, `## 🚫 Blocked` and what the
+   draft says about rolling the change out and undoing it.
 
-With two slices, the first takes parts 1 and 2 and the second takes part 3. A section these lists
-do not name belongs to the slice of the section before it.
+With two slices, the first takes parts 1 and 2 and the second part 3, the first with the first
+half of the acceptance criteria and the second with the rest. In each slice's line, name its
+share by criterion number in draft order, every criterion in exactly one share. A section these
+lists do not name belongs to the slice of the section before it.
 
 #### Dispatch
 
@@ -49,6 +52,13 @@ git hash-object --no-filters "<absolute working-draft file path>"
 
 ```bash
 rm -f "<absolute return-file path>" "<absolute slice-1 file path>" "<absolute slice-2 file path>" "<absolute slice-3 file path>"
+```
+
+Once the digest is obtained, save the bytes the round audits for Step 4's comparison; a save that
+fails or is refused does not stop the round, and no auditor is told of the copy:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/spec-draft-compare.py save --draft "<absolute working-draft file path>" --object-id "<the round's digest>"
 ```
 
 Dispatch the round's auditor or auditors together, each a non-fork, fresh-context subagent whose
@@ -105,7 +115,7 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 The inline render is complete only when its first line begins `render-status:` and its last line is
 exactly `render-end:`. Otherwise read `references/audit-prompt-template.md` directly and follow its
 `inline` blocks under its documented block and slot rules, putting your return in your reply rather
-than a file (the round's return is that reply; no delete runs, the digest still does); when that
+than a file (the round's return is that reply; no delete runs, the digest and save still do); when that
 read fails too, the round ends with no verdict.
 
 #### Read the return
@@ -213,6 +223,6 @@ no section, bullet of background, caveat or criterion the finding did not ask fo
 is allowed, since the finding or a report quotes the source lines. To each fix apply `references/revision-delta.md`'s *Revision rule* and its
 paragraph beginning "A finding against a case addition". A draft changed by a fix counts as
 audited only after another whole round, run as *Which rounds run* says. Write no file of audit state (a
-ledger, a record of the round, evidence or coverage); the investigation-record file, the merged return and that decisions-record section are not. After a draft's first round, apply it as `references/step-3-6-audit.md` says; after any later round, apply its fixes and present the draft at Step 4 sub-step 2.
+ledger, a record of the round, evidence or coverage); the investigation-record file, the merged return, that decisions-record section and the saved draft copy are not. After a draft's first round, apply it as `references/step-3-6-audit.md` says; after any later round, apply its fixes and present the draft at Step 4 sub-step 2.
 
 <!-- prflow:spec-ref step=3.6-dispatch file=skills/spec/references/step-3-6-audit-dispatch.md end -->
