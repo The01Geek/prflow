@@ -2,6 +2,10 @@
 
 [![PRFlow — Ship the PR, not the cleanup. A Claude Code plugin that turns one request into one merge-ready pull request across four phases: Setup (/prflow:spec), Implement (/prflow:implement), Review & fix (/prflow:review-and-fix), and Document (/prflow:docs).](docs/ship-pr.png)](https://prflow.ai/)
 
+<!-- yarkr:badges:start -->
+[![Indexed on Yarkr](https://api.yarkr.com/functions/v1/api/api/v1/badges/repos/The01Geek/prflow/version.svg)](https://yarkr.com/arks/the01geek/prflow)
+<!-- yarkr:badges:end -->
+
 [![Release verification](https://github.com/The01Geek/prflow/actions/workflows/distribution-verify.yml/badge.svg)](https://github.com/The01Geek/prflow/actions/workflows/distribution-verify.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Built on Claude Code](https://img.shields.io/badge/built%20on-Claude%20Code-d97757.svg)
@@ -35,6 +39,40 @@ claude /prflow:init   # launches Claude Code and scaffolds your config
 ```
 
 The local tier runs **with zero configuration** — every value already has a built-in default. `/prflow:init` is recommended: it registers the marketplace so Claude Code keeps the plugin auto-updated (an unpinned registration that tracks the plugin repo's default branch) and writes a `.prflow/config.json` you can tweak. See **[Installing and updating](https://prflow.ai/docs/getting-started/installation)** for the full options and [Requirements](#requirements) for the handful of tools it expects on your PATH.
+
+<!-- yarkr:install:start -->
+## Install with Yarkr
+
+This repo is indexed on [Yarkr](https://yarkr.com/arks/the01geek/prflow) as the ark [the01geek/prflow](https://yarkr.com/arks/the01geek/prflow), so its skills install into Claude Code, Codex, Cursor and other agent harnesses with one command.
+
+### CLI
+
+Install the whole ark, which Yarkr keeps equal to this repo:
+
+```bash
+npx yarkr-cli sync the01geek/prflow
+```
+
+Or add individual skills:
+
+```bash
+npx yarkr-cli add skill:the01geek/prflow/challenge
+npx yarkr-cli add skill:the01geek/prflow/create-issue
+npx yarkr-cli add skill:the01geek/prflow/docs
+```
+
+No Node.js? `curl -fsSL https://yarkr.com/install.sh | sh` (macOS, Linux) or `irm https://yarkr.com/install.ps1 | iex` (Windows PowerShell) installs `yarkr` as a standalone binary; then type `yarkr` in place of `npx yarkr-cli`.
+
+### MCP
+
+Connect your agent to the ark over MCP:
+
+```bash
+npx yarkr-cli mcp add the01geek/prflow
+```
+
+Or point any MCP client at `https://api.yarkr.com/functions/v1/api/mcp/o/the01geek/prflow`.
+<!-- yarkr:install:end -->
 
 ## Why PRFlow
 
