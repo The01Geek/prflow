@@ -35,17 +35,19 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
 
    **Verification list.** Once per run, before the first presentation of a draft whose working-draft file landed, with
    a subagent tool exposed, first ask one question headed `Verify list`, outside the ask budget: in one line, that fresh
-   workers would check the draft's claims one by one against the code before the user sees it, adding time and cost to
-   this run; options to run it or skip it for this run. A reply leaving the choice to you runs it. On a skip, dispatch
-   nothing and disclose it as below. Otherwise load `references/step-3-6-audit-dispatch.md` (the audit file) if unloaded and dispatch one generator, before each
+   workers would check the draft before the user sees it, adding time and cost to this run; options to run it, listed
+   first and marked `(Recommended)` with the one-line why that it checks the draft's claims against the code and can
+   find defects audit rounds miss, or skip it for this run. A reply leaving the choice to you runs it. On a skip,
+   dispatch nothing and disclose it as below. Otherwise load `references/step-3-6-audit-dispatch.md` (the audit file) if unloaded and dispatch one generator, before each
    generator dispatch running `rm -f "<absolute claims path>"`, the claims path being
    `.prflow/tmp/spec/<slug>/issue-verify-claims-<slug>.json` made absolute. Then write
    `.prflow/tmp/spec/<slug>/issue-verify-inputs-<slug>.md`: `Decisions record:`, the widened-issue line, user decisions
    and rule rulings the audit file's *Dispatch* gives an auditor, then `Draft sections:`, the draft's Desired Behavior and
    Acceptance Criteria copied verbatim. After the generator replies, run the plan command below and dispatch together
    one verifier per `criterion` or `no criterion` line it prints, holding that line's ids; the plan, never the reply,
-   decides the ids and the dropped count. Each list worker runs on the
-   run's own model, its prompt exactly: the absolute path of
+   decides the ids and the dropped count. Each list worker is `subagent_type: prflow:verification-list-worker`, or
+   where that type is absent a subagent told to follow `<base>/../../agents/verification-list-worker.md`, and runs on
+   the run's own model, its prompt exactly: the absolute path of
    `references/verification-list.md` with its section (*Generator* or *Verifier*) and the sentence "If you cannot read
    that file whole, reply saying so and do nothing else."; for the generator `Draft:` the absolute working-draft file
    path; for a verifier `Claims:` the claims path with its ids and `Inputs:` the inputs file's absolute path; and
@@ -59,14 +61,14 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
    python3 -I -c 'import json, sys; d = json.load(open(sys.argv[1], encoding="utf-8")); items = d["items"]; dropped = d.get("dropped", []); ids = [i["id"] for i in items]; crit = [i["criterion"] for i in items]; ok = bool(ids) and len(set(ids)) == len(ids) and all(isinstance(x, str) for x in ids) and all(c is None or type(c) is int for c in crit) and isinstance(dropped, list); ok or sys.exit(1); plan = {}; [plan.setdefault(c, []).append(x) for x, c in zip(ids, crit)]; loose = plan.pop(None, []); print("\n".join(["criterion %d: %s" % (c, ", ".join(plan[c])) for c in sorted(plan)] + ["no criterion: %s" % ", ".join(loose[k:k + 10]) for k in range(0, len(loose), 10)] + ["dropped: %d" % len(dropped)]))' "<absolute claims path>"
    ```
 
-   Grade each FAIL a verifier returns as an audit finding under the audit file's *After the round*; the list is not a
-   round, so make no verdict-round statement or `draft-object-id:` line for it. Confirm each must-revise one under
-   *Confirm before fixing* and fix what *Minimal fixes* names as one draft change, an audit fix below; which
-   rounds then run is the audit file's *Which rounds run*. Append the unfixed advisory and the declined ones, and each INCONCLUSIVE
+   Grade each FAIL and each `findings` entry a verifier returns as an audit finding under the audit file's *After the round*; the list is not a
+   round, so make no verdict-round statement or `draft-object-id:` line for it. Fix what *Minimal fixes* names as one
+   draft change, an audit fix below; which rounds then run is the audit file's *Which rounds run*. Append the unfixed
+   advisory ones, and each INCONCLUSIVE
    item marked `changes_build: true` quoting its claim and `needed`, labelled `inconclusive`, to `## Findings not applied`
    as the audit file says, `verification list` standing for the round's number.
-   Beside sub-step 3's summary line disclose `verification list: <n> claims, <f> FAIL, <m> fixed, <i> inconclusive,
-   <d> dropped`, `<n>` counting the plan's ids and `<d>` its `dropped:` line, adding `<u> unverified` for planned ids no reply gives a verdict;
+   Beside sub-step 3's summary line disclose `verification list: <n> claims, <f> FAIL, <g> findings, <m> fixed, <i> inconclusive,
+   <d> dropped`, `<n>` counting the plan's ids, `<g>` the `findings` entries, `<m>` the FAILs and entries fixed and `<d>` its `dropped:` line, adding `<u> unverified` for planned ids no reply gives a verdict;
    `verification list skipped by the user` on a skip; or `verification list not run — <reason>` when the working-draft file never landed or no subagent tool is exposed, the audit file's load or the claims
    file's delete fails, the generator fails twice or the inputs file cannot be written.
 
@@ -108,23 +110,6 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
    changed draft, or a working-draft file that never landed. Read each round's values from the statement you made after
    it (`references/step-3-6-audit-dispatch.md`).
 
-   Whenever 3a offers the round option, run the comparison with the latest verdict round's `draft-object-id:` value,
-   empty when no round returned a verdict:
-
-   ```bash
-   python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/spec-draft-compare.py compare --draft "<absolute working-draft file path>" --object-id "<latest verdict round's draft-object-id>"
-   ```
-
-   Its result is its last line when that reads `verdict: non-consequential` or `verdict: consequential`; any other
-   output, none included, is no result. Beside the summary line, name each section a result's `changed:` lines report,
-   or say the comparison was unavailable, with any reason it printed.
-   A *non-consequential section* is exactly one of these 2 — complete by construction: the first level-2 heading
-   whose text is `Technical Context` and the first whose text is `Implementation Notes`, case ignored, each with the
-   lines under it up to the next level-2 heading, where a `##` line inside a fenced code block is not a heading and a
-   fence closes only on a line of its opener's character at least as long as the opener. Every other line of the body is
-   consequential, text before the first heading, a renamed heading, a second copy of either heading and a level-3
-   heading included. The title is not compared.
-
    The summary line carries:
    - the rounds run this run;
    - `no verdict` when the latest round is not a verdict round;
@@ -145,8 +130,7 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
    what stands (its rows go in the preview content), each standing root *Audit preparation* reason as one line, each disclosure another step sends beside the line, and `draft checks not run` when the working-draft file never landed.
 
    In the preview content, quote each finding of the latest verdict round you did not fix, verbatim from that round's
-   return, beside your grade for it, an advisory one labelled `advisory, not applied` and a declined one `declined by the
-   user`; then each other entry the decisions record's `## Findings not applied` section carries, whatever round or the
+   return, beside your grade for it, an advisory one labelled `advisory, not applied`; then each other entry the decisions record's `## Findings not applied` section carries, whatever round or the
    verification list wrote it, whose attacked text the draft still holds, with its label and round; a failed read of that section is disclosed beside
    the summary line.
 
@@ -159,9 +143,10 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
 3a. **Ask ONE combined decision question** through the runner's user-question tool
    (`AskUserQuestion` or its equivalent, as in Step 2). Its options, in this order, each appear
    only when its condition holds; labels are used verbatim, *Create* filling `<n>` with
-   sub-step 3's unresolved count, `unavailable` included. The round option is marked `(Recommended)`; when
-   the comparison's result is `verdict: non-consequential`, *Create* is listed first and marked instead, the round
-   option following it unmarked:
+   sub-step 3's unresolved count, `unavailable` included. The round option is marked `(Recommended)`. While it is
+   offered, once the run has had three verdict rounds, *Create* is listed first and marked instead, the round option
+   following it unmarked, unless a round's slice ended with no verdict and no verdict round has run since; the preview
+   content then also carries `A further round is a fresh read of the whole draft, not a check of the latest change.`:
 
    | Option | Present when | Choosing it |
    |---|---|---|
@@ -172,7 +157,7 @@ story are not approval of that draft. Without confirmation, pause at todo 6.
 
    **The audit sentence** is `The draft is not audited. How would you like to proceed?` before the run's first round.
    After one, it is built from the latest round this run started, `<n>` its run-wide number and `<m>` how many of its
-   must-revise and advisory findings, and of the verification list's FAILs after it, you fixed (your statement after that round, with its findings sub-step 3 counts
+   must-revise and advisory findings, and of the verification list's FAILs and `findings` entries after it, you fixed (your statement after that round, with its findings sub-step 3 counts
    as fixed, plus the list disclosure's fixed count when the list ran after that round):
    `No corrections` when `<m>` is 0, `1 correction` when 1, else `<m> corrections`; then ` applied after audit <n>`;
    then `, which returned no verdict` when that round is not a verdict round; then `. How would you like to proceed?`

@@ -62,7 +62,7 @@ Then check the execution path. These are the common mismatches:
 
 <Accordion title="A per-agent model override did nothing">
 
-**Symptom:** you set a model for one review agent, the run completes normally and the agent behaves exactly as before. (A per-agent `effort` is ignored: every review agent runs at the session effort.)
+**Symptom:** you set a model for one review agent, the run completes normally and the agent behaves exactly as before. (A per-agent `effort` is ignored: every review agent runs at Claude Code's default subagent effort.)
 
 Print the overrides block:
 
@@ -80,7 +80,7 @@ Check each value against what is accepted:
 
 | Field | Accepted values | What a bad value does |
 | --- | --- | --- |
-| `model` | `sonnet`, `opus`, `haiku`, `fable` | Dropped with a warning. The agent falls back to the top-level `claude_model`. |
+| `model` | `sonnet`, `opus`, `haiku`, `fable` | Dropped with a warning. The agent falls back to its own pinned model, else the top-level `claude_model`. |
 | `iterations` | `first-only` | Dropped with a warning. The agent runs on every iteration. |
 
 An empty string, a whitespace-only string and a nested object are all treated as bad values. A provider-specific model identifier belongs at the top-level `claude_model`, not here.

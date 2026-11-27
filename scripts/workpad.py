@@ -220,9 +220,14 @@ def _git_root_error_suffix():
 
 
 def _repo_full(api_fail_code=1):
+    # Never send a set GH_REPO to `gh repo view`: it ignores the variable and
+    # answers for the cwd remotes, so the workpad lands in the wrong repository.
+    if os.environ.get('GH_REPO'):
+        cmd = [GH, 'api', 'repos/{owner}/{repo}', '-q', '.full_name']
+    else:
+        cmd = [GH, 'repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner']
     try:
-        r = _run([GH, 'repo', 'view', '--json', 'nameWithOwner',
-                  '-q', '.nameWithOwner'])
+        r = _run(cmd)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('repo lookup', e, code=api_fail_code)
     return r.stdout.strip()

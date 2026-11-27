@@ -10,9 +10,9 @@ reads that block (through config-get.sh — PRFlow's single config reader) for
 the subagents about to be dispatched and prints the resolved model map; the
 engine passes each `model` as the Agent tool's `model` override parameter.
 
-A per-agent `effort` key is deprecated and ignored: the Agent tool has no effort
-parameter and no per-dispatch `--agents` injection exists, so a configured effort
-never reached a subagent. Configs carrying it still validate; it resolves to nothing.
+A per-agent `effort` key is deprecated and ignored: the engine names no effort at
+dispatch, so every subagent takes Claude Code's default effort. Configs carrying
+it still validate; it resolves to nothing.
 
 Resolution rules (mirroring the schema):
   - `iterations` (issue #425): an optional per-entry key whose only valid value is
@@ -31,7 +31,7 @@ Resolution rules (mirroring the schema):
     (dispatched with no override).
   - `model` outside the accepted set (sonnet, opus, haiku, fable — the Agent
     tool's per-invocation enum) is dropped with a warning naming the value and the
-    set (falls back to the top-level claude_model); an in-set value is forwarded
+    set (no model override is passed); an in-set value is forwarded
     unchanged; a number, boolean or object model is dropped with a warning (through `read_raw` an
     empty or whitespace-only one reads as absent).
   - An entry that resolves to no model and no valid `iterations` emits no
@@ -244,7 +244,7 @@ def resolve_overrides(raw, dispatched):
             else:
                 warnings.append(
                     f"agent_overrides[{source}].model={model!r} is not one of "
-                    f"{list(VALID_MODELS)}; falling back to the top-level claude_model{scope}."
+                    f"{list(VALID_MODELS)}; falling back to the agent's own model, else the top-level claude_model{scope}."
                 )
 
         iterations = entry.get("iterations")

@@ -11,13 +11,13 @@ Match the stop you are looking at to an entry below, run its diagnostic command,
 
 **Symptom:** the run stops as Blocked before it creates a branch, and names an issue number the issue body mentions.
 
-PRFlow reads the issue body for a declared prerequisite. Show every phrase it looks for:
+PRFlow reads the issue body for a declared prerequisite. Show the phrases it looks for outside a `## Dependencies` section:
 
 ```bash
-gh issue view <number> --json body --jq .body | grep -inE "depends on #|must merge after #|blocked by #|follow-up to #|^[ >*-]*after #"
+gh issue view <number> --json body --jq .body | grep -inE 'depends on[[:blank:]]+#|must merge after[[:blank:]]+#|blocked by[[:blank:]]+#|follow-up to[[:blank:]]+#|^[[:blank:]>*-]*after[[:blank:]]+#'
 ```
 
-These are all the phrases that declare a blocking dependency, each followed by one or more issue numbers:
+Outside `## Dependencies`, these phrases declare a blocking dependency, each followed by one or more issue numbers:
 
 | Phrase | Example |
 | --- | --- |
@@ -25,9 +25,11 @@ These are all the phrases that declare a blocking dependency, each followed by o
 | `must merge after` | `Must merge after #123` |
 | `blocked by` | `Blocked by #123 — the schema has to land first` |
 | `follow-up to` | `Follow-up to #123` |
-| `after`, at the start of a line or bullet | `After #123 lands, do this` |
+| `after`, when every character before it on the line is a space, tab, `>`, `*` or `-` | `After #123 lands, do this` |
 
 One phrase can name several issues at once, as in `blocked by #10 and #11`.
+
+Inside `## Dependencies`, every `#N` is also a blocking dependency, a bare `- #123` bullet included. The section ends at the next line that starts with one to six `#` and whitespace, even inside a code block. A line there is exempt when it is outbound: `blocks`, `blocking`, `unblocks`, `unblocking`, `prerequisite for`, `required by` or `must merge before` with a number within about 30 characters after it, as in `Blocks #123`.
 
 <Warning>
 `follow-up to #123` reads like ordinary prose. People write it to record where the work came from, not to say the work is blocked, and PRFlow still treats it as a blocking dependency. If you meant a non-blocking reference rather than ordering, record it in `Technical Context` as `Related work: #123`, or reword the provenance, for example to `this continues the work in #123`.

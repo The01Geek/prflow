@@ -41,9 +41,38 @@
 # — creating on an unresolved query risks a second PR duplicating a prior attempt's, and
 # adopting is impossible — so an unresolvable outcome is never reported as a clean "none".
 #
-# THE HELPER HAS NO SILENT PATH (mirroring apply-labels.sh): every outcome, and every cause
-# within the shared REFUSED outcome, leaves its own stderr breadcrumb. That is what lets the
-# caller read "no output at all" as a harness refusal rather than as an answer.
+# Open mode (Phase 3.1's PR-opening boundary):
+#   resolve-existing-pr.sh --open [--force-create] --issue <n> [--branch <name>] [--base <ref>]
+#                          --title-file <file> --body-file <file>
+#   --open          resolve as above, then adopt the open PR or create a draft one.
+#   --force-create  skip the resolution and create (a fresh run's one retry after `refused`);
+#                   without --open it prints the bare REFUSED line at exit 3.
+#   --title-file / --body-file  the PR title and the caller's body. The create arm appends the
+#                   run link and the provenance line, each omitted when its renderer fails.
+# Before building a record, --open prints the bare REFUSED line at exit 3 on the same refusals
+# as the bare mode: a bad or missing operand, a non-numeric --issue, an empty branch, an
+# unresolved gh. Otherwise it prints exactly one record line, values in `printf %q` form:
+#   pr-open outcome=created|adopted number=<n> url=<url> workpad_link=<out> workpad_link_rc=<rc>
+#           apply_labels=<out> apply_labels_rc=<rc> workpad_bind=<out> workpad_bind_rc=<rc>
+#           assignment=<out> assignment_rc=<rc> checks=<OK|WARN:...>        exit 0
+#     assignment and assignment_rc are n/a when adopted; checks is n/a when created.
+#   pr-open outcome=refused cause=<cause>                                    exit 3
+#     title-or-body-file-unreadable, unresolved-adopt-or-create-rc-<rc>,
+#     adopted-pr-url-unresolved-rc-<rc>
+#   pr-open outcome=push-failed cause=<git push output, else git-push-failed>        exit 1
+#   pr-open outcome=create-failed cause=<gh pr create output, else gh-pr-create-failed,
+#     or gh-pr-create-returned-no-parseable-url:<output>>                   exit 1
+# The create arm pushes to origin's refs/heads/<branch> without setting an upstream. With a
+# branch.<branch>.merge recorded it passes no head, as gh infers one. Without one, when
+# origin's tracking ref is at HEAD it names origin as the gh call's push remote through git's
+# environment config (GIT_CONFIG_COUNT, git 2.31+), so gh qualifies a fork's head itself;
+# otherwise, or with a non-numeric GIT_CONFIG_COUNT, it passes the branch as an owner-less
+# --head, which names it in gh's base repository.
+#
+# THE HELPER HAS NO SILENT PATH (mirroring apply-labels.sh): every bare token line, and every
+# cause within the shared REFUSED outcome, leaves its own stderr breadcrumb, and every pr-open
+# record names its outcome and any cause. That is what lets the caller read "no output at all"
+# as a harness refusal rather than as an answer.
 set -uo pipefail
 
 _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -226,17 +255,34 @@ _open_mode() {
         _body="$(<"$BODY_FILE")"
         _provenance="$("$_DIR/render-pr-provenance-line.py" --command /prflow:implement 2>/dev/null)" || _provenance=""
         _run_link="$("$_DIR/compose-run-url.sh" 2>/dev/null)" || _run_link=""
-        _composed="$(mktemp 2>/dev/null)" || _composed=""
-        if [ -z "$_composed" ]; then
-            _pr_open_record create-failed cause body-temp-unavailable
-            exit 1
+        _composed="$_body"
+        [ -z "$_run_link" ] || _composed="$_composed"$'\n\n'"$_run_link"
+        [ -z "$_provenance" ] || _composed="$_composed"$'\n\n'"$_provenance"
+        # Issue #4034: a sandbox can refuse a temp file, so the body goes on a pipe (older bash
+        # backs a here-string with one), and can refuse the upstream record, so the head is
+        # chosen as the header describes. The environment config is appended after any the
+        # caller set (a CI safe.directory, say) and reaches only this gh call.
+        _head=""
+        _cfg_n=""
+        if ! git config --get "branch.$BRANCH.merge" >/dev/null 2>&1; then
+            _tip="$(git rev-parse --verify --quiet HEAD 2>/dev/null)" || _tip=""
+            _tracked="$(git rev-parse --verify --quiet "refs/remotes/origin/$BRANCH" 2>/dev/null)" || _tracked=""
+            _cfg_n="${GIT_CONFIG_COUNT:-0}"
+            case "$_cfg_n" in *[!0-9]*) _cfg_n="" ;; *) _cfg_n=$((10#$_cfg_n)) ;; esac
+            if [ -z "$_tip" ] || [ "$_tip" != "$_tracked" ] || [ -z "$_cfg_n" ]; then
+                _cfg_n=""
+                _head="$BRANCH"
+                echo "prflow: resolve-existing-pr.sh --open: no upstream recorded and origin's tracking ref is not usable at HEAD (or GIT_CONFIG_COUNT is non-numeric); passing the owner-less --head $BRANCH, which names it in gh's base repository" >&2
+            fi
         fi
-        printf '%s\n' "$_body" >"$_composed"
-        [ -z "$_run_link" ] || printf '\n%s\n' "$_run_link" >>"$_composed"
-        [ -z "$_provenance" ] || printf '\n%s\n' "$_provenance" >>"$_composed"
-        _create_out="$("$DEVFLOW_GH" pr create --base "$BASE" --draft --title "$_title" --body-file "$_composed" 2>&1)"
+        _create_out="$(printf '%s\n' "$_composed" | {
+            if [ -n "$_cfg_n" ]; then
+                export "GIT_CONFIG_KEY_$_cfg_n=branch.$BRANCH.pushRemote" "GIT_CONFIG_VALUE_$_cfg_n=origin" \
+                  "GIT_CONFIG_COUNT=$((_cfg_n + 1))"
+            fi
+            "$DEVFLOW_GH" pr create --base "$BASE" --draft ${_head:+--head "$_head"} --title "$_title" --body-file -
+        } 2>&1)"
         _create_rc=$?
-        rm -f "$_composed"
         if [ "$_create_rc" -ne 0 ]; then
             _pr_open_record create-failed cause "${_create_out:-gh-pr-create-failed}"
             exit 1
@@ -408,8 +454,8 @@ esac
 # The base is re-derived HERE rather than at argument-parsing time, because it is read by
 # nothing but this validation: on the CREATE and REFUSED paths the run would otherwise pay a
 # config-get.sh (bash + python3) startup for a value it discards — and the CREATE path is the
-# common fresh-run case, where §3.1's create fence immediately performs the identical read
-# itself. config-get.sh prints its supplied default on the SOFT paths (absent file /
+# common fresh-run case, where --open's create arm performs the identical read itself.
+# config-get.sh prints its supplied default on the SOFT paths (absent file /
 # absent-or-empty key) and nothing on the HARD ones (malformed config, missing python3), so
 # the empty-read fallback below covers only the latter — behaviorally identical to the
 # fallback Phase 1.4 and Phase 3.1's create arm perform.

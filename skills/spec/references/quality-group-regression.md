@@ -1,5 +1,5 @@
 <!-- prflow:spec-ref step=quality-group-regression file=skills/spec/references/quality-group-regression.md start -->
-## Quality group — regression reproduction and specialized test matrices
+## Quality group — regression reproduction and input readers
 
 ### Defect reproduction
 
@@ -13,33 +13,21 @@ result, including one a scope answer moves out of the issue, is stated as the re
 
 ### Convention-governed matrices
 
-A Testing Strategy enumerating a case matrix for a convention-governed surface carries the full
-matrix (or a named, justified narrowing) and its `governing conventions consulted:` line. This
-applies only when the Testing Strategy enumerates an input-shape or case matrix for a surface (a
-parser, a config consumer, a best-effort input handler); a matrix-free Testing Strategy imposes
-nothing. When it does, and a repo-published convention already governs that surface's matrix, the
-issue either enumerates the **full convention matrix** or states the
-**narrowing explicitly with its justification** — a silently narrower list must never override the
-convention — and carries the one-line record
-`governing conventions consulted: <sources cited by path, or "none found; searched <the bounded list>">`.
-The search is **bounded to a named list** — `CLAUDE.md`, `CONTRIBUTING.md`, and testing guidance
-under the repo's configured internal-docs path — with the **consumer skill extension** as the
-override point naming where that repo's conventions live; cite sources by path when found. The
-record is a **claim to verify, not an attestation to accept**: the Step 3.6 auditor re-runs the
-search and flags the line when a governing matrix sits at a path the line omits —
-**except on Step 3.6's degraded inline arm, where no auditor re-runs it and the record is attestation-only**,
-which that arm's mandatory `degraded` audit-summary marker already signals.
+This section applies only when the Testing Strategy enumerates an input-shape or case matrix for a
+surface (a parser, a config consumer, a best-effort input handler); a matrix-free Testing Strategy
+imposes nothing. Where a repo-published convention governs that surface's matrix, a silently
+narrower list must never override the convention.
 
 ### New external-input readers
 
-This matrix rule also fires on introduction, not only on narrowing: an issue that introduces a
-**reader of input the repo does not itself produce** — historical records, user- or
-reporter-controlled text, an external structured format, agent- or human-mutable markdown —
-**enumerates the malformed / boundary shape matrix of the parts code reads in the Testing Strategy**,
-appropriate to the input's type, including **at least one production-realistic fixture** (a real
-captured record, not only a hand-built well-formed token); a narrower enumeration states its
-**justification**, and a **blanket testing-scope waiver** ("this artifact has no desk test") is
-**non-conforming** — a conforming one states what **inside the exempted artifact remains governed**.
+An issue that introduces a **reader of input the repo does not itself produce** — historical
+records, user- or reporter-controlled text, an external structured format, agent- or human-mutable
+markdown — writes into the Testing Strategy at least one fixture shaped like a real record of that
+input, not only a hand-built well-formed one, and asks the implementing run to test the new reader
+with it. Build the fixture from the parts of a record this run read, with private content replaced;
+when this run read none, write a reconstruction labelled as a reconstruction. When the
+recorded-input rule in `references/quality-group-rule-text.md` also applies to that record, that
+rule decides which parts are quoted and how.
 
 ### Code reading model-written text
 
@@ -51,6 +39,4 @@ criterion, Approach or Architecture Alignment making code parse any other layout
 it; the producer emits the value as a machine-read field; or code parses the layout — routed like
 any new fork (`references/revision-delta.md`'s Revision rule). Skip the fork only when the user chose code parsing of that
 layout itself; a user decision naming an output or value the layout would supply is not that choice.
-The corresponding Testing Strategy case is the **new mutable-input-reader matrix** carrying
-its `governing conventions consulted:` record.
 <!-- prflow:spec-ref step=quality-group-regression file=skills/spec/references/quality-group-regression.md end -->
