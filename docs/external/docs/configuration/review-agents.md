@@ -3,7 +3,7 @@ title: "Review Agents"
 description: "Override the model and iteration participation of individual review agents."
 ---
 
-Tune individual review passes only when your results show a clear reason to do so. PRFlow can apply a model override to each reviewer request. A per-agent `effort` is accepted but ignored: every review agent runs at the session effort.
+Tune individual review passes only when your results show a clear reason to do so. PRFlow can apply a model override to each reviewer request. A per-agent `effort` is accepted but ignored: every review agent runs at Claude Code's default subagent effort, which is the session effort for an agent on the session's model.
 
 `prflow_review.agent_overrides` is an object. It accepts a `default` entry and these canonical agent keys:
 
@@ -20,8 +20,8 @@ The transitional `devflow:` spelling of each key remains accepted for existing c
 
 | **Nested setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
 | --- | --- | --- | --- | --- |
-| `model` | One of `sonnet`, `opus`, `haiku`, or `fable` (the Agent tool's accepted set) | No override; global or session model applies | Shared review engine. The selected model is passed to that reviewer. A value outside the accepted set is dropped with a warning and the agent inherits the top-level `claude_model`. | `"model": "opus"` |
-| `effort` | Deprecated: still validates, ignored | Session effort | Shared review engine. Every review agent runs at the session effort whatever this holds; remove it when convenient. | — |
+| `model` | One of `sonnet`, `opus`, `haiku`, or `fable` (the Agent tool's accepted set) | No override; the agent's own pinned model applies, else the global or session model | Shared review engine. The selected model is passed to that reviewer. A value outside the accepted set is dropped with a warning and the agent falls back to that same default. | `"model": "opus"` |
+| `effort` | Deprecated: still validates, ignored | Claude Code's default subagent effort | Shared review engine. This value never reaches a review agent; remove it when convenient. | — |
 | `iterations` | `first-only` | Absent means every applicable iteration | Review-and-fix. `first-only` removes that agent from later fix-loop iterations. | `"iterations": "first-only"` |
 
 A per-agent `model` override is expressible **only** as one of the four accepted aliases (`sonnet`, `opus`, `haiku`, `fable`). A consumer whose model is addressed through a provider route sets it at the top-level [`claude_model`](/docs/configuration/providers) rather than in an `agent_overrides` entry — that top-level setting still takes the full or provider-routed identifier the route expects.

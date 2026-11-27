@@ -47,7 +47,7 @@ all of them, then apply their returns once, as one revision event under
 `references/revision-delta.md`, whose point 1 the auditors' quoted reads meet:
 
 1. Grade the merged findings as *After the round* says. A finding that needs a user decision under
-   the root's Step 2 is asked now, ahead of *After the round*'s confirmations in the same call, before any edit for it.
+   the root's Step 2 is asked now, before any edit for it.
 2. Then fix only what *After the round*'s *Minimal fixes* names.
 
 Say in one chat line how many audit fixes were applied; when they changed the draft, apply the

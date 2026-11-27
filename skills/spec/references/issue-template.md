@@ -113,7 +113,7 @@ understand it; User Impact carries the affected people and consequences.
 ### Current Behavior
 The writing agent decides whether the story reports a defect by reading it. When it does,
 `Current Behavior` records the reproduction facts a second person needs to make the defect happen
-again — the closed set and its rules live in the regression-and-test-matrices quality group
+again — the closed set and its rules live in the regression quality group
 (`references/quality-group-regression.md`). The environment fact is written on every defect report;
 when the defect happens regardless of environment, say so in those words rather than leaving it
 blank. A reproduction fact nobody can establish is recorded here as `unestablished — <reason>`,

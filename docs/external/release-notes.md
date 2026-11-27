@@ -11,6 +11,25 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## November 27, 2026
+
+- **`/prflow:spec` no longer compares draft sections or names the changed sections before offering another audit round.** Each audit round also stops saving a copy of the draft it audited. (#4035)
+- **Spec drafts no longer have to list test-case matrices or a conventions record.** (#4062)
+
+## November 26, 2026
+
+- **Issue workpad updates follow `GH_REPO`.** PRFlow reads and writes the issue workpad in the
+  repository `GH_REPO` names, not the one your checkout's git remote points to. (#4051)
+
+## November 25, 2026
+
+- **`/prflow:spec` grades the defects a verification-list verifier finds beside its claims, and an auditor's notes.** A verifier hands such a defect back as its own finding, counted apart from the FAILs, and an auditor's note or unlabelled remark is graded like a finding. (#4024)
+- **`/prflow:spec` recommends another audit round less often.** Its filing prompt can say that a further round is a fresh read of the whole draft, not a check of the latest change. (#4040)
+- **`/prflow:spec`'s verification-list workers can run as a new agent type that has no shell.** The new `verification-list-worker` agent's tools are Read, Grep, Glob and Write, so a list worker running as it cannot run a command. (#4039)
+- **`/prflow:spec` recommends running the verification list.** The `Verify list` question lists the run option first, marked `(Recommended)`, with a one-line reason. (#4046)
+- **`/prflow:implement` no longer needs a temporary file for the PR body, or a recorded upstream for the branch, to open its pull request.** (#4034)
+- **`/prflow:spec` applies audit fixes without asking you to confirm each one.** A finding that needs one of your decisions is still asked as a question. (#4050)
+
 ## November 24, 2026
 
 - **The weekly retrospective no longer switches your checkout to `main`.** It runs on the branch that is checked out, locally and in the scheduled workflow. (#4004)
